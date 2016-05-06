@@ -93,53 +93,6 @@ def import_objects(directory, files, importfun,
 
     return {"FINISHED"}
 
-def import_overlays(directory, files):
-    """Import overlays onto a selected object.
-
-    """
-
-    if not files:
-        files = os.listdir(directory)
-
-    for f in files:
-        fpath = os.path.join(directory, f)
-
-        selected_obs = bpy.context.selected_objects
-        if len(selected_obs) != 1:  # TODO
-            return {'can only apply overlays to one object'}
-
-        ob = selected_obs[0]
-        if fpath.endswith('.label'):
-            tb_mat.create_vg_overlay(ob, fpath, False)
-        else:  # assumed scalar overlay
-            tb_mat.create_vc_overlay(ob, fpath)
-
-
-def import_labels(directory, files):
-    """Import overlays onto a selected object.
-    
-    """
-
-    if not files:
-        files = os.listdir(directory)
-
-    for f in files:
-        fpath = os.path.join(directory, f)
-
-        selected_obs = bpy.context.selected_objects
-        if len(selected_obs) != 1:  # TODO
-            return {'can only apply overlays to one object'}
-
-        ob = selected_obs[0]
-        if fpath.endswith('.label'):
-            tb_mat.create_vg_overlay(ob, fpath, True)
-        elif fpath.endswith('.annot'):
-            tb_mat.create_vg_annot(ob, fpath)
-        else:  # assumed scalar overlay with integer labels
-            tb_mat.create_vc_overlay(ob, fpath)
-#         TODO: consider using ob.data.vertex_layers_int.new()??
-
-
 def import_tract(fpath, name, info=None):
     """"""
 
@@ -274,6 +227,54 @@ def import_voxelvolume(fpath, name, info=None):
     return ob
 
 
+def import_scalars(directory, files):
+    """Import scalar overlays onto a selected object.
+
+    """
+
+    if not files:
+        files = os.listdir(directory)
+
+    for f in files:
+        fpath = os.path.join(directory, f)
+
+        selected_obs = bpy.context.selected_objects
+        if len(selected_obs) != 1:  # TODO
+            return {'can only apply overlays to one object'}
+
+        ob = selected_obs[0]
+        if fpath.endswith('.label'):
+            # but do not treat it as a label
+            tb_mat.create_vg_overlay(ob, fpath, labelflag=False)
+        else:  # assumed scalar overlay
+            tb_mat.create_vc_overlay(ob, fpath)
+
+
+def import_labels(directory, files):
+    """Import overlays onto a selected object.
+    
+    """
+
+    if not files:
+        files = os.listdir(directory)
+
+    for f in files:
+        fpath = os.path.join(directory, f)
+
+        selected_obs = bpy.context.selected_objects
+        if len(selected_obs) != 1:  # TODO
+            return {'can only apply overlays to one object'}
+
+        ob = selected_obs[0]
+        if fpath.endswith('.label'):
+            tb_mat.create_vg_overlay(ob, fpath, True)
+        elif fpath.endswith('.annot'):
+            tb_mat.create_vg_annot(ob, fpath)
+        else:  # assumed scalar overlay type with integer labels??
+            tb_mat.create_vc_overlay(ob, fpath)
+#         TODO: consider using ob.data.vertex_layers_int.new()??
+
+
 def import_tractscalars(ob, scalarpath):  # TODO
     """"""
 
@@ -301,7 +302,7 @@ def import_surfscalars(ob, scalarpath):
             scalars.append(npzfile[k])
     # TODO: read more formats: e.g. .dpv, .dpf, ...
     else:  # I will try to read it as a freesurfer binary
-        nib = tb_utils.validate_nibabel('.label')
+        nib = tb_utils.validate_nibabel('')
         if bpy.context.scene.tb.nibabel_valid:
             fsio = nib.freesurfer.io
             scalars = fsio.read_morph_data(scalarpath)

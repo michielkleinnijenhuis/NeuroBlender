@@ -136,30 +136,13 @@ def normalize_scalars(scalars):
     return scalars, [scalarmin, scalarmax]
 
 
-def add_scalarinfo(scalarname="", scalarrange=[0, 1], scalartype="vw",
-                   islabel=False, labelvalue=None, labelcolour=None):
-    """"""
-    
-    tb = bpy.context.scene.tb
-    idx = len(tb.scalarinfo)
-    tb.scalarinfo.add()
-    si = tb.scalarinfo[idx]
-    si.scalarname = scalarname
-    si.scalartype = scalartype
-    si.scalarrange = scalarrange
-    if islabel:
-        si.islabel = islabel
-        if labelvalue is None:
-            labelvalues = [scinfo.labelvalue for scinfo in tb.scalarinfo]
-            labelvalue = max(labelvalues) + 1
-        si.labelvalue = labelvalue
-        if labelcolour is None:
-            labelcolour = [random.random() for _ in range(4)]
-        si.labelcolour = labelcolour
-    # FIXME: this will mess up when calling remove method
-
 def create_vg_annot(ob, fpath):
     """"""
+
+    tb = bpy.context.scene.tb
+    obtype = tb.objecttype
+    idx = eval("tb.index_%s" % obtype)
+    tb_ob = eval("tb.%s[%d]" % (obtype, idx))
 
     labels, ctab, names = tb_imp.import_surfannot(ob, fpath)
 
@@ -169,11 +152,15 @@ def create_vg_annot(ob, fpath):
         vgname = basename + '.' + labelname.decode('utf-8')
         vgname = tb_utils.check_name(vgname, fpath="", 
                                      checkagainst=ob.vertex_groups)
-        add_scalarinfo(vgname, islabel=True, 
-                       labelcolour=ctab[i,0:4]/255, labelvalue=ctab[i, 4])
         label = np.where(labels==i)[0]
         vg = set_vertex_group(ob, vgname, label)
         vgs.append(vg)
+
+        label = tb_ob.labels.add()
+        label.name = vgname
+        label.value = ctab[i, 4]
+        label.colour = ctab[i,0:4]/255
+        tb_ob.index_labels = (len(tb_ob.labels)-1)
 
     map_to_vertexcolours(ob, vcname='vc_'+basename, vgs=vgs, labelflag=True)
 
@@ -187,7 +174,14 @@ def create_vc_overlay(ob, fpath, labelflag=False):
     vgname = tb_utils.check_name("", fpath, checkagainst=vgs)
     vg = set_vertex_group(ob, vgname, label=None, scalars=scalars)
 
-    add_scalarinfo(vgname, scalarrange)
+    tb = bpy.context.scene.tb
+    obtype = tb.objecttype
+    idx = eval("tb.index_%s" % obtype)
+    tb_ob = eval("tb.%s[%d]" % (obtype, idx))
+    scalar = tb_ob.scalars.add()
+    scalar.name = vgname
+    scalar.range = scalarrange
+    tb_ob.index_scalars = (len(tb_ob.scalars)-1)
 
     map_to_vertexcolours(ob, vcname='vc_'+vgname, vgs=[vg])
 
@@ -197,7 +191,6 @@ def create_vg_overlay(ob, fpath, labelflag=False):
 
     vgs = ob.vertex_groups
     vgname = tb_utils.check_name("", fpath, checkagainst=vgs)
-
     vg = labelidxs_to_vertexgroup(ob, vgname, fpath, labelflag)
     map_to_vertexcolours(ob, vcname='vc_'+vgname, 
                          vgs=[vg], labelflag=labelflag)
@@ -205,13 +198,27 @@ def create_vg_overlay(ob, fpath, labelflag=False):
 
 def labelidxs_to_vertexgroup(ob, vgname="", fpath="", labelflag=False):
     
+    tb = bpy.context.scene.tb
+    obtype = tb.objecttype
+    idx = eval("tb.index_%s" % obtype)
+    tb_ob = eval("tb.%s[%d]" % (obtype, idx))
+
     label, scalars = tb_imp.import_surflabel(ob, fpath, labelflag)
+
     if scalars is not None:
         vgscalars, scalarrange = normalize_scalars(scalars)
-        add_scalarinfo(vgname, scalarrange)
+        scalar = tb_ob.scalars.add()
+        scalar.name = vgname
+        scalar.range = scalarrange
+        tb_ob.index_scalars = (len(tb_ob.scalars)-1)
     else:
-        add_scalarinfo(vgname, islabel=True)
-    # if scalars is None, the label is simply stored as a vertexgroup (w=1)
+        lab = tb_ob.labels.add()
+        lab.name = vgname
+        labvalues = [label.value for label in tb_ob.labels]
+        lab.value = max(labvalues) + 1
+        lab.colour = [random.random() for _ in range(4)]
+        tb_ob.index_labels = (len(tb_ob.labels)-1)
+#         if scalars is None, the label is simply stored as a vertexgroup (w=1)
 
     vg = set_vertex_group(ob, vgname, label, scalars)
 
@@ -343,6 +350,11 @@ def assign_vc(ob, vertexcolours, vgs=None,
               colourtype="", labelflag=False):
     """Assign RGB values to the vertex_colors attribute."""
 
+    tb = bpy.context.scene.tb
+    obtype = tb.objecttype
+    idx = eval("tb.index_%s" % obtype)
+    tb_ob = eval("tb.%s[%d]" % (obtype, idx))
+
     if vgs is not None:
         group_lookup = {g.index: g.name for g in vgs}
 
@@ -355,7 +367,7 @@ def assign_vc(ob, vertexcolours, vgs=None,
                 rgb = me.vertices[vi].normal
             elif labelflag:
                 rgb = vertexcolour_fromlabel(me.vertices[vi], 
-                                             vgs, group_lookup)
+                                             vgs, group_lookup, tb_ob.labels)
             else:
                 w = sum_vertexweights(me.vertices[vi], vgs, group_lookup)
 #                 rgb = weights_to_colour(w)
@@ -368,18 +380,17 @@ def assign_vc(ob, vertexcolours, vgs=None,
     return ob
 
 
-def vertexcolour_fromlabel(v, vgs, group_lookup):
+def vertexcolour_fromlabel(v, vgs, group_lookup, labels):
     """"""
 
     rgba = []
-    si = bpy.context.scene.tb.scalarinfo
     for g in v.groups:
         if g.group in list(group_lookup.keys()):
 #             TODO: do this with key-value?
             i=0
-            while si[i].scalarname != group_lookup[g.group]:
+            while labels[i].name != group_lookup[g.group]:
                 i += 1
-            rgba.append(si[i].labelcolour)
+            rgba.append(labels[i].colour)
 
     if not rgba:
         rgba = [0.5, 0.5, 0.5, 1.0]
@@ -825,18 +836,23 @@ def make_material_labels_cycles(name, vcname):
 
 def set_colorramp_preset(node, cmapname="r2b", mat=None):
     """"""
-    
+
     tb = bpy.context.scene.tb
+    obtype = tb.objecttype
+    idx = eval("tb.index_%s" % obtype)
+    tb_ob = eval("tb.%s[%d]" % (obtype, idx))
+    scalarslist = tb_ob.scalars
+
     elements = node.color_ramp.elements
-    
+
     for el in elements[1:]:
         elements.remove(el) 
-    
+
     if (cmapname == "fscurv") | (mat.name.endswith(".curv")):
         i = 0
-        while 'vc_' + tb.scalarinfo[i].scalarname != mat.name:
+        while 'vc_' + scalarslist[i].name != mat.name:
             i += 1
-        sr = tb.scalarinfo[i].scalarrange
+        sr = scalarslist[i].range
         positions = [(-sr[0]-0.2)/(sr[1]-sr[0]),
                      (-sr[0]-0.0)/(sr[1]-sr[0]),
                      (-sr[0]+0.2)/(sr[1]-sr[0])]
@@ -861,189 +877,10 @@ def set_colorramp_preset(node, cmapname="r2b", mat=None):
 
     for p in positions[1:]:
         elements.new(p)
-    
+
     elements.foreach_set("position", positions)
     for i in range(len(colors)): setattr(elements[i], "color", colors[i])
 #     elements.foreach_set("color", colors)  # FIXME!
 #     collection.foreach_set(seq, attr)
 #     # Python equivalent
 #     for i in range(len(seq)): setattr(collection[i], attr, seq[i])
-
-
-
-
-
-
-# ========================================================================== #
-# DEPRECATED
-# ========================================================================== #
-
-# ========================================================================== #
-# import material presets from file
-# ========================================================================== #
-
-# def import_materials(matfile="TB_materials_cycles.blend"):
-#     """"Import any materials included in the module."""
-#
-#     # TODO: perform checks on existing materials
-#     if bpy.data.materials.get("directionalCURVE") is None:
-#         TBdir, _ = os.path.split(__file__)
-#         matpath = os.path.join(TBdir, matfile)
-#         with bpy.data.libraries.load(matpath) as (data_from, data_to):
-#             data_to.materials = data_from.materials
-# #         bpy.context.scene.render.engine = "CYCLES"
-
-
-def import_materials(matnames=None, matfile="TB_materials_cycles.blend"):
-    """"Import materials from the module."""
-    # TODO: cleanup
-    TBdir, _ = os.path.split(__file__)
-    matpath = os.path.join(TBdir, matfile)
-    with bpy.data.libraries.load(matpath) as (data_from, data_to):
-        if matnames is None:
-            data_to.materials = data_from.materials
-        else:
-            for matname in matnames:
-                if bpy.data.materials.get(matname) is None:
-                    for mat in data_from.materials:
-                        if mat == matname:
-                            if len(data_to.materials):
-                                data_to.materials[0] = mat
-                            else:
-                                data_to.materials.append(mat)
-
-
-def import_material(matname, matfile="TB_materials_cycles.blend"):
-    """"Import a specific material included in the module."""
-
-    if bpy.data.materials.get(matname) is None:
-        TBdir, _ = os.path.split(__file__)
-        matpath = os.path.join(TBdir, matfile)
-        with bpy.data.libraries.load(matpath) as (data_from, data_to):
-            data_to.materials[0] = data_from.materials.get(matname)
-
-
-def import_nodegroups(matfile="TB_materials_cycles.blend"):
-    """"Import nodegroups from the module."""
-
-    TBdir, _ = os.path.split(__file__)
-    matpath = os.path.join(TBdir, matfile)
-    with bpy.data.libraries.load(matpath) as (data_from, data_to):
-        data_to.node_groups = data_from.node_groups
-
-
-
-def create_vc_overlay_old(ob, scalarpath):  # deprecated
-    """Create scalar overlay for a a full mesh object."""
-    # TODO: this should be a special case of vg-wise mapping
-
-    vcs = ob.data.vertex_colors
-    name = tb_utils.check_name("", scalarpath, checkagainst=vcs)
-
-    scalars = tb_imp.import_surfscalars(ob, scalarpath)
-    scalars, scalarrange = normalize_scalars(scalars)
-    add_scalarinfo(name, "vc", scalarrange)
-
-    mat = get_vc_material(ob, name, scalarpath)
-    set_material(ob.data, mat)
-    vc = get_vertexcolours(ob, name, scalarpath)
-    ob = assign_vc(ob, vc, scalars=scalars)
-
-    bpy.ops.object.mode_set(mode="VERTEX_PAINT")
-
-
-def assign_vc_old(ob, vertexcolours,
-              colourtype="", colourmapping="r2k",
-              scalars=None, vg=None, rgb_pv=None):
-    """Assign RGB values to the vertex_colors attribute."""
-
-    # TODO: implement vertex_groups
-    me = ob.data
-    i = 0
-    for poly in me.polygons:
-        for idx in poly.loop_indices:
-            vi = ob.data.loops[idx].vertex_index
-            if colourtype == "directional":
-                rgb = me.vertices[vi].normal
-            elif colourtype == "label":
-                rgb = rgb_pv[vi]
-            else:
-                rgb = (scalars[vi], scalars[vi], scalars[vi])
-                # map_rgb_value(scalars[vi], colourmapping)
-            vertexcolours.data[i].color = rgb  # TODO: foreach_set?
-            i += 1
-    me.update()
-
-    return ob
-
-
-def create_vg_overlay_old(ob, fpath, labelflag=False):
-    """Create scalar overlay for a vertex group from labelfile."""
-
-    vg, vgscalars, name = labelidxs_to_vertexgroup(ob, fpath, labelflag)
-
-    # TODO: handle merging various vertexgroups into a single vertexpaint
-    # TODO: vertex_weights_to_vertex_colour(ob, method=True)
-    # TODO: paint only on vg (give vgs as argument, 
-    # with the scalars as weight paint; 
-    # can get rid of vgscalars and name if accessed in assign_vc)
-    scalars = np.array([0] * len(ob.data.vertices))
-    vidxs = get_vidxs_in_groups(ob, vgs=[vg])
-    scalars[vidxs[vg.name]] = vgscalars
-    
-    mat = get_vc_material(ob, name, fpath)
-    set_material(ob.data, mat)
-    vc = get_vertexcolours(ob, name, fpath)
-    ob = assign_vc(ob, vc, scalars=scalars)
-    bpy.ops.object.mode_set(mode="VERTEX_PAINT")
-
-
-def create_vg_label_old(ob, fpath, labelflag=True):
-    """"""
-    # TODO: this can merge with create_vg_overlay using labelflag? 
-    # setting labelflag in import_overlay/import_labels
-
-    vg, vgscalars, name = labelidxs_to_vertexgroup(ob, fpath, labelflag)
-
-    scalars = np.array([0] * len(ob.data.vertices))
-    vidxs = get_vidxs_in_groups(ob, vgs=[vg])
-    scalars[vidxs[vg.name]] = vgscalars
-    
-    mat = get_vc_material(ob, name, fpath)
-    set_material(ob.data, mat)
-    vc = get_vertexcolours(ob, name, fpath)
-
-
-    if labelflag:
-        colourtype = 'label'
-        rgb_pv = lookup_rgb(vg)  # TODO
-    else:
-        rgb_pv = None
-    ob = assign_vc(ob, vc, colourtype, rgb_pv=rgb_pv)
-
-    bpy.ops.object.mode_set(mode="VERTEX_PAINT")
-
-
-def select_vertices(ob, label=None):  # FIXME: mesh update (but deprecated)
-    """"""
-
-    if label is None:
-        selections = np.array([True] * len(ob.data.vertices))
-    else:
-        selections = np.array([False] * len(ob.data.vertices))
-        label = np.array(label).astype('int')
-        selections[label] = True
-
-    ob.data.vertices.foreach_set('select', selections)
-
-
-def set_vertex_weights(vg, scalars):  # (deprecated)
-    """"""
-
-    for i, w in enumerate(scalars):
-        vg.add([i], w, "REPLACE")
-    vg.lock_weight = True
-    
-    bpy.ops.object.mode_set(mode="WEIGHT_PAINT")
-
-

@@ -99,27 +99,44 @@ class TractBlenderImportPanel(Panel):
         row.separator()
         row = self.layout.row()
         row.prop(tb, "objecttype", expand=True)
+        obtype = tb.objecttype
         row = self.layout.row()
         row.template_list("ObjectList", "",
-                          tb, tb.objecttype,
-                          tb, "index_" + tb.objecttype,
+                          tb, obtype,
+                          tb, "index_" + obtype,
                           rows=2)
         col = row.column(align=True)
-        col.operator("tb.import_" + tb.objecttype, icon='ZOOMIN', text="")
-        col.operator("tb.oblist_ops", icon='ZOOMOUT', text="").action = 'REMOVE'
+        col.operator("tb.import_" + obtype, icon='ZOOMIN', text="")
+        col.operator("tb.oblist_ops", icon='ZOOMOUT', text="").action = 'REMOVE_ob'
         col.separator()
-        col.operator("tb.oblist_ops", icon='TRIA_UP', text="").action = 'UP'
-        col.operator("tb.oblist_ops", icon='TRIA_DOWN', text="").action = 'DOWN'
+        col.operator("tb.oblist_ops", icon='TRIA_UP', text="").action = 'UP_ob'
+        col.operator("tb.oblist_ops", icon='TRIA_DOWN', text="").action = 'DOWN_ob'
 
         row = self.layout.row()
         row.separator()
-        row = self.layout.row()
-        row.operator("tb.import_overlays",
-                     text="Load Overlay",
-                     icon="FORCE_CHARGE")
-        row.operator("tb.import_labels",
-                     text="Load Labels",
-                     icon="BRUSH_VERTEXDRAW")
+
+        try:
+            idx = eval("tb.index_%s" % obtype)
+            tb_ob = eval("tb.%s[%d]" % (obtype, idx))
+        except IndexError:
+            pass
+        else:
+            ovtype = tb.overlaytype
+    
+            box = self.layout.box()
+            row = box.row()
+            row.prop(tb, "overlaytype", expand=True)
+            row = box.row()
+            row.template_list("ObjectList", "",
+                              tb_ob, ovtype,
+                              tb_ob, "index_" + ovtype,
+                              rows=2)
+            col = row.column(align=True)
+            col.operator("tb.import_" + ovtype, icon='ZOOMIN', text="")
+            col.operator("tb.oblist_ops", icon='ZOOMOUT', text="").action = 'REMOVE_ov'
+            col.separator()
+            col.operator("tb.oblist_ops", icon='TRIA_UP', text="").action = 'UP_ov'
+            col.operator("tb.oblist_ops", icon='TRIA_DOWN', text="").action = 'DOWN_ov'
 
 
 class MakeNibabelPersistent(Operator):
@@ -151,6 +168,46 @@ class ObjectList(UIList):
                     translate=False, icon=item.icon)
 
 
+class ScalarProperties(PropertyGroup):
+    """Properties of scalar overlays."""
+
+    name = StringProperty(
+        name="Name",
+        description="The name of the scalar overlay")
+    icon = StringProperty(
+        name="Icon",
+        description="Icon for scalar overlays",
+        default="FORCE_CHARGE")
+    range = FloatVectorProperty(
+        name="Range",
+        description="The original min-max of scalars mapped in vertexweights",
+        default=(0, 0),
+        size=2)
+
+
+class LabelProperties(PropertyGroup):
+    """Properties of label overlays."""
+
+    name = StringProperty(
+        name="Name",
+        description="The name of the label overlay")
+    icon = StringProperty(
+        name="Icon",
+        description="Icon for label overlays",
+        default="BRUSH_VERTEXDRAW")
+    value = IntProperty(
+        name="Label value",
+        description="The value of the label in vertexgroup 'scalarname'",
+        default=0)
+    colour = FloatVectorProperty(
+        name="Label color",
+        description="The color of the label in vertexgroup 'scalarname'",
+        subtype="COLOR",
+        size=4,
+        min=0,
+        max=1)
+
+
 class TractProperties(PropertyGroup):
     """Properties of tracts."""
 
@@ -166,6 +223,26 @@ class TractProperties(PropertyGroup):
         name="Beautify",
         description="Apply initial bevel on streamlines",
         default=True)
+
+    scalars = CollectionProperty(
+        type=ScalarProperties,
+        name="scalars",
+        description="The collection of loaded scalars")
+    index_scalars = IntProperty(
+        name="scalar index",
+        description="index of the scalars collection",
+        default=0,
+        min=0)
+    labels = CollectionProperty(
+        type=LabelProperties,
+        name="labels",
+        description="The collection of loaded labels")
+    index_labels = IntProperty(
+        name="label index",
+        description="index of the labels collection",
+        default=0,
+        min=0)
+
     nstreamlines = IntProperty(
         name="Nstreamlines",
         description="Number of streamlines in the tract (before weeding)",
@@ -200,6 +277,25 @@ class SurfaceProperties(PropertyGroup):
         description="Apply initial smoothing on surface",
         default=True)
 
+    scalars = CollectionProperty(
+        type=ScalarProperties,
+        name="scalars",
+        description="The collection of loaded scalars")
+    index_scalars = IntProperty(
+        name="scalar index",
+        description="index of the scalars collection",
+        default=0,
+        min=0)
+    labels = CollectionProperty(
+        type=LabelProperties,
+        name="labels",
+        description="The collection of loaded labels")
+    index_labels = IntProperty(
+        name="label index",
+        description="index of the labels collection",
+        default=0,
+        min=0)
+
 
 class VoxelvolumeProperties(PropertyGroup):
     """Properties of voxelvolumes."""
@@ -217,48 +313,97 @@ class VoxelvolumeProperties(PropertyGroup):
         description="",
         default=True)
 
+    scalars = CollectionProperty(
+        type=ScalarProperties,
+        name="scalars",
+        description="The collection of loaded scalars")
+    index_scalars = IntProperty(
+        name="scalar index",
+        description="index of the scalars collection",
+        default=0,
+        min=0)
+    labels = CollectionProperty(
+        type=LabelProperties,
+        name="labels",
+        description="The collection of loaded labels")
+    index_labels = IntProperty(
+        name="label index",
+        description="index of the labels collection",
+        default=0,
+        min=0)
 
-class ObjectListOperations(Operator, ImportHelper):
+
+class ObjectListOperations(Operator):
     bl_idname = "tb.oblist_ops"
     bl_label = "Objectlist operations"
 
     action = bpy.props.EnumProperty(
-        items=(
-            ('UP', "Up", ""),
-            ('DOWN', "Down", ""),
-            ('REMOVE', "Remove", ""),
-            ('ADD', "Add", ""),
-        )
-    )
+        items=(('UP_ob', "UpOb", ""),
+            ('DOWN_ob', "DownOb", ""),
+            ('REMOVE_ob', "RemoveOb", ""),
+            ('UP_ov', "UpOv", ""),
+            ('DOWN_ov', "DownOv", ""),
+            ('REMOVE_ov', "RemoveOv", "")))
 
     def invoke(self, context, event):
 
         tb = context.scene.tb
-        obtype = tb.objecttype
+        ob_idx = eval("tb.index_%s" % tb.objecttype)
+        tb_ob = eval("tb.%s[%d]" % (tb.objecttype, ob_idx))
+        ob = bpy.data.objects[tb_ob.name]
 
-        obcoll = eval("tb.%s" % obtype)
-        idx = eval("tb.index_%s" % obtype)
+        if self.action.endswith('_ob'):
+            data = "tb"
+            type = tb.objecttype
+        elif self.action.endswith('_ov'):
+            data = "tb_ob"
+            type = tb.overlaytype
+
+        coll = eval("%s.%s" % (data, type))
+        idx = eval("%s.index_%s" % (data, type))
 
         try:
-            item = obcoll[idx]
+            item = coll[idx]
         except IndexError:
             pass
         else:
-            if self.action == 'DOWN' and idx < len(obcoll) - 1:
-                obcoll.move(idx,idx+1)
-                exec("tb.index_%s += 1" % obtype)
-            elif self.action == 'UP' and idx >= 1:
-                obcoll.move(idx,idx-1)
-                exec("tb.index_%s -= 1" % obtype)
-            elif self.action == 'REMOVE':
+            if self.action.startswith('DOWN') and idx < len(coll) - 1:
+                coll.move(idx,idx+1)
+                exec("%s.index_%s += 1" % (data, type))
+            elif self.action.startswith('UP') and idx >= 1:
+                coll.move(idx,idx-1)
+                exec("%s.index_%s -= 1" % (data, type))
+            elif self.action.startswith('REMOVE'):
                 # TODO: handle user's name changes outside of TractBlender
-                info = 'removed %s' % (obcoll[idx].name)
-                for ob in bpy.data.objects:
-                    ob.select = ob.name == obcoll[idx].name
-                bpy.ops.object.delete()
-                obcoll.remove(idx)
+                name = coll[idx].name
+                info = 'removed %s' % (name)
+
+                if data == "tb":
+                    for ob in bpy.data.objects:
+                        ob.select = ob.name == name
+                    bpy.ops.object.delete()
+                elif data == "tb_ob":
+                    vg = ob.vertex_groups.get(name)
+                    if vg is not None:
+                        ob.vertex_groups.remove(vg)
+
+                    vc = ob.data.vertex_colors.get("vc_" + name)
+                    if vc is not None:
+                        ob.data.vertex_colors.remove(vc)
+
+                    mats = bpy.data.materials
+                    mat = mats.get("vc_" + name)
+                    ob_mats = ob.data.materials
+                    mat_idx = ob_mats.find("vc_" + name)
+                    if mat_idx != -1:
+                        ob_mats.pop(mat_idx, update_data=True)
+                    if (mat is not None) and (mat.users < 2):
+                        mat.user_clear()
+                        bpy.data.materials.remove(mat)
+
+                coll.remove(idx)
                 self.report({'INFO'}, info)
-                exec("tb.index_%s -= 1" % obtype)
+                exec("%s.index_%s -= 1" % (data, type))
 
         return {"FINISHED"}
 
@@ -468,10 +613,10 @@ class ImportVoxelvolumes(Operator, ImportHelper):
         return {"RUNNING_MODAL"}
 
 
-class ImportOverlays(Operator, ImportHelper):
-    bl_idname = "tb.import_overlays"
-    bl_label = "Import overlay"
-    bl_description = "Import overlays to vertexweights/colours"
+class ImportScalars(Operator, ImportHelper):
+    bl_idname = "tb.import_scalars"
+    bl_label = "Import scalar overlay"
+    bl_description = "Import scalar overlay to vertexweights/colours"
     bl_options = {"REGISTER", "UNDO", "PRESET"}
 
     directory = StringProperty(subtype="FILE_PATH")
@@ -480,7 +625,7 @@ class ImportOverlays(Operator, ImportHelper):
 
     def execute(self, context):
         filenames = [file.name for file in self.files]
-        count = tb_imp.import_overlays(self.directory, filenames)
+        tb_imp.import_scalars(self.directory, filenames)
 
         return {"FINISHED"}
 
@@ -492,8 +637,8 @@ class ImportOverlays(Operator, ImportHelper):
 
 class ImportLabels(Operator, ImportHelper):
     bl_idname = "tb.import_labels"
-    bl_label = "Import label"
-    bl_description = "Import labels to vertexgroups/colours"
+    bl_label = "Import label overlay"
+    bl_description = "Import label overlay to vertexgroups/colours"
     bl_options = {"REGISTER", "UNDO", "PRESET"}
 
     directory = StringProperty(subtype="FILE_PATH")
@@ -502,7 +647,7 @@ class ImportLabels(Operator, ImportHelper):
 
     def execute(self, context):
         filenames = [file.name for file in self.files]
-        count = tb_imp.import_labels(self.directory, filenames)
+        tb_imp.import_labels(self.directory, filenames)
 
         return {"FINISHED"}
 
@@ -722,7 +867,7 @@ class TractBlenderProperties(PropertyGroup):
 
     objecttype = EnumProperty(
         name="object type",
-        description="",
+        description="switch between object types",
         items=[("tracts", "tracts", "List the tracts", 1),
                ("surfaces", "surfaces", "List the surfaces", 2),
                ("voxelvolumes", "voxelvolumes", "List the voxelvolumes", 3)],
@@ -734,7 +879,7 @@ class TractBlenderProperties(PropertyGroup):
         description="The collection of loaded tracts")
     index_tracts = IntProperty(
         name="tract index",
-        description="",
+        description="index of the tracts collection",
         default=0,
         min=0)
     surfaces = CollectionProperty(
@@ -743,7 +888,7 @@ class TractBlenderProperties(PropertyGroup):
         description="The collection of loaded surfaces")
     index_surfaces = IntProperty(
         name="surface index",
-        description="",
+        description="index of the surfaces collection",
         default=0,
         min=0)
     voxelvolumes = CollectionProperty(
@@ -752,7 +897,32 @@ class TractBlenderProperties(PropertyGroup):
         description="The collection of loaded voxelvolumes")
     index_voxelvolumes = IntProperty(
         name="voxelvolume index",
-        description="",
+        description="index of the voxelvolumes collection",
+        default=0,
+        min=0)
+
+    overlaytype = EnumProperty(
+        name="overlay type",
+        description="switch between overlay types",
+        items=[("scalars", "scalars", "List the scalar overlays", 1),
+               ("labels", "labels", "List the label overlays", 2)],
+        default="scalars")
+    scalars = CollectionProperty(
+        type=ScalarProperties,
+        name="scalars",
+        description="The collection of loaded scalars")
+    index_scalars = IntProperty(
+        name="scalar index",
+        description="index of the scalars collection",
+        default=0,
+        min=0)
+    labels = CollectionProperty(
+        type=LabelProperties,
+        name="labels",
+        description="The collection of loaded labels")
+    index_labels = IntProperty(
+        name="label index",
+        description="index of the labels collection",
         default=0,
         min=0)
 
