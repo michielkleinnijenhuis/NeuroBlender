@@ -223,40 +223,48 @@ class ObjectListOperations(Operator, ImportHelper):
 
     def invoke(self, context, event):
 
-        scn = context.scene
-        tb = scn.tb
-        idx = tb.tract_index
+        tb = context.scene.tb
+        obtype = tb.objecttype
+
+        if obtype == "tracts":
+            idx = tb.index_tracts
+            obcoll = tb.tracts
+        elif obtype == "surfaces":
+            idx = tb.index_surfaces
+            obcoll = tb.surfaces
+        elif obtype == "voxelvolumes":
+            idx = tb.index_voxelvolumes
+            obcoll = tb.voxelvolumes
 
         try:
-            item = tb.tracts[idx]
+            item = obcoll[idx]
         except IndexError:
             pass
         else:
-            if self.action == 'DOWN' and idx < len(tb.tracts) - 1:
-                item_next = tb.tracts[idx+1].name
-                tb.tract_index += 1
-                info = 'Item %d selected' % (tb.tract_index + 1)
+            if self.action == 'DOWN' and idx < len(obcoll) - 1:
+                item_next = obcoll[idx+1].name
+                idx += 1
+                info = 'Item %d selected' % (idx + 1)
                 self.report({'INFO'}, info)
-
             elif self.action == 'UP' and idx >= 1:
-                item_prev = tb.tracts[idx-1].name
-                tb.tract_index -= 1
-                info = 'Item %d selected' % (tb.tract_index + 1)
+                item_prev = obcoll[idx-1].name
+                idx -= 1
+                info = 'Item %d selected' % (idx + 1)
                 self.report({'INFO'}, info)
-
             elif self.action == 'REMOVE':
-                info = 'Item %s removed from list' % (tb.tracts[tb.tract_index].name)
-                tb.tract_index -= 1
+                # TODO: handle user's name changes outside of TractBlender
+                info = 'removed %s' % (obcoll[idx].name)
+                for ob in bpy.data.objects:
+                    ob.select = ob.name == obcoll[idx].name
+                bpy.ops.object.delete()
+                obcoll.remove(idx)
                 self.report({'INFO'}, info)
-                tb.tracts.remove(idx)
-                # TODO: remove tract from objects etc
-
-#         if self.action == 'ADD':
-#             tract = tb.tracts.add()
-#             tract.name = "dummy"
-#             tb.tract_index = (len(tb.tracts)-1)
-#             info = '%s added to list' % (tract.name)
-#             self.report({'INFO'}, info)
+                if obtype == "tracts":
+                    tb.index_tracts -= 1
+                elif obtype == "surfaces":
+                    tb.index_surfaces -= 1
+                elif obtype == "voxelvolumes":
+                    tb.index_voxelvolumes -= 1
 
         return {"FINISHED"}
 
