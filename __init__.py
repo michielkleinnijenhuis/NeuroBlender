@@ -146,11 +146,9 @@ class ObjectList(UIList):
 
     def draw_item(self, context, layout, data, item, icon, 
                   active_data, active_propname, index):
-#         TODO: check how the appropriate icon lands here
-#         "CURVE_BEZCURVE" "MESH_MONKEY" "MESH_GRID"
-        icon = "CURVE_BEZCURVE"
+
         layout.prop(item, "name", text="", emboss=False, 
-                    translate=False, icon=icon)
+                    translate=False, icon=item.icon)
 
 
 class TractProperties(PropertyGroup):
@@ -160,6 +158,10 @@ class TractProperties(PropertyGroup):
         name="Name",
         description="Specify a name for the tract (default: filename)",
         default="")
+    icon = StringProperty(
+        name="Icon",
+        description="Icon for tract objects",
+        default="CURVE_BEZCURVE")
     beautified = BoolProperty(
         name="Beautify",
         description="Apply initial bevel on streamlines",
@@ -189,6 +191,10 @@ class SurfaceProperties(PropertyGroup):
         name="Name",
         description="Specify a name for the surface (default: filename)",
         default="")
+    icon = StringProperty(
+        name="Icon",
+        description="Icon for surface objects",
+        default="MESH_MONKEY")
     beautified = BoolProperty(
         name="Beautify",
         description="Apply initial smoothing on surface",
@@ -202,6 +208,10 @@ class VoxelvolumeProperties(PropertyGroup):
         name="Name",
         description="Specify a name for the voxelvolume (default: filename)",
         default="")
+    icon = StringProperty(
+        name="Icon",
+        description="Icon for surface objects",
+        default="MESH_GRID")
     beautified = BoolProperty(
         name="Beautify",
         description="",
