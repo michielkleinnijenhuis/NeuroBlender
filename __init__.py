@@ -107,9 +107,9 @@ class TractBlenderImportPanel(Panel):
         col = row.column(align=True)
         col.operator("tb.import_" + tb.objecttype, icon='ZOOMIN', text="")
         col.operator("tb.oblist_ops", icon='ZOOMOUT', text="").action = 'REMOVE'
-#         col.separator()
-#         col.operator("tb.oblist_ops", icon='TRIA_UP', text="").action = 'UP'
-#         col.operator("tb.oblist_ops", icon='TRIA_DOWN', text="").action = 'DOWN'
+        col.separator()
+        col.operator("tb.oblist_ops", icon='TRIA_UP', text="").action = 'UP'
+        col.operator("tb.oblist_ops", icon='TRIA_DOWN', text="").action = 'DOWN'
 
         row = self.layout.row()
         row.separator()
@@ -236,15 +236,8 @@ class ObjectListOperations(Operator, ImportHelper):
         tb = context.scene.tb
         obtype = tb.objecttype
 
-        if obtype == "tracts":
-            idx = tb.index_tracts
-            obcoll = tb.tracts
-        elif obtype == "surfaces":
-            idx = tb.index_surfaces
-            obcoll = tb.surfaces
-        elif obtype == "voxelvolumes":
-            idx = tb.index_voxelvolumes
-            obcoll = tb.voxelvolumes
+        obcoll = eval("tb.%s" % obtype)
+        idx = eval("tb.index_%s" % obtype)
 
         try:
             item = obcoll[idx]
@@ -252,15 +245,11 @@ class ObjectListOperations(Operator, ImportHelper):
             pass
         else:
             if self.action == 'DOWN' and idx < len(obcoll) - 1:
-                item_next = obcoll[idx+1].name
-                idx += 1
-                info = 'Item %d selected' % (idx + 1)
-                self.report({'INFO'}, info)
+                obcoll.move(idx,idx+1)
+                exec("tb.index_%s += 1" % obtype)
             elif self.action == 'UP' and idx >= 1:
-                item_prev = obcoll[idx-1].name
-                idx -= 1
-                info = 'Item %d selected' % (idx + 1)
-                self.report({'INFO'}, info)
+                obcoll.move(idx,idx-1)
+                exec("tb.index_%s -= 1" % obtype)
             elif self.action == 'REMOVE':
                 # TODO: handle user's name changes outside of TractBlender
                 info = 'removed %s' % (obcoll[idx].name)
@@ -269,12 +258,7 @@ class ObjectListOperations(Operator, ImportHelper):
                 bpy.ops.object.delete()
                 obcoll.remove(idx)
                 self.report({'INFO'}, info)
-                if obtype == "tracts":
-                    tb.index_tracts -= 1
-                elif obtype == "surfaces":
-                    tb.index_surfaces -= 1
-                elif obtype == "voxelvolumes":
-                    tb.index_voxelvolumes -= 1
+                exec("tb.index_%s -= 1" % obtype)
 
         return {"FINISHED"}
 
