@@ -36,8 +36,8 @@ from . import tractblender_utils as tb_utils
 # ========================================================================== #
 
 
-def import_objects(directory, files, importfun, count,
-                   importtype, specname, colourtype, colourpicker, beautify, 
+def import_objects(directory, files, importfun,
+                   importtype, specname, colourtype, colourpicker, beautify,
                    info=None):
     """Import streamlines, surfaces or volumes.
 
@@ -80,7 +80,7 @@ def import_objects(directory, files, importfun, count,
             tmat = read_transformation_matrix(sform)
             ob.data.transform(tmat)
 
-        tb_mat.materialise(ob, count, colourtype, colourpicker)
+        tb_mat.materialise(ob, colourtype, colourpicker)
         if scalarpath:
             tb_mat.create_vc_overlay(ob, scalarpath)
 #             tb_mat.create_vg_overlay(ob, scalarpath)
@@ -91,10 +91,7 @@ def import_objects(directory, files, importfun, count,
         ob.select = True
         bpy.context.scene.objects.active = ob 
 
-        count += 1
-
-    return count
-
+    return {"FINISHED"}
 
 def import_overlays(directory, files):
     """Import overlays onto a selected object.
@@ -187,12 +184,12 @@ def import_tract(fpath, name, info=None):
                 streamline = streamline[1::subsample_streamlines,:]
             ob = make_polyline_ob(curve, streamline)
 
-    idx = len(tb.tractinfo)
-    tb.tractinfo.add()
-    ti = tb.tractinfo[idx]
-    ti.nstreamlines = nsamples
-    ti.weed_tract = weed_tract
-    ti.interpolate_streamlines = interpolate_streamlines
+    tract = tb.tracts.add()
+    tb.index_tracts = (len(tb.tracts)-1)
+    tract.name = name
+    tract.nstreamlines = nsamples
+    tract.tract_weeded = weed_tract
+    tract.streamlines_interpolated = interpolate_streamlines
 
     return bpy.data.objects[name]
 
@@ -200,6 +197,8 @@ def import_tract(fpath, name, info=None):
 def import_surface(fpath, name, info=None):
     """"""
     # TODO: subsampling? (but has to be compatible with loading overlays)
+
+    tb = bpy.context.scene.tb
 
     if fpath.endswith('.obj'):
         bpy.ops.import_scene.obj(filepath=fpath,
@@ -248,10 +247,14 @@ def import_surface(fpath, name, info=None):
             print('surface import failed')
             return
 
+    surface = tb.surfaces.add()
+    tb.index_surfaces = (len(tb.surfaces)-1)
+    surface.name = name
+
     return ob
 
 
-def import_volume(fpath, name, info=None):
+def import_voxelvolume(fpath, name, info=None):
     """"""
 
     # TODO
@@ -263,6 +266,10 @@ def import_volume(fpath, name, info=None):
 
     elif fpath.endswith('.png'):
         pass
+
+    voxelvolume = tb.voxelvolumes.add()
+    tb.index_voxelvolume = (len(tb.voxelvolumes)-1)
+    voxelvolume.name = name
 
     return ob
 

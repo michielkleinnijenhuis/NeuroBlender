@@ -34,7 +34,7 @@ from . import tractblender_import as tb_imp
 # =========================================================================== #
 
 
-def materialise(ob, ii=0, colourtype='primary6', colourpicker=(1,1,1)):
+def materialise(ob, colourtype='primary6', colourpicker=(1,1,1)):
     """Attach material to an object."""
 
     primary6_colours = [[1, 0, 0], [0, 1, 0], [0, 0, 1],
@@ -42,6 +42,8 @@ def materialise(ob, ii=0, colourtype='primary6', colourpicker=(1,1,1)):
 
     ob.show_transparent = True
 
+    # TODO: proper cycling through primary6
+    ii = 0
     if colourtype in ["primary6", "random", "pick"]:
 
         if colourtype == "primary6":

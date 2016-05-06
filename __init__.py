@@ -26,7 +26,8 @@ from bpy_extras.io_utils import ImportHelper
 from bpy.types import (Panel,
                        Operator,
                        OperatorFileListElement,
-                       PropertyGroup)
+                       PropertyGroup,
+                       UIList)
 from bpy.props import (BoolProperty,
                        StringProperty,
                        CollectionProperty,
@@ -50,7 +51,7 @@ from . import external_sitepackages as ext_sp
 bl_info = {
     "name": "TractBlender",
     "author": "Michiel Kleinnijenhuis",
-    "version": (0, 0, 4),
+    "version": (0, 0, 5),
     "blender": (2, 77, 0),
     "location": "Properties -> Scene -> TractBlender",
     "description": """"
@@ -97,18 +98,18 @@ class TractBlenderImportPanel(Panel):
         row = self.layout.row()
         row.separator()
         row = self.layout.row()
-        row.prop(tb, "sform")
-        row.prop(tb, "scalarpath")
+        row.prop(tb, "objecttype", expand=True)
         row = self.layout.row()
-        row.operator("tb.import_tracts",
-                     text="Load Tracts",
-                     icon="CURVE_BEZCURVE")
-        row.operator("tb.import_surfaces",
-                     text="Load Surfaces",
-                     icon="MESH_MONKEY")
-#         row.operator("tb.import_volumes",
-#                      text="Volumes",
-#                      icon="MESH_GRID")
+        row.template_list("ObjectList", "",
+                          tb, tb.objecttype,
+                          tb, "index_" + tb.objecttype,
+                          rows=2)
+        col = row.column(align=True)
+        col.operator("tb.import_" + tb.objecttype, icon='ZOOMIN', text="")
+        col.operator("tb.oblist_ops", icon='ZOOMOUT', text="").action = 'REMOVE'
+#         col.separator()
+#         col.operator("tb.oblist_ops", icon='TRIA_UP', text="").action = 'UP'
+#         col.operator("tb.oblist_ops", icon='TRIA_DOWN', text="").action = 'DOWN'
 
         row = self.layout.row()
         row.separator()
@@ -119,54 +120,6 @@ class TractBlenderImportPanel(Panel):
         row.operator("tb.import_labels",
                      text="Load Labels",
                      icon="BRUSH_VERTEXDRAW")
-
-
-class TractBlenderInteractPanel(Panel):
-    """Host the TractBlender mesh interactions"""
-    bl_idname = "OBJECT_PT_tb_interact"
-    bl_label = "TractBlender - Interact"
-    bl_space_type = "PROPERTIES"
-    bl_region_type = "WINDOW"
-    bl_context = "scene"
-
-    def draw(self, context):
-        tb = context.scene.tb
-        obs = [ob for ob in bpy.data.objects
-               if ob.type not in ["CAMERA", "LAMP", "EMPTY"]]
-        sobs = context.selected_objects
-
-        if obs:
-            row = self.layout.row()
-            row.label(text="Camera view: ")
-            row.prop(tb, "camview")
-            row = self.layout.row()
-            row.operator("tb.scene_preset",
-                         text="Load scene preset",
-                         icon="WORLD")
-        else:
-            row = self.layout.row()
-            row.label(text="No brain data loaded ...")
-
-        if len(sobs) == 1:
-            row = self.layout.row()
-            row.separator()
-            row = self.layout.row()
-            row.label(text="Add preset material: ")
-            row.prop(tb, "colourpicker")
-            row = self.layout.row()
-            row.prop(tb, "colourtype", expand=True)
-
-        if (len(sobs) == 1) and sobs[0].vertex_groups:
-            row = self.layout.row()
-            row.separator()
-            row = self.layout.row()
-            row.label(text="Combine overlays/labels: ")
-            row = self.layout.row()
-            row.prop(tb, "vgs2vc")
-            row = self.layout.row()
-            row.operator("tb.vertexcolour_from_vertexgroups",
-                         text="Blend to vertexcolours",
-                         icon="COLOR")
 
 
 class MakeNibabelPersistent(Operator):
@@ -189,6 +142,125 @@ class MakeNibabelPersistent(Operator):
         return {"FINISHED"}
 
 
+class ObjectList(UIList):
+
+    def draw_item(self, context, layout, data, item, icon, 
+                  active_data, active_propname, index):
+#         TODO: check how the appropriate icon lands here
+#         "CURVE_BEZCURVE" "MESH_MONKEY" "MESH_GRID"
+        icon = "CURVE_BEZCURVE"
+        layout.prop(item, "name", text="", emboss=False, 
+                    translate=False, icon=icon)
+
+
+class TractProperties(PropertyGroup):
+    """Properties of tracts."""
+
+    name = StringProperty(
+        name="Name",
+        description="Specify a name for the tract (default: filename)",
+        default="")
+    beautified = BoolProperty(
+        name="Beautify",
+        description="Apply initial bevel on streamlines",
+        default=True)
+    nstreamlines = IntProperty(
+        name="Nstreamlines",
+        description="Number of streamlines in the tract (before weeding)",
+        min=0)
+    streamlines_interpolated = FloatProperty(
+        name="Interpolate streamlines",
+        description="Interpolate the individual streamlines",
+        default=1.,
+        min=0.,
+        max=1.)
+    tract_weeded = FloatProperty(
+        name="Tract weeding",
+        description="Retain a random selection of streamlines",
+        default=1.,
+        min=0.,
+        max=1.)
+
+
+class SurfaceProperties(PropertyGroup):
+    """Properties of surfaces."""
+
+    name = StringProperty(
+        name="Name",
+        description="Specify a name for the surface (default: filename)",
+        default="")
+    beautified = BoolProperty(
+        name="Beautify",
+        description="Apply initial smoothing on surface",
+        default=True)
+
+
+class VoxelvolumeProperties(PropertyGroup):
+    """Properties of voxelvolumes."""
+
+    name = StringProperty(
+        name="Name",
+        description="Specify a name for the voxelvolume (default: filename)",
+        default="")
+    beautified = BoolProperty(
+        name="Beautify",
+        description="",
+        default=True)
+
+
+class ObjectListOperations(Operator, ImportHelper):
+    bl_idname = "tb.oblist_ops"
+    bl_label = "Objectlist operations"
+
+    action = bpy.props.EnumProperty(
+        items=(
+            ('UP', "Up", ""),
+            ('DOWN', "Down", ""),
+            ('REMOVE', "Remove", ""),
+            ('ADD', "Add", ""),
+        )
+    )
+
+    def invoke(self, context, event):
+
+        scn = context.scene
+        tb = scn.tb
+        idx = tb.tract_index
+
+        try:
+            item = tb.tracts[idx]
+        except IndexError:
+            pass
+        else:
+            if self.action == 'DOWN' and idx < len(tb.tracts) - 1:
+                item_next = tb.tracts[idx+1].name
+                tb.tract_index += 1
+                info = 'Item %d selected' % (tb.tract_index + 1)
+                self.report({'INFO'}, info)
+
+            elif self.action == 'UP' and idx >= 1:
+                item_prev = tb.tracts[idx-1].name
+                tb.tract_index -= 1
+                info = 'Item %d selected' % (tb.tract_index + 1)
+                self.report({'INFO'}, info)
+
+            elif self.action == 'REMOVE':
+                info = 'Item %s removed from list' % (tb.tracts[tb.tract_index].name)
+                tb.tract_index -= 1
+                self.report({'INFO'}, info)
+                tb.tracts.remove(idx)
+                # TODO: remove tract from objects etc
+
+#         if self.action == 'ADD':
+#             tract = tb.tracts.add()
+#             tract.name = "dummy"
+#             tb.tract_index = (len(tb.tracts)-1)
+#             info = '%s added to list' % (tract.name)
+#             self.report({'INFO'}, info)
+
+        return {"FINISHED"}
+
+
 class ImportTracts(Operator, ImportHelper):
     bl_idname = "tb.import_tracts"
     bl_label = "Import tracts"
@@ -200,8 +272,7 @@ class ImportTracts(Operator, ImportHelper):
                                type=OperatorFileListElement)
     filter_glob = StringProperty(
         options={"HIDDEN"},
-        default="*.vtk;*.bfloat;*.Bfloat;*.bdouble;*.Bdouble;" + \
-                "*.tck;*.trk;*.npy;*.npz;*.dpy")
+        default="*.vtk;*.bfloat;*.Bfloat;*.bdouble;*.Bdouble;*.tck;*.trk;*.npy;*.npz;*.dpy")
 
     name = StringProperty(
         name="Name",
@@ -248,17 +319,15 @@ class ImportTracts(Operator, ImportHelper):
         info['weed_tract'] = self.weed_tract
 
         filenames = [file.name for file in self.files]
-        count = tb_imp.import_objects(self.directory,
-                                      filenames,
-                                      tb_imp.import_tract,
-                                      tb.tractcount,
-                                      "tracts",
-                                      self.name,
-                                      self.colourtype,
-                                      self.colourpicker,
-                                      self.beautify,
-                                      info)
-        tb.tractcount = count
+        tb_imp.import_objects(self.directory,
+                              filenames,
+                              tb_imp.import_tract,
+                              "tracts",
+                              self.name,
+                              self.colourtype,
+                              self.colourpicker,
+                              self.beautify,
+                              info)
 
         return {"FINISHED"}
 
@@ -269,6 +338,7 @@ class ImportTracts(Operator, ImportHelper):
         row.prop(self, "name")
         row = self.layout.row()
         row.prop(self, "interpolate_streamlines")
+        row = self.layout.row()
         row.prop(self, "weed_tract")
 
         row = self.layout.row()
@@ -329,16 +399,14 @@ class ImportSurfaces(Operator, ImportHelper):
     def execute(self, context):
         tb = context.scene.tb
         filenames = [file.name for file in self.files]
-        count = tb_imp.import_objects(self.directory,
-                                      filenames,
-                                      tb_imp.import_surface,
-                                      tb.surfcount,
-                                      "surfaces",
-                                      self.name,
-                                      self.colourtype,
-                                      self.colourpicker,
-                                      self.beautify)
-        tb.surfcount = count
+        tb_imp.import_objects(self.directory,
+                              filenames,
+                              tb_imp.import_surface,
+                              "surfaces",
+                              self.name,
+                              self.colourtype,
+                              self.colourpicker,
+                              self.beautify)
 
         return {"FINISHED"}
 
@@ -365,10 +433,10 @@ class ImportSurfaces(Operator, ImportHelper):
         return {"RUNNING_MODAL"}
 
 
-class ImportVoxeldata(Operator, ImportHelper):
-    bl_idname = "tb.import_volumes"
-    bl_label = "Import volumes"
-    bl_description = "Import voxel data to texture"
+class ImportVoxelvolumes(Operator, ImportHelper):
+    bl_idname = "tb.import_voxelvolumes"
+    bl_label = "Import voxelvolumes"
+    bl_description = "Import voxelvolumes to textures"
     bl_options = {"REGISTER", "UNDO", "PRESET"}
 
     directory = StringProperty(subtype="FILE_PATH")
@@ -378,16 +446,14 @@ class ImportVoxeldata(Operator, ImportHelper):
     def execute(self, context):
         tb = context.scene.tb
         filenames = [file.name for file in self.files]
-        count = tb_imp.import_objects(self.directory,
-                                      filenames,
-                                      tb_imp.import_volume,
-                                      tb.volcount,
-                                      "volumes",
-                                      self.name,
-                                      self.colourtype,
-                                      self.colourpicker,
-                                      self.beautify)
-        tb.volcount = count
+        tb_imp.import_objects(self.directory,
+                              filenames,
+                              tb_imp.import_voxelvolume,
+                              "voxelvolumes",
+                              self.name,
+                              self.colourtype,
+                              self.colourpicker,
+                              self.beautify)
 
         return {"FINISHED"}
 
@@ -444,6 +510,54 @@ class ImportLabels(Operator, ImportHelper):
         return {"RUNNING_MODAL"}
 
 
+class TractBlenderInteractPanel(Panel):
+    """Host the TractBlender mesh interactions"""
+    bl_idname = "OBJECT_PT_tb_interact"
+    bl_label = "TractBlender - Interact"
+    bl_space_type = "PROPERTIES"
+    bl_region_type = "WINDOW"
+    bl_context = "scene"
+
+    def draw(self, context):
+        tb = context.scene.tb
+        obs = [ob for ob in bpy.data.objects
+               if ob.type not in ["CAMERA", "LAMP", "EMPTY"]]
+        sobs = context.selected_objects
+
+        if obs:
+            row = self.layout.row()
+            row.label(text="Camera view: ")
+            row.prop(tb, "camview")
+            row = self.layout.row()
+            row.operator("tb.scene_preset",
+                         text="Load scene preset",
+                         icon="WORLD")
+        else:
+            row = self.layout.row()
+            row.label(text="No brain data loaded ...")
+
+        if len(sobs) == 1:
+            row = self.layout.row()
+            row.separator()
+            row = self.layout.row()
+            row.label(text="Add preset material: ")
+            row.prop(tb, "colourpicker")
+            row = self.layout.row()
+            row.prop(tb, "colourtype", expand=True)
+
+        if (len(sobs) == 1) and sobs[0].vertex_groups:
+            row = self.layout.row()
+            row.separator()
+            row = self.layout.row()
+            row.label(text="Combine overlays/labels: ")
+            row = self.layout.row()
+            row.prop(tb, "vgs2vc")
+            row = self.layout.row()
+            row.operator("tb.vertexcolour_from_vertexgroups",
+                         text="Blend to vertexcolours",
+                         icon="COLOR")
+
+
 class ScenePreset(Operator):
     bl_idname = "tb.scene_preset"
     bl_label = "Load scene preset"
@@ -472,12 +586,10 @@ def vgs2vc_enum_callback(self, context):
     # FIXME: TypeError: EnumProperty(...):
     # maximum 32 members for a ENUM_FLAG type property
 
-    selected_obs = context.selected_objects
     items = []
-    if len(selected_obs) == 1:
-        ob = selected_obs[0]
-        for i, vg in enumerate(ob.vertex_groups):
-            items.append((vg.name, vg.name, vg.name, i))
+    ob = context.selected_objects[0]
+    for i, vg in enumerate(ob.vertex_groups):
+        items.append((vg.name, vg.name, vg.name, i))
 
     return items
 
@@ -494,20 +606,17 @@ def material_enum_callback(self, context):
     # TODO: more colour options on-the-fly?
     # TODO: handle multiple objects at once?
 
-    selected_obs = context.selected_objects
-
     items = []
     items.append(("none", "none", "none", 1))
     items.append(("random", "random", "random", 2))
     items.append(("pick", "pick", "pick", 3))
-    if len(selected_obs) == 1:
-        ob = selected_obs[0]
-        if ob.type == "MESH":
-            attrib = ob.data.vertex_colors
-        elif ob.type == "CURVE":
-            attrib = ob.data.materials
-        if attrib.get("directional" + ob.type) is None:
-            items.append(("directional", "directional", "", 4))
+    ob = context.selected_objects[0]
+    if ob.type == "MESH":
+        attrib = ob.data.vertex_colors
+    elif ob.type == "CURVE":
+        attrib = ob.data.materials
+    if attrib.get("directional" + ob.type) is None:
+        items.append(("directional", "directional", "", 4))
 
     return items
 
@@ -564,25 +673,14 @@ class TractBlenderScalarInfo(PropertyGroup):
         min=0,
         max=1)
 
-class TractBlenderTractInfo(PropertyGroup):
-    """Properties of tracts."""
 
-    nstreamlines = IntProperty(
-        name="Nstreamlines",
-        description="Number of streamlines in the tract (before weeding)",
-        min=0)
-    interpolate_streamlines = FloatProperty(
-        name="Interpolate streamlines",
-        description="Interpolate the individual streamlines",
-        default=1.,
-        min=0.,
-        max=1.)
-    weed_tract = FloatProperty(
-        name="Tract weeding",
-        description="Retain a random selection of streamlines",
-        default=1.,
-        min=0.,
-        max=1.)
+class TractBlenderVertexGroupInfo(PropertyGroup):
+    """"""
+
+    vgname = StringProperty(
+        name="Vertex group name",
+        description="The name of the vertex group")
+    vgindex = IntProperty()
 
 
 class TractBlenderProperties(PropertyGroup):
@@ -620,6 +718,42 @@ class TractBlenderProperties(PropertyGroup):
         subtype="DIR_PATH",
         update=nibabel_path_update)
 
+    objecttype = EnumProperty(
+        name="object type",
+        description="",
+        items=[("tracts", "tracts", "List the tracts", 1),
+               ("surfaces", "surfaces", "List the surfaces", 2),
+               ("voxelvolumes", "voxelvolumes", "List the voxelvolumes", 3)],
+        default="tracts")
+
+    tracts = CollectionProperty(
+        type=TractProperties,
+        name="tracts",
+        description="The collection of loaded tracts")
+    index_tracts = IntProperty(
+        name="tract index",
+        description="",
+        default=0,
+        min=0)
+    surfaces = CollectionProperty(
+        type=SurfaceProperties,
+        name="surfaces",
+        description="The collection of loaded surfaces")
+    index_surfaces = IntProperty(
+        name="surface index",
+        description="",
+        default=0,
+        min=0)
+    voxelvolumes = CollectionProperty(
+        type=VoxelvolumeProperties,
+        name="voxelvolumes",
+        description="The collection of loaded voxelvolumes")
+    index_voxelvolumes = IntProperty(
+        name="voxelvolume index",
+        description="",
+        default=0,
+        min=0)
+
     colourtype = EnumProperty(
         name="material_presets",
         description="Choose a material preset",
@@ -636,6 +770,10 @@ class TractBlenderProperties(PropertyGroup):
         description="Select vertexgroups to turn into a vertexcolour",
         options={"ENUM_FLAG"},
         items=vgs2vc_enum_callback)
+    vginfo = CollectionProperty(
+        type=TractBlenderVertexGroupInfo,
+        name="VertexgroupInfo",
+        description="Keep track of info about vertexgroups")
 
     camview = EnumProperty(
         name="CamView",
@@ -677,25 +815,9 @@ class TractBlenderProperties(PropertyGroup):
         type=TractBlenderScalarInfo,
         name="ScalarInfo",
         description="Keep track of info about loaded scalar overlays")
-
-    tractinfo = CollectionProperty(
-        type=TractBlenderTractInfo,
-        name="TractInfo",
-        description="Keep track of info about tracts")
-
-    tractcount = IntProperty(
-        name="TractCount",
-        description="The number of loaded tracts",
-        default=0,
-        min=0)
-    surfcount = IntProperty(
-        name="SurfaceCount",
-        description="The number of loaded surfaces",
-        default=0,
-        min=0)
-    volcount = IntProperty(
-        name="VolumeCount",
-        description="The number of loaded volumes",
+    scalarindex = IntProperty(
+        name="VGindex",
+        description="",
         default=0,
         min=0)
 
