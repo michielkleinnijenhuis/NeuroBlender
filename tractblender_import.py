@@ -64,9 +64,6 @@ def import_objects(directory, files, importfun,
 
     """
 
-    sform = bpy.context.scene.tb.sform
-    scalarpath = bpy.context.scene.tb.scalarpath
-
     if not files:
         files = os.listdir(directory)
 
@@ -76,13 +73,13 @@ def import_objects(directory, files, importfun,
 
         ob = importfun(fpath, name, info)
 
-        if sform:
-            tmat = read_transformation_matrix(sform)
-            ob.data.transform(tmat)
+#         if sform:
+#             tmat = read_transformation_matrix(sform)
+#             ob.data.transform(tmat)
 
         tb_mat.materialise(ob, colourtype, colourpicker)
-        if scalarpath:
-            tb_mat.create_vc_overlay(ob, scalarpath)
+#         if scalarpath:
+#             tb_mat.create_vc_overlay(ob, scalarpath)
 #             tb_mat.create_vg_overlay(ob, scalarpath)
 
         if beautify:
@@ -674,19 +671,45 @@ def make_polyline_ob(curvedata, cList):
 # ========================================================================== #
 
 
-def read_transformation_matrix(filepath):
-    """Get the transformation matrix from the nifti or textfile"""
+def update_affine_transform(tb_ob, affine_new):
+    """"""
 
-    if (filepath.endswith('.nii') | filepath.endswith('.nii.gz')):
+    ob = bpy.data.objects[tb_ob.name]
+
+    affine_old = mathutils.Matrix((tb_ob.srow_x,
+                                   tb_ob.srow_y,
+                                   tb_ob.srow_z,
+                                   [0,0,0,1]))
+    affine = np.linalg.inv(affine_old).dot(affine_new)
+
+    ob.data.transform(affine)
+#     ob.matrix_world = affine_new
+
+    if affine_old.is_negative is not affine_new.is_negative:
+        # FIXME: this takes a lot of time
+        bpy.context.scene.objects.active = ob
+        bpy.ops.object.mode_set(mode='EDIT')
+        bpy.ops.mesh.select_all(action='SELECT')
+        bpy.ops.mesh.normals_make_consistent(inside=False)
+        bpy.ops.object.editmode_toggle()
+
+
+def read_affine_matrix(filepath):
+    """Get the affine transformation matrix from the nifti or textfile."""
+
+    if not filepath:
+        affine = mathutils.Matrix()
+    elif (filepath.endswith('.nii') | filepath.endswith('.nii.gz')):
         nib = tb_utils.validate_nibabel('nifti')
-        tmat = nib.load(filepath).header.get_sform()
+        affine = nib.load(filepath).header.get_sform()
+    elif filepath.endswith('.gii'):
+        # TODO: read from gifti
+        pass
     else:
-        tmat = np.loadtxt(filepath)
+        affine = np.loadtxt(filepath)
         # TODO: check if matrix if valid
-#         if tmat.shape is not (4,4):
+#         if affine.shape is not (4,4):
 #             return {'cannot calculate transform: \
-#                     invalid transformation matrix'}
+#                     invalid affine transformation matrix'}
 
-    transmat = mathutils.Matrix(tmat)
-
-    return transmat
+    return mathutils.Matrix(affine)

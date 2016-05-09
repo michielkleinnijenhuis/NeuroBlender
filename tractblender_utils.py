@@ -88,20 +88,24 @@ def random_RGB():
 def validate_nibabel(ext):
     """Try to import nibabel."""
 
-    add_path(bpy.context.scene.tb.nibabel_path)
+    tb = bpy.context.scene.tb
+
+    add_path(tb.nibabel_path)
     try:
         import nibabel as nib
-        bpy.context.scene.tb.nibabel_valid = True
+        tb.nibabel_valid = True
         return nib
     except ImportError:
-        bpy.context.scene.tb.nibabel_valid = False
+        tb.nibabel_valid = False
         return {'cannot read ' + ext + ': nibabel not found'}
 
 
 def validate_dipy(ext):
     """Try to import dipy."""
 
-    add_path(bpy.context.scene.tb.nibabel_path)
+    tb = bpy.context.scene.tb
+
+    add_path(tb.nibabel_path)
     try:
         import dipy
         valid = True

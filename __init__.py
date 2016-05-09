@@ -45,6 +45,9 @@ from . import tractblender_renderpresets as tb_rp
 from . import tractblender_utils as tb_utils
 from . import external_sitepackages as ext_sp
 
+import numpy as np
+import mathutils
+
 # =========================================================================== #
 
 
@@ -112,9 +115,6 @@ class TractBlenderImportPanel(Panel):
         col.operator("tb.oblist_ops", icon='TRIA_UP', text="").action = 'UP_ob'
         col.operator("tb.oblist_ops", icon='TRIA_DOWN', text="").action = 'DOWN_ob'
 
-        row = self.layout.row()
-        row.separator()
-
         try:
             idx = eval("tb.index_%s" % obtype)
             tb_ob = eval("tb.%s[%d]" % (obtype, idx))
@@ -123,7 +123,40 @@ class TractBlenderImportPanel(Panel):
         else:
             ovtype = tb.overlaytype
     
+            row = self.layout.row()
+            row.label(text="Properties of %s:" % tb_ob.name)
+            
             box = self.layout.box()
+
+            row = box.row()
+            row.prop(tb_ob, "sformfile")
+            if not all(np.array(tb.srow_x) == np.array(tb_ob.srow_x)):
+                tb.srow_x = tb_ob.srow_x
+            if not all(np.array(tb.srow_y) == np.array(tb_ob.srow_y)):
+                tb.srow_y = tb_ob.srow_y
+            if not all(np.array(tb.srow_z) == np.array(tb_ob.srow_z)):
+                tb.srow_z = tb_ob.srow_z
+            row = box.row()
+            row.prop(tb, "srow_x")
+            row = box.row()
+            row.prop(tb, "srow_y")
+            row = box.row()
+            row.prop(tb, "srow_z")
+
+            row = box.row()
+            row.enabled = False
+            row.prop(tb_ob, "beautified")
+            if obtype == 'tracts':
+                row.prop(tb_ob, "nstreamlines")
+                row.prop(tb_ob, "streamlines_interpolated")
+                row.prop(tb_ob, "tract_weeded")
+            elif obtype == 'surfaces':
+                pass
+            elif obtype == 'voxelvolumes':
+                pass
+
+            row = box.row()
+            row.separator()
             row = box.row()
             row.prop(tb, "overlaytype", expand=True)
             row = box.row()
@@ -166,171 +199,6 @@ class ObjectList(UIList):
 
         layout.prop(item, "name", text="", emboss=False, 
                     translate=False, icon=item.icon)
-
-
-class ScalarProperties(PropertyGroup):
-    """Properties of scalar overlays."""
-
-    name = StringProperty(
-        name="Name",
-        description="The name of the scalar overlay")
-    icon = StringProperty(
-        name="Icon",
-        description="Icon for scalar overlays",
-        default="FORCE_CHARGE")
-    range = FloatVectorProperty(
-        name="Range",
-        description="The original min-max of scalars mapped in vertexweights",
-        default=(0, 0),
-        size=2)
-
-
-class LabelProperties(PropertyGroup):
-    """Properties of label overlays."""
-
-    name = StringProperty(
-        name="Name",
-        description="The name of the label overlay")
-    icon = StringProperty(
-        name="Icon",
-        description="Icon for label overlays",
-        default="BRUSH_VERTEXDRAW")
-    value = IntProperty(
-        name="Label value",
-        description="The value of the label in vertexgroup 'scalarname'",
-        default=0)
-    colour = FloatVectorProperty(
-        name="Label color",
-        description="The color of the label in vertexgroup 'scalarname'",
-        subtype="COLOR",
-        size=4,
-        min=0,
-        max=1)
-
-
-class TractProperties(PropertyGroup):
-    """Properties of tracts."""
-
-    name = StringProperty(
-        name="Name",
-        description="Specify a name for the tract (default: filename)",
-        default="")
-    icon = StringProperty(
-        name="Icon",
-        description="Icon for tract objects",
-        default="CURVE_BEZCURVE")
-    beautified = BoolProperty(
-        name="Beautify",
-        description="Apply initial bevel on streamlines",
-        default=True)
-
-    scalars = CollectionProperty(
-        type=ScalarProperties,
-        name="scalars",
-        description="The collection of loaded scalars")
-    index_scalars = IntProperty(
-        name="scalar index",
-        description="index of the scalars collection",
-        default=0,
-        min=0)
-    labels = CollectionProperty(
-        type=LabelProperties,
-        name="labels",
-        description="The collection of loaded labels")
-    index_labels = IntProperty(
-        name="label index",
-        description="index of the labels collection",
-        default=0,
-        min=0)
-
-    nstreamlines = IntProperty(
-        name="Nstreamlines",
-        description="Number of streamlines in the tract (before weeding)",
-        min=0)
-    streamlines_interpolated = FloatProperty(
-        name="Interpolate streamlines",
-        description="Interpolate the individual streamlines",
-        default=1.,
-        min=0.,
-        max=1.)
-    tract_weeded = FloatProperty(
-        name="Tract weeding",
-        description="Retain a random selection of streamlines",
-        default=1.,
-        min=0.,
-        max=1.)
-
-
-class SurfaceProperties(PropertyGroup):
-    """Properties of surfaces."""
-
-    name = StringProperty(
-        name="Name",
-        description="Specify a name for the surface (default: filename)",
-        default="")
-    icon = StringProperty(
-        name="Icon",
-        description="Icon for surface objects",
-        default="MESH_MONKEY")
-    beautified = BoolProperty(
-        name="Beautify",
-        description="Apply initial smoothing on surface",
-        default=True)
-
-    scalars = CollectionProperty(
-        type=ScalarProperties,
-        name="scalars",
-        description="The collection of loaded scalars")
-    index_scalars = IntProperty(
-        name="scalar index",
-        description="index of the scalars collection",
-        default=0,
-        min=0)
-    labels = CollectionProperty(
-        type=LabelProperties,
-        name="labels",
-        description="The collection of loaded labels")
-    index_labels = IntProperty(
-        name="label index",
-        description="index of the labels collection",
-        default=0,
-        min=0)
-
-
-class VoxelvolumeProperties(PropertyGroup):
-    """Properties of voxelvolumes."""
-
-    name = StringProperty(
-        name="Name",
-        description="Specify a name for the voxelvolume (default: filename)",
-        default="")
-    icon = StringProperty(
-        name="Icon",
-        description="Icon for surface objects",
-        default="MESH_GRID")
-    beautified = BoolProperty(
-        name="Beautify",
-        description="",
-        default=True)
-
-    scalars = CollectionProperty(
-        type=ScalarProperties,
-        name="scalars",
-        description="The collection of loaded scalars")
-    index_scalars = IntProperty(
-        name="scalar index",
-        description="index of the scalars collection",
-        default=0,
-        min=0)
-    labels = CollectionProperty(
-        type=LabelProperties,
-        name="labels",
-        description="The collection of loaded labels")
-    index_labels = IntProperty(
-        name="label index",
-        description="index of the labels collection",
-        default=0,
-        min=0)
 
 
 class ObjectListOperations(Operator):
@@ -747,6 +615,70 @@ def nibabel_path_update(self, context):
     tb_utils.validate_nibabel("")
 
 
+def sformfile_update(self, context):
+    """Set the sform transformation matrix for the object."""
+
+    tb = context.scene.tb
+    ob_idx = eval("tb.index_%s" % tb.objecttype)
+    tb_ob = eval("tb.%s[%d]" % (tb.objecttype, ob_idx))
+
+    affine_new = tb_imp.read_affine_matrix(tb_ob.sformfile)
+
+    tb_imp.update_affine_transform(tb_ob, affine_new)
+
+    tb_ob.srow_x = affine_new[0]
+    tb_ob.srow_y = affine_new[1]
+    tb_ob.srow_z = affine_new[2]
+
+
+def srowx_update(self, context):
+    """Set the sform transformation matrix for the object."""
+
+    tb = context.scene.tb
+    ob_idx = eval("tb.index_%s" % tb.objecttype)
+    tb_ob = eval("tb.%s[%d]" % (tb.objecttype, ob_idx))
+
+    affine_new = mathutils.Matrix((tb.srow_x,
+                                   tb.srow_y,
+                                   tb.srow_z,
+                                   [0,0,0,1]))
+    tb_imp.update_affine_transform(tb_ob, affine_new)
+
+    tb_ob.srow_x = tb.srow_x
+
+
+def srowy_update(self, context):
+    """Set the sform transformation matrix for the object."""
+
+    tb = context.scene.tb
+    ob_idx = eval("tb.index_%s" % tb.objecttype)
+    tb_ob = eval("tb.%s[%d]" % (tb.objecttype, ob_idx))
+
+    affine_new = mathutils.Matrix((tb.srow_x,
+                                   tb.srow_y,
+                                   tb.srow_z,
+                                   [0,0,0,1]))
+    tb_imp.update_affine_transform(tb_ob, affine_new)
+
+    tb_ob.srow_y = tb.srow_y
+
+
+def srowz_update(self, context):
+    """Set the sform transformation matrix for the object."""
+
+    tb = context.scene.tb
+    ob_idx = eval("tb.index_%s" % tb.objecttype)
+    tb_ob = eval("tb.%s[%d]" % (tb.objecttype, ob_idx))
+
+    affine_new = mathutils.Matrix((tb.srow_x,
+                                   tb.srow_y,
+                                   tb.srow_z,
+                                   [0,0,0,1]))
+    tb_imp.update_affine_transform(tb_ob, affine_new)
+
+    tb_ob.srow_z = tb.srow_z
+
+
 def material_enum_callback(self, context):
     """Populate the enum based on available options."""
     # TODO: set the enum value on the basis of currect material?
@@ -789,30 +721,38 @@ def material_enum_set(self, value):
     pass
 
 
-class TractBlenderScalarInfo(PropertyGroup):
-    """Properties of scalar overlays/labels."""
+class ScalarProperties(PropertyGroup):
+    """Properties of scalar overlays."""
 
-    scalarname = StringProperty(
-        name="Scalar name",
-        description="The name of the attribute")
-    # NOTE: scalartype is deprecated; all saved in vertexgroup weights now
-    scalartype = StringProperty(
-        name="Attribute type",
-        description="Vertex_colors (vc); vertex_group.weights (vw); etc")
-    scalarrange = FloatVectorProperty(
-        name="Scalar range",
+    name = StringProperty(
+        name="Name",
+        description="The name of the scalar overlay")
+    icon = StringProperty(
+        name="Icon",
+        description="Icon for scalar overlays",
+        default="FORCE_CHARGE")
+    range = FloatVectorProperty(
+        name="Range",
         description="The original min-max of scalars mapped in vertexweights",
         default=(0, 0),
         size=2)
-    islabel = BoolProperty(
-        name="IsLabel",
-        description="Indicates if the vertexgroup 'scalarname' is a label",
-        default=False)
-    labelvalue = IntProperty(
+
+
+class LabelProperties(PropertyGroup):
+    """Properties of label overlays."""
+
+    name = StringProperty(
+        name="Name",
+        description="The name of the label overlay")
+    icon = StringProperty(
+        name="Icon",
+        description="Icon for label overlays",
+        default="BRUSH_VERTEXDRAW")
+    value = IntProperty(
         name="Label value",
         description="The value of the label in vertexgroup 'scalarname'",
         default=0)
-    labelcolour = FloatVectorProperty(
+    colour = FloatVectorProperty(
         name="Label color",
         description="The color of the label in vertexgroup 'scalarname'",
         subtype="COLOR",
@@ -821,13 +761,207 @@ class TractBlenderScalarInfo(PropertyGroup):
         max=1)
 
 
-class TractBlenderVertexGroupInfo(PropertyGroup):
-    """"""
+class TractProperties(PropertyGroup):
+    """Properties of tracts."""
 
-    vgname = StringProperty(
-        name="Vertex group name",
-        description="The name of the vertex group")
-    vgindex = IntProperty()
+    name = StringProperty(
+        name="Name",
+        description="Specify a name for the tract (default: filename)",
+        default="")
+    icon = StringProperty(
+        name="Icon",
+        description="Icon for tract objects",
+        default="CURVE_BEZCURVE")
+    beautified = BoolProperty(
+        name="Beautify",
+        description="Apply initial bevel on streamlines",
+        default=True)
+    sformfile = StringProperty(
+        name="Transform",
+        description="""
+            A file with transformation matrix
+            It can be a nifti file (through nibabel)
+            or an ascii with a space-delimited 4x4 matrix
+            For .nii, it will only use the sform for now
+            """,
+        subtype="FILE_PATH",
+        update=sformfile_update)
+    # TODO: http://nipy.org/nibabel/coordinate_systems.html
+    srow_x = FloatVectorProperty(
+        name="srow_x",
+        description="",
+        default=[1.0, 0.0, 0.0, 0.0],
+        size=4)
+    srow_y = FloatVectorProperty(
+        name="srow_y",
+        description="",
+        default=[0.0, 1.0, 0.0, 0.0],
+        size=4)
+    srow_z = FloatVectorProperty(
+        name="srow_z",
+        description="",
+        default=[0.0, 0.0, 1.0, 0.0],
+        size=4)
+
+    scalars = CollectionProperty(
+        type=ScalarProperties,
+        name="scalars",
+        description="The collection of loaded scalars")
+    index_scalars = IntProperty(
+        name="scalar index",
+        description="index of the scalars collection",
+        default=0,
+        min=0)
+    labels = CollectionProperty(
+        type=LabelProperties,
+        name="labels",
+        description="The collection of loaded labels")
+    index_labels = IntProperty(
+        name="label index",
+        description="index of the labels collection",
+        default=0,
+        min=0)
+
+    nstreamlines = IntProperty(
+        name="Nstreamlines",
+        description="Number of streamlines in the tract (before weeding)",
+        min=0)
+    streamlines_interpolated = FloatProperty(
+        name="Interpolate streamlines",
+        description="Interpolate the individual streamlines",
+        default=1.,
+        min=0.,
+        max=1.)
+    tract_weeded = FloatProperty(
+        name="Tract weeding",
+        description="Retain a random selection of streamlines",
+        default=1.,
+        min=0.,
+        max=1.)
+
+
+class SurfaceProperties(PropertyGroup):
+    """Properties of surfaces."""
+
+    name = StringProperty(
+        name="Name",
+        description="Specify a name for the surface (default: filename)",
+        default="")
+    icon = StringProperty(
+        name="Icon",
+        description="Icon for surface objects",
+        default="MESH_MONKEY")
+    beautified = BoolProperty(
+        name="Beautify",
+        description="Apply initial smoothing on surface",
+        default=True)
+    sformfile = StringProperty(
+        name="Transform",
+        description="""
+            A file with transformation matrix
+            It can be a nifti file (through nibabel)
+            or an ascii with a space-delimited 4x4 matrix
+            For .nii, it will only use the sform for now
+            """,
+        subtype="FILE_PATH",
+        update=sformfile_update)
+    # TODO: http://nipy.org/nibabel/coordinate_systems.html
+    srow_x = FloatVectorProperty(
+        name="srow_x",
+        description="",
+        default=[1.0, 0.0, 0.0, 0.0],
+        size=4)
+    srow_y = FloatVectorProperty(
+        name="srow_y",
+        description="",
+        default=[0.0, 1.0, 0.0, 0.0],
+        size=4)
+    srow_z = FloatVectorProperty(
+        name="srow_z",
+        description="",
+        default=[0.0, 0.0, 1.0, 0.0],
+        size=4)
+
+    scalars = CollectionProperty(
+        type=ScalarProperties,
+        name="scalars",
+        description="The collection of loaded scalars")
+    index_scalars = IntProperty(
+        name="scalar index",
+        description="index of the scalars collection",
+        default=0,
+        min=0)
+    labels = CollectionProperty(
+        type=LabelProperties,
+        name="labels",
+        description="The collection of loaded labels")
+    index_labels = IntProperty(
+        name="label index",
+        description="index of the labels collection",
+        default=0,
+        min=0)
+
+
+class VoxelvolumeProperties(PropertyGroup):
+    """Properties of voxelvolumes."""
+
+    name = StringProperty(
+        name="Name",
+        description="Specify a name for the voxelvolume (default: filename)",
+        default="")
+    icon = StringProperty(
+        name="Icon",
+        description="Icon for surface objects",
+        default="MESH_GRID")
+    beautified = BoolProperty(
+        name="Beautify",
+        description="",
+        default=True)
+    sformfile = StringProperty(
+        name="Transform",
+        description="""
+            A file with transformation matrix
+            It can be a nifti file (through nibabel)
+            or an ascii with a space-delimited 4x4 matrix
+            For .nii, it will only use the sform for now
+            """,
+        subtype="FILE_PATH",
+        update=sformfile_update)
+    # TODO: http://nipy.org/nibabel/coordinate_systems.html
+    srow_x = FloatVectorProperty(
+        name="srow_x",
+        description="",
+        default=[1.0, 0.0, 0.0, 0.0],
+        size=4)
+    srow_y = FloatVectorProperty(
+        name="srow_y",
+        description="",
+        default=[0.0, 1.0, 0.0, 0.0],
+        size=4)
+    srow_z = FloatVectorProperty(
+        name="srow_z",
+        description="",
+        default=[0.0, 0.0, 1.0, 0.0],
+        size=4)
+
+    scalars = CollectionProperty(
+        type=ScalarProperties,
+        name="scalars",
+        description="The collection of loaded scalars")
+    index_scalars = IntProperty(
+        name="scalar index",
+        description="index of the scalars collection",
+        default=0,
+        min=0)
+    labels = CollectionProperty(
+        type=LabelProperties,
+        name="labels",
+        description="The collection of loaded labels")
+    index_labels = IntProperty(
+        name="label index",
+        description="index of the labels collection",
+        default=0,
+        min=0)
 
 
 class TractBlenderProperties(PropertyGroup):
@@ -873,6 +1007,25 @@ class TractBlenderProperties(PropertyGroup):
                ("voxelvolumes", "voxelvolumes", "List the voxelvolumes", 3)],
         default="tracts")
 
+    srow_x = FloatVectorProperty(
+        name="srow_x",
+        description="",
+        default=[1.0, 0.0, 0.0, 0.0],
+        size=4,
+        update=srowx_update)
+    srow_y = FloatVectorProperty(
+        name="srow_y",
+        description="",
+        default=[0.0, 1.0, 0.0, 0.0],
+        size=4,
+        update=srowy_update)
+    srow_z = FloatVectorProperty(
+        name="srow_z",
+        description="",
+        default=[0.0, 0.0, 1.0, 0.0],
+        size=4,
+        update=srowz_update)
+
     tracts = CollectionProperty(
         type=TractProperties,
         name="tracts",
@@ -907,24 +1060,6 @@ class TractBlenderProperties(PropertyGroup):
         items=[("scalars", "scalars", "List the scalar overlays", 1),
                ("labels", "labels", "List the label overlays", 2)],
         default="scalars")
-    scalars = CollectionProperty(
-        type=ScalarProperties,
-        name="scalars",
-        description="The collection of loaded scalars")
-    index_scalars = IntProperty(
-        name="scalar index",
-        description="index of the scalars collection",
-        default=0,
-        min=0)
-    labels = CollectionProperty(
-        type=LabelProperties,
-        name="labels",
-        description="The collection of loaded labels")
-    index_labels = IntProperty(
-        name="label index",
-        description="index of the labels collection",
-        default=0,
-        min=0)
 
     colourtype = EnumProperty(
         name="material_presets",
@@ -942,10 +1077,10 @@ class TractBlenderProperties(PropertyGroup):
         description="Select vertexgroups to turn into a vertexcolour",
         options={"ENUM_FLAG"},
         items=vgs2vc_enum_callback)
-    vginfo = CollectionProperty(
-        type=TractBlenderVertexGroupInfo,
-        name="VertexgroupInfo",
-        description="Keep track of info about vertexgroups")
+#     vginfo = CollectionProperty(
+#         type=TractBlenderVertexGroupInfo,
+#         name="VertexgroupInfo",
+#         description="Keep track of info about vertexgroups")
 
     camview = EnumProperty(
         name="CamView",
@@ -967,31 +1102,6 @@ class TractBlenderProperties(PropertyGroup):
                 "Left-Posterior-Superior", 5),
                ("LeftPostInf", "Left-Post-Inf",
                 "Left-Posterior-Inferior", 6)])
-
-    sform = StringProperty(
-        name="Transform",
-        description="""
-            A file with transformation matrix
-            It can be a nifti file (through nibabel)
-            or an ascii with a space-delimited 4x4 matrix
-            For .nii, it will only use the sform for now
-            """,
-        subtype="FILE_PATH")
-    # TODO: http://nipy.org/nibabel/coordinate_systems.html
-
-    scalarpath = StringProperty(
-        name="Scalars",
-        description="A file with scalars to map to a tract/surface",
-        subtype="FILE_PATH")
-    scalarinfo = CollectionProperty(
-        type=TractBlenderScalarInfo,
-        name="ScalarInfo",
-        description="Keep track of info about loaded scalar overlays")
-    scalarindex = IntProperty(
-        name="VGindex",
-        description="",
-        default=0,
-        min=0)
 
 
 # =========================================================================== #
