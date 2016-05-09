@@ -1,4 +1,4 @@
-0# ##### BEGIN GPL LICENSE BLOCK #####
+# ##### BEGIN GPL LICENSE BLOCK #####
 #
 #  This program is free software; you can redistribute it and/or
 #  modify it under the terms of the GNU General Public License
@@ -24,7 +24,8 @@ import bpy
 
 import numpy as np
 
-import bpy, mathutils, math
+import mathutils
+import math
 from mathutils import Vector
 from math import pi
 
@@ -51,16 +52,16 @@ def scene_preset():
 
     # Add an empty at the middle of all render objects
     obs = [ob for ob in bpy.data.objects
-           if ((ob.type not in ['CAMERA', 'LAMP', 'EMPTY']) and 
+           if ((ob.type not in ['CAMERA', 'LAMP', 'EMPTY']) and
                (not ob.name.startswith('BrainDissectionTable')))]
 
     if not obs:
         print('no objects were found')
-        return  {'FINISHED'}
+        return {'FINISHED'}
 
     bbox = np.array(find_bbox_coordinates(obs))
-    dims = np.subtract(bbox[:,1], bbox[:,0])
-    midpoint = bbox[:,0] + dims / 2
+    dims = np.subtract(bbox[:, 1], bbox[:, 0])
+    midpoint = bbox[:, 0] + dims / 2
     bc = bpy.data.objects.new(name='BrainCentre', object_data=None)
     bc.location = midpoint
     bpy.context.scene.objects.link(bc)
@@ -96,6 +97,7 @@ def delete_preset(deltypes, prefix):
         ob.select = ob.name.startswith(prefix)  # and ob.type in deltypes
 
     bpy.ops.object.delete()
+
 
 def delete_cube():
     """Delete the default Blender Cube."""
@@ -144,12 +146,12 @@ def create_camera(braincentre, bbox, dims, quadrant=(1, 1, 1)):
     cam.shift_y = 0.0
     cam.clip_start = min(dims) / 10
     cam.clip_end = max(dims) * 20
-    
-    add_cam_constraint(ob, "TRACK_TO", 
+
+    add_cam_constraint(ob, "TRACK_TO",
                        "TrackToBrainCentre", braincentre)
-    add_cam_constraint(ob, "LIMIT_DISTANCE", 
+    add_cam_constraint(ob, "LIMIT_DISTANCE",
                        "LimitDistInClipBox", braincentre, cam.clip_end)
-    add_cam_constraint(ob, "LIMIT_DISTANCE", 
+    add_cam_constraint(ob, "LIMIT_DISTANCE",
                        "LimitDistOutBrainBox", braincentre, max(dims))
 
     # TODO: tie in with orientation matrix (RAS layout assumed for now)
@@ -197,36 +199,36 @@ def add_cam_constraint(ob, type, name, target, val=None):
 
 def create_lighting(braincentre, bbox, dims, quadrant=(1, 1, 1)):
     """"""
-    
+
 #     view = (1, 1, 1)
     # TODO: constraints to have the light follow cam?
-    
+
     name = "BrainLightMain"
     dimscale = (0.5, 0.5)
     dimlocation = [5*quadrant[0], 2*quadrant[1], 3*quadrant[2]]
     emission = {'colour': (1.0, 1.0, 1.0, 1.0), 'strength': 50}
-    create_light(name, braincentre, bbox, dims, 
+    create_light(name, braincentre, bbox, dims,
                  dimscale, dimlocation, emission)
-    
+
     name = "BrainLightAux"
     dimscale = (0.1, 0.1)
     dimlocation = [-2*quadrant[0], 2*quadrant[1], 1*quadrant[2]]
     emission = {'colour': (1.0, 1.0, 1.0, 1.0), 'strength': 30}
-    create_light(name, braincentre, bbox, dims, 
+    create_light(name, braincentre, bbox, dims,
                  dimscale, dimlocation, emission)
-    
+
     name = "BrainLightHigh"
     dimscale = (0.1, 0.1)
     dimlocation = (10, -10, 5)
     dimlocation = [10*quadrant[0], -10*quadrant[1], 5*quadrant[2]]
     emission = {'colour': (1.0, 1.0, 1.0, 1.0), 'strength': 100}
-    create_light(name, braincentre, bbox, dims, 
+    create_light(name, braincentre, bbox, dims,
                  dimscale, dimlocation, emission)
-    
 
 
 def create_light(name, braincentre, bbox, dims, scale, loc, emission):
     """"""
+
     ob = create_plane(name)
     ob.scale = [dims[0]*scale[0], dims[1]*scale[1], 1]
     ob.location = (braincentre.location[0] + dims[0] * loc[0],
@@ -260,6 +262,7 @@ def create_plane(name):
 
     return ob
 
+
 def create_table(braincentre, bbox, dims):
     """"""
 
@@ -268,7 +271,7 @@ def create_table(braincentre, bbox, dims):
     ob.scale = (5000, 5000, 1)  # TODO: use dims
     ob.location = (braincentre.location[0],
                    braincentre.location[1],
-                   bbox[2,0])
+                   bbox[2, 0])
 
     diffuse = {'colour': (0.5, 0.5, 0.5, 1.0), 'roughness': 0.1}
     glossy = {'colour': (1.0, 1.0, 1.0, 1.0), 'roughness': 0.1}
@@ -278,15 +281,16 @@ def create_table(braincentre, bbox, dims):
 
 def create_world():
     """"""
-    
+
     world = bpy.context.scene.world
     nodes = world.node_tree.nodes
-    
-#     node = nodes.new("")
-#     node.label = "Voronoi Texture"
-#     node.name = "Voronoi Texture"
-#     node.location = 800, 0
-#     
-#     nodes.nodes["Voronoi Texture"].coloring = 'INTENSITY'
-#     bpy.data.node_groups["Shader Nodetree"].nodes["Background"].inputs[1].default_value = 0.1
-#     bpy.data.node_groups["Shader Nodetree"].nodes["Voronoi Texture"].inputs[1].default_value = 2
+
+    node = nodes.new("")
+    node.label = "Voronoi Texture"
+    node.name = "Voronoi Texture"
+    node.location = 800, 0
+
+    nodes.nodes["Voronoi Texture"].coloring = 'INTENSITY'
+    nt = bpy.data.node_groups["Shader Nodetree"]
+    nt.nodes["Background"].inputs[1].default_value = 0.1
+    nt.nodes["Voronoi Texture"].inputs[1].default_value = 2

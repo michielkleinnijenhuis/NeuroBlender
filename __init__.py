@@ -109,11 +109,19 @@ class TractBlenderImportPanel(Panel):
                           tb, "index_" + obtype,
                           rows=2)
         col = row.column(align=True)
-        col.operator("tb.import_" + obtype, icon='ZOOMIN', text="")
-        col.operator("tb.oblist_ops", icon='ZOOMOUT', text="").action = 'REMOVE_ob'
+        col.operator("tb.import_" + obtype,
+                     icon='ZOOMIN',
+                     text="")
+        col.operator("tb.oblist_ops",
+                     icon='ZOOMOUT',
+                     text="").action = 'REMOVE_ob'
         col.separator()
-        col.operator("tb.oblist_ops", icon='TRIA_UP', text="").action = 'UP_ob'
-        col.operator("tb.oblist_ops", icon='TRIA_DOWN', text="").action = 'DOWN_ob'
+        col.operator("tb.oblist_ops",
+                     icon='TRIA_UP',
+                     text="").action = 'UP_ob'
+        col.operator("tb.oblist_ops",
+                     icon='TRIA_DOWN',
+                     text="").action = 'DOWN_ob'
 
         try:
             idx = eval("tb.index_%s" % obtype)
@@ -139,8 +147,8 @@ class TractBlenderImportPanel(Panel):
                 ob = bpy.data.objects[tb_ob.name]
                 mw = ob.matrix_world
                 txts = ["srow_%s  %8.3f %8.3f %8.3f %8.3f" % (dim,
-                    mw[i][0], mw[i][1], mw[i][2], mw[i][3]) 
-                        for i,dim in enumerate('xyz')]
+                        mw[i][0], mw[i][1], mw[i][2], mw[i][3])
+                        for i, dim in enumerate('xyz')]
                 row = box.row()
                 row.enabled = False
                 row.label(text=txts[0])
@@ -156,9 +164,6 @@ class TractBlenderImportPanel(Panel):
                          emboss=False)
 
             row = box.row()
-            row.separator()
-
-            row = box.row()
             if tb.show_overlay_options:
                 row.prop(tb, "show_overlay_options",
                          icon='TRIA_DOWN',
@@ -171,18 +176,23 @@ class TractBlenderImportPanel(Panel):
                                   tb_ob, "index_" + ovtype,
                                   rows=2)
                 col = row.column(align=True)
-                col.operator("tb.import_" + ovtype, icon='ZOOMIN', text="")
-                col.operator("tb.oblist_ops", icon='ZOOMOUT', text="").action = 'REMOVE_ov'
+                col.operator("tb.import_" + ovtype,
+                             icon='ZOOMIN',
+                             text="")
+                col.operator("tb.oblist_ops",
+                             icon='ZOOMOUT',
+                             text="").action = 'REMOVE_ov'
                 col.separator()
-                col.operator("tb.oblist_ops", icon='TRIA_UP', text="").action = 'UP_ov'
-                col.operator("tb.oblist_ops", icon='TRIA_DOWN', text="").action = 'DOWN_ov'
+                col.operator("tb.oblist_ops",
+                             icon='TRIA_UP',
+                             text="").action = 'UP_ov'
+                col.operator("tb.oblist_ops",
+                             icon='TRIA_DOWN',
+                             text="").action = 'DOWN_ov'
             else:
                 row.prop(tb, "show_overlay_options",
                          icon='TRIA_RIGHT',
                          emboss=False)
-
-            row = box.row()
-            row.separator()
 
             row = box.row()
             if tb.show_additional_options:
@@ -228,10 +238,10 @@ class MakeNibabelPersistent(Operator):
 
 class ObjectList(UIList):
 
-    def draw_item(self, context, layout, data, item, icon, 
+    def draw_item(self, context, layout, data, item, icon,
                   active_data, active_propname, index):
 
-        layout.prop(item, "name", text="", emboss=False, 
+        layout.prop(item, "name", text="", emboss=False,
                     translate=False, icon=item.icon)
 
 
@@ -241,11 +251,11 @@ class ObjectListOperations(Operator):
 
     action = bpy.props.EnumProperty(
         items=(('UP_ob', "UpOb", ""),
-            ('DOWN_ob', "DownOb", ""),
-            ('REMOVE_ob', "RemoveOb", ""),
-            ('UP_ov', "UpOv", ""),
-            ('DOWN_ov', "DownOv", ""),
-            ('REMOVE_ov', "RemoveOv", "")))
+               ('DOWN_ob', "DownOb", ""),
+               ('REMOVE_ob', "RemoveOb", ""),
+               ('UP_ov', "UpOv", ""),
+               ('DOWN_ov', "DownOv", ""),
+               ('REMOVE_ov', "RemoveOv", "")))
 
     def invoke(self, context, event):
 
@@ -270,10 +280,10 @@ class ObjectListOperations(Operator):
             pass
         else:
             if self.action.startswith('DOWN') and idx < len(coll) - 1:
-                coll.move(idx,idx+1)
+                coll.move(idx, idx+1)
                 exec("%s.index_%s += 1" % (data, type))
             elif self.action.startswith('UP') and idx >= 1:
-                coll.move(idx,idx-1)
+                coll.move(idx, idx-1)
                 exec("%s.index_%s -= 1" % (data, type))
             elif self.action.startswith('REMOVE'):
                 # TODO: handle user's name changes outside of TractBlender
@@ -321,7 +331,8 @@ class ImportTracts(Operator, ImportHelper):
                                type=OperatorFileListElement)
     filter_glob = StringProperty(
         options={"HIDDEN"},
-        default="*.vtk;*.bfloat;*.Bfloat;*.bdouble;*.Bdouble;*.tck;*.trk;*.npy;*.npz;*.dpy")
+        default="*.vtk;*.bfloat;*.Bfloat;*.bdouble;*.Bdouble;" +
+                "*.tck;*.trk;*.npy;*.npz;*.dpy")
 
     name = StringProperty(
         name="Name",
@@ -617,6 +628,7 @@ class ScenePreset(Operator):
         tb_rp.scene_preset()
 
         return {"FINISHED"}
+
 
 class VertexColourFromVertexGroups(Operator):
     bl_idname = "tb.vertexcolour_from_vertexgroups"
@@ -981,15 +993,15 @@ class TractBlenderProperties(PropertyGroup):
         subtype="DIR_PATH",
         update=nibabel_path_update)
 
-    show_transform_options = BoolProperty (
-        name="Transform options",
+    show_transform_options = BoolProperty(
+        name="Transform",
         default=True,
         description="Show/hide the object's transform options")
-    show_overlay_options = BoolProperty (
-        name="Overlay options",
+    show_overlay_options = BoolProperty(
+        name="Overlays",
         default=True,
         description="Show/hide the object's overlay options")
-    show_additional_options = BoolProperty (
+    show_additional_options = BoolProperty(
         name="Additional options",
         default=True,
         description="Show/hide the object's additional options")

@@ -141,6 +141,7 @@ def register():
     bpy.types.CONSOLE_MT_console.append(menu_func)
     initialize()
 
+
 def unregister():
     bpy.utils.unregister_module(__name__)
     bpy.types.CONSOLE_MT_console.remove(menu_func)

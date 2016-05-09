@@ -84,11 +84,12 @@ def import_objects(directory, files, importfun,
 
         if beautify:
             tb_beau.beautify_brain(ob, importtype)
-        
+
         ob.select = True
-        bpy.context.scene.objects.active = ob 
+        bpy.context.scene.objects.active = ob
 
     return {"FINISHED"}
+
 
 def import_tract(fpath, name, info=None):
     """"""
@@ -127,11 +128,11 @@ def import_tract(fpath, name, info=None):
     for i, streamline in enumerate(streamlines):
         if i in streamlines_sample:
             if interpolate_streamlines < 1.:
+                subsample_streamlines = int(1/interpolate_streamlines)
+                streamline = streamline[1::subsample_streamlines, :]
 #                 TODO: interpolation
 #                 from scipy import interpolate
 #                 x = interpolate.splprep(list(np.transpose(streamline)))
-                subsample_streamlines = int(1/interpolate_streamlines)
-                streamline = streamline[1::subsample_streamlines,:]
             ob = make_polyline_ob(curve, streamline)
 
     tract = tb.tracts.add()
@@ -249,7 +250,7 @@ def import_scalars(directory, files):
 
 def import_labels(directory, files):
     """Import overlays onto a selected object.
-    
+
     """
 
     if not files:
@@ -321,17 +322,18 @@ def import_surflabel(ob, labelpath, labelflag=False):
             label, scalars = fsio.read_label(labelpath, read_scalars=True)
         else:
             labeltxt = np.loadtxt(labelpath, skiprows=2)
-            label = labeltxt[:,0]
-            scalars = labeltxt[:,4]
-    
-        if labelflag: scalars = None  # TODO: handle file where no scalars present
+            label = labeltxt[:, 0]
+            scalars = labeltxt[:, 4]
+
+        if labelflag:
+            scalars = None  # TODO: handle file where no scalars present
 
     return label, scalars
 
 
 def import_surfannot(ob, labelpath):
     """"""
-    
+
     if labelpath.endswith('.annot'):
         nib = tb_utils.validate_nibabel('.annot')
         if bpy.context.scene.tb.nibabel_valid:
@@ -514,9 +516,9 @@ def import_vtk_polylines(vtkfile):
 # TODO COLOR_SCALARS
 # POINT_DATA 754156
 # COLOR_SCALARS scalars 4
-# 0 1 0.988235 1 0 1 0.988235 1 0 1 0.996078 1 
-# 0 0.980392 1 1 0 0.956863 1 1 
-# 0 0.854902 1 1 0 0.560784 1 1 
+# 0 1 0.988235 1 0 1 0.988235 1 0 1 0.996078 1
+# 0 0.980392 1 1 0 0.956863 1 1
+# 0 0.854902 1 1 0 0.560784 1 1
 
 
 def unpack_vtk_polylines(points, tracts):
