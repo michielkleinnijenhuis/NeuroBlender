@@ -671,29 +671,6 @@ def make_polyline_ob(curvedata, cList):
 # ========================================================================== #
 
 
-def update_affine_transform(tb_ob, affine_new):
-    """"""
-
-    ob = bpy.data.objects[tb_ob.name]
-
-    affine_old = mathutils.Matrix((tb_ob.srow_x,
-                                   tb_ob.srow_y,
-                                   tb_ob.srow_z,
-                                   [0,0,0,1]))
-    affine = np.linalg.inv(affine_old).dot(affine_new)
-
-    ob.data.transform(affine)
-#     ob.matrix_world = affine_new
-
-    if affine_old.is_negative is not affine_new.is_negative:
-        # FIXME: this takes a lot of time
-        bpy.context.scene.objects.active = ob
-        bpy.ops.object.mode_set(mode='EDIT')
-        bpy.ops.mesh.select_all(action='SELECT')
-        bpy.ops.mesh.normals_make_consistent(inside=False)
-        bpy.ops.object.editmode_toggle()
-
-
 def read_affine_matrix(filepath):
     """Get the affine transformation matrix from the nifti or textfile."""
 

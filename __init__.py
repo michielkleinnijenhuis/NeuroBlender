@@ -122,54 +122,88 @@ class TractBlenderImportPanel(Panel):
             pass
         else:
             ovtype = tb.overlaytype
-    
+
             row = self.layout.row()
             row.label(text="Properties of %s:" % tb_ob.name)
-            
+
             box = self.layout.box()
 
             row = box.row()
-            row.prop(tb_ob, "sformfile")
-            if not all(np.array(tb.srow_x) == np.array(tb_ob.srow_x)):
-                tb.srow_x = tb_ob.srow_x
-            if not all(np.array(tb.srow_y) == np.array(tb_ob.srow_y)):
-                tb.srow_y = tb_ob.srow_y
-            if not all(np.array(tb.srow_z) == np.array(tb_ob.srow_z)):
-                tb.srow_z = tb_ob.srow_z
-            row = box.row()
-            row.prop(tb, "srow_x")
-            row = box.row()
-            row.prop(tb, "srow_y")
-            row = box.row()
-            row.prop(tb, "srow_z")
+            if tb.show_transform_options:
+                row.prop(tb, "show_transform_options",
+                         icon='TRIA_DOWN',
+                         emboss=False)
+                row = box.row()
+                row.prop(tb_ob, "sformfile")
 
-            row = box.row()
-            row.enabled = False
-            row.prop(tb_ob, "beautified")
-            if obtype == 'tracts':
-                row.prop(tb_ob, "nstreamlines")
-                row.prop(tb_ob, "streamlines_interpolated")
-                row.prop(tb_ob, "tract_weeded")
-            elif obtype == 'surfaces':
-                pass
-            elif obtype == 'voxelvolumes':
-                pass
+                ob = bpy.data.objects[tb_ob.name]
+                mw = ob.matrix_world
+                txts = ["srow_%s  %8.3f %8.3f %8.3f %8.3f" % (dim,
+                    mw[i][0], mw[i][1], mw[i][2], mw[i][3]) 
+                        for i,dim in enumerate('xyz')]
+                row = box.row()
+                row.enabled = False
+                row.label(text=txts[0])
+                row = box.row()
+                row.enabled = False
+                row.label(text=txts[1])
+                row = box.row()
+                row.enabled = False
+                row.label(text=txts[2])
+            else:
+                row.prop(tb, "show_transform_options",
+                         icon='TRIA_RIGHT',
+                         emboss=False)
 
             row = box.row()
             row.separator()
+
             row = box.row()
-            row.prop(tb, "overlaytype", expand=True)
+            if tb.show_overlay_options:
+                row.prop(tb, "show_overlay_options",
+                         icon='TRIA_DOWN',
+                         emboss=False)
+                row = box.row()
+                row.prop(tb, "overlaytype", expand=True)
+                row = box.row()
+                row.template_list("ObjectList", "",
+                                  tb_ob, ovtype,
+                                  tb_ob, "index_" + ovtype,
+                                  rows=2)
+                col = row.column(align=True)
+                col.operator("tb.import_" + ovtype, icon='ZOOMIN', text="")
+                col.operator("tb.oblist_ops", icon='ZOOMOUT', text="").action = 'REMOVE_ov'
+                col.separator()
+                col.operator("tb.oblist_ops", icon='TRIA_UP', text="").action = 'UP_ov'
+                col.operator("tb.oblist_ops", icon='TRIA_DOWN', text="").action = 'DOWN_ov'
+            else:
+                row.prop(tb, "show_overlay_options",
+                         icon='TRIA_RIGHT',
+                         emboss=False)
+
             row = box.row()
-            row.template_list("ObjectList", "",
-                              tb_ob, ovtype,
-                              tb_ob, "index_" + ovtype,
-                              rows=2)
-            col = row.column(align=True)
-            col.operator("tb.import_" + ovtype, icon='ZOOMIN', text="")
-            col.operator("tb.oblist_ops", icon='ZOOMOUT', text="").action = 'REMOVE_ov'
-            col.separator()
-            col.operator("tb.oblist_ops", icon='TRIA_UP', text="").action = 'UP_ov'
-            col.operator("tb.oblist_ops", icon='TRIA_DOWN', text="").action = 'DOWN_ov'
+            row.separator()
+
+            row = box.row()
+            if tb.show_additional_options:
+                row.prop(tb, "show_additional_options",
+                         icon='TRIA_DOWN',
+                         emboss=False)
+                row = box.row()
+                row.enabled = False
+                row.prop(tb_ob, "beautified")
+                if obtype == 'tracts':
+                    row.prop(tb_ob, "nstreamlines")
+                    row.prop(tb_ob, "streamlines_interpolated")
+                    row.prop(tb_ob, "tract_weeded")
+                elif obtype == 'surfaces':
+                    pass
+                elif obtype == 'voxelvolumes':
+                    pass
+            else:
+                row.prop(tb, "show_additional_options",
+                         icon='TRIA_RIGHT',
+                         emboss=False)
 
 
 class MakeNibabelPersistent(Operator):
@@ -621,62 +655,10 @@ def sformfile_update(self, context):
     tb = context.scene.tb
     ob_idx = eval("tb.index_%s" % tb.objecttype)
     tb_ob = eval("tb.%s[%d]" % (tb.objecttype, ob_idx))
+    ob = bpy.data.objects[tb_ob.name]
 
-    affine_new = tb_imp.read_affine_matrix(tb_ob.sformfile)
-
-    tb_imp.update_affine_transform(tb_ob, affine_new)
-
-    tb_ob.srow_x = affine_new[0]
-    tb_ob.srow_y = affine_new[1]
-    tb_ob.srow_z = affine_new[2]
-
-
-def srowx_update(self, context):
-    """Set the sform transformation matrix for the object."""
-
-    tb = context.scene.tb
-    ob_idx = eval("tb.index_%s" % tb.objecttype)
-    tb_ob = eval("tb.%s[%d]" % (tb.objecttype, ob_idx))
-
-    affine_new = mathutils.Matrix((tb.srow_x,
-                                   tb.srow_y,
-                                   tb.srow_z,
-                                   [0,0,0,1]))
-    tb_imp.update_affine_transform(tb_ob, affine_new)
-
-    tb_ob.srow_x = tb.srow_x
-
-
-def srowy_update(self, context):
-    """Set the sform transformation matrix for the object."""
-
-    tb = context.scene.tb
-    ob_idx = eval("tb.index_%s" % tb.objecttype)
-    tb_ob = eval("tb.%s[%d]" % (tb.objecttype, ob_idx))
-
-    affine_new = mathutils.Matrix((tb.srow_x,
-                                   tb.srow_y,
-                                   tb.srow_z,
-                                   [0,0,0,1]))
-    tb_imp.update_affine_transform(tb_ob, affine_new)
-
-    tb_ob.srow_y = tb.srow_y
-
-
-def srowz_update(self, context):
-    """Set the sform transformation matrix for the object."""
-
-    tb = context.scene.tb
-    ob_idx = eval("tb.index_%s" % tb.objecttype)
-    tb_ob = eval("tb.%s[%d]" % (tb.objecttype, ob_idx))
-
-    affine_new = mathutils.Matrix((tb.srow_x,
-                                   tb.srow_y,
-                                   tb.srow_z,
-                                   [0,0,0,1]))
-    tb_imp.update_affine_transform(tb_ob, affine_new)
-
-    tb_ob.srow_z = tb.srow_z
+    affine = tb_imp.read_affine_matrix(tb_ob.sformfile)
+    ob.matrix_world = affine
 
 
 def material_enum_callback(self, context):
@@ -999,6 +981,19 @@ class TractBlenderProperties(PropertyGroup):
         subtype="DIR_PATH",
         update=nibabel_path_update)
 
+    show_transform_options = BoolProperty (
+        name="Transform options",
+        default=True,
+        description="Show/hide the object's transform options")
+    show_overlay_options = BoolProperty (
+        name="Overlay options",
+        default=True,
+        description="Show/hide the object's overlay options")
+    show_additional_options = BoolProperty (
+        name="Additional options",
+        default=True,
+        description="Show/hide the object's additional options")
+
     objecttype = EnumProperty(
         name="object type",
         description="switch between object types",
@@ -1006,25 +1001,6 @@ class TractBlenderProperties(PropertyGroup):
                ("surfaces", "surfaces", "List the surfaces", 2),
                ("voxelvolumes", "voxelvolumes", "List the voxelvolumes", 3)],
         default="tracts")
-
-    srow_x = FloatVectorProperty(
-        name="srow_x",
-        description="",
-        default=[1.0, 0.0, 0.0, 0.0],
-        size=4,
-        update=srowx_update)
-    srow_y = FloatVectorProperty(
-        name="srow_y",
-        description="",
-        default=[0.0, 1.0, 0.0, 0.0],
-        size=4,
-        update=srowy_update)
-    srow_z = FloatVectorProperty(
-        name="srow_z",
-        description="",
-        default=[0.0, 0.0, 1.0, 0.0],
-        size=4,
-        update=srowz_update)
 
     tracts = CollectionProperty(
         type=TractProperties,
