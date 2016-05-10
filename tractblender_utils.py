@@ -65,6 +65,16 @@ def move_to_layer(ob, layer):
         ob.layers[i] = (i == layer)
 
 
+def active_tb_object():
+    """Identify the active object in the ImportPanel UIList."""
+
+    tb = bpy.context.scene.tb
+    ob_idx = eval("tb.index_%s" % tb.objecttype)
+    tb_ob = eval("tb.%s[%d]" % (tb.objecttype, ob_idx))
+
+    return tb_ob, ob_idx
+
+
 # ========================================================================== #
 # nibabel-related functions
 # ========================================================================== #

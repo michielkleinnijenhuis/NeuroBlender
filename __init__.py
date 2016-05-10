@@ -265,9 +265,7 @@ class ObjectListOperations(Operator):
     def invoke(self, context, event):
 
 
-        tb = context.scene.tb
-        ob_idx = eval("tb.index_%s" % tb.objecttype)
-        tb_ob = eval("tb.%s[%d]" % (tb.objecttype, ob_idx))
+        tb_ob, ob_idx = tb_utils.active_tb_object()
 
         collection = eval("%s.%s" % ("tb", tb.objecttype))
         validate_tb_objects([collection])
@@ -686,12 +684,9 @@ def validate_tb_objects(collections):
 def validate_tb_overlays(ob, collections):
     """Validate that a TractBlender vertexgroup can be found in Blender."""
 
-    print(ob, ob.name)
     itemtype = "vertexgroup"
     for collection in collections:
-        print(collection)
         for item in collection:
-            print(item, item.name)
             try:
                 vg = ob.vertex_groups[item.name]
             except KeyError:

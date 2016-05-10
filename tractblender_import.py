@@ -251,11 +251,9 @@ def import_scalars(directory, files):
     for f in files:
         fpath = os.path.join(directory, f)
 
-        selected_obs = bpy.context.selected_objects
-        if len(selected_obs) != 1:  # TODO
-            return {'can only apply overlays to one object'}
+        tb_ob, _ = tb_utils.active_tb_object()
+        ob = bpy.data.objects[tb_ob.name]
 
-        ob = selected_obs[0]
         if fpath.endswith('.label'):
             # but do not treat it as a label
             tb_mat.create_vg_overlay(ob, fpath, labelflag=False)
@@ -274,11 +272,9 @@ def import_labels(directory, files):
     for f in files:
         fpath = os.path.join(directory, f)
 
-        selected_obs = bpy.context.selected_objects
-        if len(selected_obs) != 1:  # TODO
-            return {'can only apply overlays to one object'}
+        tb_ob, _ = tb_utils.active_tb_object()
+        ob = bpy.data.objects[tb_ob.name]
 
-        ob = selected_obs[0]
         if fpath.endswith('.label'):
             tb_mat.create_vg_overlay(ob, fpath, True)
         elif fpath.endswith('.annot'):
