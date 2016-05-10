@@ -30,6 +30,7 @@ from mathutils import Vector
 from math import pi
 
 from . import tractblender_materials as tb_mat
+from . import tractblender_utils as tb_utils
 
 # ========================================================================== #
 # function to prepare a suitable setup for rendering the scene
@@ -38,7 +39,6 @@ from . import tractblender_materials as tb_mat
 
 def scene_preset():
     """"""
-    # Delete all old cameras, lamps and empties starting with 'Brain'
     scn = bpy.context.scene
     tb = scn.tb
 
@@ -50,11 +50,9 @@ def scene_preset():
     deltypes = ['CAMERA', 'LAMP', 'EMPTY']
     delete_preset(deltypes, prefix)
 
-    # Add an empty at the middle of all render objects
     obs = [ob for ob in bpy.data.objects
            if ((ob.type not in ['CAMERA', 'LAMP', 'EMPTY']) and
                (not ob.name.startswith('BrainDissectionTable')))]
-
     if not obs:
         print('no objects were found')
         return {'FINISHED'}
@@ -76,15 +74,25 @@ def scene_preset():
                  'LeftPostSup': (-1, -1, 1),
                  'LeftPostInf':  (-1, -1, -1)}
     quadrant = quadrants[camview]
-    create_camera(bc, bbox, dims, quadrant)
+    cam = create_camera(bc, bbox, dims, quadrant)
     if not camview.endswith('Inf'):
-        create_table(bc, bbox, dims)
+        table = create_table(bc, bbox, dims)
 
-    # TODO: lighting to follow camview
-    create_lighting(bc, bbox, dims, quadrant)
+    lights = create_lighting(bc, bbox, dims, quadrant)
+
+    layer = 5
+    obs = [bc] + [cam] + [table] + lights
+    for ob in obs:
+        print(ob)
+        if ob is not None:
+            tb_utils.move_to_layer(ob, layer)
+    scn.layers[layer] = True
 
     scn.cycles.caustics_refractive = False
     scn.cycles.caustics_reflective = False
+    
+    # TODO: go to camera view?
+    # TODO: different camviews to layers?
 
     return {'FINISHED'}
 
@@ -207,24 +215,25 @@ def create_lighting(braincentre, bbox, dims, quadrant=(1, 1, 1)):
     dimscale = (0.5, 0.5)
     dimlocation = [5*quadrant[0], 2*quadrant[1], 3*quadrant[2]]
     emission = {'colour': (1.0, 1.0, 1.0, 1.0), 'strength': 50}
-    create_light(name, braincentre, bbox, dims,
-                 dimscale, dimlocation, emission)
+    main = create_light(name, braincentre, bbox, dims,
+                        dimscale, dimlocation, emission)
 
     name = "BrainLightAux"
     dimscale = (0.1, 0.1)
     dimlocation = [-2*quadrant[0], 2*quadrant[1], 1*quadrant[2]]
     emission = {'colour': (1.0, 1.0, 1.0, 1.0), 'strength': 30}
-    create_light(name, braincentre, bbox, dims,
-                 dimscale, dimlocation, emission)
+    aux = create_light(name, braincentre, bbox, dims,
+                       dimscale, dimlocation, emission)
 
     name = "BrainLightHigh"
     dimscale = (0.1, 0.1)
     dimlocation = (10, -10, 5)
     dimlocation = [10*quadrant[0], -10*quadrant[1], 5*quadrant[2]]
     emission = {'colour': (1.0, 1.0, 1.0, 1.0), 'strength': 100}
-    create_light(name, braincentre, bbox, dims,
-                 dimscale, dimlocation, emission)
+    high = create_light(name, braincentre, bbox, dims,
+                        dimscale, dimlocation, emission)
 
+    return [main, aux, high]
 
 def create_light(name, braincentre, bbox, dims, scale, loc, emission):
     """"""
@@ -237,6 +246,7 @@ def create_light(name, braincentre, bbox, dims, scale, loc, emission):
     add_cam_constraint(ob, "TRACK_TO", "TrackToBrainCentre", braincentre)
     mat = tb_mat.make_material_emit_cycles(name, emission)
     tb_mat.set_material(ob.data, mat)
+
     return ob
 
 
@@ -277,6 +287,8 @@ def create_table(braincentre, bbox, dims):
     glossy = {'colour': (1.0, 1.0, 1.0, 1.0), 'roughness': 0.1}
     mat = tb_mat.make_material_basic_cycles(name, diffuse, glossy, mix=0.8)
     tb_mat.set_material(ob.data, mat)
+
+    return ob
 
 
 def create_world():

@@ -94,7 +94,9 @@ def import_objects(directory, files, importfun,
 def import_tract(fpath, name, info=None):
     """"""
 
-    tb = bpy.context.scene.tb
+    scn = bpy.context.scene
+    tb = scn.tb
+
     weed_tract = info['weed_tract']
     interpolate_streamlines = info['interpolate_streamlines']
 
@@ -133,7 +135,7 @@ def import_tract(fpath, name, info=None):
 #                 TODO: interpolation
 #                 from scipy import interpolate
 #                 x = interpolate.splprep(list(np.transpose(streamline)))
-            ob = make_polyline_ob(curve, streamline)
+            make_polyline_ob(curve, streamline)
 
     tract = tb.tracts.add()
     tb.index_tracts = (len(tb.tracts)-1)
@@ -142,6 +144,9 @@ def import_tract(fpath, name, info=None):
     tract.tract_weeded = weed_tract
     tract.streamlines_interpolated = interpolate_streamlines
 
+    tb_utils.move_to_layer(ob, 0)
+    scn.layers[0] = True
+
     return bpy.data.objects[name]
 
 
@@ -149,7 +154,8 @@ def import_surface(fpath, name, info=None):
     """"""
     # TODO: subsampling? (but has to be compatible with loading overlays)
 
-    tb = bpy.context.scene.tb
+    scn = bpy.context.scene
+    tb = scn.tb
 
     if fpath.endswith('.obj'):
         bpy.ops.import_scene.obj(filepath=fpath,
@@ -202,11 +208,17 @@ def import_surface(fpath, name, info=None):
     tb.index_surfaces = (len(tb.surfaces)-1)
     surface.name = name
 
+    tb_utils.move_to_layer(ob, 1)
+    scn.layers[1] = True
+
     return ob
 
 
 def import_voxelvolume(fpath, name, info=None):
     """"""
+
+    scn = bpy.context.scene
+    tb = scn.tb
 
     # TODO
     if (fpath.endswith('.nii')) | (fpath.endswith('.nii.gz')):
@@ -221,6 +233,9 @@ def import_voxelvolume(fpath, name, info=None):
     voxelvolume = tb.voxelvolumes.add()
     tb.index_voxelvolume = (len(tb.voxelvolumes)-1)
     voxelvolume.name = name
+
+    tb_utils.move_to_layer(ob, 2)
+    scn.layers[2] = True
 
     return ob
 

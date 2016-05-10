@@ -57,6 +57,14 @@ def random_RGB():
     return [random.random() for _ in range(3)]
 
 
+def move_to_layer(ob, layer):
+    """Move object to layer."""
+
+    ob.layers[layer] = True
+    for i in range(20):
+        ob.layers[i] = (i == layer)
+
+
 # ========================================================================== #
 # nibabel-related functions
 # ========================================================================== #
