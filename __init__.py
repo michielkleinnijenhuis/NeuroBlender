@@ -241,8 +241,13 @@ class ObjectList(UIList):
     def draw_item(self, context, layout, data, item, icon,
                   active_data, active_propname, index):
 
+        if item.isvalid:
+            item_icon = item.icon
+        else:
+            item_icon = "CANCEL"
+
         layout.prop(item, "name", text="", emboss=False,
-                    translate=False, icon=item.icon)
+                    translate=False, icon=item_icon)
 
 
 class ObjectListOperations(Operator):
@@ -259,10 +264,13 @@ class ObjectListOperations(Operator):
 
     def invoke(self, context, event):
 
+
         tb = context.scene.tb
         ob_idx = eval("tb.index_%s" % tb.objecttype)
         tb_ob = eval("tb.%s[%d]" % (tb.objecttype, ob_idx))
-        ob = bpy.data.objects[tb_ob.name]
+
+        collection = eval("%s.%s" % ("tb", tb.objecttype))
+        validate_tb_objects([collection])
 
         if self.action.endswith('_ob'):
             data = "tb"
@@ -271,49 +279,50 @@ class ObjectListOperations(Operator):
             data = "tb_ob"
             type = tb.overlaytype
 
-        coll = eval("%s.%s" % (data, type))
+        collection = eval("%s.%s" % (data, type))
         idx = eval("%s.index_%s" % (data, type))
 
         try:
-            item = coll[idx]
+            item = collection[idx]
         except IndexError:
             pass
         else:
-            if self.action.startswith('DOWN') and idx < len(coll) - 1:
-                coll.move(idx, idx+1)
+            if self.action.startswith('DOWN') and idx < len(collection) - 1:
+                collection.move(idx, idx+1)
                 exec("%s.index_%s += 1" % (data, type))
             elif self.action.startswith('UP') and idx >= 1:
-                coll.move(idx, idx-1)
+                collection.move(idx, idx-1)
                 exec("%s.index_%s -= 1" % (data, type))
             elif self.action.startswith('REMOVE'):
-                # TODO: handle user's name changes outside of TractBlender
-                name = coll[idx].name
+                name = collection[idx].name
                 info = 'removed %s' % (name)
 
-                if data == "tb":
+                if self.action.endswith('_ob'):
                     for ob in bpy.data.objects:
                         ob.select = ob.name == name
                     bpy.ops.object.delete()
-                elif data == "tb_ob":
-                    vg = ob.vertex_groups.get(name)
-                    if vg is not None:
-                        ob.vertex_groups.remove(vg)
+                elif self.action.endswith('_ov'):
+                    if tb_ob.isvalid:
+                        ob = bpy.data.objects[tb_ob.name]
+                        vg = ob.vertex_groups.get(name)
+                        if vg is not None:
+                            ob.vertex_groups.remove(vg)
 
-                    vc = ob.data.vertex_colors.get("vc_" + name)
-                    if vc is not None:
-                        ob.data.vertex_colors.remove(vc)
+                        vc = ob.data.vertex_colors.get("vc_" + name)
+                        if vc is not None:
+                            ob.data.vertex_colors.remove(vc)
 
-                    mats = bpy.data.materials
-                    mat = mats.get("vc_" + name)
-                    ob_mats = ob.data.materials
-                    mat_idx = ob_mats.find("vc_" + name)
-                    if mat_idx != -1:
-                        ob_mats.pop(mat_idx, update_data=True)
-                    if (mat is not None) and (mat.users < 2):
-                        mat.user_clear()
-                        bpy.data.materials.remove(mat)
+                        mats = bpy.data.materials
+                        mat = mats.get("vc_" + name)
+                        ob_mats = ob.data.materials
+                        mat_idx = ob_mats.find("vc_" + name)
+                        if mat_idx != -1:
+                            ob_mats.pop(mat_idx, update_data=True)
+                        if (mat is not None) and (mat.users < 2):
+                            mat.user_clear()
+                            bpy.data.materials.remove(mat)
 
-                coll.remove(idx)
+                collection.remove(idx)
                 self.report({'INFO'}, info)
                 exec("%s.index_%s -= 1" % (data, type))
 
@@ -655,6 +664,45 @@ def vgs2vc_enum_callback(self, context):
     return items
 
 
+def validate_tb_objects(collections):
+    """Validate that TractBlender objects can be found in Blender."""
+
+    itemtype = "object"
+    for collection in collections:
+        for item in collection:
+            try:
+                ob = bpy.data.objects[item.name]
+            except KeyError:
+                print("The " + itemtype + " '" + item.name +
+                      "' seems to have been removed or renamed " +
+                      "outside of TractBlender")
+                item.isvalid = False
+            else:
+                item.isvalid = True
+                # descend into the object's vertexgroups
+                validate_tb_overlays(ob, [item.scalars, item.labels])
+
+
+def validate_tb_overlays(ob, collections):
+    """Validate that a TractBlender vertexgroup can be found in Blender."""
+
+    print(ob, ob.name)
+    itemtype = "vertexgroup"
+    for collection in collections:
+        print(collection)
+        for item in collection:
+            print(item, item.name)
+            try:
+                vg = ob.vertex_groups[item.name]
+            except KeyError:
+                print("The " + itemtype + " '" + item.name +
+                      "' seems to have been removed or renamed " +
+                      "outside of TractBlender")
+                item.isvalid = False
+            else:
+                item.isvalid = True
+
+
 def nibabel_path_update(self, context):
     """Check whether nibabel can be imported."""
 
@@ -725,6 +773,10 @@ class ScalarProperties(PropertyGroup):
         name="Icon",
         description="Icon for scalar overlays",
         default="FORCE_CHARGE")
+    isvalid = BoolProperty(
+        name="Is Valid",
+        description="Indicates if the object passed validity checks",
+        default=True)
     range = FloatVectorProperty(
         name="Range",
         description="The original min-max of scalars mapped in vertexweights",
@@ -742,6 +794,10 @@ class LabelProperties(PropertyGroup):
         name="Icon",
         description="Icon for label overlays",
         default="BRUSH_VERTEXDRAW")
+    isvalid = BoolProperty(
+        name="Is Valid",
+        description="Indicates if the object passed validity checks",
+        default=True)
     value = IntProperty(
         name="Label value",
         description="The value of the label in vertexgroup 'scalarname'",
@@ -766,6 +822,10 @@ class TractProperties(PropertyGroup):
         name="Icon",
         description="Icon for tract objects",
         default="CURVE_BEZCURVE")
+    isvalid = BoolProperty(
+        name="Is Valid",
+        description="Indicates if the object passed validity checks",
+        default=True)
     beautified = BoolProperty(
         name="Beautify",
         description="Apply initial bevel on streamlines",
@@ -845,6 +905,10 @@ class SurfaceProperties(PropertyGroup):
         name="Icon",
         description="Icon for surface objects",
         default="MESH_MONKEY")
+    isvalid = BoolProperty(
+        name="Is Valid",
+        description="Indicates if the object passed validity checks",
+        default=True)
     beautified = BoolProperty(
         name="Beautify",
         description="Apply initial smoothing on surface",
@@ -907,6 +971,10 @@ class VoxelvolumeProperties(PropertyGroup):
         name="Icon",
         description="Icon for surface objects",
         default="MESH_GRID")
+    isvalid = BoolProperty(
+        name="Is Valid",
+        description="Indicates if the object passed validity checks",
+        default=True)
     beautified = BoolProperty(
         name="Beautify",
         description="",
@@ -995,15 +1063,15 @@ class TractBlenderProperties(PropertyGroup):
 
     show_transform_options = BoolProperty(
         name="Transform",
-        default=True,
+        default=False,
         description="Show/hide the object's transform options")
     show_overlay_options = BoolProperty(
         name="Overlays",
-        default=True,
+        default=False,
         description="Show/hide the object's overlay options")
     show_additional_options = BoolProperty(
         name="Additional options",
-        default=True,
+        default=False,
         description="Show/hide the object's additional options")
 
     objecttype = EnumProperty(
