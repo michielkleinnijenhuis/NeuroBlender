@@ -25,6 +25,7 @@ import bpy
 import os
 import random
 import numpy as np
+import mathutils
 
 from . import tractblender_utils as tb_utils
 from . import tractblender_import as tb_imp
@@ -43,19 +44,25 @@ def materialise(ob, colourtype='primary6', colourpicker=(1, 1, 1)):
     ob.show_transparent = True
 
     # TODO: proper cycling through primary6
-    ii = 0
-    if colourtype in ["primary6", "random", "pick"]:
+#     ii = 0
+    if colourtype == "none":
+        set_materials(ob, mat=None)
 
+    elif colourtype in ["primary6", "random", "pick", "golden_angle"]:
+        mats = ob.data.materials
+        matname = tb_utils.check_name(colourtype, "", checkagainst=mats,
+                                      zfill=3, forcefill=True)
         if colourtype == "primary6":
-            matname = "primary6_" + str(ii % 6)
-            diffcol = primary6_colours[ii % 6] + [1.]
+            diffcol = primary6_colours[int(matname[-3:]) % 6] + [1.]
         elif colourtype == "random":
-            matname = "random_" + str(ii)
             diffcol = [random.random() for _ in range(3)] + [1.]
         elif colourtype == "pick":
-            matname = "picked_" + str(ii)
             diffcol = list(colourpicker) + [1.]
-
+        elif colourtype == "golden_angle":
+            c = mathutils.Color()
+            h = divmod(111.25/360 * int(matname[-3:]), 1)[1]
+            c.hsv = h, 1, 1
+            diffcol = list(c) + [1.]
         if bpy.data.materials.get(matname) is not None:
             mat = bpy.data.materials[matname]
         else:
@@ -65,21 +72,16 @@ def materialise(ob, colourtype='primary6', colourpicker=(1, 1, 1)):
                                              diffuse,
                                              glossy,
                                              mix=0.05)
-#             mat = make_material(matname, diffcol, alpha=1.)
-        set_material(ob.data, mat)
+        set_materials(ob, mat)
 
     elif colourtype == "directional":
-
         matname = colourtype + ob.type
-
         if ob.type == "CURVE":
             mat = make_material_dirtract_cycles(matname)
             ob.data.use_uv_as_generated = True
-            set_material(ob.data, bpy.data.materials[matname])
+            set_materials(ob, bpy.data.materials[matname])
         elif ob.type == "MESH":
             map_to_vertexcolours(ob, vcname=matname, colourtype=colourtype)
-    else:
-        pass
 
 
 def set_material(me, mat):
@@ -90,6 +92,14 @@ def set_material(me, mat):
     else:
         me.materials.append(mat)
 
+def set_materials(ob, mat):
+    """Attach a material to a mesh."""
+
+    me = ob.data
+    me.materials.append(mat)
+    for i, mat in enumerate(tuple(me.materials)):
+        new_idx = len(me.materials)-1-i
+        me.materials[new_idx] = mat
 
 def make_material(name="Material",
                   diffuse=[1, 0, 0, 1], specular=[1, 1, 1, 0.5], alpha=1):
@@ -293,13 +303,9 @@ def map_to_vertexcolours(ob, vcname="", fpath="",
     vcname = tb_utils.check_name(vcname, fpath, checkagainst=materials)
 
     mat = get_vc_material(ob, vcname, fpath, colourtype, labelflag)
-    set_material(ob.data, mat)
+    set_materials(ob, mat)
     vc = get_vertexcolours(ob, vcname, fpath)
     ob = assign_vc(ob, vc, vgs, colourtype, labelflag)
-# 
-#     bpy.context.scene.objects.active = ob
-#     ob.select = True
-#     bpy.ops.object.mode_set(mode="VERTEX_PAINT")
 
 
 def get_vc_material(ob, name, fpath, colourtype="", labelflag=False):

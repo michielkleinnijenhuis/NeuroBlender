@@ -80,7 +80,7 @@ def scene_preset():
 
     lights = create_lighting(bc, bbox, dims, quadrant)
 
-    layer = 5
+    layer = 10
     obs = [bc] + [cam] + [table] + lights
     for ob in obs:
         print(ob)
@@ -90,7 +90,7 @@ def scene_preset():
 
     scn.cycles.caustics_refractive = False
     scn.cycles.caustics_reflective = False
-    
+
     # TODO: go to camera view?
     # TODO: different camviews to layers?
 

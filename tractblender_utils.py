@@ -30,17 +30,24 @@ import sys
 # ========================================================================== #
 
 
-def check_name(name, fpath, checkagainst):
+def check_name(name, fpath, checkagainst, zfill=0, forcefill=False):
     """Make sure a unique name is given."""
 
     if not name:
         name = os.path.basename(fpath)
 
-    if checkagainst.get(name) is not None:
+    if forcefill:
+        firstname = name + "." + str(0).zfill(zfill)
+    else:
+        firstname = name
+
+    if checkagainst.get(firstname) is not None:
         i = 0
-        while checkagainst.get(name + '.' + str(i)) is not None:
+        while checkagainst.get(name + '.' + str(i).zfill(zfill)) is not None:
             i += 1
-        name = name + '.' + str(i)
+        name = name + '.' + str(i).zfill(zfill)
+    else:
+        name = firstname
 
     return name
 

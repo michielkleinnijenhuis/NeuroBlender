@@ -305,6 +305,7 @@ class ObjectListOperations(Operator):
                 elif self.action.endswith('_ov'):
                     if tb_ob.isvalid:
                         ob = bpy.data.objects[tb_ob.name]
+
                         vg = ob.vertex_groups.get(name)
                         if vg is not None:
                             ob.vertex_groups.remove(vg)
@@ -612,8 +613,8 @@ class TractBlenderInteractPanel(Panel):
             row = self.layout.row()
             row.label(text="Add preset material: ")
             row.prop(tb, "colourpicker")
-            row = self.layout.row()
-            row.prop(tb, "colourtype", expand=True)
+            col = self.layout.column()
+            col.prop(tb, "colourtype", expand=True)
 
         if (len(sobs) == 1) and sobs[0].vertex_groups:
             row = self.layout.row()
@@ -727,15 +728,17 @@ def material_enum_callback(self, context):
 
     items = []
     items.append(("none", "none", "none", 1))
-    items.append(("random", "random", "random", 2))
-    items.append(("pick", "pick", "pick", 3))
+    items.append(("primary6", "primary6", "primary6", 2))
+    items.append(("random", "random", "random", 3))
+    items.append(("golden_angle", "golden_angle", "golden_angle", 4))
+    items.append(("pick", "pick", "pick", 5))
     ob = context.selected_objects[0]
     if ob.type == "MESH":
         attrib = ob.data.vertex_colors
     elif ob.type == "CURVE":
         attrib = ob.data.materials
     if attrib.get("directional" + ob.type) is None:
-        items.append(("directional", "directional", "", 4))
+        items.append(("directional", "directional", "", 6))
 
     return items
 
@@ -745,14 +748,10 @@ def material_enum_update(self, context):
 
     selected_obs = context.selected_objects
     colourtype = context.scene.tb.colourtype
+    colourpicker = context.scene.tb.colourpicker
 
     for ob in selected_obs:
-        if colourtype != "none":
-            tb_mat.materialise(ob, colourtype=colourtype)
-        else:
-            ob.active_material_index = 0
-            for i in range(len(ob.material_slots)):
-                bpy.ops.object.material_slot_remove({"object": ob})
+        tb_mat.materialise(ob, colourtype, colourpicker)
 
 
 def material_enum_set(self, value):
