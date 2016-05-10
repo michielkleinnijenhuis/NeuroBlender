@@ -265,6 +265,8 @@ class ObjectListOperations(Operator):
     def invoke(self, context, event):
 
 
+        tb = bpy.context.scene.tb
+
         tb_ob, ob_idx = tb_utils.active_tb_object()
 
         collection = eval("%s.%s" % ("tb", tb.objecttype))
@@ -296,6 +298,7 @@ class ObjectListOperations(Operator):
                 info = 'removed %s' % (name)
 
                 if self.action.endswith('_ob'):
+                    bpy.ops.object.mode_set(mode='OBJECT')
                     for ob in bpy.data.objects:
                         ob.select = ob.name == name
                     bpy.ops.object.delete()

@@ -245,6 +245,8 @@ def set_vertex_group(ob, name, label=None, scalars=None):
         vg.add([int(l)], w[i], "REPLACE")
     vg.lock_weight = True
 
+    bpy.context.scene.objects.active = ob
+    ob.select = True
     bpy.ops.object.mode_set(mode="WEIGHT_PAINT")
 
     return vg
@@ -294,8 +296,10 @@ def map_to_vertexcolours(ob, vcname="", fpath="",
     set_material(ob.data, mat)
     vc = get_vertexcolours(ob, vcname, fpath)
     ob = assign_vc(ob, vc, vgs, colourtype, labelflag)
-
-    bpy.ops.object.mode_set(mode="VERTEX_PAINT")
+# 
+#     bpy.context.scene.objects.active = ob
+#     ob.select = True
+#     bpy.ops.object.mode_set(mode="VERTEX_PAINT")
 
 
 def get_vc_material(ob, name, fpath, colourtype="", labelflag=False):
