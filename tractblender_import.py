@@ -126,6 +126,7 @@ def import_tract(fpath, name, info=None):
     streamlines_sample = sample(range(len(streamlines)), nsamples)
     # TODO: remember 'sample' for scalars import?
     # TODO: weed tract at reading stage where possible?
+    # TODO: handle case where transform info is included in tractfile
 
     for i, streamline in enumerate(streamlines):
         if i in streamlines_sample:
@@ -183,9 +184,7 @@ def import_surface(fpath, name, info=None):
                 img = gio.read(fpath)
                 verts = [tuple(vert) for vert in img.darrays[0].data]
                 faces = [tuple(face) for face in img.darrays[1].data]
-                tmat = img.darrays[0].coordsys.xform
-                print(tmat)
-                # TODO: implement/apply transform?
+                affine = mathutils.Matrix(img.darrays[0].coordsys.xform)
             elif (fpath.endswith('.white') |
                   fpath.endswith('.pial') |
                   fpath.endswith('.inflated')
@@ -194,12 +193,14 @@ def import_surface(fpath, name, info=None):
                 verts, faces = fsio.read_geometry(fpath)
                 verts = [tuple(vert) for vert in verts]
                 faces = [tuple(face) for face in faces]
+                affine = mathutils.Matrix()
             me = bpy.data.meshes.new(name)
             me.from_pydata(verts, [], faces)
             ob = bpy.data.objects.new(name, me)
             bpy.context.scene.objects.link(ob)
             bpy.context.scene.objects.active = ob
             ob.select = True
+            ob.matrix_world = affine
             if (fpath.endswith('.func.gii')) | (fpath.endswith('.shape.gii')):
                 pass  # TODO: create nice overlays for functionals etc
         else:

@@ -1126,11 +1126,11 @@ class TractBlenderProperties(PropertyGroup):
         default=[1.0, 1.0, 1.0],
         subtype="COLOR")
 
-    vgs2vc = EnumProperty(
-        name="vgs2vc",
-        description="Select vertexgroups to turn into a vertexcolour",
-        options={"ENUM_FLAG"},
-        items=vgs2vc_enum_callback)
+#     vgs2vc = EnumProperty(
+#         name="vgs2vc",
+#         description="Select vertexgroups to turn into a vertexcolour",
+#         options={"ENUM_FLAG"},
+#         items=vgs2vc_enum_callback)
 #     vginfo = CollectionProperty(
 #         type=TractBlenderVertexGroupInfo,
 #         name="VertexgroupInfo",
