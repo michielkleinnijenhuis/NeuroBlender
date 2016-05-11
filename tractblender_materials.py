@@ -859,6 +859,7 @@ def make_material_labels_cycles(name, vcname):
               nodes[name + "_" + "Mix Shader"].inputs[1])
     links.new(nodes[name + "_" + vcname].outputs["Color"],
               nodes[name + "_" + "Diffuse BSDF"].inputs["Color"])
+    # FIXME: node names will truncate if too long; this will error
 
     return mat
 

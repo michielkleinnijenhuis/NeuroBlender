@@ -290,7 +290,7 @@ def import_labels(directory, files):
 #         TODO: consider using ob.data.vertex_layers_int.new()??
 
 
-def import_tractscalars(ob, scalarpath):  # TODO
+def import_tractscalars(ob, scalarpath):
     """"""
 
     # TODO: handle what happens on importing multiple objects
@@ -308,19 +308,25 @@ def import_tractscalars(ob, scalarpath):  # TODO
 def import_surfscalars(ob, scalarpath):
     """"""
 
+    tb = bpy.context.scene.tb
+
     # TODO: handle what happens on importing multiple objects
+    # TODO: read more formats: e.g. .dpv, .dpf, ...
     if scalarpath.endswith('.npy'):
         scalars = np.load(scalarpath)
     elif scalarpath.endswith('.npz'):
         npzfile = np.load(scalarpath)
         for k in npzfile:
             scalars.append(npzfile[k])
-    # TODO: read more formats: e.g. .dpv, .dpf, ...
-    if scalarpath.endswith('.gii'):
-        pass
+    elif scalarpath.endswith('.gii'):
+        nib = tb_utils.validate_nibabel('.gii')
+        if tb.nibabel_valid:
+            gio = nib.gifti.giftiio
+            img = gio.read(scalarpath)
+            scalars = img.darrays[0].data
     else:  # I will try to read it as a freesurfer binary
         nib = tb_utils.validate_nibabel('')
-        if bpy.context.scene.tb.nibabel_valid:
+        if tb.nibabel_valid:
             fsio = nib.freesurfer.io
             scalars = fsio.read_morph_data(scalarpath)
         else:

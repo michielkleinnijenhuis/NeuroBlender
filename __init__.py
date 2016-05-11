@@ -617,17 +617,17 @@ class TractBlenderInteractPanel(Panel):
             col = self.layout.column()
             col.prop(tb, "colourtype", expand=True)
 
-        if (len(sobs) == 1) and sobs[0].vertex_groups:
-            row = self.layout.row()
-            row.separator()
-            row = self.layout.row()
-            row.label(text="Combine overlays/labels: ")
-            row = self.layout.row()
-            row.prop(tb, "vgs2vc")
-            row = self.layout.row()
-            row.operator("tb.vertexcolour_from_vertexgroups",
-                         text="Blend to vertexcolours",
-                         icon="COLOR")
+#         if (len(sobs) == 1) and sobs[0].vertex_groups:
+#             row = self.layout.row()
+#             row.separator()
+#             row = self.layout.row()
+#             row.label(text="Combine overlays/labels: ")
+#             row = self.layout.row()
+#             row.prop(tb, "vgs2vc")
+#             row = self.layout.row()
+#             row.operator("tb.vertexcolour_from_vertexgroups",
+#                          text="Blend to vertexcolours",
+#                          icon="COLOR")
 
 
 class ScenePreset(Operator):
