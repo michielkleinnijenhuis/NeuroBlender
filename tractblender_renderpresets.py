@@ -83,7 +83,6 @@ def scene_preset():
     layer = 10
     obs = [bc] + [cam] + [table] + lights
     for ob in obs:
-        print(ob)
         if ob is not None:
             tb_utils.move_to_layer(ob, layer)
     scn.layers[layer] = True
@@ -100,10 +99,10 @@ def scene_preset():
 def delete_preset(deltypes, prefix):
     """"""
     # TODO: more flexibility in keeping and naming
-
+    bpy.ops.object.mode_set(mode='OBJECT')
     for ob in bpy.data.objects:
         ob.select = ob.name.startswith(prefix)  # and ob.type in deltypes
-
+    bpy.context.scene.objects.active = ob
     bpy.ops.object.delete()
 
 

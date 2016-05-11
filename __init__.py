@@ -745,17 +745,23 @@ def material_enum_callback(self, context):
     ob = bpy.data.objects[tb_ob.name]
 
     items = []
-    items.append(("none", "none", "none", 1))
-    items.append(("golden_angle", "golden_angle", "golden_angle", 2))
-    items.append(("primary6", "primary6", "primary6", 3))
-    items.append(("random", "random", "random", 4))
-    items.append(("pick", "pick", "pick", 5))
+    items.append(("none", "none", 
+                  "Add an empty material"))
+    items.append(("golden_angle", "golden_angle",
+                  "Add a material with golden angle colour increment"))
+    items.append(("primary6", "primary6",
+                  "Add a material of the primary6 set"))
+    items.append(("random", "random",
+                  "Add a material with a randomly picked colour"))
+    items.append(("pick", "pick",
+                  "Add a material with the chosen colour"))
     if ob.type == "MESH":
         attrib = ob.data.vertex_colors
     elif ob.type == "CURVE":
         attrib = ob.data.materials
     if attrib.get("directional" + ob.type) is None:
-        items.append(("directional", "directional", "", 6))
+        items.append(("directional", "directional",
+                      "Add a material with directional colour-coding"))
 
     return items
 

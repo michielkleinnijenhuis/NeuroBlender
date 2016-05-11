@@ -323,6 +323,11 @@ def map_to_vertexcolours(ob, vcname="", fpath="",
     vc = get_vertexcolours(ob, vcname, fpath)
     ob = assign_vc(ob, vc, vgs, colourtype, labelflag)
 
+    cbar, vg = get_color_bar()
+    set_materials(cbar, mat)
+    vc = get_vertexcolours(cbar, vcname, fpath)
+    assign_vc(cbar, vc, [vg], colourtype, labelflag)
+
 
 def get_vc_material(ob, name, fpath, colourtype="", labelflag=False):
     """"""
@@ -867,10 +872,7 @@ def make_material_labels_cycles(name, vcname):
 def set_colorramp_preset(node, cmapname="r2b", mat=None):
     """"""
 
-    tb = bpy.context.scene.tb
-    obtype = tb.objecttype
-    idx = eval("tb.index_%s" % obtype)
-    tb_ob = eval("tb.%s[%d]" % (obtype, idx))
+    tb_ob = tb_utils.active_tb_object()[0]
     scalarslist = tb_ob.scalars
 
     elements = node.color_ramp.elements
@@ -915,3 +917,47 @@ def set_colorramp_preset(node, cmapname="r2b", mat=None):
 #     collection.foreach_set(seq, attr)
 #     # Python equivalent
 #     for i in range(len(seq)): setattr(collection[i], attr, seq[i])
+
+
+def get_color_bar():
+    """"""
+
+    name = "Colourbar"
+    if bpy.data.objects.get(name) is not None:
+        ob = bpy.data.objects.get(name)
+    else:
+        ob = create_plane(name)
+        bpy.ops.object.mode_set(mode='EDIT')
+        bpy.ops.mesh.subdivide(number_cuts=100)
+        bpy.ops.object.mode_set(mode='OBJECT')
+        layer = 10
+        tb_utils.move_to_layer(ob, layer)
+        bpy.context.scene.layers[layer] = True
+
+    if ob.vertex_groups.get("all") is not None:
+        vg = ob.vertex_groups.get("all")
+    else:
+        vg = ob.vertex_groups.new("all")
+        for i, v in enumerate(ob.data.vertices):
+            vg.add([i], v.co.x, "REPLACE")
+        vg.lock_weight = True
+
+    return ob, vg
+
+def create_plane(name):
+    """"""
+
+    scn = bpy.context.scene
+
+    me = bpy.data.meshes.new(name)
+    ob = bpy.data.objects.new(name, me)
+    scn.objects.link(ob)
+    scn.objects.active = ob
+    ob.select = True
+
+    verts = [(0, 0, 0), (0, 1, 0), (1, 1, 0), (1, 0, 0)]
+    faces = [(3, 2, 1, 0)]
+    me.from_pydata(verts, [], faces)
+    me.update()
+
+    return ob
