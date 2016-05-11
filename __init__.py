@@ -298,9 +298,10 @@ class ObjectListOperations(Operator):
                 info = 'removed %s' % (name)
 
                 if self.action.endswith('_ob'):
-                    bpy.ops.object.mode_set(mode='OBJECT')
                     for ob in bpy.data.objects:
                         ob.select = ob.name == name
+                    bpy.context.scene.objects.active = ob
+                    bpy.ops.object.mode_set(mode='OBJECT')
                     bpy.ops.object.delete()
                 elif self.action.endswith('_ov'):
                     if tb_ob.isvalid:
@@ -314,12 +315,12 @@ class ObjectListOperations(Operator):
                         if vc is not None:
                             ob.data.vertex_colors.remove(vc)
 
-                        mats = bpy.data.materials
-                        mat = mats.get("vc_" + name)
                         ob_mats = ob.data.materials
                         mat_idx = ob_mats.find("vc_" + name)
                         if mat_idx != -1:
                             ob_mats.pop(mat_idx, update_data=True)
+                        mats = bpy.data.materials
+                        mat = mats.get("vc_" + name)
                         if (mat is not None) and (mat.users < 2):
                             mat.user_clear()
                             bpy.data.materials.remove(mat)
@@ -371,10 +372,10 @@ class ImportTracts(Operator, ImportHelper):
         description="Apply this tract colour method",
         default="primary6",
         items=[("none", "none", "none", 1),
-               ("primary6", "primary6", "primary6", 2),
-               ("random", "random", "random", 3),
-               ("directional", "directional", "directional", 4),
-               ("scalars", "scalars", "scalars", 5),
+               ("golden_angle", "golden_angle", "golden_angle", 2),
+               ("primary6", "primary6", "primary6", 3),
+               ("random", "random", "random", 4),
+               ("directional", "directional", "directional", 5),
                ("pick", "pick", "pick", 6)])
     colourpicker = FloatVectorProperty(
         name="",
@@ -456,10 +457,10 @@ class ImportSurfaces(Operator, ImportHelper):
         description="Apply this surface colour method",
         default="primary6",
         items=[("none", "none", "none", 1),
-               ("primary6", "primary6", "primary6", 2),
-               ("random", "random", "random", 3),
-               ("directional", "directional", "directional", 4),
-               ("scalars", "scalars", "scalars", 5),
+               ("golden_angle", "golden_angle", "golden_angle", 2),
+               ("primary6", "primary6", "primary6", 3),
+               ("random", "random", "random", 4),
+               ("directional", "directional", "directional", 5),
                ("pick", "pick", "pick", 6)])
     colourpicker = FloatVectorProperty(
         name="",

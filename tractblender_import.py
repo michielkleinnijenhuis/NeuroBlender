@@ -158,9 +158,10 @@ def import_surface(fpath, name, info=None):
     tb = scn.tb
 
     if fpath.endswith('.obj'):
+        # need split_mode='OFF' for loading scalars onto the correct vertices
         bpy.ops.import_scene.obj(filepath=fpath,
                                  axis_forward='Y', axis_up='Z',
-                                 split_mode='OFF')  # needed for surfscalars
+                                 split_mode='OFF')
         ob = bpy.context.selected_objects[0]
         ob.name = name
 
@@ -176,19 +177,20 @@ def import_surface(fpath, name, info=None):
           fpath.endswith('.inflated')
           ):
         nib = tb_utils.validate_nibabel('.gifti')
-        if bpy.context.scene.tb.nibabel_valid:
-            gio = nib.gifti.giftiio
-            fsio = nib.freesurfer.io
+        if tb.nibabel_valid:
             if (fpath.endswith('.gii')) | (fpath.endswith('.surf.gii')):
+                gio = nib.gifti.giftiio
                 img = gio.read(fpath)
                 verts = [tuple(vert) for vert in img.darrays[0].data]
                 faces = [tuple(face) for face in img.darrays[1].data]
                 tmat = img.darrays[0].coordsys.xform
+                print(tmat)
                 # TODO: implement/apply transform?
             elif (fpath.endswith('.white') |
                   fpath.endswith('.pial') |
                   fpath.endswith('.inflated')
                   ):
+                fsio = nib.freesurfer.io
                 verts, faces = fsio.read_geometry(fpath)
                 verts = [tuple(vert) for vert in verts]
                 faces = [tuple(face) for face in faces]
@@ -199,7 +201,7 @@ def import_surface(fpath, name, info=None):
             bpy.context.scene.objects.active = ob
             ob.select = True
             if (fpath.endswith('.func.gii')) | (fpath.endswith('.shape.gii')):
-                pass  # TODO: additional to .gii?
+                pass  # TODO: create nice overlays for functionals etc
         else:
             print('surface import failed')
             return
@@ -279,6 +281,9 @@ def import_labels(directory, files):
             tb_mat.create_vg_overlay(ob, fpath, True)
         elif fpath.endswith('.annot'):
             tb_mat.create_vg_annot(ob, fpath)
+        elif fpath.endswith('.gii'):
+            # TODO: figure out from gifti if it is annot or label
+            tb_mat.create_vg_annot(ob, fpath)
         else:  # assumed scalar overlay type with integer labels??
             tb_mat.create_vc_overlay(ob, fpath)
 #         TODO: consider using ob.data.vertex_layers_int.new()??
@@ -310,6 +315,8 @@ def import_surfscalars(ob, scalarpath):
         for k in npzfile:
             scalars.append(npzfile[k])
     # TODO: read more formats: e.g. .dpv, .dpf, ...
+    if scalarpath.endswith('.gii'):
+        pass
     else:  # I will try to read it as a freesurfer binary
         nib = tb_utils.validate_nibabel('')
         if bpy.context.scene.tb.nibabel_valid:
@@ -326,9 +333,11 @@ def import_surfscalars(ob, scalarpath):
 def import_surflabel(ob, labelpath, labelflag=False):
     """"""
 
+    tb = bpy.context.scene.tb
+
     if labelpath.endswith('.label'):
         nib = tb_utils.validate_nibabel('.label')
-        if bpy.context.scene.tb.nibabel_valid:
+        if tb.nibabel_valid:
             fsio = nib.freesurfer.io
             label, scalars = fsio.read_label(labelpath, read_scalars=True)
         else:
@@ -342,18 +351,44 @@ def import_surflabel(ob, labelpath, labelflag=False):
     return label, scalars
 
 
-def import_surfannot(ob, labelpath):
+def import_surfannot(labelpath):
     """"""
+
+    tb = bpy.context.scene.tb
 
     if labelpath.endswith('.annot'):
         nib = tb_utils.validate_nibabel('.annot')
         if bpy.context.scene.tb.nibabel_valid:
             fsio = nib.freesurfer.io
-            labels, ctab, names = fsio.read_annot(labelpath, orig_ids=False)
+            labels, ctab, bnames = fsio.read_annot(labelpath, orig_ids=False)
+            names = [name.decode('utf-8') for name in bnames]
             return labels, ctab, names
     else:
         # I'm going to be lazy and require nibabel for .annot import
         print('nibabel required for reading .annot files')
+
+
+def import_surfannot_gii(labelpath):
+    """"""
+
+    tb = bpy.context.scene.tb
+
+    if labelpath.endswith('.gii'):
+        nib = tb_utils.validate_nibabel('.gii')
+        if tb.nibabel_valid:
+            gio = nib.gifti.giftiio
+            img = gio.read(labelpath)
+            img.labeltable.get_labels_as_dict()
+            labels = img.darrays[0].data
+            labeltable = img.labeltable
+            return labels, labeltable
+#             names = [name for _, name in lt.labels_as_dict.items()]
+#             ctab = [np.append((np.array(l.rgba)*255).astype(int), l.key)
+#                     for l in lt.labels]
+#             ctab = np.array(ctab)
+#             return labels, ctab, names
+    else:
+        print('nibabel required for reading gifti files')
 
 
 # ========================================================================== #

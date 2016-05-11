@@ -43,8 +43,6 @@ def materialise(ob, colourtype='primary6', colourpicker=(1, 1, 1)):
 
     ob.show_transparent = True
 
-    # TODO: proper cycling through primary6
-#     ii = 0
     if colourtype == "none":
         set_materials(ob, mat=None)
 
@@ -82,6 +80,9 @@ def materialise(ob, colourtype='primary6', colourpicker=(1, 1, 1)):
             set_materials(ob, bpy.data.materials[matname])
         elif ob.type == "MESH":
             map_to_vertexcolours(ob, vcname=matname, colourtype=colourtype)
+            bpy.context.scene.objects.active = ob
+            ob.select = True
+            bpy.ops.object.mode_set(mode="VERTEX_PAINT")
 
 
 def set_material(me, mat):
@@ -152,28 +153,43 @@ def normalize_scalars(scalars):
 def create_vg_annot(ob, fpath):
     """"""
 
-    tb = bpy.context.scene.tb
-    obtype = tb.objecttype
-    idx = eval("tb.index_%s" % obtype)
-    tb_ob = eval("tb.%s[%d]" % (obtype, idx))
+    tb_ob = tb_utils.active_tb_object()[0]
 
-    labels, ctab, names = tb_imp.import_surfannot(ob, fpath)
+    if fpath.endswith(".annot"):
+        labels, ctab, names = tb_imp.import_surfannot(fpath)
+    
+        basename = os.path.basename(fpath)
+        vgs = []
+        for i, labelname in enumerate(names):
+            vgname = basename + '.' + labelname
+            vgname = tb_utils.check_name(vgname, fpath="",
+                                         checkagainst=ob.vertex_groups)
+            label = np.where(labels == i)[0]
+            vg = set_vertex_group(ob, vgname, label)
+            vgs.append(vg)
 
-    basename = os.path.basename(fpath)
-    vgs = []
-    for i, labelname in enumerate(names):
-        vgname = basename + '.' + labelname.decode('utf-8')
-        vgname = tb_utils.check_name(vgname, fpath="",
-                                     checkagainst=ob.vertex_groups)
-        label = np.where(labels == i)[0]
-        vg = set_vertex_group(ob, vgname, label)
-        vgs.append(vg)
+            label = tb_ob.labels.add()
+            label.name = vgname
+            label.value = ctab[i, 4]
+            label.colour = ctab[i, 0:4]/255
+            tb_ob.index_labels = (len(tb_ob.labels)-1)
+    elif fpath.endswith(".gii"):
+        labels, labeltable = tb_imp.import_surfannot_gii(fpath)
+        basename = os.path.basename(fpath)
+        vgs = []
+        for l in labeltable.labels:
+            vgname = basename + '.' + l.label
+            vgname = tb_utils.check_name(vgname, fpath="",
+                                         checkagainst=ob.vertex_groups)
+            label = np.where(labels == l.key)[0]
+            vg = set_vertex_group(ob, vgname, label)
+            vgs.append(vg)
 
-        label = tb_ob.labels.add()
-        label.name = vgname
-        label.value = ctab[i, 4]
-        label.colour = ctab[i, 0:4]/255
-        tb_ob.index_labels = (len(tb_ob.labels)-1)
+            label = tb_ob.labels.add()
+            label.name = vgname
+            label.value = l.key
+            label.colour = l.rgba
+            tb_ob.index_labels = (len(tb_ob.labels)-1)
 
     map_to_vertexcolours(ob, vcname='vc_'+basename, vgs=vgs, labelflag=True)
 
