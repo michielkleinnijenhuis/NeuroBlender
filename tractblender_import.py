@@ -248,6 +248,7 @@ def import_scalars(directory, files):
 
     """
 
+    # TODO: handle timeseries
     if not files:
         files = os.listdir(directory)
 

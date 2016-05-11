@@ -195,6 +195,23 @@ class TractBlenderImportPanel(Panel):
                          emboss=False)
 
             row = box.row()
+            if tb.show_appearance_options:
+                row.prop(tb, "show_appearance_options",
+                         icon='TRIA_DOWN',
+                         emboss=False)
+#                 row = box.row()
+#                 row.separator()
+                row = box.row()
+                row.label(text="Add preset material: ")
+                row.prop(tb_ob, "colourpicker")
+                col = box.column()
+                col.prop(tb_ob, "colourtype", expand=True)
+            else:
+                row.prop(tb, "show_appearance_options",
+                         icon='TRIA_RIGHT',
+                         emboss=False)
+
+            row = box.row()
             if tb.show_additional_options:
                 row.prop(tb, "show_additional_options",
                          icon='TRIA_DOWN',
@@ -608,14 +625,14 @@ class TractBlenderInteractPanel(Panel):
             row = self.layout.row()
             row.label(text="No brain data loaded ...")
 
-        if len(sobs) == 1:
-            row = self.layout.row()
-            row.separator()
-            row = self.layout.row()
-            row.label(text="Add preset material: ")
-            row.prop(tb, "colourpicker")
-            col = self.layout.column()
-            col.prop(tb, "colourtype", expand=True)
+#         if len(sobs) == 1:
+#             row = self.layout.row()
+#             row.separator()
+#             row = self.layout.row()
+#             row.label(text="Add preset material: ")
+#             row.prop(tb, "colourpicker")
+#             col = self.layout.column()
+#             col.prop(tb, "colourtype", expand=True)
 
 #         if (len(sobs) == 1) and sobs[0].vertex_groups:
 #             row = self.layout.row()
@@ -712,9 +729,7 @@ def nibabel_path_update(self, context):
 def sformfile_update(self, context):
     """Set the sform transformation matrix for the object."""
 
-    tb = context.scene.tb
-    ob_idx = eval("tb.index_%s" % tb.objecttype)
-    tb_ob = eval("tb.%s[%d]" % (tb.objecttype, ob_idx))
+    tb_ob = tb_utils.active_tb_object()[0]
     ob = bpy.data.objects[tb_ob.name]
 
     affine = tb_imp.read_affine_matrix(tb_ob.sformfile)
@@ -724,16 +739,17 @@ def sformfile_update(self, context):
 def material_enum_callback(self, context):
     """Populate the enum based on available options."""
     # TODO: set the enum value on the basis of currect material?
-    # TODO: more colour options on-the-fly?
     # TODO: handle multiple objects at once?
+
+    tb_ob = tb_utils.active_tb_object()[0]
+    ob = bpy.data.objects[tb_ob.name]
 
     items = []
     items.append(("none", "none", "none", 1))
-    items.append(("primary6", "primary6", "primary6", 2))
-    items.append(("random", "random", "random", 3))
-    items.append(("golden_angle", "golden_angle", "golden_angle", 4))
+    items.append(("golden_angle", "golden_angle", "golden_angle", 2))
+    items.append(("primary6", "primary6", "primary6", 3))
+    items.append(("random", "random", "random", 4))
     items.append(("pick", "pick", "pick", 5))
-    ob = context.selected_objects[0]
     if ob.type == "MESH":
         attrib = ob.data.vertex_colors
     elif ob.type == "CURVE":
@@ -747,12 +763,10 @@ def material_enum_callback(self, context):
 def material_enum_update(self, context):
     """Assign a new preset material to the object."""
 
-    selected_obs = context.selected_objects
-    colourtype = context.scene.tb.colourtype
-    colourpicker = context.scene.tb.colourpicker
+    tb_ob = tb_utils.active_tb_object()[0]
+    ob = bpy.data.objects[tb_ob.name]
 
-    for ob in selected_obs:
-        tb_mat.materialise(ob, colourtype, colourpicker)
+    tb_mat.materialise(ob, tb_ob.colourtype, tb_ob.colourpicker)
 
 
 def material_enum_set(self, value):
@@ -828,6 +842,7 @@ class TractProperties(PropertyGroup):
         name="Beautify",
         description="Apply initial bevel on streamlines",
         default=True)
+
     sformfile = StringProperty(
         name="Transform",
         description="""
@@ -873,6 +888,17 @@ class TractProperties(PropertyGroup):
         description="index of the labels collection",
         default=0,
         min=0)
+
+    colourtype = EnumProperty(
+        name="",
+        description="Apply this colour method",
+        items=material_enum_callback,
+        update=material_enum_update)
+    colourpicker = FloatVectorProperty(
+        name="",
+        description="Pick a colour",
+        default=[1.0, 0.0, 0.0],
+        subtype="COLOR")
 
     nstreamlines = IntProperty(
         name="Nstreamlines",
@@ -911,6 +937,7 @@ class SurfaceProperties(PropertyGroup):
         name="Beautify",
         description="Apply initial smoothing on surface",
         default=True)
+
     sformfile = StringProperty(
         name="Transform",
         description="""
@@ -956,6 +983,17 @@ class SurfaceProperties(PropertyGroup):
         description="index of the labels collection",
         default=0,
         min=0)
+
+    colourtype = EnumProperty(
+        name="",
+        description="Apply this colour method",
+        items=material_enum_callback,
+        update=material_enum_update)
+    colourpicker = FloatVectorProperty(
+        name="",
+        description="Pick a colour",
+        default=[1.0, 0.0, 0.0],
+        subtype="COLOR")
 
 
 class VoxelvolumeProperties(PropertyGroup):
@@ -977,6 +1015,7 @@ class VoxelvolumeProperties(PropertyGroup):
         name="Beautify",
         description="",
         default=True)
+
     sformfile = StringProperty(
         name="Transform",
         description="""
@@ -1022,6 +1061,17 @@ class VoxelvolumeProperties(PropertyGroup):
         description="index of the labels collection",
         default=0,
         min=0)
+
+    colourtype = EnumProperty(
+        name="",
+        description="Apply this colour method",
+        items=material_enum_callback,
+        update=material_enum_update)
+    colourpicker = FloatVectorProperty(
+        name="",
+        description="Pick a colour",
+        default=[1.0, 0.0, 0.0],
+        subtype="COLOR")
 
 
 class TractBlenderProperties(PropertyGroup):
@@ -1067,6 +1117,10 @@ class TractBlenderProperties(PropertyGroup):
         name="Overlays",
         default=False,
         description="Show/hide the object's overlay options")
+    show_appearance_options = BoolProperty(
+        name="Appearance",
+        default=False,
+        description="Show/hide the object's appearance options")
     show_additional_options = BoolProperty(
         name="Additional options",
         default=False,
@@ -1115,16 +1169,16 @@ class TractBlenderProperties(PropertyGroup):
                ("labels", "labels", "List the label overlays", 2)],
         default="scalars")
 
-    colourtype = EnumProperty(
-        name="material_presets",
-        description="Choose a material preset",
-        items=material_enum_callback,
-        update=material_enum_update)  # FIXME: set=material_enum_set
-    colourpicker = FloatVectorProperty(
-        name="",
-        description="Pick a colour for the brain structure",
-        default=[1.0, 1.0, 1.0],
-        subtype="COLOR")
+#     colourtype = EnumProperty(
+#         name="material_presets",
+#         description="Choose a material preset",
+#         items=material_enum_callback,
+#         update=material_enum_update)  # FIXME: set=material_enum_set
+#     colourpicker = FloatVectorProperty(
+#         name="",
+#         description="Pick a colour for the brain structure",
+#         default=[1.0, 1.0, 1.0],
+#         subtype="COLOR")
 
 #     vgs2vc = EnumProperty(
 #         name="vgs2vc",
