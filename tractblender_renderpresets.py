@@ -24,11 +24,6 @@ import bpy
 
 import numpy as np
 
-import mathutils
-import math
-from mathutils import Vector
-from math import pi
-
 from . import tractblender_materials as tb_mat
 from . import tractblender_utils as tb_utils
 
@@ -77,6 +72,8 @@ def scene_preset():
     cam = create_camera(bc, bbox, dims, quadrant)
     if not camview.endswith('Inf'):
         table = create_table(bc, bbox, dims)
+    else:
+        table = None
 
     lights = create_lighting(bc, bbox, dims, quadrant)
 
@@ -90,6 +87,13 @@ def scene_preset():
     scn.cycles.caustics_refractive = False
     scn.cycles.caustics_reflective = False
 
+    try:
+        colourbar = bpy.data.objects["Colourbar"]
+    except KeyError:
+        pass
+    else:
+        place_colourbar(cam, colourbar)
+
     # TODO: go to camera view?
     # TODO: different camviews to layers?
 
@@ -99,6 +103,12 @@ def scene_preset():
 def delete_preset(deltypes, prefix):
     """"""
     # TODO: more flexibility in keeping and naming
+
+    try:
+        bpy.data.objects["Colourbar"].parent = None
+    except KeyError:
+        pass
+
     bpy.ops.object.mode_set(mode='OBJECT')
     for ob in bpy.data.objects:
         ob.select = ob.name.startswith(prefix)  # and ob.type in deltypes
@@ -305,3 +315,42 @@ def create_world():
     nt = bpy.data.node_groups["Shader Nodetree"]
     nt.nodes["Background"].inputs[1].default_value = 0.1
     nt.nodes["Voronoi Texture"].inputs[1].default_value = 2
+
+
+# ========================================================================== #
+# Colourbar placement 
+# ========================================================================== #
+# (reuse of code from http://blender.stackexchange.com/questions/6625)
+
+def SetupDriverVariables(driver, imageplane):
+    camAngle = driver.variables.new()
+    camAngle.name = 'camAngle'
+    camAngle.type = 'SINGLE_PROP'
+    camAngle.targets[0].id = imageplane.parent
+    camAngle.targets[0].data_path ="data.angle"
+    depth = driver.variables.new()
+    depth.name = 'depth'
+    depth.type = 'TRANSFORMS'
+    depth.targets[0].id = imageplane
+    depth.targets[0].data_path = 'location'
+    depth.targets[0].transform_type = 'LOC_Z'
+    depth.targets[0].transform_space = 'LOCAL_SPACE'
+
+def SetupDriversForImagePlane(imageplane, scaling=[1.0, 1.0]):
+    driver = imageplane.driver_add('scale', 1).driver
+    driver.type = 'SCRIPTED'
+    SetupDriverVariables(driver, imageplane)
+    driver.expression = str(scaling[0]) + "*(-depth*tan(camAngle/2)*bpy.context.scene.render.resolution_y * bpy.context.scene.render.pixel_aspect_y/(bpy.context.scene.render.resolution_x * bpy.context.scene.render.pixel_aspect_x))"
+    driver = imageplane.driver_add('scale', 0).driver
+    driver.type = 'SCRIPTED'
+    SetupDriverVariables(driver, imageplane)
+    driver.expression = str(scaling[1]) + "*-depth*tan(camAngle/2)"
+
+def place_colourbar(camera, colourbar):
+    """Place the colourbar in front of the camera."""
+
+    colourbar.location = (0, 0, -10)
+    colourbar.parent = camera
+    SetupDriversForImagePlane(colourbar, scaling=[1.0, 1.0])
+    colourbar.location[0] = 0.00
+    colourbar.location[1] = 1.00

@@ -919,14 +919,18 @@ def set_colorramp_preset(node, cmapname="r2b", mat=None):
 #     for i in range(len(seq)): setattr(collection[i], attr, seq[i])
 
 
-def get_color_bar():
-    """"""
+# ========================================================================== #
+# Colourbar
+# ========================================================================== #
 
-    name = "Colourbar"
+
+def get_color_bar(name="Colourbar", width=1., height=0.1):
+    """Create, colour and label a colourbar."""
+
     if bpy.data.objects.get(name) is not None:
         ob = bpy.data.objects.get(name)
     else:
-        ob = create_plane(name)
+        ob = create_colourbar(name, width, height)
         bpy.ops.object.mode_set(mode='EDIT')
         bpy.ops.mesh.subdivide(number_cuts=100)
         bpy.ops.object.mode_set(mode='OBJECT')
@@ -939,13 +943,41 @@ def get_color_bar():
     else:
         vg = ob.vertex_groups.new("all")
         for i, v in enumerate(ob.data.vertices):
-            vg.add([i], v.co.x, "REPLACE")
+            vg.add([i], v.co.x/width, "REPLACE")
         vg.lock_weight = True
+
+    # FIXME: these only work for bar of default size: [1.0, 0.1]
+    tb_ob, ob_idx = tb_utils.active_tb_object()
+    scalarrange = tb_ob.scalars[0].range
+    labels = [{'label': scalarrange[0], 'loc': [0.025, 0.015]}, 
+              {'label': scalarrange[1], 'loc': [0.85, 0.015]}]
+    # NOTE: use loc[1]=-height for placement under the bar
+    add_labels_to_colourbar(ob, labels, height)
 
     return ob, vg
 
-def create_plane(name):
-    """"""
+
+def add_labels_to_colourbar(colourbar, labels, height):
+    """Add labels to colourbar."""
+
+    emission = {'colour': (1.0, 1.0, 1.0, 1.0), 'strength': 1}
+    mat = make_material_emit_cycles("cbartext", emission)
+
+    for label in labels:
+        bpy.ops.object.text_add()
+        text = bpy.context.scene.objects.active
+        text.parent = colourbar
+        text.scale[0] = height
+        text.scale[1] = height
+        text.location[0] = label['loc'][0]
+        text.location[1] = label['loc'][1]
+        text.data.body = str(label['label'])
+        text.name = str(label['label'])  # ("label:%8.4f" % label['label'])
+        set_materials(text, mat)
+
+
+def create_colourbar(name="Colourbar", width=1., height=0.1):
+    """Create a plane of dimension width x height."""
 
     scn = bpy.context.scene
 
@@ -955,7 +987,7 @@ def create_plane(name):
     scn.objects.active = ob
     ob.select = True
 
-    verts = [(0, 0, 0), (0, 1, 0), (1, 1, 0), (1, 0, 0)]
+    verts = [(0, 0, 0), (0, height, 0), (width, height, 0), (width, 0, 0)]
     faces = [(3, 2, 1, 0)]
     me.from_pydata(verts, [], faces)
     me.update()
