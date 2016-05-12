@@ -323,7 +323,7 @@ def map_to_vertexcolours(ob, vcname="", fpath="",
     vc = get_vertexcolours(ob, vcname, fpath)
     ob = assign_vc(ob, vc, vgs, colourtype, labelflag)
 
-    cbar, vg = get_color_bar()
+    cbar, vg = get_color_bar(name=vcname + "_colourbar")
     set_materials(cbar, mat)
     vc = get_vertexcolours(cbar, vcname, fpath)
     assign_vc(cbar, vc, [vg], colourtype, labelflag)
@@ -927,10 +927,17 @@ def set_colorramp_preset(node, cmapname="r2b", mat=None):
 def get_color_bar(name="Colourbar", width=1., height=0.1):
     """Create, colour and label a colourbar."""
 
+    if bpy.data.objects.get("Colourbars") is not None:
+        cbars = bpy.data.objects.get("Colourbars")
+    else:
+        cbars = bpy.data.objects.new(name="Colourbars", object_data=None)
+        bpy.context.scene.objects.link(cbars)
+
     if bpy.data.objects.get(name) is not None:
         ob = bpy.data.objects.get(name)
     else:
         ob = create_colourbar(name, width, height)
+        ob.parent = cbars
         bpy.ops.object.mode_set(mode='EDIT')
         bpy.ops.mesh.subdivide(number_cuts=100)
         bpy.ops.object.mode_set(mode='OBJECT')
@@ -938,19 +945,23 @@ def get_color_bar(name="Colourbar", width=1., height=0.1):
         tb_utils.move_to_layer(ob, layer)
         bpy.context.scene.layers[layer] = True
 
-    if ob.vertex_groups.get("all") is not None:
-        vg = ob.vertex_groups.get("all")
-    else:
-        vg = ob.vertex_groups.new("all")
-        for i, v in enumerate(ob.data.vertices):
-            vg.add([i], v.co.x/width, "REPLACE")
-        vg.lock_weight = True
+#     if ob.vertex_groups.get("all") is not None:
+#         vg = ob.vertex_groups.get("all")
+#     else:
+    vg = ob.vertex_groups.new("all")
+    for i, v in enumerate(ob.data.vertices):
+        vg.add([i], v.co.x/width, "REPLACE")
+    vg.lock_weight = True
 
     # FIXME: these only work for bar of default size: [1.0, 0.1]
-    tb_ob, ob_idx = tb_utils.active_tb_object()
-    scalarrange = tb_ob.scalars[0].range
-    labels = [{'label': scalarrange[0], 'loc': [0.025, 0.015]}, 
-              {'label': scalarrange[1], 'loc': [0.85, 0.015]}]
+    # FIXME: this only works for small scalarrange
+    tb_ov, ov_idx = tb_utils.active_tb_overlay()
+    scalarrange = tb_ov.range
+      # ("label:%8.4f" % label['label'])
+    labels = [{'label': "%4.2f" % scalarrange[0],
+               'loc': [0.025, 0.015]},
+              {'label': "%4.2f" % scalarrange[1],
+               'loc': [0.80, 0.015]}]
     # NOTE: use loc[1]=-height for placement under the bar
     add_labels_to_colourbar(ob, labels, height)
 
@@ -971,8 +982,8 @@ def add_labels_to_colourbar(colourbar, labels, height):
         text.scale[1] = height
         text.location[0] = label['loc'][0]
         text.location[1] = label['loc'][1]
-        text.data.body = str(label['label'])
-        text.name = str(label['label'])  # ("label:%8.4f" % label['label'])
+        text.data.body = label['label']
+        text.name = "label:" + label['label']
         set_materials(text, mat)
 
 

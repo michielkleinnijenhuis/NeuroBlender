@@ -82,6 +82,19 @@ def active_tb_object():
     return tb_ob, ob_idx
 
 
+def active_tb_overlay():
+    """Identify the active overlay in the ImportPanel UIList."""
+
+    tb = bpy.context.scene.tb
+    ob_idx = eval("tb.index_%s" % tb.objecttype)
+    tb_ob = eval("tb.%s[%d]" % (tb.objecttype, ob_idx))
+
+    ov_idx = eval("tb_ob.index_%s" % tb.overlaytype)
+    tb_ov = eval("tb_ob.%s[%d]" % (tb.overlaytype, ov_idx))
+
+    return tb_ov, ov_idx
+
+
 # ========================================================================== #
 # nibabel-related functions
 # ========================================================================== #

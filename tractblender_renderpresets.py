@@ -34,6 +34,11 @@ from . import tractblender_utils as tb_utils
 
 def scene_preset():
     """"""
+
+    # TODO: manage presets: e.g. put each preset in an empty, etc
+    # TODO: option to save presets
+    # TODO: copy colourbars to cam instead of moving them around
+
     scn = bpy.context.scene
     tb = scn.tb
 
@@ -41,9 +46,9 @@ def scene_preset():
 #         if ob.type == 'CAMERA' or ob.type == 'LAMP' or ob.type == 'EMPTY':
 # #             if ob.name.startswith('Brain'):
 #                 scn.objects.unlink(ob)
+#     deltypes = ['CAMERA', 'LAMP', 'EMPTY']
     prefix = 'Brain'
-    deltypes = ['CAMERA', 'LAMP', 'EMPTY']
-    delete_preset(deltypes, prefix)
+    delete_preset(prefix)
 
     obs = [ob for ob in bpy.data.objects
            if ((ob.type not in ['CAMERA', 'LAMP', 'EMPTY']) and
@@ -59,6 +64,7 @@ def scene_preset():
     bc.location = midpoint
     bpy.context.scene.objects.link(bc)
 
+    # TODO: LEFT RIGHT ANT SUP INF SUP
     camview = tb.camview
     quadrants = {'RightAntSup': (1, 1, 1),
                  'RightAntInf': (1, 1, -1),
@@ -88,11 +94,23 @@ def scene_preset():
     scn.cycles.caustics_reflective = False
 
     try:
-        colourbar = bpy.data.objects["Colourbar"]
+        cbars = bpy.data.objects.get("Colourbars")
     except KeyError:
         pass
     else:
-        place_colourbar(cam, colourbar)
+        # TODO: limit number of cbars (5)
+        # FIXME: hacky non-general approach (left like this for now because preset handling will be changed anyway)
+        cbars_render = []
+        for surf in tb.surfaces:
+            for scalar in surf.scalars:
+                if scalar.showcolourbar:
+                    cbar = bpy.data.objects.get("vc_" + scalar.name + "_colourbar")
+                    cbars_render.append(cbar)
+#         for cbar in cbars.children:
+#             cbars_render.append(cbar)
+        for i, cbar in enumerate(cbars_render):
+            y_offset = i * 0.2
+            place_colourbar(cam, cbar, location=[0,1-y_offset])
 
     # TODO: go to camera view?
     # TODO: different camviews to layers?
@@ -100,14 +118,18 @@ def scene_preset():
     return {'FINISHED'}
 
 
-def delete_preset(deltypes, prefix):
+def delete_preset(prefix):
     """"""
     # TODO: more flexibility in keeping and naming
 
     try:
-        bpy.data.objects["Colourbar"].parent = None
+        cbars = bpy.data.objects.get("Colourbars")
     except KeyError:
         pass
+    else:
+        for ob in bpy.data.objects:
+            if ob.name.endswith("_colourbar"):
+                ob.parent = cbars
 
     bpy.ops.object.mode_set(mode='OBJECT')
     for ob in bpy.data.objects:
@@ -346,11 +368,11 @@ def SetupDriversForImagePlane(imageplane, scaling=[1.0, 1.0]):
     SetupDriverVariables(driver, imageplane)
     driver.expression = str(scaling[1]) + "*-depth*tan(camAngle/2)"
 
-def place_colourbar(camera, colourbar):
+def place_colourbar(camera, colourbar, location=[0,1]):
     """Place the colourbar in front of the camera."""
 
     colourbar.location = (0, 0, -10)
     colourbar.parent = camera
     SetupDriversForImagePlane(colourbar, scaling=[1.0, 1.0])
-    colourbar.location[0] = 0.00
-    colourbar.location[1] = 1.00
+    colourbar.location[0] = location[0]
+    colourbar.location[1] = location[1]

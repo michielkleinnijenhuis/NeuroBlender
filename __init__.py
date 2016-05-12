@@ -189,6 +189,25 @@ class TractBlenderImportPanel(Panel):
                 col.operator("tb.oblist_ops",
                              icon='TRIA_DOWN',
                              text="").action = 'DOWN_ov'
+                try:
+                    ov_idx = eval("tb_ob.index_%s" % ovtype)
+                    tb_ov = eval("tb_ob.%s[%d]" % (ovtype, ov_idx))
+                except IndexError:
+                    pass
+                else:
+                    if ovtype == "scalars":
+                        row = box.row()
+                        row.prop(tb_ov, "showcolourbar")
+                        row = box.row()
+                        row.enabled = False
+                        row.prop(tb_ov, "range")
+                    elif ovtype == "labels":
+                        row = box.row()
+                        row.enabled = False
+                        row.prop(tb_ov, "value")
+                        row = box.row()
+                        row.enabled = False
+                        row.prop(tb_ov, "colour")
             else:
                 row.prop(tb, "show_overlay_options",
                          icon='TRIA_RIGHT',
@@ -800,6 +819,10 @@ class ScalarProperties(PropertyGroup):
         description="The original min-max of scalars mapped in vertexweights",
         default=(0, 0),
         size=2)
+    showcolourbar = BoolProperty(
+        name="Colourbar",
+        description="Show/hide colourbar",
+        default=True)
 
 
 class LabelProperties(PropertyGroup):
