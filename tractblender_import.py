@@ -184,7 +184,10 @@ def import_surface(fpath, name, info=None):
                 img = gio.read(fpath)
                 verts = [tuple(vert) for vert in img.darrays[0].data]
                 faces = [tuple(face) for face in img.darrays[1].data]
-                affine = mathutils.Matrix(img.darrays[0].coordsys.xform)
+                xform = img.darrays[0].coordsys.xform
+                if len(xform) == 16:
+                    xform = np.reshape(xform, [4, 4])
+                affine = mathutils.Matrix(xform)
             elif (fpath.endswith('.white') |
                   fpath.endswith('.pial') |
                   fpath.endswith('.inflated')
