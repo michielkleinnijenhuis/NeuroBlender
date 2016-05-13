@@ -23,6 +23,7 @@
 import bpy
 
 import numpy as np
+from mathutils import Vector
 
 from . import tractblender_materials as tb_mat
 from . import tractblender_utils as tb_utils
@@ -32,59 +33,46 @@ from . import tractblender_utils as tb_utils
 # ========================================================================== #
 
 
-def scene_preset():
-    """"""
+def scene_preset(name="Brain", layer=10):
+    """Setup a scene for render."""
 
     # TODO: manage presets: e.g. put each preset in an empty, etc
     # TODO: option to save presets
     # TODO: copy colourbars to cam instead of moving them around
+    # TODO: set presets up as scenes?
+#     name = 'Preset'
+#     new_scene = bpy.data.scenes.new(name)
+#     preset = bpy.data.objects.new(name=name, object_data=None)
+#     bpy.context.scene.objects.link(preset)
 
     scn = bpy.context.scene
     tb = scn.tb
 
-#     for ob in scn.objects:
-#         if ob.type == 'CAMERA' or ob.type == 'LAMP' or ob.type == 'EMPTY':
-# #             if ob.name.startswith('Brain'):
-#                 scn.objects.unlink(ob)
-#     deltypes = ['CAMERA', 'LAMP', 'EMPTY']
-    prefix = 'Brain'
-    delete_preset(prefix)
+    delete_preset(name)
 
     obs = [ob for ob in bpy.data.objects
            if ((ob.type not in ['CAMERA', 'LAMP', 'EMPTY']) and
                (not ob.name.startswith('BrainDissectionTable')))]
     if not obs:
-        print('no objects were found')
-        return {'FINISHED'}
+        print('no objects selected for render')
+        return {'CANCELLED'}
 
-    bbox = np.array(find_bbox_coordinates(obs))
-    dims = np.subtract(bbox[:, 1], bbox[:, 0])
-    midpoint = bbox[:, 0] + dims / 2
-    bc = bpy.data.objects.new(name='BrainCentre', object_data=None)
-    bc.location = midpoint
-    bpy.context.scene.objects.link(bc)
+    preset = bpy.data.objects.new(name=name, object_data=None)
+    bpy.context.scene.objects.link(preset)
 
-    # TODO: LEFT RIGHT ANT SUP INF SUP
-    camview = tb.camview
-    quadrants = {'RightAntSup': (1, 1, 1),
-                 'RightAntInf': (1, 1, -1),
-                 'RightPostSup': (1, -1, 1),
-                 'RightPostInf': (1, -1, -1),
-                 'LeftAntSup': (-1, 1, 1),
-                 'LeftAntInf': (-1, 1, -1),
-                 'LeftPostSup': (-1, -1, 1),
-                 'LeftPostInf':  (-1, -1, -1)}
-    quadrant = quadrants[camview]
-    cam = create_camera(bc, bbox, dims, quadrant)
-    if not camview.endswith('Inf'):
-        table = create_table(bc, bbox, dims)
-    else:
-        table = None
+    centre, bbox, dims = get_brainbounds(name+"Centre", obs)
+    table = create_table(name+"DissectionTable", centre, bbox, dims)
+    cam = create_camera(name+"Cam", centre, bbox, dims, Vector(tb.cam_view))
+    lights = create_lighting(name+"Lights", centre, bbox, dims, cam)
 
-    lights = create_lighting(bc, bbox, dims, quadrant)
+    add_colourbars(cam)
 
-    layer = 10
-    obs = [bc] + [cam] + [table] + lights
+    lights.parent = cam
+    obs = [centre] + [table] + [cam]
+    for ob in obs:
+        ob.parent = preset
+
+    obs = obs + [lights] + list(lights.children)
     for ob in obs:
         if ob is not None:
             tb_utils.move_to_layer(ob, layer)
@@ -93,34 +81,39 @@ def scene_preset():
     scn.cycles.caustics_refractive = False
     scn.cycles.caustics_reflective = False
 
-    try:
-        cbars = bpy.data.objects.get("Colourbars")
-    except KeyError:
-        pass
-    else:
-        # TODO: limit number of cbars (5)
-        # FIXME: hacky non-general approach (left like this for now because preset handling will be changed anyway)
-        cbars_render = []
-        for surf in tb.surfaces:
-            for scalar in surf.scalars:
-                if scalar.showcolourbar:
-                    cbar = bpy.data.objects.get("vc_" + scalar.name + "_colourbar")
-                    cbars_render.append(cbar)
-#         for cbar in cbars.children:
-#             cbars_render.append(cbar)
-        for i, cbar in enumerate(cbars_render):
-            y_offset = i * 0.2
-            place_colourbar(cam, cbar, location=[0,1-y_offset])
-
-    # TODO: go to camera view?
-    # TODO: different camviews to layers?
+    to_camera_view()
 
     return {'FINISHED'}
 
 
+def to_camera_view():
+    """Set 3D viewports to camera perspective."""
+
+    for area in bpy.context.screen.areas:
+        if area.type == 'VIEW_3D':
+            area.spaces[0].region_3d.view_perspective = 'CAMERA'
+
+def get_brainbounds(name, obs):
+    """Find the boundingbox, dimensions and centre of the objects."""
+
+    bbox = np.array(find_bbox_coordinates(obs))
+    dims = np.subtract(bbox[:, 1], bbox[:, 0])
+    centre = bbox[:, 0] + dims / 2
+
+    empty = bpy.data.objects.new(name=name, object_data=None)
+    empty.location = centre
+    bpy.context.scene.objects.link(empty)
+
+    return empty, bbox, dims
+
 def delete_preset(prefix):
     """"""
     # TODO: more flexibility in keeping and naming
+#     for ob in scn.objects:
+#         if ob.type == 'CAMERA' or ob.type == 'LAMP' or ob.type == 'EMPTY':
+# #             if ob.name.startswith('Brain'):
+#                 scn.objects.unlink(ob)
+#     deltypes = ['CAMERA', 'LAMP', 'EMPTY']
 
     try:
         cbars = bpy.data.objects.get("Colourbars")
@@ -136,16 +129,6 @@ def delete_preset(prefix):
         ob.select = ob.name.startswith(prefix)  # and ob.type in deltypes
     bpy.context.scene.objects.active = ob
     bpy.ops.object.delete()
-
-
-def delete_cube():
-    """Delete the default Blender Cube."""
-    try:
-        bpy.data.objects['Cube'].select = True
-        bpy.ops.object.delete()
-        print(" --- Cube deleted. Let's go!")
-    except:
-        print(" --- Cube not found. Let's go!")
 
 
 def find_bbox_coordinates(obs):
@@ -167,13 +150,13 @@ def find_bbox_coordinates(obs):
 # ========================================================================== #
 
 
-def create_camera(braincentre, bbox, dims, quadrant=(1, 1, 1)):
+def create_camera(name, centre, bbox, dims, camview=Vector((1, 1, 1))):
     """"""
 
     scn = bpy.context.scene
 
-    cam = bpy.data.cameras.new(name="BrainCam")
-    ob = bpy.data.objects.new("BrainCam", cam)
+    cam = bpy.data.cameras.new(name=name)
+    ob = bpy.data.objects.new(name, cam)
     scn.objects.link(ob)
     cam = ob.data
     cam.show_name = True
@@ -186,23 +169,22 @@ def create_camera(braincentre, bbox, dims, quadrant=(1, 1, 1)):
     cam.clip_start = min(dims) / 10
     cam.clip_end = max(dims) * 20
 
-    add_cam_constraint(ob, "TRACK_TO",
-                       "TrackToBrainCentre", braincentre)
-    add_cam_constraint(ob, "LIMIT_DISTANCE",
-                       "LimitDistInClipBox", braincentre, cam.clip_end)
-    add_cam_constraint(ob, "LIMIT_DISTANCE",
-                       "LimitDistOutBrainBox", braincentre, max(dims))
+    add_constraint(ob, "TRACK_TO", "TrackToCentre", centre)
+    add_constraint(ob, "LIMIT_DISTANCE",
+                   "LimitDistInClipBox", centre, cam.clip_end)
+    add_constraint(ob, "LIMIT_DISTANCE",
+                   "LimitDistOutBrainBox", centre, max(dims))
 
-    # TODO: tie in with orientation matrix (RAS layout assumed for now)
-    dimlocation = [4*quadrant[0], 3*quadrant[1], 2*quadrant[2]]
-    ob.location = (braincentre.location[0] + dims[0] * dimlocation[0],
-                   braincentre.location[1] + dims[1] * dimlocation[1],
-                   braincentre.location[2] + dims[2] * dimlocation[2])
+    dist = max(dims) * camview
+    ob.location = (centre.location[0] + dist[0],
+                   centre.location[1] + dist[1],
+                   centre.location[2] + dist[2])
 
     # depth-of-field
     empty = bpy.data.objects.new('DofEmpty', None)
-    empty.location = braincentre.location
+    empty.location = centre.location
     cam.dof_object = empty
+#     scn.objects.link(empty)
     # TODO: let the empty follow the brain outline
 #     cycles = cam.cycles
 #     cycles.aperture_type = 'FSTOP'
@@ -212,7 +194,7 @@ def create_camera(braincentre, bbox, dims, quadrant=(1, 1, 1)):
     return ob
 
 
-def add_cam_constraint(ob, type, name, target, val=None):
+def add_constraint(ob, type, name, target, val=None):
     """"""
     cns = ob.constraints.new(type)
     cns.name = name
@@ -236,45 +218,51 @@ def add_cam_constraint(ob, type, name, target, val=None):
 # ========================================================================== #
 
 
-def create_lighting(braincentre, bbox, dims, quadrant=(1, 1, 1)):
+def create_lighting(name, braincentre, bbox, dims, cam, camview=(1, 1, 1)):
     """"""
 
-#     view = (1, 1, 1)
     # TODO: constraints to have the light follow cam?
+    # Key (strong spot), back (strong behind subj), fill(cam location)
 
-    name = "BrainLightMain"
+    lights = bpy.data.objects.new(name=name, object_data=None)
+    lights.location = braincentre.location
+    bpy.context.scene.objects.link(lights)
+
+    lname = name + "Key"
     dimscale = (0.5, 0.5)
-    dimlocation = [5*quadrant[0], 2*quadrant[1], 3*quadrant[2]]
+#     dimlocation = [5*camview[0], 2*camview[1], 3*camview[2]]
+    dimlocation = (3, 2, 1)
     emission = {'colour': (1.0, 1.0, 1.0, 1.0), 'strength': 50}
-    main = create_light(name, braincentre, bbox, dims,
+    main = create_light(lname, braincentre, bbox, dims,
                         dimscale, dimlocation, emission)
+    main.parent = lights
 
-    name = "BrainLightAux"
+    lname = name + "Back"
     dimscale = (0.1, 0.1)
-    dimlocation = [-2*quadrant[0], 2*quadrant[1], 1*quadrant[2]]
+#     dimlocation = [-2*camview[0], 2*camview[1], 1*camview[2]]
+    dimlocation = (2, 4, -10)
     emission = {'colour': (1.0, 1.0, 1.0, 1.0), 'strength': 30}
-    aux = create_light(name, braincentre, bbox, dims,
+    aux = create_light(lname, braincentre, bbox, dims,
                        dimscale, dimlocation, emission)
+    aux.parent = lights
 
-    name = "BrainLightHigh"
-    dimscale = (0.1, 0.1)
-    dimlocation = (10, -10, 5)
-    dimlocation = [10*quadrant[0], -10*quadrant[1], 5*quadrant[2]]
+    lname = name + "Fill"
+    scale = (0.1, 0.1)
+    dimlocation = (0, 0, 0)
     emission = {'colour': (1.0, 1.0, 1.0, 1.0), 'strength': 100}
-    high = create_light(name, braincentre, bbox, dims,
-                        dimscale, dimlocation, emission)
+    high = create_light(lname, braincentre, bbox, dims,
+                        scale, dimlocation, emission)
+    high.parent = lights
 
-    return [main, aux, high]
+    return lights
 
 def create_light(name, braincentre, bbox, dims, scale, loc, emission):
     """"""
 
     ob = create_plane(name)
     ob.scale = [dims[0]*scale[0], dims[1]*scale[1], 1]
-    ob.location = (braincentre.location[0] + dims[0] * loc[0],
-                   braincentre.location[1] + dims[1] * loc[1],
-                   braincentre.location[2] + dims[2] * loc[2])
-    add_cam_constraint(ob, "TRACK_TO", "TrackToBrainCentre", braincentre)
+    ob.location = (dims[0] * loc[0], dims[1] * loc[1], dims[2] * loc[2])
+    add_constraint(ob, "TRACK_TO", "TrackToBrainCentre", braincentre)
     mat = tb_mat.make_material_emit_cycles(name, emission)
     tb_mat.set_material(ob.data, mat)
 
@@ -304,14 +292,17 @@ def create_plane(name):
     return ob
 
 
-def create_table(braincentre, bbox, dims):
-    """"""
+def create_table(name, centre, bbox, dims):
+    """Create a table under the objects."""
 
-    name = "BrainDissectionTable"
+    tb = bpy.context.scene.tb
+    if tb.cam_view[2] < 0:
+        return None
+
     ob = create_plane(name)
-    ob.scale = (5000, 5000, 1)  # TODO: use dims
-    ob.location = (braincentre.location[0],
-                   braincentre.location[1],
+    ob.scale = (dims[0]*4, dims[1]*4, 1)
+    ob.location = (centre.location[0],
+                   centre.location[1],
                    bbox[2, 0])
 
     diffuse = {'colour': (0.5, 0.5, 0.5, 1.0), 'roughness': 0.1}
@@ -344,6 +335,7 @@ def create_world():
 # ========================================================================== #
 # (reuse of code from http://blender.stackexchange.com/questions/6625)
 
+
 def SetupDriverVariables(driver, imageplane):
     camAngle = driver.variables.new()
     camAngle.name = 'camAngle'
@@ -358,6 +350,7 @@ def SetupDriverVariables(driver, imageplane):
     depth.targets[0].transform_type = 'LOC_Z'
     depth.targets[0].transform_space = 'LOCAL_SPACE'
 
+
 def SetupDriversForImagePlane(imageplane, scaling=[1.0, 1.0]):
     driver = imageplane.driver_add('scale', 1).driver
     driver.type = 'SCRIPTED'
@@ -368,6 +361,7 @@ def SetupDriversForImagePlane(imageplane, scaling=[1.0, 1.0]):
     SetupDriverVariables(driver, imageplane)
     driver.expression = str(scaling[1]) + "*-depth*tan(camAngle/2)"
 
+
 def place_colourbar(camera, colourbar, location=[0,1]):
     """Place the colourbar in front of the camera."""
 
@@ -376,3 +370,29 @@ def place_colourbar(camera, colourbar, location=[0,1]):
     SetupDriversForImagePlane(colourbar, scaling=[1.0, 1.0])
     colourbar.location[0] = location[0]
     colourbar.location[1] = location[1]
+
+
+def add_colourbars(cam):
+    """Add colourbars of objects to the scene setup."""
+
+    scn = bpy.context.scene
+    tb = scn.tb
+
+    try:
+        cbars = bpy.data.objects.get("Colourbars")
+    except KeyError:
+        pass
+    else:
+        # TODO: limit number of cbars (5)
+        # FIXME: hacky non-general approach (left like this for now because preset handling will be changed anyway)
+        cbars_render = []
+        for surf in tb.surfaces:
+            for scalar in surf.scalars:
+                if scalar.showcolourbar:
+                    cbar = bpy.data.objects.get("vc_" + scalar.name + "_colourbar")
+                    cbars_render.append(cbar)
+#         for cbar in cbars.children:
+#             cbars_render.append(cbar)
+        for i, cbar in enumerate(cbars_render):
+            y_offset = i * 0.2
+            place_colourbar(cam, cbar, location=[0, 1-y_offset])

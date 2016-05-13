@@ -39,14 +39,15 @@ from bpy.props import (BoolProperty,
 
 from os.path import dirname, join
 from shutil import copy
+import numpy as np
+import mathutils
+
 from . import tractblender_import as tb_imp
 from . import tractblender_materials as tb_mat
 from . import tractblender_renderpresets as tb_rp
 from . import tractblender_utils as tb_utils
 from . import external_sitepackages as ext_sp
 
-import numpy as np
-import mathutils
 
 # =========================================================================== #
 
@@ -634,8 +635,16 @@ class TractBlenderInteractPanel(Panel):
 
         if obs:
             row = self.layout.row()
-            row.label(text="Camera view: ")
-            row.prop(tb, "camview")
+            col = row.column()
+            col.prop(tb, "cam_view_enum")
+            col = row.column()
+            col.enabled = not tb.cam_view_enum == "Numeric"
+            col.prop(tb, "cam_distance")
+            row = self.layout.row()
+            row.prop(tb, "cam_view")
+            row.enabled = tb.cam_view_enum == "Numeric"
+            row = self.layout.row()
+            row.separator()
             row = self.layout.row()
             row.operator("tb.scene_preset",
                          text="Load scene preset",
@@ -784,7 +793,6 @@ def material_enum_callback(self, context):
 
     return items
 
-
 def material_enum_update(self, context):
     """Assign a new preset material to the object."""
 
@@ -798,6 +806,32 @@ def material_enum_set(self, value):
     """Set the value of the enum."""
 
     pass
+
+
+def cam_view_enum_update(self, context):
+    """Set the camview property from enum options."""
+
+    if self.cam_view_enum == "Numeric":
+        return
+
+    tb = context.scene.tb
+
+    quadrants = {'Right': (1, 0, 0),
+                 'Left': (-1, 0, 0),
+                 'Ant': (0, 1, 0),
+                 'Post': (0, -1, 0),
+                 'Sup': (0, 0, 1),
+                 'Inf': (0, 0, -1),
+                 'RightAntSup': (1, 1, 1),
+                 'RightAntInf': (1, 1, -1),
+                 'RightPostSup': (1, -1, 1),
+                 'RightPostInf': (1, -1, -1),
+                 'LeftAntSup': (-1, 1, 1),
+                 'LeftAntInf': (-1, 1, -1),
+                 'LeftPostSup': (-1, -1, 1),
+                 'LeftPostInf':  (-1, -1, -1)}
+    cv_unit = mathutils.Vector(quadrants[self.cam_view_enum]).normalized()
+    tb.cam_view = list(cv_unit * tb.cam_distance)
 
 
 class ScalarProperties(PropertyGroup):
@@ -1219,26 +1253,47 @@ class TractBlenderProperties(PropertyGroup):
 #         name="VertexgroupInfo",
 #         description="Keep track of info about vertexgroups")
 
-    camview = EnumProperty(
-        name="CamView",
+    cam_view = FloatVectorProperty(
+        name="Numeric input",
+        description="Setting of the LR-AP-IS viewpoint of the camera",
+        default=[2.31, 2.31, 2.31],
+        size=3)
+
+    cam_view_enum = EnumProperty(
+        name="Camera viewpoint",
         description="Choose a view for the camera",
         default="RightAntSup",
-        items=[("RightAntSup", "Right-Ant-Sup",
-                "Right-Anterior-Superior", 3),
-               ("RightAntInf", "Right-Ant-Inf",
-                "Right-Anterior-Inferior", 4),
-               ("RightPostSup", "Right-Post-Sup",
-                "Right-Posterior-Superior", 7),
-               ("RightPostInf", "Right-Post-Inf",
-                "Right-Posterior-Inferior", 8),
-               ("LeftAntSup", "Left-Ant-Sup",
-                "Left-Anterior-Superior", 1),
-               ("LeftAntInf", "Left-Ant-Inf",
-                "Left-Anterior-Inferior", 2),
+        items=[("LeftPostInf", "Left-Post-Inf",
+                "Left-Posterior-Inferior"),
                ("LeftPostSup", "Left-Post-Sup",
-                "Left-Posterior-Superior", 5),
-               ("LeftPostInf", "Left-Post-Inf",
-                "Left-Posterior-Inferior", 6)])
+                "Left-Posterior-Superior"),
+               ("LeftAntInf", "Left-Ant-Inf",
+                "Left-Anterior-Inferior"),
+               ("LeftAntSup", "Left-Ant-Sup",
+                "Left-Anterior-Superior"),
+               ("RightPostInf", "Right-Post-Inf",
+                "Right-Posterior-Inferior"),
+               ("RightPostSup", "Right-Post-Sup",
+                "Right-Posterior-Superior"),
+               ("RightAntInf", "Right-Ant-Inf",
+                "Right-Anterior-Inferior"),
+               ("RightAntSup", "Right-Ant-Sup",
+                "Right-Anterior-Superior"),
+               ("Inf", "Inf", "Inferior"),
+               ("Sup", "Sup", "Superior"),
+               ("Post", "Post", "Posterior"),
+               ("Ant", "Ant", "Anterior"),
+               ("Left", "Left", "Left"),
+               ("Right", "Right", "Right"),
+               ("Numeric", "Numeric", "Numeric")],
+        update=cam_view_enum_update)
+
+    cam_distance = FloatProperty(
+        name="Camera distance",
+        description="Relative distance of the camera (relative to bounding box)",
+        default=4,
+        min=1,
+        update=cam_view_enum_update)
 
 
 # =========================================================================== #
