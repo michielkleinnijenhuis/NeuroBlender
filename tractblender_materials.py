@@ -323,10 +323,11 @@ def map_to_vertexcolours(ob, vcname="", fpath="",
     vc = get_vertexcolours(ob, vcname, fpath)
     ob = assign_vc(ob, vc, vgs, colourtype, labelflag)
 
-    cbar, vg = get_color_bar(name=vcname + "_colourbar")
-    set_materials(cbar, mat)
-    vc = get_vertexcolours(cbar, vcname, fpath)
-    assign_vc(cbar, vc, [vg], colourtype, labelflag)
+    if not labelflag:
+        cbar, vg = get_color_bar(name=vcname + "_colourbar")
+        set_materials(cbar, mat)
+        vc = get_vertexcolours(cbar, vcname, fpath)
+        assign_vc(cbar, vc, [vg], colourtype, labelflag)
 
 
 def get_vc_material(ob, name, fpath, colourtype="", labelflag=False):
@@ -472,6 +473,7 @@ def make_material_basic_cycles(name, diffuse, glossy, mix=0.04):
     links = mat.node_tree.links
 
     nodes.clear()
+    name = ""
 
     node = nodes.new("ShaderNodeOutputMaterial")
     node.label = "Material Output"
@@ -524,6 +526,7 @@ def make_material_emit_cycles(name, emission):
     links = mat.node_tree.links
 
     nodes.clear()
+    name = ""
 
     node = nodes.new("ShaderNodeOutputMaterial")
     node.label = "Material Output"
@@ -558,6 +561,7 @@ def make_material_dirsurf_cycles(name):
     links = mat.node_tree.links
 
     nodes.clear()
+    name = ""
 
     node = nodes.new("ShaderNodeOutputMaterial")
     node.label = "Material Output"
@@ -617,6 +621,7 @@ def make_material_dirtract_cycles(name):
     links = mat.node_tree.links
 
     nodes.clear()
+    name = ""
 
     node = nodes.new("ShaderNodeOutputMaterial")
     node.label = "Material Output"
@@ -733,6 +738,7 @@ def make_material_overlay_cycles(name, vcname):
     links = mat.node_tree.links
 
     nodes.clear()
+    name = ""
 
     node = nodes.new("ShaderNodeOutputMaterial")
     node.label = "Material Output"
@@ -777,7 +783,7 @@ def make_material_overlay_cycles(name, vcname):
 
     node = nodes.new("ShaderNodeAttribute")
     node.location = -500, 100
-    node.name = name + "_" + vcname
+    node.name = name + "_" + "Attribute"
     node.attribute_name = vcname
     node.label = "Attribute"
 
@@ -803,7 +809,7 @@ def make_material_overlay_cycles(name, vcname):
               nodes[name + "_" + "ColorRamp"].inputs["Fac"])
     links.new(nodes[name + "_" + "Separate RGB"].outputs["R"],
               nodes[name + "_" + "Math"].inputs["Value"])
-    links.new(nodes[name + "_" + vcname].outputs["Color"],
+    links.new(nodes[name + "_" + "Attribute"].outputs["Color"],
               nodes[name + "_" + "Separate RGB"].inputs["Image"])
 
     return mat
@@ -826,6 +832,7 @@ def make_material_labels_cycles(name, vcname):
     links = mat.node_tree.links
 
     nodes.clear()
+    name = ""
 
     node = nodes.new("ShaderNodeOutputMaterial")
     node.label = "Material Output"
@@ -852,7 +859,7 @@ def make_material_labels_cycles(name, vcname):
 
     node = nodes.new("ShaderNodeAttribute")
     node.location = 200, 100
-    node.name = name + "_" + vcname
+    node.name = name + "_" + "Attribute"
     node.attribute_name = vcname
     node.label = "Attribute"
 
@@ -862,7 +869,7 @@ def make_material_labels_cycles(name, vcname):
               nodes[name + "_" + "Mix Shader"].inputs[2])
     links.new(nodes[name + "_" + "Diffuse BSDF"].outputs["BSDF"],
               nodes[name + "_" + "Mix Shader"].inputs[1])
-    links.new(nodes[name + "_" + vcname].outputs["Color"],
+    links.new(nodes[name + "_" + "Attribute"].outputs["Color"],
               nodes[name + "_" + "Diffuse BSDF"].inputs["Color"])
     # FIXME: node names will truncate if too long; this will error
 
