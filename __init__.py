@@ -552,22 +552,30 @@ class ImportVoxelvolumes(Operator, ImportHelper):
     files = CollectionProperty(name="Filepath",
                                type=OperatorFileListElement)
 
+    name = StringProperty(
+        name="Name",
+        description="Specify a name for the object (default: filename)",
+        default="")
+    beautify = BoolProperty(
+        name="Beautify",
+        description="Apply initial ... on voxelvolumes",
+        default=True)
+
     def execute(self, context):
         tb = context.scene.tb
         filenames = [file.name for file in self.files]
-        tb_imp.import_objects(self.directory,
-                              filenames,
-                              tb_imp.import_voxelvolume,
-                              "voxelvolumes",
-                              self.name,
-                              self.colourtype,
-                              self.colourpicker,
-                              self.beautify)
+        tb_imp.import_voxelvolume(self.directory, filenames, "voxel")
 
         return {"FINISHED"}
 
     def draw(self, context):
-        pass  # TODO
+        layout = self.layout
+
+        row = self.layout.row()
+        row.prop(self, "name")
+
+        row = self.layout.row()
+        row.prop(self, "beautify")
 
     def invoke(self, context, event):
         context.window_manager.fileselect_add(self)
@@ -886,6 +894,7 @@ class LabelProperties(PropertyGroup):
         max=1)
 
 
+# TODO: remember and display filepaths
 class TractProperties(PropertyGroup):
     """Properties of tracts."""
 
@@ -916,7 +925,6 @@ class TractProperties(PropertyGroup):
             """,
         subtype="FILE_PATH",
         update=sformfile_update)
-    # TODO: http://nipy.org/nibabel/coordinate_systems.html
     srow_x = FloatVectorProperty(
         name="srow_x",
         description="",
@@ -1011,7 +1019,6 @@ class SurfaceProperties(PropertyGroup):
             """,
         subtype="FILE_PATH",
         update=sformfile_update)
-    # TODO: http://nipy.org/nibabel/coordinate_systems.html
     srow_x = FloatVectorProperty(
         name="srow_x",
         description="",
@@ -1089,7 +1096,6 @@ class VoxelvolumeProperties(PropertyGroup):
             """,
         subtype="FILE_PATH",
         update=sformfile_update)
-    # TODO: http://nipy.org/nibabel/coordinate_systems.html
     srow_x = FloatVectorProperty(
         name="srow_x",
         description="",

@@ -71,16 +71,9 @@ def import_objects(directory, files, importfun,
         fpath = os.path.join(directory, f)
         name = tb_utils.check_name(specname, fpath, bpy.data.objects)
 
-        ob = importfun(fpath, name, info)
-
-#         if sform:
-#             tmat = read_transformation_matrix(sform)
-#             ob.data.transform(tmat)
+        ob = importfun(fpath, name, info=info)
 
         tb_mat.materialise(ob, colourtype, colourpicker)
-#         if scalarpath:
-#             tb_mat.create_vc_overlay(ob, scalarpath)
-#             tb_mat.create_vg_overlay(ob, scalarpath)
 
         if beautify:
             tb_beau.beautify_brain(ob, importtype)
@@ -91,7 +84,7 @@ def import_objects(directory, files, importfun,
     return {"FINISHED"}
 
 
-def import_tract(fpath, name, info=None):
+def import_tract(fpath, name, sformfile = "", info=None):
     """"""
 
     scn = bpy.context.scene
@@ -126,7 +119,6 @@ def import_tract(fpath, name, info=None):
     streamlines_sample = sample(range(len(streamlines)), nsamples)
     # TODO: remember 'sample' for scalars import?
     # TODO: weed tract at reading stage where possible?
-    # TODO: handle case where transform info is included in tractfile
 
     for i, streamline in enumerate(streamlines):
         if i in streamlines_sample:
@@ -138,12 +130,17 @@ def import_tract(fpath, name, info=None):
 #                 x = interpolate.splprep(list(np.transpose(streamline)))
             make_polyline_ob(curve, streamline)
 
+    # TODO: handle cases where transform info is included in tractfile
+    affine = read_affine_matrix(sformfile)
+    ob.matrix_world = affine
+
     tract = tb.tracts.add()
     tb.index_tracts = (len(tb.tracts)-1)
     tract.name = name
     tract.nstreamlines = nsamples
     tract.tract_weeded = weed_tract
     tract.streamlines_interpolated = interpolate_streamlines
+    tract.sformfile = sformfile
 
     tb_utils.move_to_layer(ob, 0)
     scn.layers[0] = True
@@ -151,7 +148,7 @@ def import_tract(fpath, name, info=None):
     return bpy.data.objects[name]
 
 
-def import_surface(fpath, name, info=None):
+def import_surface(fpath, name, sformfile = "", info=None):
     """"""
     # TODO: subsampling? (but has to be compatible with loading overlays)
 
@@ -188,6 +185,7 @@ def import_surface(fpath, name, info=None):
                 if len(xform) == 16:
                     xform = np.reshape(xform, [4, 4])
                 affine = mathutils.Matrix(xform)
+                sformfile = fpath
             elif (fpath.endswith('.white') |
                   fpath.endswith('.pial') |
                   fpath.endswith('.inflated')
@@ -203,16 +201,18 @@ def import_surface(fpath, name, info=None):
             bpy.context.scene.objects.link(ob)
             bpy.context.scene.objects.active = ob
             ob.select = True
-            ob.matrix_world = affine
             if (fpath.endswith('.func.gii')) | (fpath.endswith('.shape.gii')):
                 pass  # TODO: create nice overlays for functionals etc
         else:
             print('surface import failed')
             return
 
+    ob.matrix_world = affine
+
     surface = tb.surfaces.add()
     tb.index_surfaces = (len(tb.surfaces)-1)
     surface.name = name
+    surface.sformfile = sformfile
 
     tb_utils.move_to_layer(ob, 1)
     scn.layers[1] = True
@@ -220,30 +220,121 @@ def import_surface(fpath, name, info=None):
     return ob
 
 
-def import_voxelvolume(fpath, name, info=None):
+def import_voxelvolume(directory, files, name, sformfile = "", info=None):
     """"""
 
     scn = bpy.context.scene
     tb = scn.tb
 
-    # TODO
-    if (fpath.endswith('.nii')) | (fpath.endswith('.nii.gz')):
+    scn.render.engine = "BLENDER_RENDER"
 
+    imgpath = os.path.join(directory, files[0])
+    if (imgpath.endswith('.nii')) | (imgpath.endswith('.nii.gz')):
         nib = tb_utils.validate_nibabel('nifti')
         if bpy.context.scene.tb.nibabel_valid:
-            pass
-
-    elif fpath.endswith('.png'):
+            pass # TODO: write pngs to temp folder and update imgpath?
+            sformfile = imgpath
+    elif imgpath.endswith('.png'):
         pass
+
+    mats = bpy.data.materials
+    name = tb_utils.check_name(name, "", checkagainst=mats)
+    texs = bpy.data.textures
+    name = tb_utils.check_name(name, "", checkagainst=texs)
+
+    img = bpy.data.images.load(imgpath)
+    depth = len(image_sequence_resolve_all(imgpath))
+    img.name = 'vv_' + name
+    img.source = 'SEQUENCE'
+    img.reload()
+
+    tex = bpy.data.textures.new('vv_' + name, 'VOXEL_DATA')
+    tex.voxel_data.file_format = 'IMAGE_SEQUENCE'
+    tex.image_user.frame_duration = depth
+    tex.image_user.frame_start = 1
+    tex.image_user.frame_offset = 0
+    tex.image = img
+
+    mat = bpy.data.materials.new('vv_' + name)
+    mat.type = "VOLUME"
+    mat.volume.density = 0.
+
+    texslot = mat.texture_slots.add()
+    texslot.texture = tex
+    texslot.use_map_density = True
+    texslot.texture_coords = 'ORCO'
+
+    me = bpy.data.meshes.new(name)
+    ob = bpy.data.objects.new(name, me)
+    bpy.context.scene.objects.link(ob)
+
+    tb_mat.set_materials(ob, mat)
+
+    ob = voxelvolume_box(ob,
+                         width=img.size[0],
+                         height=img.size[1],
+                         depth=depth)
+
+    affine = read_affine_matrix(sformfile)
+    ob.matrix_world = affine
 
     voxelvolume = tb.voxelvolumes.add()
     tb.index_voxelvolume = (len(tb.voxelvolumes)-1)
     voxelvolume.name = name
+    voxelvolume.sformfile = sformfile
 
     tb_utils.move_to_layer(ob, 2)
     scn.layers[2] = True
 
+    return voxelvolume
+
+
+def voxelvolume_box(ob, width=256, height=256, depth=256):
+    """"""
+
+    v = [(    0,      0,     0),
+         (width,      0,     0),
+         (width, height,     0),
+         (    0, height,     0),
+         (    0,      0, depth),
+         (width,      0, depth),
+         (width, height, depth),
+         (    0, height, depth)]
+
+    faces=[(0,1,2,3), (0,1,5,4), (1,2,6,5),
+           (2,3,7,6), (3,0,4,7), (4,5,6,7)]
+
+    me = ob.data
+    me.from_pydata(v, [], faces)
+    me.update(calc_edges=True)
+
     return ob
+
+
+def image_sequence_resolve_all(filepath):
+    """
+    http://blender.stackexchange.com/questions/21092
+    """
+
+    basedir, filename = os.path.split(filepath)
+    filename_noext, ext = os.path.splitext(filename)
+
+    from string import digits
+    if isinstance(filepath, bytes):
+        digits = digits.encode()
+    filename_nodigits = filename_noext.rstrip(digits)
+
+    if len(filename_nodigits) == len(filename_noext):
+        # input isn't from a sequence
+        return []
+
+    files = os.listdir(basedir)
+    return [
+        os.path.join(basedir, f)
+        for f in files
+        if f.startswith(filename_nodigits) and
+           f.endswith(ext) and
+           f[len(filename_nodigits):-len(ext) if ext else -1].isdigit()]
 
 
 def import_scalars(directory, files):
