@@ -564,7 +564,7 @@ class ImportVoxelvolumes(Operator, ImportHelper):
     def execute(self, context):
         tb = context.scene.tb
         filenames = [file.name for file in self.files]
-        tb_imp.import_voxelvolume(self.directory, filenames, "voxel")
+        tb_imp.import_voxelvolume(self.directory, filenames, self.name)
 
         return {"FINISHED"}
 

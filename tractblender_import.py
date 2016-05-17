@@ -26,6 +26,7 @@ import os
 import numpy as np
 import mathutils
 from random import sample
+import tempfile
 
 from . import tractblender_beautify as tb_beau
 from . import tractblender_materials as tb_mat
@@ -95,20 +96,28 @@ def import_tract(fpath, name, sformfile = "", info=None):
 
     if fpath.endswith('.vtk'):
         streamlines = read_vtk_streamlines(fpath)
+
     elif fpath.endswith('.Bfloat'):
         streamlines = read_camino_streamlines(fpath)
+
     elif fpath.endswith('.tck'):
         streamlines = read_mrtrix_streamlines(fpath)
+
     elif fpath.endswith('.trk'):
         streamlines = read_trackvis_streamlines(fpath)
+
     elif fpath.endswith('.npy'):
         streamlines = read_numpy_streamline(fpath)
+
     elif fpath.endswith('.npz'):
         streamlines = read_numpyz_streamlines(fpath)
+
     elif fpath.endswith('.dpy'):
         streamlines = read_dipy_streamline(fpath)
+
     else:
-        return {'file format not understood; please use default extensions'}
+        print('file format not understood; please use default extensions')
+        return
 
     curve = bpy.data.curves.new(name=name, type='CURVE')
     curve.dimensions = '3D'
@@ -162,12 +171,14 @@ def import_surface(fpath, name, sformfile = "", info=None):
                                  split_mode='OFF')
         ob = bpy.context.selected_objects[0]
         ob.name = name
+        affine = read_affine_matrix(sformfile)
 
     elif fpath.endswith('.stl'):
         bpy.ops.import_mesh.stl(filepath=fpath,
                                 axis_forward='Y', axis_up='Z')
         ob = bpy.context.selected_objects[0]
         ob.name = name
+        affine = read_affine_matrix(sformfile)
 
     elif (fpath.endswith('.gii') |
           fpath.endswith('.white') |
@@ -203,8 +214,9 @@ def import_surface(fpath, name, sformfile = "", info=None):
             ob.select = True
             if (fpath.endswith('.func.gii')) | (fpath.endswith('.shape.gii')):
                 pass  # TODO: create nice overlays for functionals etc
+
         else:
-            print('surface import failed')
+            print('file format not understood; please use default extensions')
             return
 
     ob.matrix_world = affine
@@ -220,7 +232,7 @@ def import_surface(fpath, name, sformfile = "", info=None):
     return ob
 
 
-def import_voxelvolume(directory, files, name, sformfile = "", info=None):
+def import_voxelvolume(directory, files, specname, sformfile = "", info=None):
     """"""
 
     scn = bpy.context.scene
@@ -228,34 +240,65 @@ def import_voxelvolume(directory, files, name, sformfile = "", info=None):
 
     scn.render.engine = "BLENDER_RENDER"
 
-    imgpath = os.path.join(directory, files[0])
-    if (imgpath.endswith('.nii')) | (imgpath.endswith('.nii.gz')):
-        nib = tb_utils.validate_nibabel('nifti')
-        if bpy.context.scene.tb.nibabel_valid:
-            pass # TODO: write pngs to temp folder and update imgpath?
-            sformfile = imgpath
-    elif imgpath.endswith('.png'):
-        pass
+    fpath = os.path.join(directory, files[0])
+    name = tb_utils.check_name(specname, fpath, bpy.data.objects)
 
+    matname = 'vv_' + name
     mats = bpy.data.materials
-    name = tb_utils.check_name(name, "", checkagainst=mats)
+    matname = tb_utils.check_name(matname, "", checkagainst=mats)
     texs = bpy.data.textures
-    name = tb_utils.check_name(name, "", checkagainst=texs)
+    matname = tb_utils.check_name(matname, "", checkagainst=texs)
 
-    img = bpy.data.images.load(imgpath)
-    depth = len(image_sequence_resolve_all(imgpath))
-    img.name = 'vv_' + name
+    if (fpath.endswith('.nii') | 
+        fpath.endswith('.nii.gz')):
+        nib = tb_utils.validate_nibabel('nifti')
+        if scn.tb.nibabel_valid:
+            nii = nib.load(fpath)
+            width = nii.shape[2]
+            height = nii.shape[1]
+            depth = nii.shape[0]
+            if len(nii.shape) == 3:
+                data = np.reshape(np.transpose(nii.get_data()), [depth, -1])
+                data, datarange = normalize_data(data)
+                img = bpy.data.images.new(matname, width=width, height=height)
+                tmpdir = tempfile.mkdtemp(prefix=matname, dir=bpy.app.tempdir)
+                for slcnr, slc in enumerate(data):
+                    pixels = []
+                    for pix in slc:
+                        pixval = pix
+                        pixels.append([pixval, pixval, pixval, 1.0])
+                    pixels = [chan for px in pixels for chan in px]
+                    img.pixels = pixels
+                    img.filepath_raw = os.path.join(tmpdir, str(slcnr).zfill(4) + ".png")
+                    img.file_format = 'PNG'
+                    img.save()
+                sformfile = fpath
+            else:
+                return
+
+    elif (fpath.endswith('.png') |
+          fpath.endswith('.jpg') |
+          fpath.endswith('.tif') |
+          fpath.endswith('.tiff')):
+        img = bpy.data.images.load(fpath)
+        depth = len(image_sequence_resolve_all(fpath))
+
+    else:
+        print('file format not understood; please use default extensions')
+        return
+
+    img.name = matname
     img.source = 'SEQUENCE'
     img.reload()
 
-    tex = bpy.data.textures.new('vv_' + name, 'VOXEL_DATA')
+    tex = bpy.data.textures.new(matname, 'VOXEL_DATA')
     tex.voxel_data.file_format = 'IMAGE_SEQUENCE'
     tex.image_user.frame_duration = depth
     tex.image_user.frame_start = 1
     tex.image_user.frame_offset = 0
     tex.image = img
 
-    mat = bpy.data.materials.new('vv_' + name)
+    mat = bpy.data.materials.new(matname)
     mat.type = "VOLUME"
     mat.volume.density = 0.
 
@@ -335,6 +378,17 @@ def image_sequence_resolve_all(filepath):
         if f.startswith(filename_nodigits) and
            f.endswith(ext) and
            f[len(filename_nodigits):-len(ext) if ext else -1].isdigit()]
+
+
+def normalize_data(data):
+    """"""
+
+    data = data.astype('float64')
+    datamin = np.amin(data)
+    datamax = np.amax(data)
+    data -= datamin
+    data *= 1/(datamax-datamin)
+    return data, [datamin, datamax]
 
 
 def import_scalars(directory, files):
