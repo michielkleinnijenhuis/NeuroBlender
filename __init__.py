@@ -250,11 +250,14 @@ class TractBlenderImportPanel(Panel):
             row.prop(tb, "show_appearance_options",
                      icon='TRIA_DOWN',
                      emboss=False)
-            row = box.row()
-            row.label(text="Add preset material: ")
-            row.prop(tb_ob, "colourpicker")
-            col = box.column()
-            col.prop(tb_ob, "colourtype", expand=True)
+            if tb.objecttype != "voxelvolumes":
+                row = box.row()
+                row.label(text="Add preset material: ")
+                row = box.row()
+                row.prop(tb_ob, "colourpicker")
+                row.prop(tb_ob, "transparency")
+                col = box.column()
+                col.prop(tb_ob, "colourtype", expand=True)
         else:
             row.prop(tb, "show_appearance_options",
                      icon='TRIA_RIGHT',
@@ -466,6 +469,12 @@ class ImportTracts(Operator, ImportHelper):
         description="Pick a colour for the tract(s)",
         default=[1.0, 0.0, 0.0],
         subtype="COLOR")
+    transparency = FloatProperty(
+        name="Transparency",
+        description="Set the transparency",
+        default=1.,
+        min=0.,
+        max=1.)
 
     def execute(self, context):
 
@@ -484,6 +493,7 @@ class ImportTracts(Operator, ImportHelper):
                               self.name,
                               self.colourtype,
                               self.colourpicker,
+                              self.transparency,
                               self.beautify,
                               info)
 
@@ -510,6 +520,8 @@ class ImportTracts(Operator, ImportHelper):
         row = self.layout.row()
         if self.colourtype == "pick":
             row.prop(self, "colourpicker")
+        row = self.layout.row()
+        row.prop(self, "transparency")
 
     def invoke(self, context, event):
         context.window_manager.fileselect_add(self)
@@ -553,6 +565,12 @@ class ImportSurfaces(Operator, ImportHelper):
         description="Pick a colour for the tract(s)",
         default=[1.0, 0.0, 0.0],
         subtype="COLOR")
+    transparency = FloatProperty(
+        name="Transparency",
+        description="Set the transparency",
+        default=1.,
+        min=0.,
+        max=1.)
 
     def execute(self, context):
 
@@ -567,6 +585,7 @@ class ImportSurfaces(Operator, ImportHelper):
                               self.name,
                               self.colourtype,
                               self.colourpicker,
+                              self.transparency,
                               self.beautify)
 
         return {"FINISHED"}
@@ -587,6 +606,8 @@ class ImportSurfaces(Operator, ImportHelper):
         row = self.layout.row()
         if self.colourtype == "pick":
             row.prop(self, "colourpicker")
+        row = self.layout.row()
+        row.prop(self, "transparency")
 
     def invoke(self, context, event):
         context.window_manager.fileselect_add(self)
@@ -840,22 +861,22 @@ def material_enum_callback(self, context):
 
     items = []
     items.append(("none", "none", 
-                  "Add an empty material"))
+                  "Add an empty material", 1))
     items.append(("golden_angle", "golden_angle",
-                  "Add a material with golden angle colour increment"))
+                  "Add a material with golden angle colour increment", 2))
     items.append(("primary6", "primary6",
-                  "Add a material of the primary6 set"))
+                  "Add a material of the primary6 set", 3))
     items.append(("random", "random",
-                  "Add a material with a randomly picked colour"))
+                  "Add a material with a randomly picked colour", 4))
     items.append(("pick", "pick",
-                  "Add a material with the chosen colour"))
+                  "Add a material with the chosen colour", 5))
     if ob.type == "MESH":
         attrib = ob.data.vertex_colors
     elif ob.type == "CURVE":
         attrib = ob.data.materials
     if attrib.get("directional" + ob.type) is None:
         items.append(("directional", "directional",
-                      "Add a material with directional colour-coding"))
+                      "Add a material with directional colour-coding", 6))
 
     return items
 
@@ -865,7 +886,8 @@ def material_enum_update(self, context):
     tb_ob = tb_utils.active_tb_object()[0]
     ob = bpy.data.objects[tb_ob.name]
 
-    tb_mat.materialise(ob, tb_ob.colourtype, tb_ob.colourpicker)
+    tb_mat.materialise(ob, tb_ob.colourtype, tb_ob.colourpicker,
+                       tb_ob.transparency)
 
 
 def material_enum_set(self, value):
@@ -1029,6 +1051,12 @@ class TractProperties(PropertyGroup):
         description="Pick a colour",
         default=[1.0, 0.0, 0.0],
         subtype="COLOR")
+    transparency = FloatProperty(
+        name="Transparency",
+        description="Set the transparency",
+        default=1.,
+        min=0.,
+        max=1.)
 
     nstreamlines = IntProperty(
         name="Nstreamlines",
@@ -1123,6 +1151,10 @@ class SurfaceProperties(PropertyGroup):
         description="Pick a colour",
         default=[1.0, 0.0, 0.0],
         subtype="COLOR")
+    transparency = FloatProperty(
+        name="Transparency",
+        description="Set the transparency",
+        default=1.0)
 
 
 class VoxelvolumeProperties(PropertyGroup):

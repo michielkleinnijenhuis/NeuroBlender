@@ -35,7 +35,7 @@ from . import tractblender_import as tb_imp
 # =========================================================================== #
 
 
-def materialise(ob, colourtype='primary6', colourpicker=(1, 1, 1)):
+def materialise(ob, colourtype='primary6', colourpicker=(1, 1, 1), trans=1):
     """Attach material to an object."""
 
     primary6_colours = [[1, 0, 0], [0, 1, 0], [0, 0, 1],
@@ -51,14 +51,14 @@ def materialise(ob, colourtype='primary6', colourpicker=(1, 1, 1)):
         matname = tb_utils.check_name(colourtype, "", checkagainst=mats,
                                       zfill=3, forcefill=True)
         if colourtype == "primary6":
-            diffcol = primary6_colours[int(matname[-3:]) % 6] + [1.]
+            diffcol = primary6_colours[int(matname[-3:]) % 6] + [trans]
         elif colourtype == "random":
-            diffcol = [random.random() for _ in range(3)] + [1.]
+            diffcol = [random.random() for _ in range(3)] + [trans]
         elif colourtype == "pick":
-            diffcol = list(colourpicker) + [1.]
+            diffcol = list(colourpicker) + [trans]
         elif colourtype == "golden_angle":
             rgb = get_golden_angle_colour(int(matname[-3:]))
-            diffcol = rgb + [1.]
+            diffcol = rgb + [trans]
         if bpy.data.materials.get(matname) is not None:
             mat = bpy.data.materials[matname]
         else:
@@ -627,38 +627,48 @@ def make_material_basic_cycles(name, diffuse, glossy, mix=0.04):
     nodes.clear()
     name = ""
 
-    node = nodes.new("ShaderNodeOutputMaterial")
-    node.label = "Material Output"
-    node.name = name + "_" + "Material Output"
-    node.location = 800, 0
+    out = nodes.new("ShaderNodeOutputMaterial")
+    out.label = "Material Output"
+    out.name = name + "_" + "Material Output"
+    out.location = 800, 0
 
-    node = nodes.new("ShaderNodeMixShader")
-    node.label = "Mix Shader"
-    node.name = name + "_" + "Mix Shader"
-    node.inputs[0].default_value = mix
-    node.location = 600, 0
+    mix1 = nodes.new("ShaderNodeMixShader")
+    mix1.label = "Mix Shader"
+    mix1.name = name + "_" + "Mix Shader"
+    mix1.inputs[0].default_value = mix
+    mix1.location = 600, 0
 
-    node = nodes.new("ShaderNodeBsdfGlossy")
-    node.label = "Glossy BSDF"
-    node.name = name + "_" + "Glossy BSDF"
-    node.inputs[0].default_value = glossy['colour']
-    node.inputs[1].default_value = glossy['roughness']
-    node.distribution = "BECKMANN"
-    node.location = 400, -100
+    glos = nodes.new("ShaderNodeBsdfGlossy")
+    glos.label = "Glossy BSDF"
+    glos.name = name + "_" + "Glossy BSDF"
+    glos.inputs[0].default_value = glossy['colour']
+    glos.inputs[1].default_value = glossy['roughness']
+    glos.distribution = "BECKMANN"
+    glos.location = 400, -100
 
-    node = nodes.new("ShaderNodeBsdfDiffuse")
-    node.label = "Diffuse BSDF"
-    node.name = name + "_" + "Diffuse BSDF"
-    node.inputs[0].default_value = diffuse['colour']
-    node.inputs[1].default_value = diffuse['roughness']
-    node.location = 400, 100
+    mix2 = nodes.new("ShaderNodeMixShader")
+    mix2.label = "Mix Shader"
+    mix2.name = name + "_" + "Mix Shader"
+    mix2.inputs[0].default_value = diffuse['colour'][3]
+    mix2.location = 400, 100
 
-    links.new(nodes[name + "_" + "Mix Shader"].outputs["Shader"],
-              nodes[name + "_" + "Material Output"].inputs["Surface"])
-    links.new(nodes[name + "_" + "Glossy BSDF"].outputs["BSDF"],
-              nodes[name + "_" + "Mix Shader"].inputs[2])
-    links.new(nodes[name + "_" + "Diffuse BSDF"].outputs["BSDF"],
-              nodes[name + "_" + "Mix Shader"].inputs[1])
+    trans = nodes.new("ShaderNodeBsdfTransparent")
+    trans.label = "Transparent BSDF"
+    trans.name = name + "_" + "Transparent BSDF"
+    trans.location = 200, 0
+
+    diff = nodes.new("ShaderNodeBsdfDiffuse")
+    diff.label = "Diffuse BSDF"
+    diff.name = name + "_" + "Diffuse BSDF"
+    diff.inputs[0].default_value = diffuse['colour']
+    diff.inputs[1].default_value = diffuse['roughness']
+    diff.location = 200, 200
+
+    links.new(mix1.outputs["Shader"], out.inputs["Surface"])
+    links.new(glos.outputs["BSDF"], mix1.inputs[2])
+    links.new(mix2.outputs["Shader"], mix1.inputs[1])
+    links.new(trans.outputs["BSDF"], mix2.inputs[1])
+    links.new(diff.outputs["BSDF"], mix2.inputs[2])
 
     return mat
 

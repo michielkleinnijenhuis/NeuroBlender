@@ -39,8 +39,9 @@ from . import tractblender_utils as tb_utils
 
 
 def import_objects(directory, files, importfun,
-                   importtype, specname, colourtype, colourpicker, beautify,
-                   info=None):
+                   importtype, specname,
+                   colourtype, colourpicker, transparency,
+                   beautify, info=None):
     """Import streamlines, surfaces or volumes.
 
     Streamlines:
@@ -75,7 +76,7 @@ def import_objects(directory, files, importfun,
 
         ob = importfun(fpath, name, info=info)
 
-        tb_mat.materialise(ob, colourtype, colourpicker)
+        tb_mat.materialise(ob, colourtype, colourpicker, transparency)
 
         if beautify:
             tb_beau.beautify_brain(ob, importtype)
@@ -965,14 +966,24 @@ def make_polyline_ob(curvedata, cList):
 def read_affine_matrix(filepath):
     """Get the affine transformation matrix from the nifti or textfile."""
 
+    scn = bpy.context.scene
+    tb = scn.tb
+
     if not filepath:
         affine = mathutils.Matrix()
     elif (filepath.endswith('.nii') | filepath.endswith('.nii.gz')):
         nib = tb_utils.validate_nibabel('nifti')
-        affine = nib.load(filepath).header.get_sform()
+        if tb.nibabel_valid:
+            affine = nib.load(filepath).header.get_sform()
     elif filepath.endswith('.gii'):
-        # TODO: read from gifti
-        pass
+        nib = tb_utils.validate_nibabel('gifti')
+        if tb.nibabel_valid:
+            gio = nib.gifti.giftiio
+            img = gio.read(filepath)
+            xform = img.darrays[0].coordsys.xform
+            if len(xform) == 16:
+                xform = np.reshape(xform, [4, 4])
+            affine = mathutils.Matrix(xform)
     else:
         affine = np.loadtxt(filepath)
         # TODO: check if matrix if valid
