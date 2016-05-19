@@ -52,7 +52,8 @@ def scene_preset(name="Brain", layer=10):
 
     obs = [ob for ob in bpy.data.objects
            if ((ob.type not in ['CAMERA', 'LAMP', 'EMPTY']) and
-               (not ob.name.startswith('BrainDissectionTable')))]
+               (not ob.name.startswith('BrainDissectionTable')) and
+               (not ob.name.startswith('BrainLights')))]
     if not obs:
         print('no objects selected for render')
         return {'CANCELLED'}
@@ -70,7 +71,8 @@ def scene_preset(name="Brain", layer=10):
     lights.parent = cam
     obs = [centre] + [table] + [cam]
     for ob in obs:
-        ob.parent = preset
+        if ob is not None:
+            ob.parent = preset
 
     obs = [preset] + obs + [lights] + list(lights.children)
     for ob in obs:
@@ -185,7 +187,8 @@ def prep_scenes(name, engine, device, layers, use_sky, obs):
     for ob in scn.objects:
         scn.objects.unlink(ob)
     for ob in obs:
-        scn.objects.link(ob)
+        if ob is not None:
+            scn.objects.link(ob)
 
     return scn
 
