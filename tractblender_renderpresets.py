@@ -72,7 +72,7 @@ def scene_preset(name="Brain", layer=10):
     for ob in obs:
         ob.parent = preset
 
-    obs = obs + [lights] + list(lights.children)
+    obs = [preset] + obs + [lights] + list(lights.children)
     for ob in obs:
         if ob is not None:
             tb_utils.move_to_layer(ob, layer)
@@ -82,6 +82,20 @@ def scene_preset(name="Brain", layer=10):
     scn.cycles.caustics_reflective = False
 
     to_camera_view()
+
+    preset_obs = [preset] + [centre] + [table] + [cam] + [lights] + list(lights.children)
+    tracts = [bpy.data.objects[tb_ob.name] for tb_ob in tb.tracts]
+    surfaces = [bpy.data.objects[tb_ob.name] for tb_ob in tb.surfaces]
+    cycles_obs = preset_obs + tracts + surfaces
+    prep_scenes('cycles', 'CYCLES', 'GPU', [0, 1, 10], True, cycles_obs)
+
+    preset_obs = [preset] + [centre] + [cam]
+    voxelvolumes = [bpy.data.objects[tb_ob.name] for tb_ob in tb.voxelvolumes]
+    vv_children = [vvchild for vv in voxelvolumes for vvchild in vv.children]
+    internal_obs = preset_obs + voxelvolumes + vv_children
+    prep_scenes('internal', 'BLENDER_RENDER', 'CPU', [2], False, internal_obs)
+
+    prep_scene_composite('composite', 'BLENDER_RENDER')
 
     return {'FINISHED'}
 
@@ -143,6 +157,73 @@ def find_bbox_coordinates(obs):
         co_max = max(xco)
         xyz.append([co_min, co_max])
     return xyz
+
+
+def prep_scenes(name, engine, device, layers, use_sky, obs):
+    """"""
+
+    scns = bpy.data.scenes
+    if scns.get(name) is not None:
+        scn = scns.get(name)
+    else:
+        bpy.ops.scene.new(type='NEW')
+        scn = scns[-1]
+        scn.name = name
+
+    scn.render.engine = engine
+    scn.cycles.device = device
+    for l in range(20):
+        scn.layers[l] = l in layers
+        scn.render.layers[0].layers[l] = l in layers
+    scn.render.layers[0].use_sky = use_sky
+    scn.tb.is_enabled = False
+
+#     linked_obs = [ob.name for ob in scn.objects]
+    for ob in scn.objects:
+        scn.objects.unlink(ob)
+    for ob in obs:
+        scn.objects.link(ob)
+
+    return scn
+
+
+def prep_scene_composite(name, engine):
+    """"""
+
+    scns = bpy.data.scenes
+    if scns.get(name) is not None:
+        return
+
+    bpy.ops.scene.new(type='NEW')
+    scn = bpy.data.scenes[-1]
+    scn.name = name
+    scn.render.engine = engine
+    scn.use_nodes = True
+    scn.tb.is_enabled = False
+
+    nodes = scn.node_tree.nodes
+    links = scn.node_tree.links
+
+    nodes.clear()
+
+    comp = nodes.new("CompositorNodeComposite")
+    comp.location = 800, 0
+
+    mix = nodes.new("CompositorNodeMixRGB")
+    mix.inputs[0].default_value = 0.5
+    mix.location = 600, 0
+
+    rlayer1 = nodes.new("CompositorNodeRLayers")
+    rlayer1.scene = bpy.data.scenes['cycles']
+    rlayer1.location = 400, 200
+
+    rlayer2 = nodes.new("CompositorNodeRLayers")
+    rlayer2.scene = bpy.data.scenes['internal']
+    rlayer2.location = 400, -200
+
+    links.new(mix.outputs["Image"], comp.inputs["Image"])
+    links.new(rlayer1.outputs["Image"], mix.inputs[1])
+    links.new(rlayer2.outputs["Image"], mix.inputs[2])
 
 
 # ========================================================================== #
@@ -264,6 +345,7 @@ def create_light(name, braincentre, bbox, dims, scale, loc, emission):
     ob.location = (dims[0] * loc[0], dims[1] * loc[1], dims[2] * loc[2])
     add_constraint(ob, "TRACK_TO", "TrackToBrainCentre", braincentre)
     mat = tb_mat.make_material_emit_cycles(name, emission)
+#     mat = tb_mat.make_material_emit_internal(name, emission, True)
     tb_mat.set_material(ob.data, mat)
 
     return ob
