@@ -81,10 +81,45 @@ class TractBlenderImportPanel(Panel):
     bl_context = "scene"
 
     def draw(self, context):
-        tb = context.scene.tb
+
+        scn = context.scene
+        tb = scn.tb
+
+        if tb.is_enabled:
+
+            self.draw_nibabel(self.layout, tb)
+
+            self.draw_tb_ob(self.layout, tb)
+
+            obtype = tb.objecttype
+            try:
+                idx = eval("tb.index_%s" % obtype)
+                tb_ob = eval("tb.%s[%d]" % (obtype, idx))
+            except IndexError:
+                pass
+            else:
+                row = self.layout.row()
+                row.label(text="Properties of %s:" % tb_ob.name)
+                box = self.layout.box()
+
+                self.draw_tb_ov(box, tb, tb_ob)
+
+                self.draw_appearance(box, tb, tb_ob)
+
+                self.draw_additional(box, tb, tb_ob)
+        else:
+            row = self.layout.row()
+            row.label(text="Please use the main scene for TractBlender imports.")
+            row = self.layout.row()
+            row.operator("tb.switch_to_main",
+                         text="Switch to main",
+                         icon="FORWARD")
+
+
+    def draw_nibabel(self, layout, tb):
 
         if not tb.nibabel_valid:
-            box = self.layout.box()
+            box = layout.box()
             row = box.row()
             row.prop(tb, "nibabel_use")
             if tb.nibabel_use:
@@ -99,12 +134,15 @@ class TractBlenderImportPanel(Panel):
                              icon="LOCKED")
                 col.enabled = tb.nibabel_valid
 
-        row = self.layout.row()
-        row.separator()
-        row = self.layout.row()
-        row.prop(tb, "objecttype", expand=True)
+    def draw_tb_ob(self, layout, tb):
+
         obtype = tb.objecttype
-        row = self.layout.row()
+
+        row = layout.row()
+        row.separator()
+        row = layout.row()
+        row.prop(tb, "objecttype", expand=True)
+        row = layout.row()
         row.template_list("ObjectList", "",
                           tb, obtype,
                           tb, "index_" + obtype,
@@ -124,133 +162,139 @@ class TractBlenderImportPanel(Panel):
                      icon='TRIA_DOWN',
                      text="").action = 'DOWN_ob'
 
-        try:
-            idx = eval("tb.index_%s" % obtype)
-            tb_ob = eval("tb.%s[%d]" % (obtype, idx))
-        except IndexError:
-            pass
+    def draw_tb_ov(self, box, tb, tb_ob):
+
+        ovtype = tb.overlaytype
+
+        row = box.row()
+        if tb.show_transform_options:
+            row.prop(tb, "show_transform_options",
+                     icon='TRIA_DOWN',
+                     emboss=False)
+            row = box.row()
+            row.prop(tb_ob, "sformfile")
+
+            ob = bpy.data.objects[tb_ob.name]
+            mw = ob.matrix_world
+            txts = ["srow_%s  %8.3f %8.3f %8.3f %8.3f" % (dim,
+                    mw[i][0], mw[i][1], mw[i][2], mw[i][3])
+                    for i, dim in enumerate('xyz')]
+            row = box.row()
+            row.enabled = False
+            row.label(text=txts[0])
+            row = box.row()
+            row.enabled = False
+            row.label(text=txts[1])
+            row = box.row()
+            row.enabled = False
+            row.label(text=txts[2])
         else:
-            ovtype = tb.overlaytype
+            row.prop(tb, "show_transform_options",
+                     icon='TRIA_RIGHT',
+                     emboss=False)
 
-            row = self.layout.row()
-            row.label(text="Properties of %s:" % tb_ob.name)
-
-            box = self.layout.box()
-
+        row = box.row()
+        if tb.show_overlay_options:
+            row.prop(tb, "show_overlay_options",
+                     icon='TRIA_DOWN',
+                     emboss=False)
             row = box.row()
-            if tb.show_transform_options:
-                row.prop(tb, "show_transform_options",
-                         icon='TRIA_DOWN',
-                         emboss=False)
-                row = box.row()
-                row.prop(tb_ob, "sformfile")
-
-                ob = bpy.data.objects[tb_ob.name]
-                mw = ob.matrix_world
-                txts = ["srow_%s  %8.3f %8.3f %8.3f %8.3f" % (dim,
-                        mw[i][0], mw[i][1], mw[i][2], mw[i][3])
-                        for i, dim in enumerate('xyz')]
-                row = box.row()
-                row.enabled = False
-                row.label(text=txts[0])
-                row = box.row()
-                row.enabled = False
-                row.label(text=txts[1])
-                row = box.row()
-                row.enabled = False
-                row.label(text=txts[2])
-            else:
-                row.prop(tb, "show_transform_options",
-                         icon='TRIA_RIGHT',
-                         emboss=False)
-
+            row.prop(tb, "overlaytype", expand=True)
             row = box.row()
-            if tb.show_overlay_options:
-                row.prop(tb, "show_overlay_options",
+            row.template_list("ObjectList", "",
+                              tb_ob, ovtype,
+                              tb_ob, "index_" + ovtype,
+                              rows=2)
+            col = row.column(align=True)
+            col.operator("tb.import_" + ovtype,
+                         icon='ZOOMIN',
+                         text="")
+            col.operator("tb.oblist_ops",
+                         icon='ZOOMOUT',
+                         text="").action = 'REMOVE_ov'
+            col.separator()
+            col.operator("tb.oblist_ops",
+                         icon='TRIA_UP',
+                         text="").action = 'UP_ov'
+            col.operator("tb.oblist_ops",
                          icon='TRIA_DOWN',
-                         emboss=False)
-                row = box.row()
-                row.prop(tb, "overlaytype", expand=True)
-                row = box.row()
-                row.template_list("ObjectList", "",
-                                  tb_ob, ovtype,
-                                  tb_ob, "index_" + ovtype,
-                                  rows=2)
-                col = row.column(align=True)
-                col.operator("tb.import_" + ovtype,
-                             icon='ZOOMIN',
-                             text="")
-                col.operator("tb.oblist_ops",
-                             icon='ZOOMOUT',
-                             text="").action = 'REMOVE_ov'
-                col.separator()
-                col.operator("tb.oblist_ops",
-                             icon='TRIA_UP',
-                             text="").action = 'UP_ov'
-                col.operator("tb.oblist_ops",
-                             icon='TRIA_DOWN',
-                             text="").action = 'DOWN_ov'
-                try:
-                    ov_idx = eval("tb_ob.index_%s" % ovtype)
-                    tb_ov = eval("tb_ob.%s[%d]" % (ovtype, ov_idx))
-                except IndexError:
-                    pass
-                else:
-                    if ovtype == "scalars":
-                        row = box.row()
-                        row.prop(tb_ov, "showcolourbar")
-                        row = box.row()
-                        row.enabled = False
-                        row.prop(tb_ov, "range")
-                    elif ovtype == "labels":
-                        row = box.row()
-                        row.enabled = False
-                        row.prop(tb_ov, "value")
-                        row = box.row()
-                        row.enabled = False
-                        row.prop(tb_ov, "colour")
+                         text="").action = 'DOWN_ov'
+            try:
+                ov_idx = eval("tb_ob.index_%s" % ovtype)
+                tb_ov = eval("tb_ob.%s[%d]" % (ovtype, ov_idx))
+            except IndexError:
+                pass
             else:
-                row.prop(tb, "show_overlay_options",
-                         icon='TRIA_RIGHT',
-                         emboss=False)
+                if ovtype == "scalars":
+                    row = box.row()
+                    row.prop(tb_ov, "showcolourbar")
+                    row = box.row()
+                    row.enabled = False
+                    row.prop(tb_ov, "range")
+                elif ovtype == "labels":
+                    row = box.row()
+                    row.enabled = False
+                    row.prop(tb_ov, "value")
+                    row = box.row()
+                    row.enabled = False
+                    row.prop(tb_ov, "colour")
+        else:
+            row.prop(tb, "show_overlay_options",
+                     icon='TRIA_RIGHT',
+                     emboss=False)
 
-            row = box.row()
-            if tb.show_appearance_options:
-                row.prop(tb, "show_appearance_options",
-                         icon='TRIA_DOWN',
-                         emboss=False)
-#                 row = box.row()
-#                 row.separator()
-                row = box.row()
-                row.label(text="Add preset material: ")
-                row.prop(tb_ob, "colourpicker")
-                col = box.column()
-                col.prop(tb_ob, "colourtype", expand=True)
-            else:
-                row.prop(tb, "show_appearance_options",
-                         icon='TRIA_RIGHT',
-                         emboss=False)
+    def draw_appearance(self, box, tb, tb_ob):
 
+        row = box.row()
+        if tb.show_appearance_options:
+            row.prop(tb, "show_appearance_options",
+                     icon='TRIA_DOWN',
+                     emboss=False)
             row = box.row()
-            if tb.show_additional_options:
-                row.prop(tb, "show_additional_options",
-                         icon='TRIA_DOWN',
-                         emboss=False)
-                row = box.row()
-                row.enabled = False
-                row.prop(tb_ob, "beautified")
-                if obtype == 'tracts':
-                    row.prop(tb_ob, "nstreamlines")
-                    row.prop(tb_ob, "streamlines_interpolated")
-                    row.prop(tb_ob, "tract_weeded")
-                elif obtype == 'surfaces':
-                    pass
-                elif obtype == 'voxelvolumes':
-                    pass
-            else:
-                row.prop(tb, "show_additional_options",
-                         icon='TRIA_RIGHT',
-                         emboss=False)
+            row.label(text="Add preset material: ")
+            row.prop(tb_ob, "colourpicker")
+            col = box.column()
+            col.prop(tb_ob, "colourtype", expand=True)
+        else:
+            row.prop(tb, "show_appearance_options",
+                     icon='TRIA_RIGHT',
+                     emboss=False)
+
+    def draw_additional(self, box, tb, tb_ob):
+
+        row = box.row()
+        if tb.show_additional_options:
+            row.prop(tb, "show_additional_options",
+                     icon='TRIA_DOWN',
+                     emboss=False)
+            row = box.row()
+            row.enabled = False
+            row.prop(tb_ob, "beautified")
+            if tb.objecttype == 'tracts':
+                row.prop(tb_ob, "nstreamlines")
+                row.prop(tb_ob, "streamlines_interpolated")
+                row.prop(tb_ob, "tract_weeded")
+            elif tb.objecttype == 'surfaces':
+                pass
+            elif tb.objecttype == 'voxelvolumes':
+                pass
+        else:
+            row.prop(tb, "show_additional_options",
+                     icon='TRIA_RIGHT',
+                     emboss=False)
+
+
+class SwitchToMainScene(Operator):
+    bl_idname = "tb.switch_to_main"
+    bl_label = "Switch to main"
+    bl_description = "Switch to main TractBlender scene to import"
+    bl_options = {"REGISTER"}
+
+    def execute(self, context):
+
+        context.window.screen.scene = bpy.data.scenes["Scene"]
+
+        return {"FINISHED"}
 
 
 class MakeNibabelPersistent(Operator):
@@ -260,7 +304,10 @@ class MakeNibabelPersistent(Operator):
     bl_options = {"REGISTER"}
 
     def execute(self, context):
+
         scn = context.scene
+        tb = scn.tb
+
         addon_dir = dirname(__file__)
         tb_dir = dirname(addon_dir)
         scripts_dir = dirname(dirname(dirname(bpy.__file__)))
@@ -301,8 +348,8 @@ class ObjectListOperations(Operator):
 
     def invoke(self, context, event):
 
-
-        tb = bpy.context.scene.tb
+        scn = context.scene
+        tb = scn.tb
 
         tb_ob, ob_idx = tb_utils.active_tb_object()
 
@@ -337,7 +384,7 @@ class ObjectListOperations(Operator):
                 if self.action.endswith('_ob'):
                     for ob in bpy.data.objects:
                         ob.select = ob.name == name
-                    bpy.context.scene.objects.active = ob
+                    scn.objects.active = ob
                     bpy.ops.object.mode_set(mode='OBJECT')
                     bpy.ops.object.delete()
                 elif self.action.endswith('_ov'):
@@ -421,7 +468,9 @@ class ImportTracts(Operator, ImportHelper):
         subtype="COLOR")
 
     def execute(self, context):
-        tb = context.scene.tb
+
+        scn = context.scene
+        tb = scn.tb
 
         info = {}
         info['interpolate_streamlines'] = self.interpolate_streamlines
@@ -506,7 +555,10 @@ class ImportSurfaces(Operator, ImportHelper):
         subtype="COLOR")
 
     def execute(self, context):
-        tb = context.scene.tb
+
+        scn = context.scene
+        tb = scn.tb
+
         filenames = [file.name for file in self.files]
         tb_imp.import_objects(self.directory,
                               filenames,
@@ -562,7 +614,10 @@ class ImportVoxelvolumes(Operator, ImportHelper):
         default=True)
 
     def execute(self, context):
-        tb = context.scene.tb
+
+        scn = context.scene
+        tb = scn.tb
+
         filenames = [file.name for file in self.files]
         tb_imp.import_voxelvolume(self.directory, filenames, self.name)
 
@@ -636,7 +691,10 @@ class TractBlenderInteractPanel(Panel):
     bl_context = "scene"
 
     def draw(self, context):
-        tb = context.scene.tb
+
+        scn = context.scene
+        tb = scn.tb
+
         obs = [ob for ob in bpy.data.objects
                if ob.type not in ["CAMERA", "LAMP", "EMPTY"]]
         sobs = context.selected_objects
@@ -822,7 +880,8 @@ def cam_view_enum_update(self, context):
     if self.cam_view_enum == "Numeric":
         return
 
-    tb = context.scene.tb
+    scn = context.scene
+    tb = scn.tb
 
     quadrants = {'Right': (1, 0, 0),
                  'Left': (-1, 0, 0),
@@ -1153,6 +1212,11 @@ class TractBlenderProperties(PropertyGroup):
     except:
         nib_valid = False
         nib_path = ""
+
+    is_enabled = BoolProperty(
+        name="Show/hide Tractblender",
+        description="Show/hide the tractblender panel contents",
+        default=True)
 
     nibabel_use = BoolProperty(
         name="use nibabel",
