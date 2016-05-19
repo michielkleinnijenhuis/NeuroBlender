@@ -81,8 +81,6 @@ def scene_preset(name="Brain", layer=10):
     scn.cycles.caustics_refractive = False
     scn.cycles.caustics_reflective = False
 
-    to_camera_view()
-
     preset_obs = [preset] + [centre] + [table] + [cam] + [lights] + list(lights.children)
     tracts = [bpy.data.objects[tb_ob.name] for tb_ob in tb.tracts]
     surfaces = [bpy.data.objects[tb_ob.name] for tb_ob in tb.surfaces]
@@ -95,7 +93,10 @@ def scene_preset(name="Brain", layer=10):
     internal_obs = preset_obs + voxelvolumes + vv_children
     prep_scenes('internal', 'BLENDER_RENDER', 'CPU', [2], False, internal_obs)
 
-    prep_scene_composite('composite', 'BLENDER_RENDER')
+    prep_scene_composite(scn, 'BLENDER_RENDER')
+
+    bpy.ops.tb.switch_to_main()
+    to_camera_view()
 
     return {'FINISHED'}
 
@@ -106,6 +107,7 @@ def to_camera_view():
     for area in bpy.context.screen.areas:
         if area.type == 'VIEW_3D':
             area.spaces[0].region_3d.view_perspective = 'CAMERA'
+
 
 def get_brainbounds(name, obs):
     """Find the boundingbox, dimensions and centre of the objects."""
@@ -119,6 +121,7 @@ def get_brainbounds(name, obs):
     bpy.context.scene.objects.link(empty)
 
     return empty, bbox, dims
+
 
 def delete_preset(prefix):
     """"""
@@ -187,19 +190,19 @@ def prep_scenes(name, engine, device, layers, use_sky, obs):
     return scn
 
 
-def prep_scene_composite(name, engine):
+def prep_scene_composite(scn, engine):
     """"""
 
-    scns = bpy.data.scenes
-    if scns.get(name) is not None:
-        return
+#     scns = bpy.data.scenes
+#     if scns.get(name) is not None:
+#         return
+#     bpy.ops.scene.new(type='NEW')
+#     scn = bpy.data.scenes[-1]
+#     scn.name = name
+#     scn.tb.is_enabled = False
 
-    bpy.ops.scene.new(type='NEW')
-    scn = bpy.data.scenes[-1]
-    scn.name = name
     scn.render.engine = engine
     scn.use_nodes = True
-    scn.tb.is_enabled = False
 
     nodes = scn.node_tree.nodes
     links = scn.node_tree.links
@@ -211,6 +214,7 @@ def prep_scene_composite(name, engine):
 
     mix = nodes.new("CompositorNodeMixRGB")
     mix.inputs[0].default_value = 0.5
+    mix.use_alpha = True
     mix.location = 600, 0
 
     rlayer1 = nodes.new("CompositorNodeRLayers")
