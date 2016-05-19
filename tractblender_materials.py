@@ -44,7 +44,7 @@ def materialise(ob, colourtype='primary6', colourpicker=(1, 1, 1)):
     ob.show_transparent = True
 
     if colourtype == "none":
-        set_materials(ob, mat=None)
+        set_materials(ob.data, mat=None)
 
     elif colourtype in ["primary6", "random", "pick", "golden_angle"]:
         mats = ob.data.materials
@@ -57,10 +57,8 @@ def materialise(ob, colourtype='primary6', colourpicker=(1, 1, 1)):
         elif colourtype == "pick":
             diffcol = list(colourpicker) + [1.]
         elif colourtype == "golden_angle":
-            c = mathutils.Color()
-            h = divmod(111.25/360 * int(matname[-3:]), 1)[1]
-            c.hsv = h, 1, 1
-            diffcol = list(c) + [1.]
+            rgb = get_golden_angle_colour(int(matname[-3:]))
+            diffcol = rgb + [1.]
         if bpy.data.materials.get(matname) is not None:
             mat = bpy.data.materials[matname]
         else:
@@ -70,14 +68,14 @@ def materialise(ob, colourtype='primary6', colourpicker=(1, 1, 1)):
                                              diffuse,
                                              glossy,
                                              mix=0.05)
-        set_materials(ob, mat)
+        set_materials(ob.data, mat)
 
     elif colourtype == "directional":
         matname = colourtype + ob.type
         if ob.type == "CURVE":
             mat = make_material_dirtract_cycles(matname)
             ob.data.use_uv_as_generated = True
-            set_materials(ob, bpy.data.materials[matname])
+            set_materials(ob.data, bpy.data.materials[matname])
         elif ob.type == "MESH":
             map_to_vertexcolours(ob, vcname=matname, colourtype=colourtype)
             bpy.context.scene.objects.active = ob
@@ -93,7 +91,8 @@ def set_material(me, mat):
     else:
         me.materials.append(mat)
 
-def set_materials(ob, mat):
+
+def set_materials(me, mat):
     """Attach a material to a mesh."""
 
     me = ob.data
@@ -101,6 +100,7 @@ def set_materials(ob, mat):
     for i, mat in enumerate(tuple(me.materials)):
         new_idx = len(me.materials)-1-i
         me.materials[new_idx] = mat
+
 
 def make_material(name="Material",
                   diffuse=[1, 0, 0, 1], specular=[1, 1, 1, 0.5], alpha=1):
@@ -191,13 +191,13 @@ def create_vg_annot(ob, fpath):
             label.colour = l.rgba
             tb_ob.index_labels = (len(tb_ob.labels)-1)
 
-    map_to_vertexcolours(ob, vcname='vc_'+basename, vgs=vgs, labelflag=True)
+    map_to_vertexcolours(ob, vcname='vc_'+basename, vgs=vgs, is_label=True)
 
 
-def create_vc_overlay(ob, fpath, labelflag=False):
+def create_vc_overlay(ob, fpath, is_label=False):
     """Create scalar overlay for a a full mesh object."""
 
-    scalars = tb_imp.import_surfscalars(ob, fpath)
+    scalars = tb_imp.import_surfscalar(ob, fpath)
     scalars, scalarrange = normalize_scalars(scalars)
 
     vgs = ob.vertex_groups
@@ -214,26 +214,27 @@ def create_vc_overlay(ob, fpath, labelflag=False):
     tb_ob.index_scalars = (len(tb_ob.scalars)-1)
 
     map_to_vertexcolours(ob, vcname='vc_'+vgname, vgs=[vg])
+#     map_to_uv(ob, uvname='uv_'+vgname, vgs=[vg])
 
 
-def create_vg_overlay(ob, fpath, labelflag=False):
+def create_vg_overlay(ob, fpath, is_label=False):
     """Create scalar overlay for a vertex group from labelfile."""
 
     vgs = ob.vertex_groups
     vgname = tb_utils.check_name("", fpath, checkagainst=vgs)
-    vg = labelidxs_to_vertexgroup(ob, vgname, fpath, labelflag)
+    vg = labelidxs_to_vertexgroup(ob, vgname, fpath, is_label)
     map_to_vertexcolours(ob, vcname='vc_'+vgname,
-                         vgs=[vg], labelflag=labelflag)
+                         vgs=[vg], is_label=is_label)
 
 
-def labelidxs_to_vertexgroup(ob, vgname="", fpath="", labelflag=False):
+def labelidxs_to_vertexgroup(ob, vgname="", fpath="", is_label=False):
 
     tb = bpy.context.scene.tb
     obtype = tb.objecttype
     idx = eval("tb.index_%s" % obtype)
     tb_ob = eval("tb.%s[%d]" % (obtype, idx))
 
-    label, scalars = tb_imp.import_surflabel(ob, fpath, labelflag)
+    label, scalars = tb_imp.import_surflabel(ob, fpath, is_label)
 
     if scalars is not None:
         vgscalars, scalarrange = normalize_scalars(scalars)
@@ -307,7 +308,7 @@ def vgs2vc():
 
 
 def map_to_vertexcolours(ob, vcname="", fpath="",
-                         vgs=None, labelflag=False,
+                         vgs=None, is_label=False,
                          colourtype=""):
     """"""
 
@@ -318,19 +319,44 @@ def map_to_vertexcolours(ob, vcname="", fpath="",
     materials = bpy.data.materials
     vcname = tb_utils.check_name(vcname, fpath, checkagainst=materials)
 
-    mat = get_vc_material(ob, vcname, fpath, colourtype, labelflag)
-    set_materials(ob, mat)
+    mat = get_vc_material(ob, vcname, fpath, colourtype, is_label)
+    set_materials(ob.data, mat)
     vc = get_vertexcolours(ob, vcname, fpath)
-    ob = assign_vc(ob, vc, vgs, colourtype, labelflag)
+    ob = assign_vc(ob, vc, vgs, colourtype, is_label)
 
-    if not labelflag:
+    if not is_label:
         cbar, vg = get_color_bar(name=vcname + "_colourbar")
-        set_materials(cbar, mat)
+        set_materials(cbar.data, mat)
         vc = get_vertexcolours(cbar, vcname, fpath)
-        assign_vc(cbar, vc, [vg], colourtype, labelflag)
+        assign_vc(cbar, vc, [vg], colourtype, is_label)
 
 
-def get_vc_material(ob, name, fpath, colourtype="", labelflag=False):
+def map_to_uv(ob, uvname="", fpath="",
+              vgs=None, is_label=False,
+              colourtype=""):
+    """"""
+
+    # need a unique name (same for "Vertex Colors" and "Material")
+    # TODO: but maybe not for 'directional'?
+    uvs = ob.data.uv_layers
+    uvname = tb_utils.check_name(uvname, fpath, checkagainst=uvs)
+    materials = bpy.data.materials
+    uvname = tb_utils.check_name(uvname, fpath, checkagainst=materials)
+
+    mat = get_vc_material(ob, uvname, fpath, colourtype, is_label)
+    set_materials(ob.data, mat)
+    ob.data.uv_textures.new(uvname)
+    ob = assign_uv(ob, uv, vgs, colourtype, is_label)
+# 
+#     if not is_label:
+#         cbar, vg = get_color_bar(name=vcname + "_colourbar")
+#         set_materials(cbar.data, mat)
+#         uv = get_uv(cbar, uvname, fpath)
+#         assign_uv(cbar, uv, [vg], colourtype, is_label)
+
+
+
+def get_vc_material(ob, name, fpath, colourtype="", is_label=False):
     """"""
 
     materials = bpy.data.materials
@@ -341,7 +367,7 @@ def get_vc_material(ob, name, fpath, colourtype="", labelflag=False):
             name = colourtype + ob.type
             name = tb_utils.check_name(name, "", checkagainst=materials)
             mat = make_material_dirsurf_cycles(name)
-        elif labelflag:
+        elif is_label:
             mat = make_material_labels_cycles(name, name)
         else:
             mat = make_material_overlay_cycles(name, name)
@@ -358,6 +384,16 @@ def get_vertexcolours(ob, name="", fpath=""):
     ob.data.vertex_colors.active = vertexcolours
 
     return vertexcolours
+
+
+def get_uv(ob, name="", fpath=""):
+    """Create a new uv layer."""
+
+    ob.data.uv_textures.new(name)
+#     uv_layer = ob.data.loops.layers.uv[0]
+#     ob.data.uv_layers.active = uv_layer
+
+    return uv_layer
 
 
 def map_rgb_value(scalar, colourmapping="r2k"):
@@ -384,7 +420,7 @@ def lookup_rgb():
 
 
 def assign_vc(ob, vertexcolours, vgs=None,
-              colourtype="", labelflag=False):
+              colourtype="", is_label=False):
     """Assign RGB values to the vertex_colors attribute."""
 
     tb = bpy.context.scene.tb
@@ -394,6 +430,7 @@ def assign_vc(ob, vertexcolours, vgs=None,
 
     if vgs is not None:
         group_lookup = {g.index: g.name for g in vgs}
+    print(vgs, group_lookup)
 
     me = ob.data
     i = 0
@@ -402,7 +439,7 @@ def assign_vc(ob, vertexcolours, vgs=None,
             vi = ob.data.loops[idx].vertex_index
             if colourtype == "directional":
                 rgb = me.vertices[vi].normal
-            elif labelflag:
+            elif is_label:
                 rgb = vertexcolour_fromlabel(me.vertices[vi],
                                              vgs, group_lookup, tb_ob.labels)
             else:
@@ -412,6 +449,43 @@ def assign_vc(ob, vertexcolours, vgs=None,
                 # map_rgb_value(scalars[vi], colourmapping)
             vertexcolours.data[i].color = rgb  # TODO: foreach_set?
             i += 1
+    me.update()
+
+    return ob
+
+
+def assign_uv(ob, vertexcolours, vgs=None,
+              colourtype="", is_label=False):
+    """Assign RGB values to the vertex_colors attribute."""
+
+    tb = bpy.context.scene.tb
+    obtype = tb.objecttype
+    idx = eval("tb.index_%s" % obtype)
+    tb_ob = eval("tb.%s[%d]" % (obtype, idx))
+
+    if vgs is not None:
+        group_lookup = {g.index: g.name for g in vgs}
+    print(vgs, group_lookup)
+
+    me = ob.data
+    i = 0
+    for poly in me.polygons:
+        for idx in poly.loop_indices:
+            vi = ob.data.loops[idx].vertex_index
+#             print(uv_layer[idx].uv)
+#             uv_layer[idx].uv = ...  # get from flatmap
+#             if colourtype == "directional":
+#                 rgb = me.vertices[vi].normal
+#             elif is_label:
+#                 rgb = vertexcolour_fromlabel(me.vertices[vi],
+#                                              vgs, group_lookup, tb_ob.labels)
+#             else:
+#                 w = sum_vertexweights(me.vertices[vi], vgs, group_lookup)
+# #                 rgb = weights_to_colour(w)
+#                 rgb = (w, w, w)
+#                 # map_rgb_value(scalars[vi], colourmapping)
+#             vertexcolours.data[i].color = rgb  # TODO: foreach_set?
+#             i += 1
     me.update()
 
     return ob
@@ -452,6 +526,85 @@ def sum_vertexweights(v, vgs, group_lookup):
 
     return w
 
+
+def get_voxmatname(name):
+    """"""
+
+    matname = 'vv_' + name
+    mats = bpy.data.materials
+    matname = tb_utils.check_name(matname, "", checkagainst=mats)
+    texs = bpy.data.textures
+    matname = tb_utils.check_name(matname, "", checkagainst=texs)
+
+    return matname
+
+
+def get_voxmat(matname, img, dims, file_format="IMAGE_SEQUENCE", is_overlay=False, is_label=False, labels=None):
+    """"""
+
+    tex = bpy.data.textures.new(matname, 'VOXEL_DATA')
+    tex.use_preview_alpha = True
+    tex.voxel_data.file_format = file_format
+    if file_format == "IMAGE_SEQUENCE":
+        tex.image_user.frame_duration = dims[2]
+        tex.image_user.frame_start = 1
+        tex.image_user.frame_offset = 0
+        tex.image = img
+    else:
+        tex.voxel_data.filepath = img
+        tex.voxel_data.resolution = [int(dim) for dim in dims]
+
+    if is_label:
+        tex.voxel_data.interpolation = "NEREASTNEIGHBOR"
+        # FIXME: unexpected behaviour of colorramp
+        # ... (image sequence data does not seem to agree with ticks on colorramp)
+        tex.use_color_ramp = True
+        cr = tex.color_ramp
+        cr.interpolation = 'CONSTANT'
+        cre = cr.elements
+        cre[1].position = 0.001
+        cre[1].color = labels[0].colour
+        # FIXME: blender often crashes on creating colorramp ticks
+        prevlabel = labels[0]
+        maxlabel = max([label.value for label in labels])
+#         offset = 1/maxlabel*1/2
+        for label in labels[1:]:
+#             el = cre.new((label.value-1)/maxlabel + offset)
+            el = cre.new(prevlabel.value/maxlabel)
+            el.color = label.colour
+            prevlabel = label
+    elif is_overlay:
+        tex.use_color_ramp = True
+        cr = tex.color_ramp
+        cr.color_mode = 'HSV'
+        cr.hue_interpolation = 'FAR'
+        cre = cr.elements
+        cre[0].color = (0, 0.01,1, 0)
+        cre[1].color = (0, 0,   1, 1)
+        # TODO: get easily customizable overlay colorramps
+
+    mat = bpy.data.materials.new(matname)
+    mat.type = "VOLUME"
+    mat.volume.density = 0.
+
+    texslot = mat.texture_slots.add()
+    texslot.texture = tex
+    texslot.use_map_density = True
+    texslot.texture_coords = 'ORCO'
+#     if is_overlay:
+    texslot.use_map_emission = True
+
+    return mat
+
+
+def get_golden_angle_colour(i):
+    """"""
+
+    c = mathutils.Color()
+    h = divmod(111.25/360 * i, 1)[1]
+    c.hsv = h, 1, 1
+
+    return list(c)
 
 # ========================================================================== #
 # cycles node generation
@@ -542,6 +695,44 @@ def make_material_emit_cycles(name, emission):
 
     links.new(nodes[name + "_" + "Emission"].outputs["Emission"],
               nodes[name + "_" + "Material Output"].inputs["Surface"])
+
+    return mat
+
+
+def make_material_emit_internal(name, emission, is_addition=False):
+    """"""
+
+    scn = bpy.context.scene
+    if not scn.render.engine == "BLENDER_RENDER":
+        scn.render.engine = "BLENDER_RENDER"
+
+    mat = (bpy.data.materials.get(name) or
+           bpy.data.materials.new(name))
+    mat.use_nodes = True
+
+    nodes = mat.node_tree.nodes
+    links = mat.node_tree.links
+
+    if not is_addition:
+        nodes.clear()
+    name = ""
+
+    output = nodes.new("ShaderNodeOutput")
+    output.label = "Output"
+    output.name = name + "_" + "Output"
+    output.location = 800, -500
+
+    material = nodes.new("ShaderNodeMaterial")
+    material.label = "Material"
+    material.name = name + "_" + "Material"
+    material.material = bpy.data.materials[mat.name]
+    material.location = 600, -600
+
+    mat.diffuse_color = emission["colour"][:3]
+    mat.emit = emission["strength"]
+
+    links.new(material.outputs["Color"],
+              output.inputs["Color"])
 
     return mat
 
@@ -889,7 +1080,7 @@ def set_colorramp_preset(node, cmapname="r2b", mat=None):
 
     if (cmapname == "fscurv") | (mat.name.endswith(".curv")):
         i = 0
-        while 'vc_' + scalarslist[i].name != mat.name:
+        while 'uv_' + scalarslist[i].name != mat.name:
             i += 1
         sr = scalarslist[i].range
         positions = [(-sr[0]-0.2)/(sr[1]-sr[0]),
@@ -991,7 +1182,7 @@ def add_labels_to_colourbar(colourbar, labels, height):
         text.location[1] = label['loc'][1]
         text.data.body = label['label']
         text.name = "label:" + label['label']
-        set_materials(text, mat)
+        set_materials(text.data, mat)
 
 
 def create_colourbar(name="Colourbar", width=1., height=0.1):
