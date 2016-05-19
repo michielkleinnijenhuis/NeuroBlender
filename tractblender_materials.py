@@ -95,7 +95,6 @@ def set_material(me, mat):
 def set_materials(me, mat):
     """Attach a material to a mesh."""
 
-    me = ob.data
     me.materials.append(mat)
     for i, mat in enumerate(tuple(me.materials)):
         new_idx = len(me.materials)-1-i
