@@ -156,9 +156,10 @@ def create_vg_annot(ob, fpath):
 
     if fpath.endswith(".annot"):
         labels, ctab, names = tb_imp.import_surfannot(fpath)
-    
+
         basename = os.path.basename(fpath)
         vgs = []
+        mats = []
         for i, labelname in enumerate(names):
             vgname = basename + '.' + labelname
             vgname = tb_utils.check_name(vgname, fpath="",
@@ -172,6 +173,16 @@ def create_vg_annot(ob, fpath):
             label.value = ctab[i, 4]
             label.colour = ctab[i, 0:4]/255
             tb_ob.index_labels = (len(tb_ob.labels)-1)
+
+            matname = vgname  # TODO: check on name?
+            diffuse = {'colour': ctab[i, 0:4]/255, 'roughness': 0.1}
+            glossy = {'colour': (1.0, 1.0, 1.0, 1.0), 'roughness': 0.1}
+            mat = make_material_basic_cycles(matname,
+                                             diffuse,
+                                             glossy,
+                                             mix=0.05)
+            mats.append(mat)
+
     elif fpath.endswith(".gii"):
         labels, labeltable = tb_imp.import_surfannot_gii(fpath)
         basename = os.path.basename(fpath)
@@ -190,7 +201,18 @@ def create_vg_annot(ob, fpath):
             label.colour = l.rgba
             tb_ob.index_labels = (len(tb_ob.labels)-1)
 
-    map_to_vertexcolours(ob, vcname='vc_'+basename, vgs=vgs, is_label=True)
+            matname = vgname  # TODO: check on name?
+            diffuse = {'colour': l.rgba, 'roughness': 0.1}
+            glossy = {'colour': (1.0, 1.0, 1.0, 1.0), 'roughness': 0.1}
+            mat = make_material_basic_cycles(matname,
+                                             diffuse,
+                                             glossy,
+                                             mix=0.05)
+            mats.append(mat)
+
+    set_materials_to_vertexgroups(ob, vgs, mats)
+    # TODO: similar handling of label overlays
+#     map_to_vertexcolours(ob, vcname='vc_'+basename, vgs=vgs, is_label=True)
 
 
 def create_vc_overlay(ob, fpath, is_label=False):
@@ -271,9 +293,9 @@ def set_vertex_group(ob, name, label=None, scalars=None):
         vg.add([int(l)], w[i], "REPLACE")
     vg.lock_weight = True
 
-    bpy.context.scene.objects.active = ob
-    ob.select = True
-    bpy.ops.object.mode_set(mode="WEIGHT_PAINT")
+#     bpy.context.scene.objects.active = ob
+#     ob.select = True
+#     bpy.ops.object.mode_set(mode="WEIGHT_PAINT")
 
     return vg
 
@@ -294,6 +316,15 @@ def get_vidxs_in_groups(ob, vgs=None):
     return vidxs
 
 
+def select_vertices_in_vertexgroups(ob, vgs=None):
+    """"""
+    if vgs is None:
+        vgs = ob.vertex_groups
+    group_lookup = {g.index: g.name for g in vgs}
+    for v in ob.data.vertices:
+        for g in v.groups:
+            v.select = g.group in list(group_lookup.keys())
+
 # =========================================================================== #
 # mapping properties or weights to vertexcolours
 # =========================================================================== #
@@ -304,6 +335,17 @@ def vgs2vc():
 
     tb = bpy.context.scene.tb
     print('use groups: ', tb.vgs2vc)
+
+
+def set_materials_to_vertexgroups(ob, vgs, mats):
+    """also see https://wiki.blender.org/index.php/Dev:Py/Scripts/Cookbook/Materials/Multiple_Materials for operator-based method"""
+
+    for vg, mat in zip(vgs, mats):
+        idx = ob.vertex_groups.find(vg.name)
+        ob.vertex_groups.active_index = idx
+        ob.data.materials.append(mat)
+        mat_idx = len(ob.data.materials) - 1
+        assign_material_to_faces(ob, [vg], mat_idx)
 
 
 def map_to_vertexcolours(ob, vcname="", fpath="",
@@ -352,7 +394,6 @@ def map_to_uv(ob, uvname="", fpath="",
 #         set_materials(cbar.data, mat)
 #         uv = get_uv(cbar, uvname, fpath)
 #         assign_uv(cbar, uv, [vg], colourtype, is_label)
-
 
 
 def get_vc_material(ob, name, fpath, colourtype="", is_label=False):
@@ -418,6 +459,25 @@ def lookup_rgb():
     pass
 
 
+def assign_material_to_faces(ob, vgs=None, mat_idx=0):
+    """Assign a material to faces in associated with a vertexgroup."""
+
+    if vgs is not None:
+        group_lookup = {g.index: g.name for g in vgs}
+
+    me = ob.data
+    for poly in me.polygons:
+        for idx in poly.loop_indices:
+            vi = ob.data.loops[idx].vertex_index
+            v = me.vertices[vi]
+            for g in v.groups:
+                if g.group in list(group_lookup.keys()):
+                    poly.material_index = mat_idx
+    me.update()
+
+    return ob
+
+
 def assign_vc(ob, vertexcolours, vgs=None,
               colourtype="", is_label=False):
     """Assign RGB values to the vertex_colors attribute."""
@@ -429,7 +489,6 @@ def assign_vc(ob, vertexcolours, vgs=None,
 
     if vgs is not None:
         group_lookup = {g.index: g.name for g in vgs}
-    print(vgs, group_lookup)
 
     me = ob.data
     i = 0
@@ -464,7 +523,6 @@ def assign_uv(ob, vertexcolours, vgs=None,
 
     if vgs is not None:
         group_lookup = {g.index: g.name for g in vgs}
-    print(vgs, group_lookup)
 
     me = ob.data
     i = 0
@@ -1089,7 +1147,7 @@ def set_colorramp_preset(node, cmapname="r2b", mat=None):
 
     if (cmapname == "fscurv") | (mat.name.endswith(".curv")):
         i = 0
-        while 'uv_' + scalarslist[i].name != mat.name:
+        while 'vc_' + scalarslist[i].name != mat.name:
             i += 1
         sr = scalarslist[i].range
         positions = [(-sr[0]-0.2)/(sr[1]-sr[0]),
