@@ -363,6 +363,7 @@ def map_to_vertexcolours(ob, vcname="", fpath="",
     if not is_label:  # TODO: label legend?
         cbar, vg = get_color_bar(name=vcname + "_colourbar")
         set_materials(cbar.data, mat)
+        vcs = cbar.data.vertex_colors
         vc = vcs.new(name=vcname)
         cbar.data.vertex_colors.active = vc
         assign_vc(cbar, vc, [vg], colourtype, is_label)
