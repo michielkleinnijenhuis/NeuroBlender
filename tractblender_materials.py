@@ -83,7 +83,11 @@ def materialise(ob, colourtype='primary6', colourpicker=(1, 1, 1), trans=1):
 
 
 def set_materials(me, mat):
-    """Attach a material to a mesh."""
+    """Attach a material to a mesh.
+
+    TODO: make sure shifting the material slots around 
+          does not conflict with per-vertex material assignment
+    """
 
     me.materials.append(mat)
     for i, mat in enumerate(tuple(me.materials)):
@@ -171,6 +175,8 @@ def create_vg_annot(ob, fpath):
     labels, ctab, names = tb_imp.read_surfannot(fpath)
 
     basename = os.path.basename(fpath)
+    vgs = []
+    mats = []
     for i, labelname in enumerate(names):
 
         vgname = basename + '.' + labelname
@@ -182,14 +188,16 @@ def create_vg_annot(ob, fpath):
         diffcol = ctab[i, 0:4]/255
 
         vg = set_vertex_group(ob, vgname, label)
+        vgs.append(vg)
 
         matname = tb_utils.check_name(vgname, fpath="",
                                       checkagainst=bpy.data.materials)
         mat = make_material_basic_cycles(matname, diffcol, mix=0.05)
-        set_materials_to_vertexgroups(ob, [vg], [mat])
+        mats.append(mat)
 
         tb_imp.add_label_to_collection(vgname, value, diffcol)
-    # TODO: similar handling of label overlays
+
+    set_materials_to_vertexgroups(ob, vgs, mats)
 
 
 def create_vg_overlay(ob, fpath, is_label=False, trans=1):
@@ -305,31 +313,28 @@ def set_materials_to_vertexgroups(ob, vgs, mats):
         set_materials(ob.data, mats[0])
         return
 
-    for vg, mat in zip(vgs, mats):
-        idx = ob.vertex_groups.find(vg.name)
-        ob.vertex_groups.active_index = idx
+    mat_idxs = []
+    for mat in mats:
         ob.data.materials.append(mat)
-        mat_idx = len(ob.data.materials) - 1
-        assign_material_to_faces(ob, [vg], mat_idx)
+        mat_idxs.append(len(ob.data.materials) - 1)
+
+    assign_materialslots_to_faces(ob, vgs, mat_idxs)
 
 
-def assign_material_to_faces(ob, vgs=None, mat_idx=0):
-    """Assign a material to faces in associated with a vertexgroup.
-    
-    TODO: speed-up
-    """
+def assign_materialslots_to_faces(ob, vgs=None, mat_idxs=[]):
+    """Assign a material slot to faces in associated with a vertexgroup."""
 
+    vgs_idxs = [g.index for g in vgs]
     if vgs is not None:
         group_lookup = {g.index: g.name for g in vgs}
-
-    me = ob.data
-    for poly in me.polygons:
-        for idx in poly.loop_indices:
-            v = me.vertices[ob.data.loops[idx].vertex_index]
-            for g in v.groups:
-                if g.group in list(group_lookup.keys()):
-                    poly.material_index = mat_idx
-    me.update()
+        me = ob.data
+        for poly in me.polygons:
+            for vi in poly.vertices:
+                for g in me.vertices[vi].groups:
+                    if g.group in list(group_lookup.keys()):
+                        mat_idx = mat_idxs[vgs_idxs.index(g.group)]
+                        poly.material_index = mat_idx
+        me.update()
 
     return ob
 
