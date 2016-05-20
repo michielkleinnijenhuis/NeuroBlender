@@ -42,28 +42,26 @@ def import_objects(directory, files, importfun,
                    importtype, specname,
                    colourtype, colourpicker, transparency,
                    beautify, info=None):
-    """Import streamlines, surfaces or volumes.
+    """Import streamlines or surfaces.
 
     Streamlines:
     This imports the streamlines found in the specified directory/files.
     Valid formats include:
     - .Bfloat (Camino big-endian floats; from 'track' command)
-      == http://camino.cs.ucl.ac.uk/index.php?n=Main.Fileformats
+      http://camino.cs.ucl.ac.uk/index.php?n=Main.Fileformats
     - .vtk (vtk polydata (ASCII); e.g. from MRtrix's 'tracks2vtk' command)
-      == http://www.vtk.org/wp-content/uploads/2015/04/file-formats.pdf
+      http://www.vtk.org/wp-content/uploads/2015/04/file-formats.pdf
     - .tck (MRtrix)
-      == http://jdtournier.github.io/mrtrix-0.2/appendix/mrtrix.html
+      http://jdtournier.github.io/mrtrix-0.2/appendix/mrtrix.html
     - .npy (2d numpy arrays [Npointsx3]; single streamline per file)
     - .npz (zipped archive of Nstreamlines .npy files)
-      == http://docs.scipy.org/doc/numpy-1.10.0/reference/generated/numpy.savez.html
+      http://docs.scipy.org/doc/numpy-1.10.0/reference/generated/numpy.savez.html
 
     It joins the individual streamlines into one 'Curve' object.
     Tracts are scaled according to the 'scale' box.
     Beautify functions/modifiers are applied to the tract.
 
     Surfaces: TODO
-
-    Volumes: TODO
 
     """
 
@@ -87,8 +85,8 @@ def import_objects(directory, files, importfun,
     return {"FINISHED"}
 
 
-def import_tract(fpath, name, sformfile = "", info=None):
-    """"""
+def import_tract(fpath, name, sformfile="", info=None):
+    """Import a tract object."""
 
     scn = bpy.context.scene
     tb = scn.tb
@@ -159,8 +157,8 @@ def import_tract(fpath, name, sformfile = "", info=None):
     return bpy.data.objects[name]
 
 
-def import_surface(fpath, name, sformfile = "", info=None):
-    """"""
+def import_surface(fpath, name, sformfile="", info=None):
+    """Import a surface object."""
     # TODO: subsampling? (but has to be compatible with loading overlays)
 
     scn = bpy.context.scene
@@ -234,8 +232,9 @@ def import_surface(fpath, name, sformfile = "", info=None):
     return ob
 
 
-def import_voxelvolume(directory, files, specname, sformfile="", tb_ob=None, is_label=False):
-    """"""
+def import_voxelvolume(directory, files, specname,
+                       sformfile="", tb_ob=None, is_label=False):
+    """Import a voxelvolume."""
 
     scn = bpy.context.scene
     tb = scn.tb
@@ -254,23 +253,25 @@ def import_voxelvolume(directory, files, specname, sformfile="", tb_ob=None, is_
     matname = tb_mat.get_voxmatname(name)
 
     if (fpath.endswith('.nii') | fpath.endswith('.nii.gz')):
-        if not is_overlay:
-            sformfile = fpath
-        file_format = "RAW_8BIT"  # "IMAGE_SEQUENCE"  # 
+        file_format = "RAW_8BIT"  # "IMAGE_SEQUENCE"
         if file_format == "IMAGE_SEQUENCE":
             tmppath = tempfile.mkdtemp(prefix=matname, dir=bpy.app.tempdir)
         elif file_format == "RAW_8BIT":
             tmppath = tempfile.mkstemp(prefix=matname, dir=bpy.app.tempdir)[1]
-        dims, datarange, labels, img = prep_nifti(fpath, tmppath, is_label, file_format=file_format)
+        dims, datarange, labels, img = prep_nifti(fpath, tmppath,
+                                                  is_label, file_format)
+        if not is_overlay:
+            sformfile = fpath
     elif (fpath.endswith('.png') |
           fpath.endswith('.jpg') |
           fpath.endswith('.tif') |
           fpath.endswith('.tiff')):
         file_format = "IMAGE_SEQUENCE"
         img = bpy.data.images.load(fpath)
-        dims = [s for s in img.size] + [len(image_sequence_resolve_all(fpath))]
+        dims = [s for s in img.size] + [image_sequence_length(fpath)]
         # TODO: figure out labels and datarange
         labels = None
+
     else:
         print('file format not understood; please use default extensions')
         return
@@ -304,8 +305,8 @@ def import_voxelvolume(directory, files, specname, sformfile="", tb_ob=None, is_
     affine = read_affine_matrix(sformfile)
     ob.matrix_world = affine
 
-    mat = tb_mat.get_voxmat(matname, img, dims, file_format, is_overlay, is_label, items)
-
+    mat = tb_mat.get_voxmat(matname, img, dims, file_format,
+                            is_overlay, is_label, items)
     tb_mat.set_materials(me, mat)
 
     voxelvolume_box(me, dims)
@@ -317,7 +318,7 @@ def import_voxelvolume(directory, files, specname, sformfile="", tb_ob=None, is_
 
 
 def voxelvolume_box(me, dims=[256, 256, 256]):
-    """"""
+    """Create a box with the dimensions of the voxelvolume."""
 
     width = dims[0]
     height = dims[1]
@@ -332,16 +333,17 @@ def voxelvolume_box(me, dims=[256, 256, 256]):
          (width, height, depth),
          (    0, height, depth)]
 
-    faces=[(0,1,2,3), (0,1,5,4), (1,2,6,5),
-           (2,3,7,6), (3,0,4,7), (4,5,6,7)]
+    faces = [(0, 1, 2, 3), (0, 1, 5, 4), (1, 2, 6, 5),
+             (2, 3, 7, 6), (3, 0, 4, 7), (4, 5, 6, 7)]
 
     me.from_pydata(v, [], faces)
     me.update(calc_edges=True)
 
 
-def image_sequence_resolve_all(filepath):
-    """
-    http://blender.stackexchange.com/questions/21092
+def image_sequence_length(filepath):
+    """Figure out the number of images in a directory.
+
+    from http://blender.stackexchange.com/questions/21092
     """
 
     basedir, filename = os.path.split(filepath)
@@ -357,27 +359,37 @@ def image_sequence_resolve_all(filepath):
         return []
 
     files = os.listdir(basedir)
-    return [
-        os.path.join(basedir, f)
-        for f in files
-        if f.startswith(filename_nodigits) and
-           f.endswith(ext) and
-           f[len(filename_nodigits):-len(ext) if ext else -1].isdigit()]
+    image_list = [os.path.join(basedir, f)
+                  for f in files
+                  if f.startswith(filename_nodigits) and
+                  f.endswith(ext) and
+                  f[len(filename_nodigits):-len(ext) if ext else -1].isdigit()]
+    n_images = len(image_list)
+
+    return n_images
 
 
 def normalize_data(data):
-    """"""
+    """Normalize data between 0 and 1."""
 
     data = data.astype('float64')
     datamin = np.amin(data)
     datamax = np.amax(data)
     data -= datamin
     data *= 1/(datamax-datamin)
+
     return data, [datamin, datamax]
 
 
-def prep_nifti(fpath, tmppath, is_label=False, file_format="IMAGE_SEQUENCE"):
-    """"""
+def prep_nifti(fpath, tmppath, is_label=False, file_format="RAW_8BIT"):
+    """Write data in a nifti file to a temp directory.
+
+    The nifti is read with nibabel with [z,y,x] layout, and is either
+    written as an [x,y] PNG image sequence (datarange=[0,1]) or
+    as an 8bit raw binary volume with [x,y,z] layout (datarange=[0,255]).
+    Labelvolumes: negative labels are ignored (i.e. set to 0)
+    Only 3D volumes are handled.
+    """
 
     scn = bpy.context.scene
     tb = scn.tb
@@ -387,57 +399,55 @@ def prep_nifti(fpath, tmppath, is_label=False, file_format="IMAGE_SEQUENCE"):
 
         nii = nib.load(fpath)
         dims = np.array(nii.shape)[::-1]
-
-        if len(dims) == 3:
-
-            data = np.transpose(nii.get_data())
-
-            if is_label:
-                mask = data<0
-                if mask.any():
-                    print("setting negative labels to 0")
-                data[mask] = 0
-                labels = np.unique(data)
-                labels = labels[labels>0]
-            else:
-                labels = None
-
-            data, datarange = normalize_data(data)
-
-            if file_format == "IMAGE_SEQUENCE":
-                data = np.reshape(data, [dims[2], -1])
-                img = bpy.data.images.new("img", width=dims[0], height=dims[1])
-                for slcnr, slc in enumerate(data):
-                    pixels = []
-                    for pix in slc:
-                        pixval = pix
-                        pixels.append([pixval, pixval, pixval, 1.0])
-                    pixels = [chan for px in pixels for chan in px]
-                    img.pixels = pixels
-                    img.filepath_raw = os.path.join(tmppath, str(slcnr).zfill(4) + ".png")
-                    img.file_format = 'PNG'
-                    img.save()
-            elif file_format == "RAW_8BIT":
-                data *= 255
-                with open(tmppath, "wb") as f:
-                    f.write(bytes(data.astype('uint8')))
-                img = tmppath
-
-        else:
-            print("please supply a 3D nifti volume")  # TODO: extend to 4D?
+        if len(dims) != 3:  # TODO: extend to 4D?
+            print("Please supply a 3D nifti volume.")
             return
+
+        data = np.transpose(nii.get_data())
+
+        if is_label:
+            mask = data < 0
+            if mask.any():
+                print("setting negative labels to 0")
+            data[mask] = 0
+            labels = np.unique(data)
+            labels = labels[labels > 0]
+        else:
+            labels = None
+
+        data, datarange = normalize_data(data)
+
+        if file_format == "IMAGE_SEQUENCE":
+            data = np.reshape(data, [dims[2], -1])
+            img = bpy.data.images.new("img", width=dims[0], height=dims[1])
+            for slcnr, slc in enumerate(data):
+                pixels = []
+                for pix in slc:
+                    pixval = pix
+                    pixels.append([pixval, pixval, pixval, 1.0])
+                pixels = [chan for px in pixels for chan in px]
+                img.pixels = pixels
+                img.filepath_raw = os.path.join(tmppath,
+                                                str(slcnr).zfill(4) + ".png")
+                img.file_format = 'PNG'
+                img.save()
+        elif file_format == "RAW_8BIT":
+            data *= 255
+            with open(tmppath, "wb") as f:
+                f.write(bytes(data.astype('uint8')))
+            img = tmppath
 
     return dims, datarange, labels, img
 
 
 def import_scalars(directory, filenames):
-    """"""
+    """Import overlay as continuous scalars."""
 
     scn = bpy.context.scene
     tb = scn.tb
 
     if tb.objecttype == "tracts":
-        pass
+        pass  # TODO
     elif tb.objecttype == "surfaces":
         import_surfscalars(directory, filenames)
     elif tb.objecttype == "voxelvolumes":
@@ -445,44 +455,42 @@ def import_scalars(directory, filenames):
 
 
 def import_labels(directory, filenames):
-    """"""
+    """Import overlay as discrete labels."""
 
     scn = bpy.context.scene
     tb = scn.tb
 
     if tb.objecttype == "tracts":
-        pass
+        pass  # TODO
     elif tb.objecttype == "surfaces":
         import_surflabels(directory, filenames)
     elif tb.objecttype == "voxelvolumes":
         import_voxoverlay(directory, filenames, True)
 
 
-def import_tractscalars(ob, scalarpath):
-    """"""
+def import_tractscalars(ob, fpath):
+    """Import scalar overlay on tract object."""
 
     # TODO: handle what happens on importing multiple objects
-    if scalarpath.endswith('.npy'):
-        scalars = np.load(scalarpath)
-    elif scalarpath.endswith('.npz'):
-        npzfile = np.load(scalarpath)
+    # TODO: testing and examples
+    if fpath.endswith('.npy'):
+        scalars = np.load(fpath)
+    elif fpath.endswith('.npz'):
+        npzfile = np.load(fpath)
         for k in npzfile:
             scalars.append(npzfile[k])
-    # TODO: check out Tractometer, etc (see what's in DIPY), camino tractstats
 
     return scalars
 
 
-def import_tractlabels(ob, scalarpath):
-    """"""
+def import_tractlabels(ob, fpath):
+    """Import label overlay on tract object."""
 
-    pass
+    pass  # TODO
 
 
 def import_surfscalars(directory, files):
-    """Import scalar overlays onto a selected object.
-
-    """
+    """Import scalar overlay on surface object."""
 
     # TODO: handle timeseries
     if not files:
@@ -491,20 +499,17 @@ def import_surfscalars(directory, files):
     for f in files:
         fpath = os.path.join(directory, f)
 
-        tb_ob, _ = tb_utils.active_tb_object()
+        tb_ob = tb_utils.active_tb_object()[0]
         ob = bpy.data.objects[tb_ob.name]
 
-        if fpath.endswith('.label'):
-            # but do not treat it as a label
+        if fpath.endswith('.label'):  # but not treated as a label
             tb_mat.create_vg_overlay(ob, fpath, is_label=False)
         else:  # assumed scalar overlay
             tb_mat.create_vc_overlay(ob, fpath)
 
 
 def import_surflabels(directory, files):
-    """Import overlays onto a selected object.
-
-    """
+    """Import label overlay on surface object."""
 
     if not files:
         files = os.listdir(directory)
@@ -512,11 +517,11 @@ def import_surflabels(directory, files):
     for f in files:
         fpath = os.path.join(directory, f)
 
-        tb_ob, _ = tb_utils.active_tb_object()
+        tb_ob = tb_utils.active_tb_object()[0]
         ob = bpy.data.objects[tb_ob.name]
 
         if fpath.endswith('.label'):
-            tb_mat.create_vg_overlay(ob, fpath, True)
+            tb_mat.create_vg_overlay(ob, fpath, is_label=True)
         elif fpath.endswith('.annot'):
             tb_mat.create_vg_annot(ob, fpath)
         elif fpath.endswith('.gii'):
@@ -527,50 +532,52 @@ def import_surflabels(directory, files):
 #         TODO: consider using ob.data.vertex_layers_int.new()??
 
 
-def import_surfscalar(ob, scalarpath):
-    """"""
+def read_surfscalar(ob, fpath):
+    """Read a surface scalar overlay file."""
 
-    tb = bpy.context.scene.tb
+    scn = bpy.context.scene
+    tb = scn.tb
 
     # TODO: handle what happens on importing multiple objects
     # TODO: read more formats: e.g. .dpv, .dpf, ...
-    if scalarpath.endswith('.npy'):
-        scalars = np.load(scalarpath)
-    elif scalarpath.endswith('.npz'):
-        npzfile = np.load(scalarpath)
+    if fpath.endswith('.npy'):
+        scalars = np.load(fpath)
+    elif fpath.endswith('.npz'):
+        npzfile = np.load(fpath)
         for k in npzfile:
             scalars.append(npzfile[k])
-    elif scalarpath.endswith('.gii'):
+    elif fpath.endswith('.gii'):
         nib = tb_utils.validate_nibabel('.gii')
         if tb.nibabel_valid:
             gio = nib.gifti.giftiio
-            img = gio.read(scalarpath)
+            img = gio.read(fpath)
             scalars = img.darrays[0].data
     else:  # I will try to read it as a freesurfer binary
         nib = tb_utils.validate_nibabel('')
         if tb.nibabel_valid:
             fsio = nib.freesurfer.io
-            scalars = fsio.read_morph_data(scalarpath)
+            scalars = fsio.read_morph_data(fpath)
         else:
-            with open(scalarpath, "rb") as f:
+            with open(fpath, "rb") as f:
                 f.seek(15, os.SEEK_SET)
                 scalars = np.fromfile(f, dtype='>f4')
 
     return scalars
 
 
-def import_surflabel(ob, labelpath, is_label=False):
-    """"""
+def read_surflabel(ob, fpath, is_label=False):
+    """Read a surface label overlay file."""
 
-    tb = bpy.context.scene.tb
+    scn = bpy.context.scene
+    tb = scn.tb
 
-    if labelpath.endswith('.label'):
+    if fpath.endswith('.label'):
         nib = tb_utils.validate_nibabel('.label')
         if tb.nibabel_valid:
             fsio = nib.freesurfer.io
-            label, scalars = fsio.read_label(labelpath, read_scalars=True)
+            label, scalars = fsio.read_label(fpath, read_scalars=True)
         else:
-            labeltxt = np.loadtxt(labelpath, skiprows=2)
+            labeltxt = np.loadtxt(fpath, skiprows=2)
             label = labeltxt[:, 0]
             scalars = labeltxt[:, 4]
 
@@ -580,59 +587,123 @@ def import_surflabel(ob, labelpath, is_label=False):
     return label, scalars
 
 
-def import_surfannot(labelpath):
-    """"""
-
-    tb = bpy.context.scene.tb
-
-    if labelpath.endswith('.annot'):
-        nib = tb_utils.validate_nibabel('.annot')
-        if bpy.context.scene.tb.nibabel_valid:
-            fsio = nib.freesurfer.io
-            labels, ctab, bnames = fsio.read_annot(labelpath, orig_ids=False)
-            names = [name.decode('utf-8') for name in bnames]
-            return labels, ctab, names
-    else:
-        # I'm going to be lazy and require nibabel for .annot import
-        print('nibabel required for reading .annot files')
-
-
-def import_surfannot_gii(labelpath):
-    """"""
-
-    tb = bpy.context.scene.tb
-
-    if labelpath.endswith('.gii'):
-        nib = tb_utils.validate_nibabel('.gii')
-        if tb.nibabel_valid:
-            gio = nib.gifti.giftiio
-            img = gio.read(labelpath)
-            img.labeltable.get_labels_as_dict()
-            labels = img.darrays[0].data
-            labeltable = img.labeltable
-            return labels, labeltable
-#             names = [name for _, name in lt.labels_as_dict.items()]
-#             ctab = [np.append((np.array(l.rgba)*255).astype(int), l.key)
-#                     for l in lt.labels]
-#             ctab = np.array(ctab)
-#             return labels, ctab, names
-    else:
-        print('nibabel required for reading gifti files')
-
-
-def import_voxoverlay(directory, filenames, is_label):
-    """"""
+def read_surfannot(fpath):
+    """Read a surface annotation file."""
 
     scn = bpy.context.scene
     tb = scn.tb
 
-    # TODO: handle bad selections
+    nib = tb_utils.validate_nibabel('.annot')
+    if tb.nibabel_valid:
+        if fpath.endswith(".annot"):
+            fsio = nib.freesurfer.io
+            labels, ctab, bnames = fsio.read_annot(fpath, orig_ids=False)
+            names = [name.decode('utf-8') for name in bnames]
+        elif fpath.endswith(".gii"):
+            gio = nib.gifti.giftiio
+            img = gio.read(fpath)
+            img.labeltable.get_labels_as_dict()
+            labels = img.darrays[0].data
+            labeltable = img.labeltable
+            labels, ctab, names = gii_to_freesurfer_annot(labels, labeltable)
+        return labels, ctab, names
+    else:
+        print('nibabel required for reading .annot files')
+
+
+def gii_to_freesurfer_annot(labels, labeltable):
+    """Convert gifti annotation file to nibabel freesurfer format."""
+
+    names = [name for _, name in labeltable.labels_as_dict.items()]
+    ctab = [np.append((np.array(l.rgba)*255).astype(int), l.key)
+            for l in labeltable.labels]
+    ctab = np.array(ctab)
+    for i, l in enumerate(labeltable.labels, 1):
+        labelmask = np.where(labels == l.key)[0]
+        labels[labelmask] = i
+
+    return labels, ctab, names
+
+
+def read_surfannot_freesurfer(fpath):
+    """Read a .annot surface annotation file."""
+
+    scn = bpy.context.scene
+    tb = scn.tb
+
+    nib = tb_utils.validate_nibabel('.annot')
+    if tb.nibabel_valid:
+        fsio = nib.freesurfer.io
+        labels, ctab, bnames = fsio.read_annot(fpath, orig_ids=False)
+        names = [name.decode('utf-8') for name in bnames]
+        return labels, ctab, names
+    else:
+        print('nibabel required for reading .annot files')
+
+
+def read_surfannot_gifti(fpath):
+    """Read a .gii surface annotation file."""
+
+    scn = bpy.context.scene
+    tb = scn.tb
+
+    nib = tb_utils.validate_nibabel('.annot')
+    if tb.nibabel_valid:
+        gio = nib.gifti.giftiio
+        img = gio.read(fpath)
+        img.labeltable.get_labels_as_dict()
+        labels = img.darrays[0].data
+        labeltable = img.labeltable
+        return labels, labeltable
+    else:
+        print('nibabel required for reading .annot files')
+
+
+def import_voxoverlay(directory, filenames, is_label):
+    """Import an overlay on a voxelvolume."""
+
+    scn = bpy.context.scene
+    tb = scn.tb
+
+    # TODO: handle invalid selections
     name = ""
     sformfile = ""
     tb_ob, _ = tb_utils.active_tb_object()
-    ob = import_voxelvolume(directory, filenames, name, sformfile, tb_ob, is_label)
+    ob = import_voxelvolume(directory, filenames, name,
+                            sformfile, tb_ob, is_label)
     parentvolume = bpy.data.objects[tb_ob.name]
     ob.parent = parentvolume
+
+
+def add_scalar_to_collection(name, scalarrange):
+    """Add scalar to the TractBlender collection."""
+
+    scn = bpy.context.scene
+    tb = scn.tb
+
+    tb_ob = tb_utils.active_tb_object()[0]
+
+    scalar = tb_ob.scalars.add()
+    scalar.name = name
+    scalar.range = scalarrange
+
+    tb_ob.index_scalars = (len(tb_ob.scalars)-1)
+
+
+def add_label_to_collection(name, value, colour):
+    """Add label to the TractBlender collection."""
+
+    scn = bpy.context.scene
+    tb = scn.tb
+
+    tb_ob = tb_utils.active_tb_object()[0]
+
+    label = tb_ob.labels.add()
+    label.name = name
+    label.value = value
+    label.colour = colour
+
+    tb_ob.index_labels = (len(tb_ob.labels)-1)
 
 
 # ========================================================================== #
@@ -684,7 +755,6 @@ def read_camino_streamlines(bfloatfile):
         streamline = streamlinevec[offset:ntokens + offset]
         streamline = np.reshape(streamline, (npoints, 3))
         offset += ntokens
-#         if not i % 100:
         streamlines.append(streamline)
 
     return streamlines

@@ -44,52 +44,42 @@ def materialise(ob, colourtype='primary6', colourpicker=(1, 1, 1), trans=1):
     ob.show_transparent = True
 
     if colourtype == "none":
-        set_materials(ob.data, mat=None)
+        mat = None
 
-    elif colourtype in ["primary6", "random", "pick", "golden_angle"]:
-        mats = ob.data.materials
-        matname = tb_utils.check_name(colourtype, "", checkagainst=mats,
+    elif colourtype in ["primary6", 
+                        "random", 
+                        "pick", 
+                        "golden_angle"]:
+
+        matname = tb_utils.check_name(colourtype, fpath="",
+                                      checkagainst=ob.data.materials,
                                       zfill=3, forcefill=True)
+
         if colourtype == "primary6":
-            diffcol = primary6_colours[int(matname[-3:]) % 6] + [trans]
+            diffcol = primary6_colours[int(matname[-3:]) % 6]
         elif colourtype == "random":
-            diffcol = [random.random() for _ in range(3)] + [trans]
+            diffcol = [random.random() for _ in range(3)]
         elif colourtype == "pick":
-            diffcol = list(colourpicker) + [trans]
+            diffcol = list(colourpicker)
         elif colourtype == "golden_angle":
             rgb = get_golden_angle_colour(int(matname[-3:]))
-            diffcol = rgb + [trans]
+            diffcol = rgb
+        diffcol.append(trans)
+
         if bpy.data.materials.get(matname) is not None:
             mat = bpy.data.materials[matname]
         else:
-            diffuse = {'colour': diffcol, 'roughness': 0.1}
-            glossy = {'colour': (1.0, 1.0, 1.0, 1.0), 'roughness': 0.1}
-            mat = make_material_basic_cycles(matname,
-                                             diffuse,
-                                             glossy,
-                                             mix=0.05)
-        set_materials(ob.data, mat)
+            mat = make_material_basic_cycles(matname, diffcol, mix=0.05)
 
     elif colourtype == "directional":
         matname = colourtype + ob.type
         if ob.type == "CURVE":
-            mat = make_material_dirtract_cycles(matname)
             ob.data.use_uv_as_generated = True
-            set_materials(ob.data, bpy.data.materials[matname])
+            mat = make_material_dirtract_cycles(matname, trans)
         elif ob.type == "MESH":
-            map_to_vertexcolours(ob, vcname=matname, colourtype=colourtype)
-            bpy.context.scene.objects.active = ob
-            ob.select = True
-            bpy.ops.object.mode_set(mode="VERTEX_PAINT")
+            mat = make_material_dirsurf_cycles(matname, trans)
 
-
-def set_material(me, mat):
-    """Attach a material to a mesh."""
-
-    if len(me.materials):
-        me.materials[0] = mat
-    else:
-        me.materials.append(mat)
+    set_materials(ob.data, mat)
 
 
 def set_materials(me, mat):
@@ -103,7 +93,7 @@ def set_materials(me, mat):
 
 def make_material(name="Material",
                   diffuse=[1, 0, 0, 1], specular=[1, 1, 1, 0.5], alpha=1):
-    """Create a basic material."""
+    """Create a basic Blender Internal material."""
 
     mat = bpy.data.materials.new(name)
     mat.diffuse_color = diffuse[:3]
@@ -120,18 +110,30 @@ def make_material(name="Material",
 
 
 def make_material_vc_blender(name, fpath=""):
-    """Create a material for vertexcolour mapping."""
+    """Create a material for vertexcolour mapping.
+
+    # http://blenderartists.org/forum/showthread.php?247846-Context-problem
+    #     bpy.context.scene.game_settings.material_mode = "GLSL"
+    #     if bpy.context.scene.render.engine = "BLENDER_RENDER"
+    #         bpy.context.space_data.show_textured_solid = True
+    """
 
     name = tb_utils.check_name(name, fpath, checkagainst=bpy.data.materials)
     mat = bpy.data.materials.new(name)
     mat.use_vertex_color_paint = True
     mat.use_vertex_color_light = True
-# http://blenderartists.org/forum/showthread.php?247846-Context-problem
-#     bpy.context.scene.game_settings.material_mode = "GLSL"
-#     if bpy.context.scene.render.engine = "BLENDER_RENDER"
-#         bpy.context.space_data.show_textured_solid = True
 
     return mat
+
+
+def get_golden_angle_colour(i):
+    """Return the golden angle colour from an integer number of steps."""
+
+    c = mathutils.Color()
+    h = divmod(111.25/360 * i, 1)[1]
+    c.hsv = h, 1, 1
+
+    return list(c)
 
 
 # ========================================================================== #
@@ -139,146 +141,109 @@ def make_material_vc_blender(name, fpath=""):
 # ========================================================================== #
 
 
-def normalize_scalars(scalars):
-    """"""
-    scalarmin = np.amin(scalars)
-    scalarmax = np.amax(scalars)
-    scalars -= scalarmin
-    scalars *= 1/(scalarmax-scalarmin)
-
-    return scalars, [scalarmin, scalarmax]
-
-
-def create_vg_annot(ob, fpath):
-    """"""
-
-    tb_ob = tb_utils.active_tb_object()[0]
-
-    if fpath.endswith(".annot"):
-        labels, ctab, names = tb_imp.import_surfannot(fpath)
-
-        basename = os.path.basename(fpath)
-        vgs = []
-        mats = []
-        for i, labelname in enumerate(names):
-            vgname = basename + '.' + labelname
-            vgname = tb_utils.check_name(vgname, fpath="",
-                                         checkagainst=ob.vertex_groups)
-            label = np.where(labels == i)[0]
-            vg = set_vertex_group(ob, vgname, label)
-            vgs.append(vg)
-
-            label = tb_ob.labels.add()
-            label.name = vgname
-            label.value = ctab[i, 4]
-            label.colour = ctab[i, 0:4]/255
-            tb_ob.index_labels = (len(tb_ob.labels)-1)
-
-            matname = vgname  # TODO: check on name?
-            diffuse = {'colour': ctab[i, 0:4]/255, 'roughness': 0.1}
-            glossy = {'colour': (1.0, 1.0, 1.0, 1.0), 'roughness': 0.1}
-            mat = make_material_basic_cycles(matname,
-                                             diffuse,
-                                             glossy,
-                                             mix=0.05)
-            mats.append(mat)
-
-    elif fpath.endswith(".gii"):
-        labels, labeltable = tb_imp.import_surfannot_gii(fpath)
-        basename = os.path.basename(fpath)
-        vgs = []
-        for l in labeltable.labels:
-            vgname = basename + '.' + l.label
-            vgname = tb_utils.check_name(vgname, fpath="",
-                                         checkagainst=ob.vertex_groups)
-            label = np.where(labels == l.key)[0]
-            vg = set_vertex_group(ob, vgname, label)
-            vgs.append(vg)
-
-            label = tb_ob.labels.add()
-            label.name = vgname
-            label.value = l.key
-            label.colour = l.rgba
-            tb_ob.index_labels = (len(tb_ob.labels)-1)
-
-            matname = vgname  # TODO: check on name?
-            diffuse = {'colour': l.rgba, 'roughness': 0.1}
-            glossy = {'colour': (1.0, 1.0, 1.0, 1.0), 'roughness': 0.1}
-            mat = make_material_basic_cycles(matname,
-                                             diffuse,
-                                             glossy,
-                                             mix=0.05)
-            mats.append(mat)
-
-    set_materials_to_vertexgroups(ob, vgs, mats)
-    # TODO: similar handling of label overlays
-#     map_to_vertexcolours(ob, vcname='vc_'+basename, vgs=vgs, is_label=True)
-
-
 def create_vc_overlay(ob, fpath, is_label=False):
-    """Create scalar overlay for a a full mesh object."""
+    """Create scalar overlay for a surface object."""
 
-    scalars = tb_imp.import_surfscalar(ob, fpath)
-    scalars, scalarrange = normalize_scalars(scalars)
+    scalars = tb_imp.read_surfscalar(ob, fpath)
+    scalars, scalarrange = tb_imp.normalize_data(scalars)
 
-    vgs = ob.vertex_groups
-    vgname = tb_utils.check_name("", fpath, checkagainst=vgs)
+    vgname = tb_utils.check_name("", fpath, checkagainst=ob.vertex_groups)
+
     vg = set_vertex_group(ob, vgname, label=None, scalars=scalars)
 
-    tb = bpy.context.scene.tb
-    obtype = tb.objecttype
-    idx = eval("tb.index_%s" % obtype)
-    tb_ob = eval("tb.%s[%d]" % (obtype, idx))
-    scalar = tb_ob.scalars.add()
-    scalar.name = vgname
-    scalar.range = scalarrange
-    tb_ob.index_scalars = (len(tb_ob.scalars)-1)
+    tb_imp.add_scalar_to_collection(vgname, scalarrange)
 
     map_to_vertexcolours(ob, vcname='vc_'+vgname, vgs=[vg])
 #     map_to_uv(ob, uvname='uv_'+vgname, vgs=[vg])
 
 
-def create_vg_overlay(ob, fpath, is_label=False):
-    """Create scalar overlay for a vertex group from labelfile."""
+def create_vg_annot(ob, fpath):
+    """Import an annotation file to vertex groups.
+    
+    TODO: decide what is the best approach:
+    reading gifti and converting to freesurfer format (current) or
+    have a seperate functions for handling .gii annotations
+    (this can be found in commit c3b6d66)
+    """
 
-    vgs = ob.vertex_groups
-    vgname = tb_utils.check_name("", fpath, checkagainst=vgs)
-    vg = labelidxs_to_vertexgroup(ob, vgname, fpath, is_label)
-    map_to_vertexcolours(ob, vcname='vc_'+vgname,
-                         vgs=[vg], is_label=is_label)
+    tb_ob = tb_utils.active_tb_object()[0]
+
+    labels, ctab, names = tb_imp.read_surfannot(fpath)
+
+    basename = os.path.basename(fpath)
+    for i, labelname in enumerate(names):
+
+        vgname = basename + '.' + labelname
+        vgname = tb_utils.check_name(vgname, fpath="",
+                                     checkagainst=ob.vertex_groups)
+
+        label = np.where(labels == i)[0]
+        value = ctab[i, 4]
+        diffcol = ctab[i, 0:4]/255
+
+        vg = set_vertex_group(ob, vgname, label)
+
+        matname = tb_utils.check_name(vgname, fpath="",
+                                      checkagainst=bpy.data.materials)
+        mat = make_material_basic_cycles(matname, diffcol, mix=0.05)
+        set_materials_to_vertexgroups(ob, [vg], [mat])
+
+        tb_imp.add_label_to_collection(vgname, value, diffcol)
+    # TODO: similar handling of label overlays
 
 
-def labelidxs_to_vertexgroup(ob, vgname="", fpath="", is_label=False):
+def create_vg_overlay(ob, fpath, is_label=False, trans=1):
+    """Create label/scalar overlay from a labelfile.
 
-    tb = bpy.context.scene.tb
-    obtype = tb.objecttype
-    idx = eval("tb.index_%s" % obtype)
-    tb_ob = eval("tb.%s[%d]" % (obtype, idx))
+    Note that a (freesurfer) labelfile can contain scalars.
+    If scalars are available and is_label=False (loaded from scalars-menu),
+    a scalar-type overlay will be generated.
+    """
 
-    label, scalars = tb_imp.import_surflabel(ob, fpath, is_label)
+    tb_ob = tb_utils.active_tb_object()[0]
+
+    label, scalars = tb_imp.read_surflabel(ob, fpath, is_label)
+
+    vgname = tb_utils.check_name(name="", fpath=fpath,
+                                 checkagainst=ob.vertex_groups)
 
     if scalars is not None:
-        vgscalars, scalarrange = normalize_scalars(scalars)
-        scalar = tb_ob.scalars.add()
-        scalar.name = vgname
-        scalar.range = scalarrange
-        tb_ob.index_scalars = (len(tb_ob.scalars)-1)
+        vgscalars, scalarrange = tb_imp.normalize_data(scalars)
+
+        vg = set_vertex_group(ob, vgname, label, scalars)
+
+        tb_imp.add_scalar_to_collection(vgname, scalarrange)
+
+        # TODO: only set this material to vertexgroup
+        map_to_vertexcolours(ob, vcname='vc_'+vgname,
+                             vgs=[vg], is_label=is_label)
+
     else:
-        lab = tb_ob.labels.add()
-        lab.name = vgname
-        labvalues = [label.value for label in tb_ob.labels]
-        lab.value = max(labvalues) + 1
-        lab.colour = [random.random() for _ in range(4)]
-        tb_ob.index_labels = (len(tb_ob.labels)-1)
-#         if scalars is None, the label is simply stored as a vertexgroup (w=1)
+        vg = set_vertex_group(ob, vgname, label, scalars)
 
-    vg = set_vertex_group(ob, vgname, label, scalars)
+        values = [label.value for label in tb_ob.labels] or [0]
+        value = max(values) + 1
+        diffcol = [random.random() for _ in range(3)]
+        diffcol.append(trans)
+        matname = tb_utils.check_name(vgname, fpath="",
+                                      checkagainst=bpy.data.materials)
+        mat = make_material_basic_cycles(matname, diffcol, mix=0.05)
+        set_materials_to_vertexgroups(ob, [vg], [mat])
 
-    return vg
+        tb_imp.add_label_to_collection(vgname, value, diffcol)
 
 
 def set_vertex_group(ob, name, label=None, scalars=None):
-    """"""
+    """Create a vertex group.
+
+    For labels, a vertex subset is included with weight 1.
+    For scalars, the full vertex set is included
+    with weights set to the scalar values.
+    TODO: decide whether to switch to weight paint mode
+        bpy.context.scene.objects.active = ob
+        ob.select = True
+        bpy.ops.object.mode_set(mode="WEIGHT_PAINT")
+    """
 
     if label is None:
         label = range(len(ob.data.vertices))
@@ -292,10 +257,6 @@ def set_vertex_group(ob, name, label=None, scalars=None):
     for i, l in enumerate(list(label)):
         vg.add([int(l)], w[i], "REPLACE")
     vg.lock_weight = True
-
-#     bpy.context.scene.objects.active = ob
-#     ob.select = True
-#     bpy.ops.object.mode_set(mode="WEIGHT_PAINT")
 
     return vg
 
@@ -317,28 +278,32 @@ def get_vidxs_in_groups(ob, vgs=None):
 
 
 def select_vertices_in_vertexgroups(ob, vgs=None):
-    """"""
+    """Select the vertices in the vertexgroups."""
+
     if vgs is None:
         vgs = ob.vertex_groups
+
     group_lookup = {g.index: g.name for g in vgs}
     for v in ob.data.vertices:
         for g in v.groups:
             v.select = g.group in list(group_lookup.keys())
 
+
 # =========================================================================== #
-# mapping properties or weights to vertexcolours
+# vertex group materials
 # =========================================================================== #
-
-
-def vgs2vc():
-    """Create a vertex colour layer from (multiple) vertex groups."""
-
-    tb = bpy.context.scene.tb
-    print('use groups: ', tb.vgs2vc)
 
 
 def set_materials_to_vertexgroups(ob, vgs, mats):
-    """also see https://wiki.blender.org/index.php/Dev:Py/Scripts/Cookbook/Materials/Multiple_Materials for operator-based method"""
+    """Attach materials to vertexgroups.
+
+    see for operator-based method:
+    https://wiki.blender.org/index.php/Dev:Py/Scripts/Cookbook/Materials/Multiple_Materials
+    """
+
+    if vgs is None:
+        set_materials(ob.data, mats[0])
+        return
 
     for vg, mat in zip(vgs, mats):
         idx = ob.vertex_groups.find(vg.name)
@@ -348,119 +313,11 @@ def set_materials_to_vertexgroups(ob, vgs, mats):
         assign_material_to_faces(ob, [vg], mat_idx)
 
 
-def map_to_vertexcolours(ob, vcname="", fpath="",
-                         vgs=None, is_label=False,
-                         colourtype=""):
-    """"""
-
-    # need a unique name (same for "Vertex Colors" and "Material")
-    # TODO: but maybe not for 'directional'?
-    vcs = ob.data.vertex_colors
-    vcname = tb_utils.check_name(vcname, fpath, checkagainst=vcs)
-    materials = bpy.data.materials
-    vcname = tb_utils.check_name(vcname, fpath, checkagainst=materials)
-
-    mat = get_vc_material(ob, vcname, fpath, colourtype, is_label)
-    set_materials(ob.data, mat)
-    vc = get_vertexcolours(ob, vcname, fpath)
-    ob = assign_vc(ob, vc, vgs, colourtype, is_label)
-
-    if not is_label:
-        cbar, vg = get_color_bar(name=vcname + "_colourbar")
-        set_materials(cbar.data, mat)
-        vc = get_vertexcolours(cbar, vcname, fpath)
-        assign_vc(cbar, vc, [vg], colourtype, is_label)
-
-
-def map_to_uv(ob, uvname="", fpath="",
-              vgs=None, is_label=False,
-              colourtype=""):
-    """"""
-
-    # need a unique name (same for "Vertex Colors" and "Material")
-    # TODO: but maybe not for 'directional'?
-    uvs = ob.data.uv_layers
-    uvname = tb_utils.check_name(uvname, fpath, checkagainst=uvs)
-    materials = bpy.data.materials
-    uvname = tb_utils.check_name(uvname, fpath, checkagainst=materials)
-
-    mat = get_vc_material(ob, uvname, fpath, colourtype, is_label)
-    set_materials(ob.data, mat)
-    ob.data.uv_textures.new(uvname)
-    ob = assign_uv(ob, uv, vgs, colourtype, is_label)
-# 
-#     if not is_label:
-#         cbar, vg = get_color_bar(name=vcname + "_colourbar")
-#         set_materials(cbar.data, mat)
-#         uv = get_uv(cbar, uvname, fpath)
-#         assign_uv(cbar, uv, [vg], colourtype, is_label)
-
-
-def get_vc_material(ob, name, fpath, colourtype="", is_label=False):
-    """"""
-
-    materials = bpy.data.materials
-    if materials.get(name) is not None:  # mostly for 'directional'
-        mat = materials.get(name)
-    else:
-        if colourtype == "directional":
-            name = colourtype + ob.type
-            name = tb_utils.check_name(name, "", checkagainst=materials)
-            mat = make_material_dirsurf_cycles(name)
-        elif is_label:
-            mat = make_material_labels_cycles(name, name)
-        else:
-            mat = make_material_overlay_cycles(name, name)
-
-    return mat
-
-
-def get_vertexcolours(ob, name="", fpath=""):
-    """Create a new vertex_colors attribute."""
-
-    vcs = ob.data.vertex_colors
-    vertexcolours = vcs.new(name=name)
-#     name = tb_utils.check_name(name, fpath, checkagainst=vcs)
-    ob.data.vertex_colors.active = vertexcolours
-
-    return vertexcolours
-
-
-def get_uv(ob, name="", fpath=""):
-    """Create a new uv layer."""
-
-    ob.data.uv_textures.new(name)
-#     uv_layer = ob.data.loops.layers.uv[0]
-#     ob.data.uv_layers.active = uv_layer
-
-    return uv_layer
-
-
-def map_rgb_value(scalar, colourmapping="r2k"):
-    """Map a scalar to RGB in a certain colour map."""
-
-    if colourmapping == "r2k":
-        rgb = (scalar, 0, 0)
-    elif colourmapping == "g2k":
-        rgb = (0, scalar, 0)
-    elif colourmapping == "b2k":
-        rgb = (0, 0, scalar)
-    elif colourmapping == "fscurv":  # direct r2g cmap centred on 0
-        if scalar < 0:
-            rgb = (-scalar, 0, 0)
-        if scalar >= 0:
-            rgb = (0, scalar, 0)
-
-    return rgb
-
-
-def lookup_rgb():
-    """"""
-    pass
-
-
 def assign_material_to_faces(ob, vgs=None, mat_idx=0):
-    """Assign a material to faces in associated with a vertexgroup."""
+    """Assign a material to faces in associated with a vertexgroup.
+    
+    TODO: speed-up
+    """
 
     if vgs is not None:
         group_lookup = {g.index: g.name for g in vgs}
@@ -468,8 +325,7 @@ def assign_material_to_faces(ob, vgs=None, mat_idx=0):
     me = ob.data
     for poly in me.polygons:
         for idx in poly.loop_indices:
-            vi = ob.data.loops[idx].vertex_index
-            v = me.vertices[vi]
+            v = me.vertices[ob.data.loops[idx].vertex_index]
             for g in v.groups:
                 if g.group in list(group_lookup.keys()):
                     poly.material_index = mat_idx
@@ -478,14 +334,49 @@ def assign_material_to_faces(ob, vgs=None, mat_idx=0):
     return ob
 
 
+# =========================================================================== #
+# mapping vertex weights to vertexcolours
+# =========================================================================== #
+
+
+def map_to_vertexcolours(ob, vcname="", fpath="",
+                         vgs=None, is_label=False,
+                         colourtype=""):
+    """Write vertex group weights to a vertex colour attribute.
+    
+    A colourbar is prepared for scalar overlays.
+    """
+
+    vcs = ob.data.vertex_colors
+    vcname = tb_utils.check_name(vcname, fpath, checkagainst=vcs)
+    materials = bpy.data.materials
+    vcname = tb_utils.check_name(vcname, fpath, checkagainst=materials)
+
+    mat = make_material_overlay_cycles(name, name)
+
+    set_materials_to_vertexgroups(ob, vgs, [mat])
+
+    vc = vcs.new(name=vcname)
+    ob.data.vertex_colors.active = vc
+    ob = assign_vc(ob, vc, vgs, colourtype, is_label)
+
+    if not is_label:  # TODO: label legend?
+        cbar, vg = get_color_bar(name=vcname + "_colourbar")
+        set_materials(cbar.data, mat)
+        vc = vcs.new(name=vcname)
+        cbar.data.vertex_colors.active = vc
+        assign_vc(cbar, vc, [vg], colourtype, is_label)
+
+
 def assign_vc(ob, vertexcolours, vgs=None,
               colourtype="", is_label=False):
-    """Assign RGB values to the vertex_colors attribute."""
+    """Assign RGB values to the vertex_colors attribute.
 
-    tb = bpy.context.scene.tb
-    obtype = tb.objecttype
-    idx = eval("tb.index_%s" % obtype)
-    tb_ob = eval("tb.%s[%d]" % (obtype, idx))
+    TODO: find better ways to handle multiple assignments to vertexgroups
+    TODO: speed-up
+    """
+
+    tb_ob = tb_utils.active_tb_object()[0]
 
     if vgs is not None:
         group_lookup = {g.index: g.name for g in vgs}
@@ -495,16 +386,8 @@ def assign_vc(ob, vertexcolours, vgs=None,
     for poly in me.polygons:
         for idx in poly.loop_indices:
             vi = ob.data.loops[idx].vertex_index
-            if colourtype == "directional":
-                rgb = me.vertices[vi].normal
-            elif is_label:
-                rgb = vertexcolour_fromlabel(me.vertices[vi],
-                                             vgs, group_lookup, tb_ob.labels)
-            else:
-                w = sum_vertexweights(me.vertices[vi], vgs, group_lookup)
-#                 rgb = weights_to_colour(w)
-                rgb = (w, w, w)
-                # map_rgb_value(scalars[vi], colourmapping)
+            w = sum_vertexweights(me.vertices[vi], vgs, group_lookup)
+            rgb = (w, w, w)
             vertexcolours.data[i].color = rgb  # TODO: foreach_set?
             i += 1
     me.update()
@@ -512,69 +395,11 @@ def assign_vc(ob, vertexcolours, vgs=None,
     return ob
 
 
-def assign_uv(ob, vertexcolours, vgs=None,
-              colourtype="", is_label=False):
-    """Assign RGB values to the vertex_colors attribute."""
-
-    tb = bpy.context.scene.tb
-    obtype = tb.objecttype
-    idx = eval("tb.index_%s" % obtype)
-    tb_ob = eval("tb.%s[%d]" % (obtype, idx))
-
-    if vgs is not None:
-        group_lookup = {g.index: g.name for g in vgs}
-
-    me = ob.data
-    i = 0
-    for poly in me.polygons:
-        for idx in poly.loop_indices:
-            vi = ob.data.loops[idx].vertex_index
-#             print(uv_layer[idx].uv)
-#             uv_layer[idx].uv = ...  # get from flatmap
-#             if colourtype == "directional":
-#                 rgb = me.vertices[vi].normal
-#             elif is_label:
-#                 rgb = vertexcolour_fromlabel(me.vertices[vi],
-#                                              vgs, group_lookup, tb_ob.labels)
-#             else:
-#                 w = sum_vertexweights(me.vertices[vi], vgs, group_lookup)
-# #                 rgb = weights_to_colour(w)
-#                 rgb = (w, w, w)
-#                 # map_rgb_value(scalars[vi], colourmapping)
-#             vertexcolours.data[i].color = rgb  # TODO: foreach_set?
-#             i += 1
-    me.update()
-
-    return ob
-
-
-def vertexcolour_fromlabel(v, vgs, group_lookup, labels):
-    """"""
-
-    rgba = []
-    for g in v.groups:
-        if g.group in list(group_lookup.keys()):
-            i = 0
-            while labels[i].name != group_lookup[g.group]:
-                i += 1
-            rgba.append(labels[i].colour)
-#             TODO: do this with key-value?
-
-    if not rgba:
-        rgba = [0.5, 0.5, 0.5, 1.0]
-    else:
-        # TODO: proper handling of multiple labels
-        rgba = np.array(rgba)
-        if rgba.ndim > 1:
-            rgba = np.mean(rgba, axis=0)
-        else:
-            rgba = rgba
-
-    return tuple(rgba[0:3])
-
-
 def sum_vertexweights(v, vgs, group_lookup):
-    """"""
+    """Sums the weights over all vertexgroups of a vertex.
+
+    FIXME: this sums to >1 and is therefore not useable as rgb.
+    """
 
     w = 0
     for g in v.groups:
@@ -584,20 +409,36 @@ def sum_vertexweights(v, vgs, group_lookup):
     return w
 
 
+def vgs2vc():
+    """Create a vertex colour layer from (multiple) vertex groups.
+
+    TODO
+    """
+
+    tb = bpy.context.scene.tb
+    print('use groups: ', tb.vgs2vc)
+
+
+# =========================================================================== #
+# voxelvolume texture mapping
+# =========================================================================== #
+
+
 def get_voxmatname(name):
-    """"""
+    """Return a unique name for a voxelvolume material and texture."""
 
     matname = 'vv_' + name
     mats = bpy.data.materials
-    matname = tb_utils.check_name(matname, "", checkagainst=mats)
+    matname = tb_utils.check_name(matname, fpath="", checkagainst=mats)
     texs = bpy.data.textures
-    matname = tb_utils.check_name(matname, "", checkagainst=texs)
+    matname = tb_utils.check_name(matname, fpath="", checkagainst=texs)
 
     return matname
 
 
-def get_voxmat(matname, img, dims, file_format="IMAGE_SEQUENCE", is_overlay=False, is_label=False, labels=None):
-    """"""
+def get_voxmat(matname, img, dims, file_format="IMAGE_SEQUENCE", 
+               is_overlay=False, is_label=False, labels=None):
+    """Return a textured material for voxeldata."""
 
     tex = bpy.data.textures.new(matname, 'VOXEL_DATA')
     tex.use_preview_alpha = True
@@ -654,22 +495,19 @@ def get_voxmat(matname, img, dims, file_format="IMAGE_SEQUENCE", is_overlay=Fals
     return mat
 
 
-def get_golden_angle_colour(i):
-    """"""
-
-    c = mathutils.Color()
-    h = divmod(111.25/360 * i, 1)[1]
-    c.hsv = h, 1, 1
-
-    return list(c)
-
 # ========================================================================== #
 # cycles node generation
 # ========================================================================== #
 
 
-def make_material_basic_cycles(name, diffuse, glossy, mix=0.04):
-    """"""
+def make_material_basic_cycles(name, diffcol, mix=0.04):
+    """Create a basic Cycles material.
+
+    The material mixes difffuse, transparent and glossy.
+    """
+
+    diffuse = {'colour': diffcol, 'roughness': 0.1}
+    glossy = {'colour': (1.0, 1.0, 1.0, 1.0), 'roughness': 0.1}
 
     scn = bpy.context.scene
     if not scn.render.engine == "CYCLES":
@@ -713,18 +551,18 @@ def make_material_basic_cycles(name, diffuse, glossy, mix=0.04):
     trans = nodes.new("ShaderNodeBsdfTransparent")
     trans.label = "Transparent BSDF"
     trans.name = name + "_" + "Transparent BSDF"
-    trans.location = 200, 0
+    trans.location = 200, 200
 
     diff = nodes.new("ShaderNodeBsdfDiffuse")
     diff.label = "Diffuse BSDF"
     diff.name = name + "_" + "Diffuse BSDF"
     diff.inputs[0].default_value = diffuse['colour']
     diff.inputs[1].default_value = diffuse['roughness']
-    diff.location = 200, 200
+    diff.location = 200, 0
 
     links.new(mix1.outputs["Shader"], out.inputs["Surface"])
-    links.new(glos.outputs["BSDF"], mix1.inputs[2])
     links.new(mix2.outputs["Shader"], mix1.inputs[1])
+    links.new(glos.outputs["BSDF"], mix1.inputs[2])
     links.new(trans.outputs["BSDF"], mix2.inputs[1])
     links.new(diff.outputs["BSDF"], mix2.inputs[2])
 
@@ -732,7 +570,7 @@ def make_material_basic_cycles(name, diffuse, glossy, mix=0.04):
 
 
 def make_material_emit_cycles(name, emission):
-    """"""
+    """Create a Cycles emitter material for lighting."""
 
     scn = bpy.context.scene
     if not scn.render.engine == "CYCLES":
@@ -748,26 +586,25 @@ def make_material_emit_cycles(name, emission):
     nodes.clear()
     name = ""
 
-    node = nodes.new("ShaderNodeOutputMaterial")
-    node.label = "Material Output"
-    node.name = name + "_" + "Material Output"
-    node.location = 800, 0
+    out = nodes.new("ShaderNodeOutputMaterial")
+    out.label = "Material Output"
+    out.name = name + "_" + "Material Output"
+    out.location = 800, 0
 
-    node = nodes.new("ShaderNodeEmission")
-    node.label = "Emission"
-    node.name = name + "_" + "Emission"
-    node.inputs[0].default_value = emission['colour']
-    node.inputs[1].default_value = emission['strength']
-    node.location = 600, -100
+    emit = nodes.new("ShaderNodeEmission")
+    emit.label = "Emission"
+    emit.name = name + "_" + "Emission"
+    emit.inputs[0].default_value = emission['colour']
+    emit.inputs[1].default_value = emission['strength']
+    emit.location = 600, -100
 
-    links.new(nodes[name + "_" + "Emission"].outputs["Emission"],
-              nodes[name + "_" + "Material Output"].inputs["Surface"])
+    links.new(emit.outputs["Emission"], out.inputs["Surface"])
 
     return mat
 
 
 def make_material_emit_internal(name, emission, is_addition=False):
-    """"""
+    """Create a Blender Internal emitter material for lighting."""
 
     scn = bpy.context.scene
     if not scn.render.engine == "BLENDER_RENDER":
@@ -784,28 +621,27 @@ def make_material_emit_internal(name, emission, is_addition=False):
         nodes.clear()
     name = ""
 
-    output = nodes.new("ShaderNodeOutput")
-    output.label = "Output"
-    output.name = name + "_" + "Output"
-    output.location = 800, -500
+    out = nodes.new("ShaderNodeOutput")
+    out.label = "Output"
+    out.name = name + "_" + "Output"
+    out.location = 800, -500
 
-    material = nodes.new("ShaderNodeMaterial")
-    material.label = "Material"
-    material.name = name + "_" + "Material"
-    material.material = bpy.data.materials[mat.name]
-    material.location = 600, -600
+    mtrl = nodes.new("ShaderNodeMaterial")
+    mtrl.label = "Material"
+    mtrl.name = name + "_" + "Material"
+    mtrl.material = bpy.data.materials[mat.name]
+    mtrl.location = 600, -600
 
     mat.diffuse_color = emission["colour"][:3]
     mat.emit = emission["strength"]
 
-    links.new(material.outputs["Color"],
-              output.inputs["Color"])
+    links.new(mtrl.outputs["Color"], out.inputs["Color"])
 
     return mat
 
 
-def make_material_dirsurf_cycles(name):
-    """"""
+def make_material_dirsurf_cycles(name, trans=1):
+    """Create a material for directional (normals) surface colour."""
 
     scn = bpy.context.scene
     if not scn.render.engine == "CYCLES":
@@ -821,49 +657,60 @@ def make_material_dirsurf_cycles(name):
     nodes.clear()
     name = ""
 
-    node = nodes.new("ShaderNodeOutputMaterial")
-    node.label = "Material Output"
-    node.name = name + "_" + "Material Output"
-    node.location = 800, 0
+    out = nodes.new("ShaderNodeOutputMaterial")
+    out.label = "Material Output"
+    out.name = name + "_" + "Material Output"
+    out.location = 800, 0
 
-    node = nodes.new("ShaderNodeMixShader")
-    node.label = "Mix Shader"
-    node.name = name + "_" + "Mix Shader"
-    node.inputs[0].default_value = 0.04
-    node.location = 600, 0
+    mix1 = nodes.new("ShaderNodeMixShader")
+    mix1.label = "Mix Shader"
+    mix1.name = name + "_" + "Mix Shader"
+    mix1.inputs[0].default_value = 0.04
+    mix1.location = 600, 0
 
-    node = nodes.new("ShaderNodeBsdfGlossy")
-    node.label = "Glossy BSDF"
-    node.name = name + "_" + "Glossy BSDF"
-    node.inputs[1].default_value = 0.15
-    node.distribution = "BECKMANN"
-    node.location = 400, -100
+    glos = nodes.new("ShaderNodeBsdfGlossy")
+    glos.label = "Glossy BSDF"
+    glos.name = name + "_" + "Glossy BSDF"
+    glos.inputs[1].default_value = 0.15
+    glos.distribution = "BECKMANN"
+    glos.location = 400, -100
 
-    node = nodes.new("ShaderNodeBsdfDiffuse")
-    node.label = "Diffuse BSDF"
-    node.name = name + "_" + "Diffuse BSDF"
-    node.location = 400, 100
+    mix2 = nodes.new("ShaderNodeMixShader")
+    mix2.label = "Mix Shader"
+    mix2.name = name + "_" + "Mix Shader"
+    mix2.inputs[0].default_value = trans
+    mix2.location = 400, 100
 
-    node = nodes.new("ShaderNodeAttribute")
-    node.label = "Attribute"
-    node.name = name + "_" + "Attribute"
-    node.attribute_name = name
-    node.location = 200, 100
+    trans = nodes.new("ShaderNodeBsdfTransparent")
+    trans.label = "Transparent BSDF"
+    trans.name = name + "_" + "Transparent BSDF"
+    trans.location = 200, 200
 
-    links.new(nodes[name + "_" + "Mix Shader"].outputs["Shader"],
-              nodes[name + "_" + "Material Output"].inputs["Surface"])
-    links.new(nodes[name + "_" + "Glossy BSDF"].outputs["BSDF"],
-              nodes[name + "_" + "Mix Shader"].inputs[2])
-    links.new(nodes[name + "_" + "Diffuse BSDF"].outputs["BSDF"],
-              nodes[name + "_" + "Mix Shader"].inputs[1])
-    links.new(nodes[name + "_" + "Attribute"].outputs["Color"],
-              nodes[name + "_" + "Diffuse BSDF"].inputs["Color"])
+    diff = nodes.new("ShaderNodeBsdfDiffuse")
+    diff.label = "Diffuse BSDF"
+    diff.name = name + "_" + "Diffuse BSDF"
+    diff.location = 200, 0
+
+
+    geom = nodes.new("ShaderNodeNewGeometry")
+    geom.label = "Geometry"
+    geom.name = name + "_" + "Geometry"
+    geom.location = 0, 0
+
+    links.new(mix1.outputs["Shader"], out.inputs["Surface"])
+    links.new(mix2.outputs["Shader"], mix1.inputs[1])
+    links.new(glos.outputs["BSDF"], mix1.inputs[2])
+    links.new(trans.outputs["BSDF"], mix2.inputs[1])
+    links.new(diff.outputs["BSDF"], mix2.inputs[2])
+
+    links.new(geom.outputs["Normal"], diff.inputs["Color"])
 
     return mat
 
 
-def make_material_dirtract_cycles(name):
-    """
+def make_material_dirtract_cycles(name, trans=1):
+    """Create a material for directional (tangent) tract colour.
+
     # http://blender.stackexchange.com/questions/43102
     """
 
@@ -881,106 +728,109 @@ def make_material_dirtract_cycles(name):
     nodes.clear()
     name = ""
 
-    node = nodes.new("ShaderNodeOutputMaterial")
-    node.label = "Material Output"
-    node.name = name + "_" + "Material Output"
-    node.location = 800, 0
+    out = nodes.new("ShaderNodeOutputMaterial")
+    out.label = "Material Output"
+    out.name = name + "_" + "Material Output"
+    out.location = 800, 0
 
-    node = nodes.new("ShaderNodeMixShader")
-    node.label = "Mix Shader"
-    node.name = name + "_" + "Mix Shader"
-    node.inputs[0].default_value = 0.04
-    node.location = 600, 0
+    mix1 = nodes.new("ShaderNodeMixShader")
+    mix1.label = "Mix Shader"
+    mix1.name = name + "_" + "Mix Shader"
+    mix1.inputs[0].default_value = 0.04
+    mix1.location = 600, 0
 
-    node = nodes.new("ShaderNodeBsdfGlossy")
-    node.label = "Glossy BSDF"
-    node.name = name + "_" + "Glossy BSDF"
-    node.inputs[1].default_value = 0.15
-    node.distribution = "BECKMANN"
-    node.location = 400, -100
+    glos = nodes.new("ShaderNodeBsdfGlossy")
+    glos.label = "Glossy BSDF"
+    glos.name = name + "_" + "Glossy BSDF"
+    glos.inputs[1].default_value = 0.15
+    glos.distribution = "BECKMANN"
+    glos.location = 400, -100
 
-    node = nodes.new("ShaderNodeBsdfDiffuse")
-    node.label = "Diffuse BSDF"
-    node.name = name + "_" + "Diffuse BSDF"
-    node.location = 400, 100
+    mix2 = nodes.new("ShaderNodeMixShader")
+    mix2.label = "Mix Shader"
+    mix2.name = name + "_" + "Mix Shader"
+    mix2.inputs[0].default_value = trans
+    mix2.location = 400, 100
 
-    node = nodes.new("ShaderNodeCombineRGB")
-    node.label = "Combine RGB"
-    node.name = name + "_" + "Combine RGB"
-    node.location = 200, 100
-    node.hide = True
+    trans = nodes.new("ShaderNodeBsdfTransparent")
+    trans.label = "Transparent BSDF"
+    trans.name = name + "_" + "Transparent BSDF"
+    trans.location = 200, 200
 
-    node = nodes.new("ShaderNodeInvert")
-    node.label = "Invert"
-    node.name = name + "_" + "Invert"
-    node.location = 000, -50
-    node.hide = True
+    diff = nodes.new("ShaderNodeBsdfDiffuse")
+    diff.label = "Diffuse BSDF"
+    diff.name = name + "_" + "Diffuse BSDF"
+    diff.location = 200, 0
 
-    node = nodes.new("ShaderNodeMath")
-    node.label = "Add"
-    node.name = name + "_" + "MathAdd"
-    node.operation = 'ADD'
-    node.location = -200, -50
-    node.hide = True
 
-    node = nodes.new("ShaderNodeMath")
-    node.label = "Absolute"
-    node.name = name + "_" + "MathAbs2"
-    node.operation = 'ABSOLUTE'
-    node.location = -400, 50
-    node.hide = True
+    crgb = nodes.new("ShaderNodeCombineRGB")
+    crgb.label = "Combine RGB"
+    crgb.name = name + "_" + "Combine RGB"
+    crgb.location = 0, 0
+    crgb.hide = True
 
-    node = nodes.new("ShaderNodeMath")
-    node.label = "Absolute"
-    node.name = name + "_" + "MathAbs1"
-    node.operation = 'ABSOLUTE'
-    node.location = -400, 100
-    node.hide = True
+    invt = nodes.new("ShaderNodeInvert")
+    invt.label = "Invert"
+    invt.name = name + "_" + "Invert"
+    invt.location = -200, -150
+    invt.hide = True
 
-    node = nodes.new("ShaderNodeSeparateRGB")
-    node.label = "Separate RGB"
-    node.name = name + "_" + "Separate RGB"
-    node.location = -600, 100
-    node.hide = True
+    math1 = nodes.new("ShaderNodeMath")
+    math1.label = "Add"
+    math1.name = name + "_" + "MathAdd"
+    math1.operation = 'ADD'
+    math1.location = -400, -150
+    math1.hide = True
 
-    node = nodes.new("ShaderNodeTangent")
-    node.label = "Tangent"
-    node.name = name + "_" + "Tangent"
-    node.direction_type = 'UV_MAP'
-    node.location = -800, 100
+    math2 = nodes.new("ShaderNodeMath")
+    math2.label = "Absolute"
+    math2.name = name + "_" + "MathAbs2"
+    math2.operation = 'ABSOLUTE'
+    math2.location = -600, -50
+    math2.hide = True
 
-    links.new(nodes[name + "_" + "Mix Shader"].outputs["Shader"],
-              nodes[name + "_" + "Material Output"].inputs["Surface"])
-    links.new(nodes[name + "_" + "Glossy BSDF"].outputs["BSDF"],
-              nodes[name + "_" + "Mix Shader"].inputs[2])
-    links.new(nodes[name + "_" + "Diffuse BSDF"].outputs["BSDF"],
-              nodes[name + "_" + "Mix Shader"].inputs[1])
-    links.new(nodes[name + "_" + "Combine RGB"].outputs["Image"],
-              nodes[name + "_" + "Diffuse BSDF"].inputs["Color"])
-    links.new(nodes[name + "_" + "Invert"].outputs["Color"],
-              nodes[name + "_" + "Combine RGB"].inputs[2])
-    links.new(nodes[name + "_" + "MathAbs2"].outputs["Value"],
-              nodes[name + "_" + "Combine RGB"].inputs[1])
-    links.new(nodes[name + "_" + "MathAbs1"].outputs["Value"],
-              nodes[name + "_" + "Combine RGB"].inputs[0])
-    links.new(nodes[name + "_" + "MathAdd"].outputs["Value"],
-              nodes[name + "_" + "Invert"].inputs["Color"])
-    links.new(nodes[name + "_" + "MathAbs2"].outputs["Value"],
-              nodes[name + "_" + "MathAdd"].inputs[1])
-    links.new(nodes[name + "_" + "MathAbs1"].outputs["Value"],
-              nodes[name + "_" + "MathAdd"].inputs[0])
-    links.new(nodes[name + "_" + "Separate RGB"].outputs["G"],
-              nodes[name + "_" + "MathAbs2"].inputs["Value"])
-    links.new(nodes[name + "_" + "Separate RGB"].outputs["R"],
-              nodes[name + "_" + "MathAbs1"].inputs["Value"])
-    links.new(nodes[name + "_" + "Tangent"].outputs["Tangent"],
-              nodes[name + "_" + "Separate RGB"].inputs["Image"])
+    math3 = nodes.new("ShaderNodeMath")
+    math3.label = "Absolute"
+    math3.name = name + "_" + "MathAbs1"
+    math3.operation = 'ABSOLUTE'
+    math3.location = -600, 0
+    math3.hide = True
+
+    srgb = nodes.new("ShaderNodeSeparateRGB")
+    srgb.label = "Separate RGB"
+    srgb.name = name + "_" + "Separate RGB"
+    srgb.location = -800, 0
+    srgb.hide = True
+
+    tang = nodes.new("ShaderNodeTangent")
+    tang.label = "Tangent"
+    tang.name = name + "_" + "Tangent"
+    tang.direction_type = 'UV_MAP'
+    tang.location = -1000, 0
+
+
+    links.new(mix1.outputs["Shader"], out.inputs["Surface"])
+    links.new(mix2.outputs["Shader"], mix1.inputs[1])
+    links.new(glos.outputs["BSDF"], mix1.inputs[2])
+    links.new(trans.outputs["BSDF"], mix2.inputs[1])
+    links.new(diff.outputs["BSDF"], mix2.inputs[2])
+
+    links.new(crgb.outputs["Image"], diff.inputs["Color"])
+    links.new(invt.outputs["Color"], crgb.inputs[2])
+    links.new(math2.outputs["Value"], crgb.inputs[1])
+    links.new(math3.outputs["Value"], crgb.inputs[0])
+    links.new(math1.outputs["Value"], invt.inputs["Color"])
+    links.new(math2.outputs["Value"], math1.inputs[1])
+    links.new(math3.outputs["Value"], math1.inputs[0])
+    links.new(srgb.outputs["G"], math2.inputs["Value"])
+    links.new(srgb.outputs["R"], math3.inputs["Value"])
+    links.new(tang.outputs["Tangent"], srgb.inputs["Image"])
 
     return mat
 
 
 def make_material_overlay_cycles(name, vcname):
-    """"""
+    """Create a Cycles material for colourramped vertexcolour rendering."""
 
     scn = bpy.context.scene
     if not scn.render.engine == "CYCLES":
@@ -998,52 +848,46 @@ def make_material_overlay_cycles(name, vcname):
     nodes.clear()
     name = ""
 
-    node = nodes.new("ShaderNodeOutputMaterial")
-    node.label = "Material Output"
-    node.name = name + "_" + "Material Output"
-    node.location = 800, 0
+    out = nodes.new("ShaderNodeOutputMaterial")
+    out.label = "Material Output"
+    out.name = name + "_" + "Material Output"
+    out.location = 800, 0
 
-    node = nodes.new("ShaderNodeMixShader")
-    node.label = "Mix Shader"
-    node.name = name + "_" + "Mix Shader"
-    node.inputs[0].default_value = 0.04
-    node.location = 600, 0
+    mix1 = nodes.new("ShaderNodeMixShader")
+    mix1.label = "Mix Shader"
+    mix1.name = name + "_" + "Mix Shader"
+    mix1.inputs[0].default_value = 0.04
+    mix1.location = 600, 0
 
-    node = nodes.new("ShaderNodeBsdfGlossy")
-    node.label = "Glossy BSDF"
-    node.name = name + "_" + "Glossy BSDF"
-    node.inputs[1].default_value = 0.15
-    node.distribution = "BECKMANN"
-    node.location = 400, -100
+    glos = nodes.new("ShaderNodeBsdfGlossy")
+    glos.label = "Glossy BSDF"
+    glos.name = name + "_" + "Glossy BSDF"
+    glos.inputs[1].default_value = 0.15
+    glos.distribution = "BECKMANN"
+    glos.location = 400, -100
 
-    node = nodes.new("ShaderNodeBsdfDiffuse")
-    node.label = "Diffuse BSDF"
-    node.name = name + "_" + "Diffuse BSDF"
-    node.location = 400, 100
+    diff = nodes.new("ShaderNodeBsdfDiffuse")
+    diff.label = "Diffuse BSDF"
+    diff.name = name + "_" + "Diffuse BSDF"
+    diff.location = 400, 100
 
-    node = nodes.new("ShaderNodeValToRGB")
-    node.label = "ColorRamp"
-    node.name = name + "_" + "ColorRamp"
-    node.location = 100, 100
-    set_colorramp_preset(node, mat=mat)
+    vrgb = nodes.new("ShaderNodeValToRGB")
+    vrgb.label = "ColorRamp"
+    vrgb.name = name + "_" + "ColorRamp"
+    vrgb.location = 100, 100
 
-    node = nodes.new("ShaderNodeMath")
-    node.label = "Multiply"
-    node.name = name + "_" + "Math"
-    node.operation = 'MULTIPLY'
-    node.inputs[1].default_value = 1.0
-    node.location = -100, 100
+    set_colorramp_preset(vrgb, mat=mat)
 
-    node = nodes.new("ShaderNodeSeparateRGB")
-    node.label = "Separate RGB"
-    node.name = name + "_" + "Separate RGB"
-    node.location = -300, 100
+    srgb = nodes.new("ShaderNodeSeparateRGB")
+    srgb.label = "Separate RGB"
+    srgb.name = name + "_" + "Separate RGB"
+    srgb.location = -300, 100
 
-    node = nodes.new("ShaderNodeAttribute")
-    node.location = -500, 100
-    node.name = name + "_" + "Attribute"
-    node.attribute_name = vcname
-    node.label = "Attribute"
+    attr = nodes.new("ShaderNodeAttribute")
+    attr.location = -500, 100
+    attr.name = name + "_" + "Attribute"
+    attr.attribute_name = vcname
+    attr.label = "Attribute"
 
 #     driver = diffuse.inputs[1].driver_add("default_value")
 #     var = driver.driver.variables.new()
@@ -1055,87 +899,18 @@ def make_material_overlay_cycles(name, vcname):
 #     # remove driver
 #     diffuse.inputs[1].driver_remove("default_value")
 
-    links.new(nodes[name + "_" + "Mix Shader"].outputs["Shader"],
-              nodes[name + "_" + "Material Output"].inputs["Surface"])
-    links.new(nodes[name + "_" + "Glossy BSDF"].outputs["BSDF"],
-              nodes[name + "_" + "Mix Shader"].inputs[2])
-    links.new(nodes[name + "_" + "Diffuse BSDF"].outputs["BSDF"],
-              nodes[name + "_" + "Mix Shader"].inputs[1])
-    links.new(nodes[name + "_" + "ColorRamp"].outputs["Color"],
-              nodes[name + "_" + "Diffuse BSDF"].inputs["Color"])
-    links.new(nodes[name + "_" + "Math"].outputs["Value"],
-              nodes[name + "_" + "ColorRamp"].inputs["Fac"])
-    links.new(nodes[name + "_" + "Separate RGB"].outputs["R"],
-              nodes[name + "_" + "Math"].inputs["Value"])
-    links.new(nodes[name + "_" + "Attribute"].outputs["Color"],
-              nodes[name + "_" + "Separate RGB"].inputs["Image"])
-
-    return mat
-
-
-def make_material_labels_cycles(name, vcname):
-    """"""
-
-    scn = bpy.context.scene
-    if not scn.render.engine == "CYCLES":
-        scn.render.engine = "CYCLES"
-
-    mat = (bpy.data.materials.get(name) or
-           bpy.data.materials.new(name))
-    mat.use_nodes = True
-    mat.use_vertex_color_paint = True
-    mat.use_vertex_color_light = True
-
-    nodes = mat.node_tree.nodes
-    links = mat.node_tree.links
-
-    nodes.clear()
-    name = ""
-
-    node = nodes.new("ShaderNodeOutputMaterial")
-    node.label = "Material Output"
-    node.name = name + "_" + "Material Output"
-    node.location = 800, 0
-
-    node = nodes.new("ShaderNodeMixShader")
-    node.label = "Mix Shader"
-    node.name = name + "_" + "Mix Shader"
-    node.inputs[0].default_value = 0.04
-    node.location = 600, 0
-
-    node = nodes.new("ShaderNodeBsdfGlossy")
-    node.label = "Glossy BSDF"
-    node.name = name + "_" + "Glossy BSDF"
-    node.inputs[1].default_value = 0.15
-    node.distribution = "BECKMANN"
-    node.location = 400, -100
-
-    node = nodes.new("ShaderNodeBsdfDiffuse")
-    node.label = "Diffuse BSDF"
-    node.name = name + "_" + "Diffuse BSDF"
-    node.location = 400, 100
-
-    node = nodes.new("ShaderNodeAttribute")
-    node.location = 200, 100
-    node.name = name + "_" + "Attribute"
-    node.attribute_name = vcname
-    node.label = "Attribute"
-
-    links.new(nodes[name + "_" + "Mix Shader"].outputs["Shader"],
-              nodes[name + "_" + "Material Output"].inputs["Surface"])
-    links.new(nodes[name + "_" + "Glossy BSDF"].outputs["BSDF"],
-              nodes[name + "_" + "Mix Shader"].inputs[2])
-    links.new(nodes[name + "_" + "Diffuse BSDF"].outputs["BSDF"],
-              nodes[name + "_" + "Mix Shader"].inputs[1])
-    links.new(nodes[name + "_" + "Attribute"].outputs["Color"],
-              nodes[name + "_" + "Diffuse BSDF"].inputs["Color"])
-    # FIXME: node names will truncate if too long; this will error
+    links.new(mix1.outputs["Shader"], out.inputs["Surface"])
+    links.new(glos.outputs["BSDF"], mix1.inputs[2])
+    links.new(diff.outputs["BSDF"], mix1.inputs[1])
+    links.new(vrgb.outputs["Color"], diff.inputs["Color"])
+    links.new(srgb.outputs["R"], vrgb.inputs["Value"])
+    links.new(attr.outputs["Color"], srgb.inputs["Image"])
 
     return mat
 
 
 def set_colorramp_preset(node, cmapname="r2b", mat=None):
-    """"""
+    """Set a colourramp node to a preset."""
 
     tb_ob = tb_utils.active_tb_object()[0]
     scalarslist = tb_ob.scalars
@@ -1269,3 +1044,218 @@ def create_colourbar(name="Colourbar", width=1., height=0.1):
     me.update()
 
     return ob
+
+
+
+
+# ========================================================================== #
+# DEPRECATED and development functions
+# ========================================================================== #
+
+
+def map_to_uv(ob, uvname="", fpath="",
+              vgs=None, is_label=False,
+              colourtype=""):
+    """"""
+
+    # need a unique name (same for "Vertex Colors" and "Material")
+    # TODO: but maybe not for 'directional'?
+    uvs = ob.data.uv_layers
+    uvname = tb_utils.check_name(uvname, fpath, checkagainst=uvs)
+    materials = bpy.data.materials
+    uvname = tb_utils.check_name(uvname, fpath, checkagainst=materials)
+
+    mat = get_vc_material(ob, uvname, fpath, colourtype, is_label)
+    set_materials(ob.data, mat)
+    ob.data.uv_textures.new(uvname)
+    ob = assign_uv(ob, uv, vgs, colourtype, is_label)
+#
+#     if not is_label:
+#         cbar, vg = get_color_bar(name=vcname + "_colourbar")
+#         set_materials(cbar.data, mat)
+#         uv = get_uv(cbar, uvname, fpath)
+#         assign_uv(cbar, uv, [vg], colourtype, is_label)
+
+
+def get_uv(ob, name="", fpath=""):
+    """Create a new uv layer."""
+
+    ob.data.uv_textures.new(name)
+#     uv_layer = ob.data.loops.layers.uv[0]
+#     ob.data.uv_layers.active = uv_layer
+
+    return uv_layer
+
+
+def assign_uv(ob, vertexcolours, vgs=None,
+              colourtype="", is_label=False):
+    """Assign RGB values to the vertex_colors attribute."""
+
+    tb = bpy.context.scene.tb
+    obtype = tb.objecttype
+    idx = eval("tb.index_%s" % obtype)
+    tb_ob = eval("tb.%s[%d]" % (obtype, idx))
+
+    if vgs is not None:
+        group_lookup = {g.index: g.name for g in vgs}
+
+    me = ob.data
+    i = 0
+    for poly in me.polygons:
+        for idx in poly.loop_indices:
+            vi = ob.data.loops[idx].vertex_index
+#             print(uv_layer[idx].uv)
+#             uv_layer[idx].uv = ...  # get from flatmap
+#             if colourtype == "directional":
+#                 rgb = me.vertices[vi].normal
+#             elif is_label:
+#                 rgb = vertexcolour_fromlabel(me.vertices[vi],
+#                                              vgs, group_lookup, tb_ob.labels)
+#             else:
+#                 w = sum_vertexweights(me.vertices[vi], vgs, group_lookup)
+# #                 rgb = weights_to_colour(w)
+#                 rgb = (w, w, w)
+#                 # map_rgb_value(scalars[vi], colourmapping)
+#             vertexcolours.data[i].color = rgb  # TODO: foreach_set?
+#             i += 1
+    me.update()
+
+    return ob
+
+
+def get_vc_material(ob, name, fpath, colourtype="", is_label=False):
+    """Return a Cycles material that reads the vertex colour attribute."""
+
+    materials = bpy.data.materials
+    if materials.get(name) is not None:  # mostly for 'directional'
+        mat = materials.get(name)
+    else:
+        if colourtype == "directional":
+          # TODO: check if normals can avoid vertex colour 
+          # by accesing directly from cycles attribute node
+            name = colourtype + ob.type
+            name = tb_utils.check_name(name, "", checkagainst=materials)
+            mat = make_material_dirsurf_cycles(name)
+        elif is_label:  # NOTE: labels not handled with vertex colour anymore
+            mat = make_material_labels_cycles(name, name)
+        else:
+            mat = make_material_overlay_cycles(name, name)
+
+    return mat
+
+
+def get_vertexcolours(ob, name="", fpath=""):
+    """Create a new vertex_colors attribute."""
+
+    vcs = ob.data.vertex_colors
+    vertexcolours = vcs.new(name=name)
+#     name = tb_utils.check_name(name, fpath, checkagainst=vcs)
+    ob.data.vertex_colors.active = vertexcolours
+
+    return vertexcolours
+
+
+def map_rgb_value(scalar, colourmapping="r2k"):
+    """Map a scalar to RGB in a certain colour map."""
+
+    if colourmapping == "r2k":
+        rgb = (scalar, 0, 0)
+    elif colourmapping == "g2k":
+        rgb = (0, scalar, 0)
+    elif colourmapping == "b2k":
+        rgb = (0, 0, scalar)
+    elif colourmapping == "fscurv":  # direct r2g cmap centred on 0
+        if scalar < 0:
+            rgb = (-scalar, 0, 0)
+        if scalar >= 0:
+            rgb = (0, scalar, 0)
+
+    return rgb
+
+
+def vertexcolour_fromlabel(v, vgs, group_lookup, labels):
+    """"""
+
+    rgba = []
+    for g in v.groups:
+        if g.group in list(group_lookup.keys()):
+            i = 0
+            while labels[i].name != group_lookup[g.group]:
+                i += 1
+            rgba.append(labels[i].colour)
+#             TODO: do this with key-value?
+
+    if not rgba:
+        rgba = [0.5, 0.5, 0.5, 1.0]
+    else:
+        # TODO: proper handling of multiple labels
+        rgba = np.array(rgba)
+        if rgba.ndim > 1:
+            rgba = np.mean(rgba, axis=0)
+        else:
+            rgba = rgba
+
+    return tuple(rgba[0:3])
+
+
+def make_material_labels_cycles(name, vcname):
+    """Create a Cycles material for vertexcolour rendering."""
+
+    scn = bpy.context.scene
+    if not scn.render.engine == "CYCLES":
+        scn.render.engine = "CYCLES"
+
+    mat = (bpy.data.materials.get(name) or
+           bpy.data.materials.new(name))
+    mat.use_nodes = True
+    mat.use_vertex_color_paint = True
+    mat.use_vertex_color_light = True
+
+    nodes = mat.node_tree.nodes
+    links = mat.node_tree.links
+
+    nodes.clear()
+    name = ""
+
+    node = nodes.new("ShaderNodeOutputMaterial")
+    node.label = "Material Output"
+    node.name = name + "_" + "Material Output"
+    node.location = 800, 0
+
+    node = nodes.new("ShaderNodeMixShader")
+    node.label = "Mix Shader"
+    node.name = name + "_" + "Mix Shader"
+    node.inputs[0].default_value = 0.04
+    node.location = 600, 0
+
+    node = nodes.new("ShaderNodeBsdfGlossy")
+    node.label = "Glossy BSDF"
+    node.name = name + "_" + "Glossy BSDF"
+    node.inputs[1].default_value = 0.15
+    node.distribution = "BECKMANN"
+    node.location = 400, -100
+
+    node = nodes.new("ShaderNodeBsdfDiffuse")
+    node.label = "Diffuse BSDF"
+    node.name = name + "_" + "Diffuse BSDF"
+    node.location = 400, 100
+
+    node = nodes.new("ShaderNodeAttribute")
+    node.location = 200, 100
+    node.name = name + "_" + "Attribute"
+    node.attribute_name = vcname
+    node.label = "Attribute"
+
+    links.new(nodes[name + "_" + "Mix Shader"].outputs["Shader"],
+              nodes[name + "_" + "Material Output"].inputs["Surface"])
+    links.new(nodes[name + "_" + "Glossy BSDF"].outputs["BSDF"],
+              nodes[name + "_" + "Mix Shader"].inputs[2])
+    links.new(nodes[name + "_" + "Diffuse BSDF"].outputs["BSDF"],
+              nodes[name + "_" + "Mix Shader"].inputs[1])
+    links.new(nodes[name + "_" + "Attribute"].outputs["Color"],
+              nodes[name + "_" + "Diffuse BSDF"].inputs["Color"])
+    # FIXME: node names will truncate if too long; this will error
+
+    return mat
+
+
