@@ -227,10 +227,19 @@ class TractBlenderImportPanel(Panel):
             else:
                 if ovtype == "scalars":
                     row = box.row()
-                    row.prop(tb_ov, "showcolourbar")
-                    row = box.row()
                     row.enabled = False
                     row.prop(tb_ov, "range")
+                    row = box.row()
+                    row.prop(tb_ov, "showcolourbar")
+
+                    subbox = box.box()
+                    row = subbox.row()
+                    row.label(text="Convenience access to colorramp:")
+                    row = subbox.row()
+                    mat = bpy.data.materials['vc_' + tb_ov.name]
+                    ramp = mat.node_tree.nodes["_ColorRamp"]
+                    subbox.template_color_ramp(ramp, "color_ramp", expand=True)
+
                 elif ovtype == "labels":
                     row = box.row()
                     row.enabled = False
@@ -983,8 +992,8 @@ class ScalarProperties(PropertyGroup):
         default=(0, 0),
         size=2)
     showcolourbar = BoolProperty(
-        name="Colourbar",
-        description="Show/hide colourbar",
+        name="Render colourbar",
+        description="Show/hide colourbar in rendered image",
         default=True)
 
 
