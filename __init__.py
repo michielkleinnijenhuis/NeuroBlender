@@ -236,8 +236,26 @@ class TractBlenderImportPanel(Panel):
                     row.enabled = False
                     row.prop(tb_ov, "value")
                     row = box.row()
-                    row.enabled = False
-                    row.prop(tb_ov, "colour")
+                    col = row.column()
+                    col.enabled = False
+                    col.label(text="original: ")
+                    col = row.column()
+                    col.enabled = False
+                    col.prop(tb_ov, "colour", text="")
+                    col = row.column()
+                    col.operator("tb.revert_" + "label",
+                                 icon='BACK', text="")
+
+                    subbox = box.box()
+                    row = subbox.row()
+                    row.label(text="Convenience access to material:")
+                    row = subbox.row()
+                    mat = bpy.data.materials[tb_ov.name]
+                    colour = mat.node_tree.nodes["_Diffuse BSDF"].inputs[0]
+                    row.prop(colour, "default_value", text="Colour")
+                    trans = mat.node_tree.nodes["_Mix Shader.001"].inputs[0]
+                    row.prop(trans, "default_value", text="Transparency")
+                    # TODO: copy transparency from colourpicker
         else:
             row.prop(tb, "show_overlay_options",
                      icon='TRIA_RIGHT',
@@ -333,9 +351,12 @@ class ObjectList(UIList):
         else:
             item_icon = "CANCEL"
 
-        layout.prop(item, "name", text="", emboss=False,
-                    translate=False, icon=item_icon)
-
+        if self.layout_type in {'DEFAULT', 'COMPACT'}:
+            layout.prop(item, "name", text="", emboss=False,
+                        translate=False, icon=item_icon)
+        elif self.layout_type in {'GRID'}:
+            layout.alignment = 'CENTER'
+            layout.prop(text="", icon=item_icon)
 
 class ObjectListOperations(Operator):
     bl_idname = "tb.oblist_ops"
@@ -701,6 +722,25 @@ class ImportLabels(Operator, ImportHelper):
         context.window_manager.fileselect_add(self)
 
         return {"RUNNING_MODAL"}
+
+
+class RevertLabel(Operator):
+    bl_idname = "tb.revert_label"
+    bl_label = "Revert label"
+    bl_description = "Revert changes to imported label colour/transparency"
+    bl_options = {"REGISTER"}
+
+    def execute(self, context):
+
+        tb_ov = tb_utils.active_tb_overlay()[0]
+
+        mat = bpy.data.materials[tb_ov.name]
+        diff = mat.node_tree.nodes["_Diffuse BSDF"]
+        diff.inputs[0].default_value = tb_ov.colour
+        mix2 = mat.node_tree.nodes["_Mix Shader.001"]
+        mix2.inputs[0].default_value = tb_ov.colour[3]
+
+        return {"FINISHED"}
 
 
 class TractBlenderInteractPanel(Panel):
