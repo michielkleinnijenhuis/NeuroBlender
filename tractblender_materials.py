@@ -352,7 +352,7 @@ def map_to_vertexcolours(ob, vcname="", fpath="",
     materials = bpy.data.materials
     vcname = tb_utils.check_name(vcname, fpath, checkagainst=materials)
 
-    mat = make_material_overlay_cycles(name, name)
+    mat = make_material_overlay_cycles(vcname, vcname)
 
     set_materials_to_vertexgroups(ob, vgs, [mat])
 
@@ -903,7 +903,7 @@ def make_material_overlay_cycles(name, vcname):
     links.new(glos.outputs["BSDF"], mix1.inputs[2])
     links.new(diff.outputs["BSDF"], mix1.inputs[1])
     links.new(vrgb.outputs["Color"], diff.inputs["Color"])
-    links.new(srgb.outputs["R"], vrgb.inputs["Value"])
+    links.new(srgb.outputs["R"], vrgb.inputs["Fac"])
     links.new(attr.outputs["Color"], srgb.inputs["Image"])
 
     return mat
