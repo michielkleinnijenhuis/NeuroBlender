@@ -83,6 +83,7 @@ def scene_preset(name="Brain", layer=10):
     scn.cycles.caustics_refractive = False
     scn.cycles.caustics_reflective = False
 
+    # TODO: add colourbars
     preset_obs = [preset] + [centre] + [table] + [cam] + [lights] + list(lights.children)
     tracts = [bpy.data.objects[tb_ob.name] for tb_ob in tb.tracts]
     surfaces = [bpy.data.objects[tb_ob.name] for tb_ob in tb.surfaces]
@@ -353,7 +354,7 @@ def create_light(name, braincentre, bbox, dims, scale, loc, emission):
     add_constraint(ob, "TRACK_TO", "TrackToBrainCentre", braincentre)
     mat = tb_mat.make_material_emit_cycles(name, emission)
 #     mat = tb_mat.make_material_emit_internal(name, emission, True)
-    tb_mat.set_material(ob.data, mat)
+    tb_mat.set_materials(ob.data, mat)
 
     return ob
 
@@ -394,10 +395,9 @@ def create_table(name, centre, bbox, dims):
                    centre.location[1],
                    bbox[2, 0])
 
-    diffuse = {'colour': (0.5, 0.5, 0.5, 1.0), 'roughness': 0.1}
-    glossy = {'colour': (1.0, 1.0, 1.0, 1.0), 'roughness': 0.1}
-    mat = tb_mat.make_material_basic_cycles(name, diffuse, glossy, mix=0.8)
-    tb_mat.set_material(ob.data, mat)
+    diffcol= [0.5, 0.5, 0.5, 1.0]
+    mat = tb_mat.make_material_basic_cycles(name, diffcol, mix=0.8)
+    tb_mat.set_materials(ob.data, mat)
 
     return ob
 
