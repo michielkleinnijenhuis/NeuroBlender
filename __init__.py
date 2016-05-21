@@ -27,7 +27,8 @@ from bpy.types import (Panel,
                        Operator,
                        OperatorFileListElement,
                        PropertyGroup,
-                       UIList)
+                       UIList,
+                       Menu)
 from bpy.props import (BoolProperty,
                        StringProperty,
                        CollectionProperty,
@@ -154,6 +155,9 @@ class TractBlenderImportPanel(Panel):
         col.operator("tb.oblist_ops",
                      icon='ZOOMOUT',
                      text="").action = 'REMOVE_ob'
+        col.menu("tb.mass_is_rendered_objects",
+                 icon='DOWNARROW_HLT',
+                 text="")
         col.separator()
         col.operator("tb.oblist_ops",
                      icon='TRIA_UP',
@@ -212,6 +216,9 @@ class TractBlenderImportPanel(Panel):
             col.operator("tb.oblist_ops",
                          icon='ZOOMOUT',
                          text="").action = 'REMOVE_ov'
+            col.menu("tb.mass_is_rendered_overlays",
+                     icon='DOWNARROW_HLT',
+                     text="")
             col.separator()
             col.operator("tb.oblist_ops",
                          icon='TRIA_UP',
@@ -361,11 +368,18 @@ class ObjectList(UIList):
             item_icon = "CANCEL"
 
         if self.layout_type in {'DEFAULT', 'COMPACT'}:
-            layout.prop(item, "name", text="", emboss=False,
+            col = layout.column()
+            col.prop(item, "name", text="", emboss=False,
                         translate=False, icon=item_icon)
+            col = layout.column()
+            col.alignment =  "RIGHT"
+            col.active = item.is_rendered
+            col.prop(item, "is_rendered", text="", emboss=False,
+                     translate=False, icon='SCENE')
         elif self.layout_type in {'GRID'}:
             layout.alignment = 'CENTER'
             layout.prop(text="", icon=item_icon)
+
 
 class ObjectListOperations(Operator):
     bl_idname = "tb.oblist_ops"
@@ -733,6 +747,79 @@ class ImportLabels(Operator, ImportHelper):
         return {"RUNNING_MODAL"}
 
 
+class MassIsRenderedObjects(Menu):
+    bl_idname = "tb.mass_is_rendered_objects"
+    bl_label = "Vertex Group Specials"
+    bl_description = "Menu for group selection of rendering option"
+    bl_options = {"REGISTER"}
+
+    def draw(self, context):
+        layout = self.layout
+        layout.operator("tb.mass_select",
+                        icon='SCENE',
+                        text="Select All").action = 'SELECT_ob'
+        layout.operator("tb.mass_select",
+                        icon='SCENE',
+                        text="Deselect All").action = 'DESELECT_ob'
+        layout.operator("tb.mass_select",
+                        icon='SCENE',
+                        text="Invert").action = 'INVERT_ob'
+
+
+class MassIsRenderedOverlays(Menu):
+    bl_idname = "tb.mass_is_rendered_overlays"
+    bl_label = "Vertex Group Specials"
+    bl_description = "Menu for group selection of rendering option"
+    bl_options = {"REGISTER"}
+
+    def draw(self, context):
+        layout = self.layout
+        layout.operator("tb.mass_select",
+                        icon='SCENE',
+                        text="Select All").action = 'SELECT_ov'
+        layout.operator("tb.mass_select",
+                        icon='SCENE',
+                        text="Deselect All").action = 'DESELECT_ov'
+        layout.operator("tb.mass_select",
+                        icon='SCENE',
+                        text="Invert").action = 'INVERT_ov'
+
+class MassSelect(Operator):
+    bl_idname = "tb.mass_select"
+    bl_label = "Mass select"
+    bl_description = "Select/Deselect/Invert rendered objects/overlays"
+    bl_options = {"REGISTER"}
+
+    action = bpy.props.EnumProperty(
+        items=(('SELECT_ob', "Select_ob", ""),
+               ('DESELECT_ob', "Deselect_ob", ""),
+               ('INVERT_ob', "Invert_ob", ""),
+               ('SELECT_ov', "Select_ov", ""),
+               ('DESELECT_ov', "Deselect_ov", ""),
+               ('INVERT_ov', "Invert_ov", "")))
+
+    def execute(self, context):
+
+        scn = bpy.context.scene
+        tb = scn.tb
+
+        if self.action.endswith("_ob"):
+            items = eval("tb.%s" % tb.objecttype)
+        elif self.action.endswith("_ov"):
+            tb_ob = tb_utils.active_tb_object()[0]
+            items = eval("tb_ob.%s" % tb.overlaytype)
+
+        for item in items:
+            if self.action.startswith('SELECT'):
+                item.is_rendered = True
+            elif self.action.startswith('DESELECT'):
+                item.is_rendered = False
+            elif self.action.startswith('INVERT'):
+                item.is_rendered = not item.is_rendered
+
+        return {"FINISHED"}
+
+
 class RevertLabel(Operator):
     bl_idname = "tb.revert_label"
     bl_label = "Revert label"
@@ -986,6 +1073,10 @@ class ScalarProperties(PropertyGroup):
         name="Is Valid",
         description="Indicates if the object passed validity checks",
         default=True)
+    is_rendered = BoolProperty(
+        name="Is Rendered",
+        description="Indicates if the overlay is rendered",
+        default=True)
     range = FloatVectorProperty(
         name="Range",
         description="The original min-max of scalars mapped in vertexweights",
@@ -1010,6 +1101,10 @@ class LabelProperties(PropertyGroup):
     isvalid = BoolProperty(
         name="Is Valid",
         description="Indicates if the object passed validity checks",
+        default=True)
+    is_rendered = BoolProperty(
+        name="Is Rendered",
+        description="Indicates if the label is rendered",
         default=True)
     value = IntProperty(
         name="Label value",
@@ -1039,6 +1134,10 @@ class TractProperties(PropertyGroup):
     isvalid = BoolProperty(
         name="Is Valid",
         description="Indicates if the object passed validity checks",
+        default=True)
+    is_rendered = BoolProperty(
+        name="Is Rendered",
+        description="Indicates if the overlay is rendered",
         default=True)
     beautified = BoolProperty(
         name="Beautify",
@@ -1140,6 +1239,10 @@ class SurfaceProperties(PropertyGroup):
         name="Is Valid",
         description="Indicates if the object passed validity checks",
         default=True)
+    is_rendered = BoolProperty(
+        name="Is Rendered",
+        description="Indicates if the overlay is rendered",
+        default=True)
     beautified = BoolProperty(
         name="Beautify",
         description="Apply initial smoothing on surface",
@@ -1220,6 +1323,10 @@ class VoxelvolumeProperties(PropertyGroup):
     isvalid = BoolProperty(
         name="Is Valid",
         description="Indicates if the object passed validity checks",
+        default=True)
+    is_rendered = BoolProperty(
+        name="Is Rendered",
+        description="Indicates if the overlay is rendered",
         default=True)
     beautified = BoolProperty(
         name="Beautify",
