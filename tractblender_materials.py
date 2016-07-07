@@ -145,10 +145,61 @@ def get_golden_angle_colour(i):
 # ========================================================================== #
 
 
+def create_vc_overlay_tract(ob, fpath, is_label=False):
+    """Create scalar overlay for a surface object."""
+
+    nn_scalars = tb_imp.read_tractscalar(fpath)
+    datamin =  float('Inf')
+    datamax = -float('Inf')
+    for s in nn_scalars:
+        datamin = min(datamin, min(s))
+        datamax = max(datamax, max(s))
+    scalarrange = datamin, datamax
+    scalars = [(np.array(s) - datamin) / (datamax-datamin) for s in nn_scalars]
+
+    vgname = tb_utils.check_name("", fpath, checkagainst=ob.vertex_groups)
+
+#     set_curve_weights(ob, vgname, label=None, scalars=scalars)
+
+    tb_imp.add_scalar_to_collection(vgname, scalarrange)
+    
+    ob.data.use_uv_as_generated = True
+    diffcol = [0.0, 0.0, 0.0, 1.0]
+    group = make_material_overlaytract_cycles_group(diffcol, mix=0.04)
+    i = 0
+    for spline, scalar in zip(ob.data.splines, scalars):
+        name = ob.name + 'spline' + str(i).zfill(10)
+        img = create_overlay_tract_img(name, scalar)
+        mat = make_material_overlaytract_cycles_withgroup(name, img, group)
+        ob.data.materials.append(mat)
+        spline.material_index = len(ob.data.materials) - 1
+        i += 1
+
+
+def create_overlay_tract_img(name, scalar):
+    """"""
+
+    vals = [[val, val, val, 1.0] for val in scalar]
+    img = bpy.data.images.new(name, len(scalar), 1)
+    pixels = [chan for px in vals for chan in px]
+    img.pixels = pixels
+    img.source = 'GENERATED'
+
+    return img
+
+
+def set_curve_weights(ob, name, label=None, scalars=None):
+    """"""
+
+    for spline, scalar in zip(ob.data.splines, scalars):
+        for point, val in zip(spline.points, scalar):
+            point.co[3] = val
+
+
 def create_vc_overlay(ob, fpath, is_label=False):
     """Create scalar overlay for a surface object."""
 
-    scalars = tb_imp.read_surfscalar(ob, fpath)
+    scalars = tb_imp.read_surfscalar(fpath)
     scalars, scalarrange = tb_imp.normalize_data(scalars)
 
     vgname = tb_utils.check_name("", fpath, checkagainst=ob.vertex_groups)
@@ -210,7 +261,7 @@ def create_vg_overlay(ob, fpath, is_label=False, trans=1):
 
     tb_ob = tb_utils.active_tb_object()[0]
 
-    label, scalars = tb_imp.read_surflabel(ob, fpath, is_label)
+    label, scalars = tb_imp.read_surflabel(fpath, is_label)
 
     vgname = tb_utils.check_name(name="", fpath=fpath,
                                  checkagainst=ob.vertex_groups)
@@ -913,6 +964,141 @@ def make_material_overlay_cycles(name, vcname):
     links.new(attr.outputs["Color"], srgb.inputs["Image"])
 
     return mat
+
+
+def make_material_overlaytract_cycles_withgroup(name, img, group):
+    """"""
+
+    mat = (bpy.data.materials.get(name) or
+           bpy.data.materials.new(name))
+    mat.use_nodes = True
+
+    nodes = mat.node_tree.nodes
+    links = mat.node_tree.links
+
+    nodes.clear()
+    name = ""
+
+    out = nodes.new("ShaderNodeOutputMaterial")
+    out.label = "Material Output"
+    out.name = name + "_" + "Material Output"
+    out.location = 800, 0
+
+    groupnode = nodes.new("ShaderNodeGroup")
+    groupnode.location = 600, 0
+    groupnode.name = name + "_" + "NodeGroup"
+    groupnode.node_tree = group
+    groupnode.label = "NodeGroup"
+
+    itex = nodes.new("ShaderNodeTexImage")
+    itex.location = 400, 100
+    itex.name = name + "_" + "Image Texture"
+    itex.image = img
+    itex.label = "Image texture"
+
+    texc = nodes.new("ShaderNodeTexCoord")
+    texc.location = 200, 100
+    texc.name = name + "_" + "Texture Coordinate"
+    texc.label = "Texture Coordinate"
+
+    links.new(groupnode.outputs["Shader"], out.inputs["Surface"])
+    links.new(itex.outputs["Color"], groupnode.inputs["Color"])
+    links.new(texc.outputs["UV"], itex.inputs["Vector"])
+
+    return mat
+
+
+def make_material_overlaytract_cycles_group(diffcol, mix=0.04):
+    """Create a basic Cycles material.
+
+    The material mixes difffuse, transparent and glossy.
+    """
+
+    diffuse = {'colour': diffcol, 'roughness': 0.1}
+    glossy = {'colour': (1.0, 1.0, 1.0, 1.0), 'roughness': 0.1}
+
+    scn = bpy.context.scene
+    if not scn.render.engine == "CYCLES":
+        scn.render.engine = "CYCLES"
+
+    group = bpy.data.node_groups.new("TractOvGroup", "ShaderNodeTree")
+    group.inputs.new("NodeSocketColor", "Color")
+    group.outputs.new("NodeSocketShader", "Shader")
+
+    nodes = group.nodes
+    links = group.links
+
+    nodes.clear()
+
+    output_node = nodes.new("NodeGroupOutput")
+    output_node.location = (800, 0)
+
+    mix1 = nodes.new("ShaderNodeMixShader")
+    mix1.label = "Mix Shader"
+    mix1.name = "Mix Shader"
+    mix1.inputs[0].default_value = mix
+    mix1.location = 600, 0
+
+    glos = nodes.new("ShaderNodeBsdfGlossy")
+    glos.label = "Glossy BSDF"
+    glos.name = "Glossy BSDF"
+    glos.inputs[0].default_value = glossy['colour']
+    glos.inputs[1].default_value = glossy['roughness']
+    glos.distribution = "BECKMANN"
+    glos.location = 400, -100
+
+    mix2 = nodes.new("ShaderNodeMixShader")
+    mix2.label = "Mix Shader"
+    mix2.name = "Mix Shader"
+    mix2.inputs[0].default_value = diffuse['colour'][3]
+    mix2.location = 400, 100
+
+    trans = nodes.new("ShaderNodeBsdfTransparent")
+    trans.label = "Transparent BSDF"
+    trans.name = "Transparent BSDF"
+    trans.location = 200, 200
+
+    diff = nodes.new("ShaderNodeBsdfDiffuse")
+    diff.label = "Diffuse BSDF"
+    diff.name = "Diffuse BSDF"
+    diff.inputs[0].default_value = diffuse['colour']
+    diff.inputs[1].default_value = diffuse['roughness']
+    diff.location = 200, 0
+
+    vrgb = nodes.new("ShaderNodeValToRGB")
+    vrgb.label = "ColorRamp"
+    vrgb.name = "ColorRamp"
+    vrgb.location = -100, 100
+
+    elements = vrgb.color_ramp.elements
+    for el in elements[1:]:
+        elements.remove(el)
+    positions = [0.0, 1.0]
+    colors = [(1.0, 0.0, 0.0, 1.0), (0.0, 0.0, 1.0, 1.0)]
+    for p in positions[1:]:
+        elements.new(p)
+    elements.foreach_set("position", positions)
+    for i in range(len(colors)):
+        setattr(elements[i], "color", colors[i])
+
+    srgb = nodes.new("ShaderNodeSeparateRGB")
+    srgb.label = "Separate RGB"
+    srgb.name = "Separate RGB"
+    srgb.location = -300, 100
+
+    input_node = group.nodes.new("NodeGroupInput")
+    input_node.location = (-500, 0)
+
+    links.new(mix1.outputs["Shader"], output_node.inputs[0])
+    links.new(mix2.outputs["Shader"], mix1.inputs[1])
+    links.new(glos.outputs["BSDF"], mix1.inputs[2])
+    links.new(trans.outputs["BSDF"], mix2.inputs[1])
+    links.new(diff.outputs["BSDF"], mix2.inputs[2])
+    links.new(vrgb.outputs["Color"], diff.inputs["Color"])
+    links.new(srgb.outputs["R"], vrgb.inputs["Fac"])
+    links.new(input_node.outputs[0], srgb.inputs["Image"])
+
+    return group
 
 
 def set_colorramp_preset(node, cmapname="r2b", mat=None):

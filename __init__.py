@@ -243,8 +243,12 @@ class TractBlenderImportPanel(Panel):
                     row = subbox.row()
                     row.label(text="Convenience access to colorramp:")
                     row = subbox.row()
-                    mat = bpy.data.materials['vc_' + tb_ov.name]
-                    ramp = mat.node_tree.nodes["_ColorRamp"]
+                    if tb.objecttype == "tracts":
+                        ng = bpy.data.node_groups.get("TractOvGroup")
+                        ramp = ng.nodes["ColorRamp"]
+                    else:
+                        mat = bpy.data.materials['vc_' + tb_ov.name]
+                        ramp = mat.node_tree.nodes["_ColorRamp"]
                     subbox.template_color_ramp(ramp, "color_ramp", expand=True)
 
                 elif ovtype == "labels":

@@ -403,7 +403,8 @@ def prep_nifti(fpath, tmppath, is_label=False, file_format="RAW_8BIT"):
             print("Please supply a 3D nifti volume.")
             return
 
-        data = np.transpose(nii.get_data())
+#         data = np.transpose(nii.get_data())
+        data = nii.get_data()
 
         if is_label:
             mask = data < 0
@@ -447,7 +448,7 @@ def import_scalars(directory, filenames):
     tb = scn.tb
 
     if tb.objecttype == "tracts":
-        pass  # TODO
+        import_tractscalars(directory, filenames)
     elif tb.objecttype == "surfaces":
         import_surfscalars(directory, filenames)
     elif tb.objecttype == "voxelvolumes":
@@ -461,29 +462,54 @@ def import_labels(directory, filenames):
     tb = scn.tb
 
     if tb.objecttype == "tracts":
-        pass  # TODO
+        pass
+#         import_tractlabels(directory, filenames)
     elif tb.objecttype == "surfaces":
         import_surflabels(directory, filenames)
     elif tb.objecttype == "voxelvolumes":
         import_voxoverlay(directory, filenames, True)
 
 
-def import_tractscalars(ob, fpath):
+def import_tractscalars(directory, files):
     """Import scalar overlay on tract object."""
 
-    # TODO: handle what happens on importing multiple objects
-    # TODO: testing and examples
+    if not files:
+        files = os.listdir(directory)
+
+    for f in files:
+        fpath = os.path.join(directory, f)
+
+        tb_ob = tb_utils.active_tb_object()[0]
+        ob = bpy.data.objects[tb_ob.name]
+
+        tb_mat.create_vc_overlay_tract(ob, fpath)
+
+
+def read_tractscalar(fpath):
+    """"""
+
     if fpath.endswith('.npy'):
         scalars = np.load(fpath)
     elif fpath.endswith('.npz'):
         npzfile = np.load(fpath)
         for k in npzfile:
             scalars.append(npzfile[k])
+    elif fpath.endswith('.asc'):
+        # mrtrix convention assumed (1 streamline per line)
+        scalars = []
+        with open(fpath) as f:
+            for line in f:
+                tokens = line.rstrip("\n").split(' ')
+                points = []
+                for token in tokens:
+                    if token:
+                        points.append(float(token))
+                scalars.append(points)
 
     return scalars
 
 
-def import_tractlabels(ob, fpath):
+def import_tractlabels(directory, files):
     """Import label overlay on tract object."""
 
     pass  # TODO
@@ -532,7 +558,7 @@ def import_surflabels(directory, files):
 #         TODO: consider using ob.data.vertex_layers_int.new()??
 
 
-def read_surfscalar(ob, fpath):
+def read_surfscalar(fpath):
     """Read a surface scalar overlay file."""
 
     scn = bpy.context.scene
@@ -565,7 +591,7 @@ def read_surfscalar(ob, fpath):
     return scalars
 
 
-def read_surflabel(ob, fpath, is_label=False):
+def read_surflabel(fpath, is_label=False):
     """Read a surface label overlay file."""
 
     scn = bpy.context.scene
@@ -1026,6 +1052,8 @@ def make_polyline_ob(curvedata, cList):
     for num in range(len(cList)):
         x, y, z = cList[num]
         polyline.points[num].co = (x, y, z, 1)
+    polyline.order_u = len(polyline.points)-1
+    polyline.use_endpoint_u = True
 
 
 # ========================================================================== #
