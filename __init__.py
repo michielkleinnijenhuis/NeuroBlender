@@ -74,9 +74,9 @@ bl_info = {
 
 
 class TractBlenderImportPanel(Panel):
-    """Host the TractBlender import functions"""
-    bl_idname = "OBJECT_PT_tb_import"
-    bl_label = "TractBlender - Imports"
+    """Host the TractBlender geometry import"""
+    bl_idname = "OBJECT_PT_tb_geometry"
+    bl_label = "TractBlender - Geometry"
     bl_space_type = "PROPERTIES"
     bl_region_type = "WINDOW"
     bl_context = "scene"
@@ -88,26 +88,8 @@ class TractBlenderImportPanel(Panel):
 
         if tb.is_enabled:
 
-            self.draw_nibabel(self.layout, tb)
-
             self.draw_tb_ob(self.layout, tb)
 
-            obtype = tb.objecttype
-            try:
-                idx = eval("tb.index_%s" % obtype)
-                tb_ob = eval("tb.%s[%d]" % (obtype, idx))
-            except IndexError:
-                pass
-            else:
-                row = self.layout.row()
-                row.label(text="Properties of %s:" % tb_ob.name)
-                box = self.layout.box()
-
-                self.draw_tb_ov(box, tb, tb_ob)
-
-                self.draw_appearance(box, tb, tb_ob)
-
-                self.draw_additional(box, tb, tb_ob)
         else:
             row = self.layout.row()
             row.label(text="Please use the main scene for TractBlender imports.")
@@ -115,25 +97,6 @@ class TractBlenderImportPanel(Panel):
             row.operator("tb.switch_to_main",
                          text="Switch to main",
                          icon="FORWARD")
-
-
-    def draw_nibabel(self, layout, tb):
-
-        if not tb.nibabel_valid:
-            box = layout.box()
-            row = box.row()
-            row.prop(tb, "nibabel_use")
-            if tb.nibabel_use:
-                row.prop(tb, "nibabel_path")
-                row = box.row()
-                col = row.column()
-                col.prop(tb, "nibabel_valid")
-                col.enabled = False
-                col = row.column()
-                col.operator("tb.make_nibabel_persistent",
-                             text="Make persistent",
-                             icon="LOCKED")
-                col.enabled = tb.nibabel_valid
 
     def draw_tb_ob(self, layout, tb):
 
@@ -144,7 +107,7 @@ class TractBlenderImportPanel(Panel):
         row = layout.row()
         row.prop(tb, "objecttype", expand=True)
         row = layout.row()
-        row.template_list("ObjectList", "",
+        row.template_list("ObjectListOb", "",
                           tb, obtype,
                           tb, "index_" + obtype,
                           rows=2)
@@ -166,46 +129,116 @@ class TractBlenderImportPanel(Panel):
                      icon='TRIA_DOWN',
                      text="").action = 'DOWN_ob'
 
-    def draw_tb_ov(self, box, tb, tb_ob):
 
-        ovtype = tb.overlaytype
+        obtype = tb.objecttype
+        try:
+            idx = eval("tb.index_%s" % obtype)
+            tb_ob = eval("tb.%s[%d]" % (obtype, idx))
+        except IndexError:
+            pass
+        else:
+            row = layout.row()
+            if tb.show_transform_options:
+                row.prop(tb, "show_transform_options",
+                         icon='TRIA_DOWN',
+                         emboss=False)
+                row = layout.row()
+                row.prop(tb_ob, "sformfile")
+    
+                ob = bpy.data.objects[tb_ob.name]
+                mw = ob.matrix_world
+                txts = ["srow_%s  %8.3f %8.3f %8.3f %8.3f" % (dim,
+                        mw[i][0], mw[i][1], mw[i][2], mw[i][3])
+                        for i, dim in enumerate('xyz')]
+                row = layout.row()
+                row.enabled = False
+                row.label(text=txts[0])
+                row = layout.row()
+                row.enabled = False
+                row.label(text=txts[1])
+                row = layout.row()
+                row.enabled = False
+                row.label(text=txts[2])
+            else:
+                row.prop(tb, "show_transform_options",
+                         icon='TRIA_RIGHT',
+                         emboss=False)
 
-        row = box.row()
-        if tb.show_transform_options:
-            row.prop(tb, "show_transform_options",
+
+
+class TractBlenderAppearancePanel(Panel):
+    """Host the TractBlender materials functions"""
+    bl_idname = "OBJECT_PT_tb_materials"
+    bl_label = "TractBlender - Materials"
+    bl_space_type = "PROPERTIES"
+    bl_region_type = "WINDOW"
+    bl_context = "scene"
+
+    def draw(self, context):
+
+        scn = bpy.context.scene
+        tb = scn.tb
+
+        if tb.is_enabled:
+
+            obtype = tb.objecttype
+            try:
+                idx = eval("tb.index_%s" % obtype)
+                tb_ob = eval("tb.%s[%d]" % (obtype, idx))
+            except IndexError:
+                row = self.layout.row()
+                row.label(text="No geometry loaded ...")
+            else:
+                row = self.layout.row()
+                row.label(text="Properties of %s:" % tb_ob.name, 
+                          icon=tb_ob.icon)
+                self.draw_appearance(self.layout, tb, tb_ob)
+                self.draw_tb_ov(self.layout, tb, tb_ob)
+#                 self.draw_additional(self.layout, tb, tb_ob)
+
+        else:
+            row = self.layout.row()
+            row.label(text="Please use the main scene for TractBlender imports.")
+            row = self.layout.row()
+            row.operator("tb.switch_to_main",
+                         text="Switch to main",
+                         icon="FORWARD")
+
+    def draw_appearance(self, layout, tb, tb_ob):
+
+        row = layout.row()
+        if tb.show_appearance_options:
+            row.prop(tb, "show_appearance_options",
                      icon='TRIA_DOWN',
                      emboss=False)
-            row = box.row()
-            row.prop(tb_ob, "sformfile")
-
-            ob = bpy.data.objects[tb_ob.name]
-            mw = ob.matrix_world
-            txts = ["srow_%s  %8.3f %8.3f %8.3f %8.3f" % (dim,
-                    mw[i][0], mw[i][1], mw[i][2], mw[i][3])
-                    for i, dim in enumerate('xyz')]
-            row = box.row()
-            row.enabled = False
-            row.label(text=txts[0])
-            row = box.row()
-            row.enabled = False
-            row.label(text=txts[1])
-            row = box.row()
-            row.enabled = False
-            row.label(text=txts[2])
+            if tb.objecttype != "voxelvolumes":
+                
+                row = layout.row()
+                col1 = row.column()
+                row1 = col1.row()
+                row1.prop(tb_ob, "transparency")
+                row1 = col1.row()
+                row1.prop(tb_ob, "colourpicker")
+                col2 = row.column()
+                col2.prop(tb_ob, "colourtype", expand=True)
         else:
-            row.prop(tb, "show_transform_options",
+            row.prop(tb, "show_appearance_options",
                      icon='TRIA_RIGHT',
                      emboss=False)
 
-        row = box.row()
+    def draw_tb_ov(self, layout, tb, tb_ob):
+
+        ovtype = tb.overlaytype
+
+        row = layout.row()
         if tb.show_overlay_options:
             row.prop(tb, "show_overlay_options",
                      icon='TRIA_DOWN',
                      emboss=False)
-            row = box.row()
+            row = layout.row()
             row.prop(tb, "overlaytype", expand=True)
-            row = box.row()
-            row.template_list("ObjectList", "",
+            row = layout.row()
+            row.template_list("ObjectListOv", "",
                               tb_ob, ovtype,
                               tb_ob, "index_" + ovtype,
                               rows=2)
@@ -233,29 +266,29 @@ class TractBlenderImportPanel(Panel):
                 pass
             else:
                 if ovtype == "scalars":
-                    row = box.row()
+                    row = layout.row()
                     row.enabled = False
                     row.prop(tb_ov, "range")
-                    row = box.row()
+                    row = layout.row()
                     row.prop(tb_ov, "showcolourbar")
 
-                    subbox = box.box()
-                    row = subbox.row()
+                    box = layout.box()
+                    row = box.row()
                     row.label(text="Convenience access to colorramp:")
-                    row = subbox.row()
+                    row = box.row()
                     if tb.objecttype == "tracts":
                         ng = bpy.data.node_groups.get("TractOvGroup")
                         ramp = ng.nodes["ColorRamp"]
                     else:
                         mat = bpy.data.materials['vc_' + tb_ov.name]
                         ramp = mat.node_tree.nodes["_ColorRamp"]
-                    subbox.template_color_ramp(ramp, "color_ramp", expand=True)
+                    box.template_color_ramp(ramp, "color_ramp", expand=True)
 
                 elif ovtype == "labels":
-                    row = box.row()
+                    row = layout.row()
                     row.enabled = False
                     row.prop(tb_ov, "value")
-                    row = box.row()
+                    row = layout.row()
                     col = row.column()
                     col.enabled = False
                     col.label(text="original: ")
@@ -266,10 +299,10 @@ class TractBlenderImportPanel(Panel):
                     col.operator("tb.revert_" + "label",
                                  icon='BACK', text="")
 
-                    subbox = box.box()
-                    row = subbox.row()
+                    box = layout.box()
+                    row = box.row()
                     row.label(text="Convenience access to material:")
-                    row = subbox.row()
+                    row = box.row()
                     mat = bpy.data.materials[tb_ov.name]
                     colour = mat.node_tree.nodes["_Diffuse BSDF"].inputs[0]
                     row.prop(colour, "default_value", text="Colour")
@@ -281,34 +314,14 @@ class TractBlenderImportPanel(Panel):
                      icon='TRIA_RIGHT',
                      emboss=False)
 
-    def draw_appearance(self, box, tb, tb_ob):
+    def draw_additional(self, layout, tb, tb_ob):
 
-        row = box.row()
-        if tb.show_appearance_options:
-            row.prop(tb, "show_appearance_options",
-                     icon='TRIA_DOWN',
-                     emboss=False)
-            if tb.objecttype != "voxelvolumes":
-                row = box.row()
-                row.label(text="Add preset material: ")
-                row = box.row()
-                row.prop(tb_ob, "colourpicker")
-                row.prop(tb_ob, "transparency")
-                col = box.column()
-                col.prop(tb_ob, "colourtype", expand=True)
-        else:
-            row.prop(tb, "show_appearance_options",
-                     icon='TRIA_RIGHT',
-                     emboss=False)
-
-    def draw_additional(self, box, tb, tb_ob):
-
-        row = box.row()
+        row = layout.row()
         if tb.show_additional_options:
             row.prop(tb, "show_additional_options",
                      icon='TRIA_DOWN',
                      emboss=False)
-            row = box.row()
+            row = layout.row()
             row.enabled = False
             row.prop(tb_ob, "beautified")
             if tb.objecttype == 'tracts':
@@ -338,30 +351,31 @@ class SwitchToMainScene(Operator):
         return {"FINISHED"}
 
 
-class MakeNibabelPersistent(Operator):
-    bl_idname = "tb.make_nibabel_persistent"
-    bl_label = "Make nibabel persistent"
-    bl_description = "Add script to /scripts/startup/ that loads shadow-python"
-    bl_options = {"REGISTER"}
+class ObjectListOb(UIList):
 
-    def execute(self, context):
+    def draw_item(self, context, layout, data, item, icon,
+                  active_data, active_propname, index):
 
-        scn = context.scene
-        tb = scn.tb
+        if item.isvalid:
+            item_icon = item.icon
+        else:
+            item_icon = "CANCEL"
 
-        addon_dir = dirname(__file__)
-        tb_dir = dirname(addon_dir)
-        scripts_dir = dirname(dirname(dirname(bpy.__file__)))
-        startup_dir = join(scripts_dir, 'startup')
-        basename = 'external_sitepackages'
-        with open(join(startup_dir, basename + '.txt'), 'w') as f:
-            f.write(scn.tb.nibabel_path)
-        copy(join(addon_dir, basename + '.py'), startup_dir)
+        if self.layout_type in {'DEFAULT', 'COMPACT'}:
+            col = layout.column()
+            col.prop(item, "name", text="", emboss=False,
+                        translate=False, icon=item_icon)
+            col = layout.column()
+            col.alignment =  "RIGHT"
+            col.active = item.is_rendered
+            col.prop(item, "is_rendered", text="", emboss=False,
+                     translate=False, icon='SCENE')
+        elif self.layout_type in {'GRID'}:
+            layout.alignment = 'CENTER'
+            layout.prop(text="", icon=item_icon)
 
-        return {"FINISHED"}
 
-
-class ObjectList(UIList):
+class ObjectListOv(UIList):
 
     def draw_item(self, context, layout, data, item, icon,
                   active_data, active_propname, index):
@@ -843,10 +857,10 @@ class RevertLabel(Operator):
         return {"FINISHED"}
 
 
-class TractBlenderInteractPanel(Panel):
-    """Host the TractBlender mesh interactions"""
-    bl_idname = "OBJECT_PT_tb_interact"
-    bl_label = "TractBlender - Interact"
+class TractBlenderScenePanel(Panel):
+    """Host the TractBlender scene setup functionality"""
+    bl_idname = "OBJECT_PT_tb_scene"
+    bl_label = "TractBlender - Scene setup"
     bl_space_type = "PROPERTIES"
     bl_region_type = "WINDOW"
     bl_context = "scene"
@@ -878,7 +892,7 @@ class TractBlenderInteractPanel(Panel):
                          icon="WORLD")
         else:
             row = self.layout.row()
-            row.label(text="No brain data loaded ...")
+            row.label(text="No geometry loaded ...")
 
 #         if len(sobs) == 1:
 #             row = self.layout.row()
@@ -922,6 +936,73 @@ class VertexColourFromVertexGroups(Operator):
 
     def execute(self, context):
         tb_mat.vgs2vc()
+
+        return {"FINISHED"}
+
+
+class TractBlenderSettingsPanel(Panel):
+    """Host the TractBlender settings"""
+    bl_idname = "OBJECT_PT_tb_settings"
+    bl_label = "TractBlender - Settings"
+    bl_space_type = "PROPERTIES"
+    bl_region_type = "WINDOW"
+    bl_context = "scene"
+
+    def draw(self, context):
+
+        scn = context.scene
+        tb = scn.tb
+
+        if tb.is_enabled:
+
+            self.draw_nibabel(self.layout, tb)
+
+        else:
+            row = self.layout.row()
+            row.label(text="Please use the main scene for TractBlender imports.")
+            row = self.layout.row()
+            row.operator("tb.switch_to_main",
+                         text="Switch to main",
+                         icon="FORWARD")
+
+    def draw_nibabel(self, layout, tb):
+
+#         if not tb.nibabel_valid:
+        box = layout.box()
+        row = box.row()
+        row.prop(tb, "nibabel_use")
+        if tb.nibabel_use:
+            row.prop(tb, "nibabel_path")
+            row = box.row()
+            col = row.column()
+            col.prop(tb, "nibabel_valid")
+            col.enabled = False
+            col = row.column()
+            col.operator("tb.make_nibabel_persistent",
+                         text="Make persistent",
+                         icon="LOCKED")
+            col.enabled = tb.nibabel_valid
+
+
+class MakeNibabelPersistent(Operator):
+    bl_idname = "tb.make_nibabel_persistent"
+    bl_label = "Make nibabel persistent"
+    bl_description = "Add script to /scripts/startup/ that loads shadow-python"
+    bl_options = {"REGISTER"}
+
+    def execute(self, context):
+
+        scn = context.scene
+        tb = scn.tb
+
+        addon_dir = dirname(__file__)
+        tb_dir = dirname(addon_dir)
+        scripts_dir = dirname(dirname(dirname(bpy.__file__)))
+        startup_dir = join(scripts_dir, 'startup')
+        basename = 'external_sitepackages'
+        with open(join(startup_dir, basename + '.txt'), 'w') as f:
+            f.write(scn.tb.nibabel_path)
+        copy(join(addon_dir, basename + '.py'), startup_dir)
 
         return {"FINISHED"}
 
@@ -1002,14 +1083,14 @@ def material_enum_callback(self, context):
     items = []
     items.append(("none", "none", 
                   "Add an empty material", 1))
-    items.append(("golden_angle", "golden_angle",
-                  "Add a material with golden angle colour increment", 2))
-    items.append(("primary6", "primary6",
-                  "Add a material of the primary6 set", 3))
-    items.append(("random", "random",
-                  "Add a material with a randomly picked colour", 4))
     items.append(("pick", "pick",
-                  "Add a material with the chosen colour", 5))
+                  "Add a material with the chosen colour", 2))
+    items.append(("golden_angle", "golden angle",
+                  "Add a material with golden angle colour increment", 3))
+    items.append(("primary6", "primary6",
+                  "Add a material of the primary6 set", 4))
+    items.append(("random", "random",
+                  "Add a material with a randomly picked colour", 5))
     if ob.type == "MESH":
         attrib = ob.data.vertex_colors
     elif ob.type == "CURVE":
@@ -1298,7 +1379,7 @@ class SurfaceProperties(PropertyGroup):
         min=0)
 
     colourtype = EnumProperty(
-        name="",
+        name="colourtype",
         description="Apply this colour method",
         items=material_enum_callback,
         update=material_enum_update)
@@ -1443,9 +1524,9 @@ class TractBlenderProperties(PropertyGroup):
         default=False,
         description="Show/hide the object's overlay options")
     show_appearance_options = BoolProperty(
-        name="Appearance",
+        name="Preset materials",
         default=False,
-        description="Show/hide the object's appearance options")
+        description="Show/hide the object's preset materials options")
     show_additional_options = BoolProperty(
         name="Additional options",
         default=False,
@@ -1565,11 +1646,9 @@ def register():
     bpy.utils.register_module(__name__)
     bpy.types.Scene.tb = PointerProperty(type=TractBlenderProperties)
 
-
 def unregister():
     bpy.utils.unregister_module(__name__)
     bpy.types.Scene.tb
-
 
 if __name__ == "__main__":
     register()
