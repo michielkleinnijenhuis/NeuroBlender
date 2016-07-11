@@ -83,6 +83,12 @@ def scene_preset(name="Brain", layer=10):
     scn.cycles.caustics_refractive = False
     scn.cycles.caustics_reflective = False
 
+    # select the right material(s) for each polygon
+    renderselections_objects(tb.tracts)  # TODO overlays
+    renderselections_objects(tb.surfaces)
+#     renderselections_objects(tb.voxelvolumes)  # TODO
+    # handle double vertexgroups
+
     # TODO: add colourbars
     preset_obs = [preset] + [centre] + [table] + [cam] + [lights] + list(lights.children)
     tracts = [bpy.data.objects[tb_ob.name] for tb_ob in tb.tracts]
@@ -102,6 +108,35 @@ def scene_preset(name="Brain", layer=10):
     to_camera_view()
 
     return {'FINISHED'}
+
+
+def renderselections_objects(tb_obs):
+    """"""
+
+    for tb_ob in tb_obs:
+        ob = bpy.data.objects[tb_ob.name]
+        ob.hide_render = not tb_ob.is_rendered
+
+        vgs_s, mat_idxs_s = renderselections_overlays(ob, tb_ob.scalars,
+                                                      matprefix="vc_")
+        vgs_l, mat_idxs_l = renderselections_overlays(ob, tb_ob.labels)
+        tb_mat.assign_materialslots_to_faces(ob,
+                                             vgs_s + vgs_l,
+                                             mat_idxs_s + mat_idxs_l)
+
+
+def renderselections_overlays(ob, tb_ovs, vgs=[], mat_idxs=[], matprefix=""):
+    """"""
+
+    vgs = []
+    mat_idxs = []
+    for tb_ov in tb_ovs:
+        if tb_ov.is_rendered:
+            name = matprefix + tb_ov.name
+            vgs.append(ob.vertex_groups[tb_ov.name])
+            mat_idxs.append(ob.material_slots.find(name))
+
+    return vgs, mat_idxs
 
 
 def to_camera_view():
