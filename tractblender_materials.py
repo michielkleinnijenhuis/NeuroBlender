@@ -145,7 +145,7 @@ def get_golden_angle_colour(i):
 # ========================================================================== #
 
 
-def create_vc_overlay_tract(ob, fpath, is_label=False):
+def create_vc_overlay_tract(ob, fpath, name="", is_label=False):
     """Create scalar overlay for a surface object."""
 
     nn_scalars = tb_imp.read_tractscalar(fpath)
@@ -157,7 +157,7 @@ def create_vc_overlay_tract(ob, fpath, is_label=False):
     scalarrange = datamin, datamax
     scalars = [(np.array(s) - datamin) / (datamax-datamin) for s in nn_scalars]
 
-    vgname = tb_utils.check_name("", fpath, checkagainst=ob.vertex_groups)
+    vgname = tb_utils.check_name(name, fpath, checkagainst=ob.vertex_groups)
 
 #     set_curve_weights(ob, vgname, label=None, scalars=scalars)
 
@@ -168,7 +168,7 @@ def create_vc_overlay_tract(ob, fpath, is_label=False):
     group = make_material_overlaytract_cycles_group(diffcol, mix=0.04)
     i = 0
     for spline, scalar in zip(ob.data.splines, scalars):
-        name = ob.name + 'spline' + str(i).zfill(10)
+        name = ob.name + '_' + vgname + '_spline' + str(i).zfill(8)
         img = create_overlay_tract_img(name, scalar)
         mat = make_material_overlaytract_cycles_withgroup(name, img, group)
         ob.data.materials.append(mat)
@@ -196,13 +196,13 @@ def set_curve_weights(ob, name, label=None, scalars=None):
             point.co[3] = val
 
 
-def create_vc_overlay(ob, fpath, is_label=False):
+def create_vc_overlay(ob, fpath, name="", is_label=False):
     """Create scalar overlay for a surface object."""
 
     scalars = tb_imp.read_surfscalar(fpath)
     scalars, scalarrange = tb_imp.normalize_data(scalars)
 
-    vgname = tb_utils.check_name("", fpath, checkagainst=ob.vertex_groups)
+    vgname = tb_utils.check_name(name, fpath, checkagainst=ob.vertex_groups)
 
     vg = set_vertex_group(ob, vgname, label=None, scalars=scalars)
 
@@ -224,7 +224,7 @@ def create_vc_overlay(ob, fpath, is_label=False):
 #     map_to_uv(ob, uvname=uvname, img=img)
 
 
-def create_vg_annot(ob, fpath):
+def create_vg_annot(ob, fpath, name=""):
     """Import an annotation file to vertex groups.
     
     TODO: decide what is the best approach:
@@ -237,7 +237,10 @@ def create_vg_annot(ob, fpath):
 
     labels, ctab, names = tb_imp.read_surfannot(fpath)
 
-    basename = os.path.basename(fpath)
+    if name:
+        basename = name
+    else:
+        basename = os.path.basename(fpath)
     vgs = []
     mats = []
     for i, labelname in enumerate(names):
@@ -263,7 +266,7 @@ def create_vg_annot(ob, fpath):
     set_materials_to_vertexgroups(ob, vgs, mats)
 
 
-def create_vg_overlay(ob, fpath, is_label=False, trans=1):
+def create_vg_overlay(ob, fpath, name="", is_label=False, trans=1):
     """Create label/scalar overlay from a labelfile.
 
     Note that a (freesurfer) labelfile can contain scalars.
@@ -275,8 +278,7 @@ def create_vg_overlay(ob, fpath, is_label=False, trans=1):
 
     label, scalars = tb_imp.read_surflabel(fpath, is_label)
 
-    vgname = tb_utils.check_name(name="", fpath=fpath,
-                                 checkagainst=ob.vertex_groups)
+    vgname = tb_utils.check_name(name, fpath, checkagainst=ob.vertex_groups)
 
     if scalars is not None:
         vgscalars, scalarrange = tb_imp.normalize_data(scalars)

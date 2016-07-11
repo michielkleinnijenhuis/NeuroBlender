@@ -460,7 +460,7 @@ class ObjectListOperations(Operator):
                         if vg is not None:
                             ob.vertex_groups.remove(vg)
 
-                        vc = ob.data.vertex_colors.get("vc_" + name)
+                        vc = ob.data.vertex_colors.get("vc_" + name)  #FIXME: no "vc_" in case of tract
                         if vc is not None:
                             ob.data.vertex_colors.remove(vc)
 
@@ -731,9 +731,14 @@ class ImportScalars(Operator, ImportHelper):
     files = CollectionProperty(name="Filepath",
                                type=OperatorFileListElement)
 
+    name = StringProperty(
+        name="Name",
+        description="Specify a name for the object (default: filename)",
+        default="")
+
     def execute(self, context):
         filenames = [file.name for file in self.files]
-        tb_imp.import_scalars(self.directory, filenames)
+        tb_imp.import_scalars(self.directory, filenames, self.name)
 
         return {"FINISHED"}
 
@@ -753,9 +758,14 @@ class ImportLabels(Operator, ImportHelper):
     files = CollectionProperty(name="Filepath",
                                type=OperatorFileListElement)
 
+    name = StringProperty(
+        name="Name",
+        description="Specify a name for the object (default: filename)",
+        default="")
+
     def execute(self, context):
         filenames = [file.name for file in self.files]
-        tb_imp.import_labels(self.directory, filenames)
+        tb_imp.import_labels(self.directory, filenames, self.name)
 
         return {"FINISHED"}
 
@@ -870,50 +880,59 @@ class TractBlenderScenePanel(Panel):
         scn = context.scene
         tb = scn.tb
 
-        obs = [ob for ob in bpy.data.objects
-               if ob.type not in ["CAMERA", "LAMP", "EMPTY"]]
-        sobs = context.selected_objects
+        if tb.is_enabled:
 
-        if obs:
-            row = self.layout.row()
-            col = row.column()
-            col.prop(tb, "cam_view_enum")
-            col = row.column()
-            col.enabled = not tb.cam_view_enum == "Numeric"
-            col.prop(tb, "cam_distance")
-            row = self.layout.row()
-            row.prop(tb, "cam_view")
-            row.enabled = tb.cam_view_enum == "Numeric"
-            row = self.layout.row()
-            row.separator()
-            row = self.layout.row()
-            row.operator("tb.scene_preset",
-                         text="Load scene preset",
-                         icon="WORLD")
+            obs = [ob for ob in bpy.data.objects
+                   if ob.type not in ["CAMERA", "LAMP", "EMPTY"]]
+            sobs = context.selected_objects
+
+            if obs:
+                row = self.layout.row()
+                col = row.column()
+                col.prop(tb, "cam_view_enum")
+                col = row.column()
+                col.enabled = not tb.cam_view_enum == "Numeric"
+                col.prop(tb, "cam_distance")
+                row = self.layout.row()
+                row.prop(tb, "cam_view")
+                row.enabled = tb.cam_view_enum == "Numeric"
+                row = self.layout.row()
+                row.separator()
+                row = self.layout.row()
+                row.operator("tb.scene_preset",
+                             text="Load scene preset",
+                             icon="WORLD")
+            else:
+                row = self.layout.row()
+                row.label(text="No geometry loaded ...")
+
+#             if len(sobs) == 1:
+#                 row = self.layout.row()
+#                 row.separator()
+#                 row = self.layout.row()
+#                 row.label(text="Add preset material: ")
+#                 row.prop(tb, "colourpicker")
+#                 col = self.layout.column()
+#                 col.prop(tb, "colourtype", expand=True)
+#             if (len(sobs) == 1) and sobs[0].vertex_groups:
+#                 row = self.layout.row()
+#                 row.separator()
+#                 row = self.layout.row()
+#                 row.label(text="Combine overlays/labels: ")
+#                 row = self.layout.row()
+#                 row.prop(tb, "vgs2vc")
+#                 row = self.layout.row()
+#                 row.operator("tb.vertexcolour_from_vertexgroups",
+#                              text="Blend to vertexcolours",
+#                              icon="COLOR")
+
         else:
             row = self.layout.row()
-            row.label(text="No geometry loaded ...")
-
-#         if len(sobs) == 1:
-#             row = self.layout.row()
-#             row.separator()
-#             row = self.layout.row()
-#             row.label(text="Add preset material: ")
-#             row.prop(tb, "colourpicker")
-#             col = self.layout.column()
-#             col.prop(tb, "colourtype", expand=True)
-
-#         if (len(sobs) == 1) and sobs[0].vertex_groups:
-#             row = self.layout.row()
-#             row.separator()
-#             row = self.layout.row()
-#             row.label(text="Combine overlays/labels: ")
-#             row = self.layout.row()
-#             row.prop(tb, "vgs2vc")
-#             row = self.layout.row()
-#             row.operator("tb.vertexcolour_from_vertexgroups",
-#                          text="Blend to vertexcolours",
-#                          icon="COLOR")
+            row.label(text="Please use the main scene for TractBlender imports.")
+            row = self.layout.row()
+            row.operator("tb.switch_to_main",
+                         text="Switch to main",
+                         icon="FORWARD")
 
 
 class ScenePreset(Operator):

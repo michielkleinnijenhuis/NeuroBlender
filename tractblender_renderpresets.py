@@ -84,8 +84,9 @@ def scene_preset(name="Brain", layer=10):
     scn.cycles.caustics_reflective = False
 
     # select the right material(s) for each polygon
-    renderselections_objects(tb.tracts)  # TODO overlays
-    renderselections_objects(tb.surfaces)
+    # TODO? clear all rendering materials first?
+    renderselections_tracts(tb.tracts)
+    renderselections_surfaces(tb.surfaces)
 #     renderselections_objects(tb.voxelvolumes)  # TODO
     # handle double vertexgroups
 
@@ -110,15 +111,28 @@ def scene_preset(name="Brain", layer=10):
     return {'FINISHED'}
 
 
-def renderselections_objects(tb_obs):
+def renderselections_tracts(tb_obs):
+    """"""
+
+    for tb_ob in tb_obs:
+        ob = bpy.data.objects[tb_ob.name]
+        ob.hide_render = not tb_ob.is_rendered
+        # TODO: tract labels
+        for tb_ov in tb_ob.scalars:
+            if tb_ov.is_rendered:
+                prefix = ob.name + '_' + tb_ov.name + '_spline'
+                for i, spline in enumerate(ob.data.splines):
+                    spline.material_index = ob.material_slots.find(prefix + str(i).zfill(8))
+
+
+def renderselections_surfaces(tb_obs):
     """"""
 
     for tb_ob in tb_obs:
         ob = bpy.data.objects[tb_ob.name]
         ob.hide_render = not tb_ob.is_rendered
 
-        vgs_s, mat_idxs_s = renderselections_overlays(ob, tb_ob.scalars,
-                                                      matprefix="vc_")
+        vgs_s, mat_idxs_s = renderselections_overlays(ob, tb_ob.scalars, matprefix="vc_")
         vgs_l, mat_idxs_l = renderselections_overlays(ob, tb_ob.labels)
         tb_mat.assign_materialslots_to_faces(ob,
                                              vgs_s + vgs_l,

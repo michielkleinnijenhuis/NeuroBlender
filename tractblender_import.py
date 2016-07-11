@@ -441,21 +441,21 @@ def prep_nifti(fpath, tmppath, is_label=False, file_format="RAW_8BIT"):
     return dims, datarange, labels, img
 
 
-def import_scalars(directory, filenames):
+def import_scalars(directory, filenames, name=""):
     """Import overlay as continuous scalars."""
 
     scn = bpy.context.scene
     tb = scn.tb
 
     if tb.objecttype == "tracts":
-        import_tractscalars(directory, filenames)
+        import_tractscalars(directory, filenames, name=name)
     elif tb.objecttype == "surfaces":
-        import_surfscalars(directory, filenames)
+        import_surfscalars(directory, filenames, name=name)
     elif tb.objecttype == "voxelvolumes":
-        import_voxoverlay(directory, filenames, False)
+        import_voxoverlay(directory, filenames, name=name)
 
 
-def import_labels(directory, filenames):
+def import_labels(directory, filenames, name=""):
     """Import overlay as discrete labels."""
 
     scn = bpy.context.scene
@@ -463,14 +463,14 @@ def import_labels(directory, filenames):
 
     if tb.objecttype == "tracts":
         pass
-#         import_tractlabels(directory, filenames)
+#         import_tractlabels(directory, filenames)  # TODO
     elif tb.objecttype == "surfaces":
-        import_surflabels(directory, filenames)
+        import_surflabels(directory, filenames, name=name)
     elif tb.objecttype == "voxelvolumes":
-        import_voxoverlay(directory, filenames, True)
+        import_voxoverlay(directory, filenames, name=name, is_label=True)
 
 
-def import_tractscalars(directory, files):
+def import_tractscalars(directory, files, name=""):
     """Import scalar overlay on tract object."""
 
     if not files:
@@ -482,7 +482,7 @@ def import_tractscalars(directory, files):
         tb_ob = tb_utils.active_tb_object()[0]
         ob = bpy.data.objects[tb_ob.name]
 
-        tb_mat.create_vc_overlay_tract(ob, fpath)
+        tb_mat.create_vc_overlay_tract(ob, fpath, name=name)
 
 
 def read_tractscalar(fpath):
@@ -509,13 +509,13 @@ def read_tractscalar(fpath):
     return scalars
 
 
-def import_tractlabels(directory, files):
+def import_tractlabels(directory, files, name=""):
     """Import label overlay on tract object."""
 
     pass  # TODO
 
 
-def import_surfscalars(directory, files):
+def import_surfscalars(directory, files, name=""):
     """Import scalar overlay on surface object."""
 
     # TODO: handle timeseries
@@ -529,12 +529,12 @@ def import_surfscalars(directory, files):
         ob = bpy.data.objects[tb_ob.name]
 
         if fpath.endswith('.label'):  # but not treated as a label
-            tb_mat.create_vg_overlay(ob, fpath, is_label=False)
+            tb_mat.create_vg_overlay(ob, fpath, name=name, is_label=False)
         else:  # assumed scalar overlay
-            tb_mat.create_vc_overlay(ob, fpath)
+            tb_mat.create_vc_overlay(ob, fpath, name=name)
 
 
-def import_surflabels(directory, files):
+def import_surflabels(directory, files, name=""):
     """Import label overlay on surface object."""
 
     if not files:
@@ -547,14 +547,14 @@ def import_surflabels(directory, files):
         ob = bpy.data.objects[tb_ob.name]
 
         if fpath.endswith('.label'):
-            tb_mat.create_vg_overlay(ob, fpath, is_label=True)
+            tb_mat.create_vg_overlay(ob, fpath, name=name, is_label=True)
         elif fpath.endswith('.annot'):
-            tb_mat.create_vg_annot(ob, fpath)
+            tb_mat.create_vg_annot(ob, fpath, name=name)
         elif fpath.endswith('.gii'):
             # TODO: figure out from gifti if it is annot or label
-            tb_mat.create_vg_annot(ob, fpath)
+            tb_mat.create_vg_annot(ob, fpath, name=name)
         else:  # assumed scalar overlay type with integer labels??
-            tb_mat.create_vc_overlay(ob, fpath)
+            tb_mat.create_vc_overlay(ob, fpath, name=name)
 #         TODO: consider using ob.data.vertex_layers_int.new()??
 
 
@@ -685,14 +685,13 @@ def read_surfannot_gifti(fpath):
         print('nibabel required for reading .annot files')
 
 
-def import_voxoverlay(directory, filenames, is_label):
+def import_voxoverlay(directory, filenames, name="", is_label=False):
     """Import an overlay on a voxelvolume."""
 
     scn = bpy.context.scene
     tb = scn.tb
 
     # TODO: handle invalid selections
-    name = ""
     sformfile = ""
     tb_ob, _ = tb_utils.active_tb_object()
     ob = import_voxelvolume(directory, filenames, name,
