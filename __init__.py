@@ -1275,7 +1275,7 @@ class TractProperties(PropertyGroup):
         min=0)
 
     colourtype = EnumProperty(
-        name="",
+        name="colourtype",
         description="Apply this colour method",
         items=material_enum_callback,
         update=material_enum_update)
@@ -1464,7 +1464,7 @@ class VoxelvolumeProperties(PropertyGroup):
         min=0)
 
     colourtype = EnumProperty(
-        name="",
+        name="colourtype",
         description="Apply this colour method",
         items=material_enum_callback,
         update=material_enum_update)
