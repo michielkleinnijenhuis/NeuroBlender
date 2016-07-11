@@ -209,7 +209,19 @@ def create_vc_overlay(ob, fpath, is_label=False):
     tb_imp.add_scalar_to_collection(vgname, scalarrange)
 
     map_to_vertexcolours(ob, vcname='vc_'+vgname, vgs=[vg])
-#     map_to_uv(ob, uvname='uv_'+vgname, vgs=[vg])
+
+    # NOTE: UV is useless without proper flatmaps ...
+#     uvname = 'uv_'+vgname
+#     #img = create_overlay_tract_img(uvname, scalars)
+#     nverts = len(ob.data.vertices)
+#     imsize = np.ceil(np.sqrt(nverts))
+#     img = bpy.data.images.new(uvname, imsize, imsize)
+#     scalars = np.append(scalars, [0] * (imsize**2 - nverts))
+#     vals = [[val, val, val, 1.0] for val in scalars]
+#     pixels = [chan for px in vals for chan in px]
+#     img.pixels = pixels
+#     img.source = 'GENERATED'
+#     map_to_uv(ob, uvname=uvname, img=img)
 
 
 def create_vg_annot(ob, fpath):
@@ -430,7 +442,6 @@ def assign_vc(ob, vertexcolours, vgs=None,
     """Assign RGB values to the vertex_colors attribute.
 
     TODO: find better ways to handle multiple assignments to vertexgroups
-    TODO: speed-up
     """
 
     tb_ob = tb_utils.active_tb_object()[0]
@@ -933,7 +944,7 @@ def make_material_overlay_cycles(name, vcname):
     vrgb.name = name + "_" + "ColorRamp"
     vrgb.location = 100, 100
 
-    set_colorramp_preset(vrgb, mat=mat)
+    set_colorramp_preset(vrgb, mat=mat, prefix='vc_')
 
     srgb = nodes.new("ShaderNodeSeparateRGB")
     srgb.label = "Separate RGB"
@@ -962,6 +973,82 @@ def make_material_overlay_cycles(name, vcname):
     links.new(vrgb.outputs["Color"], diff.inputs["Color"])
     links.new(srgb.outputs["R"], vrgb.inputs["Fac"])
     links.new(attr.outputs["Color"], srgb.inputs["Image"])
+
+    return mat
+
+
+def make_material_uvoverlay_cycles(name, vcname, img):
+    """Create a Cycles material for colourramped vertexcolour rendering."""
+
+    scn = bpy.context.scene
+    if not scn.render.engine == "CYCLES":
+        scn.render.engine = "CYCLES"
+
+    mat = (bpy.data.materials.get(name) or
+           bpy.data.materials.new(name))
+    mat.use_nodes = True
+    mat.use_vertex_color_paint = True
+    mat.use_vertex_color_light = True
+
+    nodes = mat.node_tree.nodes
+    links = mat.node_tree.links
+
+    nodes.clear()
+    name = ""
+
+    out = nodes.new("ShaderNodeOutputMaterial")
+    out.label = "Material Output"
+    out.name = name + "_" + "Material Output"
+    out.location = 800, 0
+
+    mix1 = nodes.new("ShaderNodeMixShader")
+    mix1.label = "Mix Shader"
+    mix1.name = name + "_" + "Mix Shader"
+    mix1.inputs[0].default_value = 0.04
+    mix1.location = 600, 0
+
+    glos = nodes.new("ShaderNodeBsdfGlossy")
+    glos.label = "Glossy BSDF"
+    glos.name = name + "_" + "Glossy BSDF"
+    glos.inputs[1].default_value = 0.15
+    glos.distribution = "BECKMANN"
+    glos.location = 400, -100
+
+    diff = nodes.new("ShaderNodeBsdfDiffuse")
+    diff.label = "Diffuse BSDF"
+    diff.name = name + "_" + "Diffuse BSDF"
+    diff.location = 400, 100
+
+    vrgb = nodes.new("ShaderNodeValToRGB")
+    vrgb.label = "ColorRamp"
+    vrgb.name = name + "_" + "ColorRamp"
+    vrgb.location = 100, 100
+
+    set_colorramp_preset(vrgb, mat=mat, prefix='uv_')
+
+    srgb = nodes.new("ShaderNodeSeparateRGB")
+    srgb.label = "Separate RGB"
+    srgb.name = name + "_" + "Separate RGB"
+    srgb.location = -300, 100
+
+    itex = nodes.new("ShaderNodeTexImage")
+    itex.location = 600, 100
+    itex.name = name + "_" + "Image Texture"
+    itex.image = img
+    itex.label = "Image texture"
+
+    texc = nodes.new("ShaderNodeTexCoord")
+    texc.location = 800, 100
+    texc.name = name + "_" + "Texture Coordinate"
+    texc.label = "Texture Coordinate"
+
+    links.new(mix1.outputs["Shader"], out.inputs["Surface"])
+    links.new(glos.outputs["BSDF"], mix1.inputs[2])
+    links.new(diff.outputs["BSDF"], mix1.inputs[1])
+    links.new(vrgb.outputs["Color"], diff.inputs["Color"])
+    links.new(srgb.outputs["R"], vrgb.inputs["Fac"])
+    links.new(itex.outputs["Color"], srgb.inputs["Image"])
+    links.new(texc.outputs["UV"], itex.inputs["Vector"])
 
     return mat
 
@@ -1101,7 +1188,7 @@ def make_material_overlaytract_cycles_group(diffcol, mix=0.04):
     return group
 
 
-def set_colorramp_preset(node, cmapname="r2b", mat=None):
+def set_colorramp_preset(node, cmapname="r2b", mat=None, prefix='vc_'):
     """Set a colourramp node to a preset."""
 
     tb_ob = tb_utils.active_tb_object()[0]
@@ -1114,7 +1201,7 @@ def set_colorramp_preset(node, cmapname="r2b", mat=None):
 
     if (cmapname == "fscurv") | (mat.name.endswith(".curv")):
         i = 0
-        while 'vc_' + scalarslist[i].name != mat.name:
+        while prefix + scalarslist[i].name != mat.name:
             i += 1
         sr = scalarslist[i].range
         positions = [(-sr[0]-0.2)/(sr[1]-sr[0]),
@@ -1245,9 +1332,7 @@ def create_colourbar(name="Colourbar", width=1., height=0.1):
 # ========================================================================== #
 
 
-def map_to_uv(ob, uvname="", fpath="",
-              vgs=None, is_label=False,
-              colourtype=""):
+def map_to_uv(ob, uvname="", fpath="", img=None):
     """"""
 
     # need a unique name (same for "Vertex Colors" and "Material")
@@ -1257,59 +1342,26 @@ def map_to_uv(ob, uvname="", fpath="",
     materials = bpy.data.materials
     uvname = tb_utils.check_name(uvname, fpath, checkagainst=materials)
 
-    mat = get_vc_material(ob, uvname, fpath, colourtype, is_label)
+    mat = make_material_uvoverlay_cycles(uvname, uvname, img)
+
     set_materials(ob.data, mat)
-    ob.data.uv_textures.new(uvname)
-    ob = assign_uv(ob, uv, vgs, colourtype, is_label)
-#
-#     if not is_label:
-#         cbar, vg = get_color_bar(name=vcname + "_colourbar")
-#         set_materials(cbar.data, mat)
-#         uv = get_uv(cbar, uvname, fpath)
-#         assign_uv(cbar, uv, [vg], colourtype, is_label)
+    uv = ob.data.uv_textures.new(uvname)
+    uv_map = ob.data.uv_layers.active.data
+    ob = assign_uv(ob, uv_map)
 
 
-def get_uv(ob, name="", fpath=""):
-    """Create a new uv layer."""
-
-    ob.data.uv_textures.new(name)
-#     uv_layer = ob.data.loops.layers.uv[0]
-#     ob.data.uv_layers.active = uv_layer
-
-    return uv_layer
-
-
-def assign_uv(ob, vertexcolours, vgs=None,
-              colourtype="", is_label=False):
-    """Assign RGB values to the vertex_colors attribute."""
-
-    tb = bpy.context.scene.tb
-    obtype = tb.objecttype
-    idx = eval("tb.index_%s" % obtype)
-    tb_ob = eval("tb.%s[%d]" % (obtype, idx))
-
-    if vgs is not None:
-        group_lookup = {g.index: g.name for g in vgs}
+def assign_uv(ob, uv_map):
+    """"""
 
     me = ob.data
-    i = 0
+    nverts = len(me.vertices)
+    imsize = np.ceil(np.sqrt(nverts))
     for poly in me.polygons:
         for idx in poly.loop_indices:
             vi = ob.data.loops[idx].vertex_index
-#             print(uv_layer[idx].uv)
-#             uv_layer[idx].uv = ...  # get from flatmap
-#             if colourtype == "directional":
-#                 rgb = me.vertices[vi].normal
-#             elif is_label:
-#                 rgb = vertexcolour_fromlabel(me.vertices[vi],
-#                                              vgs, group_lookup, tb_ob.labels)
-#             else:
-#                 w = sum_vertexweights(me.vertices[vi], vgs, group_lookup)
-# #                 rgb = weights_to_colour(w)
-#                 rgb = (w, w, w)
-#                 # map_rgb_value(scalars[vi], colourmapping)
-#             vertexcolours.data[i].color = rgb  # TODO: foreach_set?
-#             i += 1
+            uvcoord = divmod(vi, imsize)
+            uvcoord = [(uvcoord[1] + 0.5)/imsize, (uvcoord[0] + 0.5)/imsize]
+            uv_map[idx].uv = mathutils.Vector(uvcoord)
     me.update()
 
     return ob
