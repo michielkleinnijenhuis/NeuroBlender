@@ -28,6 +28,7 @@ import mathutils
 from random import sample
 import tempfile
 import random
+import xml.etree.ElementTree
 
 from . import tractblender_beautify as tb_beau
 from . import tractblender_materials as tb_mat
@@ -470,6 +471,20 @@ def import_labels(directory, filenames, name=""):
         import_voxoverlay(directory, filenames, name=name, is_label=True)
 
 
+def import_borders(directory, filenames, name=""):
+    """Import overlay as curves."""
+
+    scn = bpy.context.scene
+    tb = scn.tb
+
+    if tb.objecttype == "tracts":
+        pass
+    elif tb.objecttype == "surfaces":
+        import_surfborders(directory, filenames, name=name)
+    elif tb.objecttype == "voxelvolumes":
+        pass
+
+
 def import_tractscalars(directory, files, name=""):
     """Import scalar overlay on tract object."""
 
@@ -548,14 +563,32 @@ def import_surflabels(directory, files, name=""):
 
         if fpath.endswith('.label'):
             tb_mat.create_vg_overlay(ob, fpath, name=name, is_label=True)
-        elif fpath.endswith('.annot'):
+        elif (fpath.endswith('.annot') | 
+              fpath.endswith('.gii') | 
+              fpath.endswith('.border')):
             tb_mat.create_vg_annot(ob, fpath, name=name)
-        elif fpath.endswith('.gii'):
             # TODO: figure out from gifti if it is annot or label
-            tb_mat.create_vg_annot(ob, fpath, name=name)
         else:  # assumed scalar overlay type with integer labels??
             tb_mat.create_vc_overlay(ob, fpath, name=name)
 #         TODO: consider using ob.data.vertex_layers_int.new()??
+
+
+def import_surfborders(directory, files, name=""):
+    """Import label overlay on surface object."""
+
+    if not files:
+        files = os.listdir(directory)
+
+    for f in files:
+        fpath = os.path.join(directory, f)
+
+        tb_ob = tb_utils.active_tb_object()[0]
+        ob = bpy.data.objects[tb_ob.name]
+
+        if fpath.endswith('.border'):
+            tb_mat.create_border_curves(ob, fpath, name=name)
+        else:
+            print("Only Connectome Workbench .border files supported")
 
 
 def read_surfscalar(fpath):
@@ -578,6 +611,12 @@ def read_surfscalar(fpath):
             gio = nib.gifti.giftiio
             img = gio.read(fpath)
             scalars = img.darrays[0].data
+    elif fpath.endswith('dscalar.nii'):  # CIFTI not yet working properly: in nibabel?
+        nib = tb_utils.validate_nibabel('dscalar.nii')
+        if tb.nibabel_valid:
+            gio = nib.gifti.giftiio
+            nii = gio.read(fpath)
+            scalars = np.squeeze(nii.get_data())
     else:  # I will try to read it as a freesurfer binary
         nib = tb_utils.validate_nibabel('')
         if tb.nibabel_valid:
@@ -625,13 +664,15 @@ def read_surfannot(fpath):
             fsio = nib.freesurfer.io
             labels, ctab, bnames = fsio.read_annot(fpath, orig_ids=False)
             names = [name.decode('utf-8') for name in bnames]
-        elif fpath.endswith(".gii"):
+        elif fpath.endswith(".gii"):  
             gio = nib.gifti.giftiio
             img = gio.read(fpath)
             img.labeltable.get_labels_as_dict()
             labels = img.darrays[0].data
             labeltable = img.labeltable
             labels, ctab, names = gii_to_freesurfer_annot(labels, labeltable)
+        elif fpath.endswith('.dlabel.nii'):
+            pass  #TODO # CIFTI not yet working properly: in nibabel?
         return labels, ctab, names
     else:
         print('nibabel required for reading .annot files')
@@ -644,9 +685,15 @@ def gii_to_freesurfer_annot(labels, labeltable):
     ctab = [np.append((np.array(l.rgba)*255).astype(int), l.key)
             for l in labeltable.labels]
     ctab = np.array(ctab)
-    for i, l in enumerate(labeltable.labels, 1):
+    # TODO: check scikit-image relabel_sequential code
+    # TODO: check if relabeling is necessary
+    newlabels = np.zeros_like(labels)
+    i=1
+    for _, l in enumerate(labeltable.labels, 1):
         labelmask = np.where(labels == l.key)[0]
-        labels[labelmask] = i
+        newlabels[labelmask] = i
+        if (labelmask != 0).sum():
+            i+=1
 
     return labels, ctab, names
 
@@ -683,6 +730,37 @@ def read_surfannot_gifti(fpath):
         return labels, labeltable
     else:
         print('nibabel required for reading .annot files')
+
+
+def read_borders(fpath):
+    """Read a Connectome Workbench .border file."""
+
+    root = xml.etree.ElementTree.parse(fpath).getroot()
+
+#     v = root.get('Version')
+#     s = root.get('Structure')
+#     nv = root.get('SurfaceNumberOfVertices')
+#     md = root.find('MetaData')
+
+    borderlist = []
+    borders = root.find('Class')
+    for border in borders:
+        borderdict = {}
+        borderdict['name'] = border.get('Name')
+        borderdict['rgb'] = (float(border.get('Red')), 
+                             float(border.get('Green')), 
+                             float(border.get('Blue')))
+        bp = border.find('BorderPart')
+        borderdict['closed'] = bp.get('Closed')
+        verts = [[int(c) for c in v.split()] 
+                 for v in bp.find('Vertices').text.split("\n") if v]
+        borderdict['verts'] = np.array(verts)
+#         weights = [[float(c) for c in v.split()] 
+#                    for v in bp.find('Weights').text.split("\n") if v]
+#         borderdict['weights'] = np.array(weights)
+        borderlist.append(borderdict)
+
+    return borderlist
 
 
 def import_voxoverlay(directory, filenames, name="", is_label=False):
@@ -729,6 +807,27 @@ def add_label_to_collection(name, value, colour):
     label.colour = colour
 
     tb_ob.index_labels = (len(tb_ob.labels)-1)
+
+
+def add_border_to_collection(name, colour,
+                            bevel_depth=0.5, bevel_resolution=10,
+                            iterations=10, factor=0.5):
+    """Add border to the TractBlender collection."""
+
+    scn = bpy.context.scene
+    tb = scn.tb
+
+    tb_ob = tb_utils.active_tb_object()[0]
+
+    border = tb_ob.borders.add()
+    border.name = name
+    border.colour = colour
+    border.bevel_depth = bevel_depth
+    border.bevel_resolution = bevel_resolution
+    border.iterations = iterations
+    border.factor = factor
+
+    tb_ob.index_borders = (len(tb_ob.borders)-1)
 
 
 # ========================================================================== #
@@ -1051,6 +1150,16 @@ def make_polyline_ob(curvedata, cList):
     for num in range(len(cList)):
         x, y, z = cList[num]
         polyline.points[num].co = (x, y, z, 1)
+    polyline.order_u = len(polyline.points)-1
+    polyline.use_endpoint_u = True
+
+
+def make_polyline_ob_vi(curvedata, ob, vi_list):    
+    """Create a 3D curve from a list of vertex indices."""
+    polyline = curvedata.splines.new('POLY')
+    polyline.points.add(len(vi_list)-1)
+    for i, vi in enumerate(vi_list):
+        polyline.points[i].co[:3] = ob.data.vertices[vi].co
     polyline.order_u = len(polyline.points)-1
     polyline.use_endpoint_u = True
 

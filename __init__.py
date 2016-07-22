@@ -309,6 +309,10 @@ class TractBlenderAppearancePanel(Panel):
                     trans = mat.node_tree.nodes["_Mix Shader.001"].inputs[0]
                     row.prop(trans, "default_value", text="Transparency")
                     # TODO: copy transparency from colourpicker
+                elif ovtype == "borders":
+                    row = layout.row()
+                    row.enabled = False
+                    row.prop(tb_ov, "colour")
         else:
             row.prop(tb, "show_overlay_options",
                      icon='TRIA_RIGHT',
@@ -452,27 +456,40 @@ class ObjectListOperations(Operator):
                     scn.objects.active = ob
                     bpy.ops.object.mode_set(mode='OBJECT')
                     bpy.ops.object.delete()
+                    for border in tb_ob.borders:
+                        for ob in bpy.data.objects:
+                            ob.select = ob.name == border.name
+                        scn.objects.active = bpy.data.objects[border.name]
+                        bpy.ops.object.delete()
+                        # TODO: remove the empty that groups the curves
                 elif self.action.endswith('_ov'):
                     if tb_ob.isvalid:
-                        ob = bpy.data.objects[tb_ob.name]
+                        if type == 'borders':
+                            name = collection[idx].name
+                            for ob in bpy.data.objects:
+                                ob.select = ob.name == name
+                            scn.objects.active = bpy.data.objects[name]
+                            bpy.ops.object.delete()
+                            # TODO: remove the empty that groups the curves if border is last
+                        else:
+                            ob = bpy.data.objects[tb_ob.name]
+                            vg = ob.vertex_groups.get(name)
+                            if vg is not None:
+                                ob.vertex_groups.remove(vg)
 
-                        vg = ob.vertex_groups.get(name)
-                        if vg is not None:
-                            ob.vertex_groups.remove(vg)
+                            vc = ob.data.vertex_colors.get("vc_" + name)  #FIXME: no "vc_" in case of tract
+                            if vc is not None:
+                                ob.data.vertex_colors.remove(vc)
 
-                        vc = ob.data.vertex_colors.get("vc_" + name)  #FIXME: no "vc_" in case of tract
-                        if vc is not None:
-                            ob.data.vertex_colors.remove(vc)
-
-                        ob_mats = ob.data.materials
-                        mat_idx = ob_mats.find("vc_" + name)
-                        if mat_idx != -1:
-                            ob_mats.pop(mat_idx, update_data=True)
-                        mats = bpy.data.materials
-                        mat = mats.get("vc_" + name)
-                        if (mat is not None) and (mat.users < 2):
-                            mat.user_clear()
-                            bpy.data.materials.remove(mat)
+                            ob_mats = ob.data.materials
+                            mat_idx = ob_mats.find("vc_" + name)
+                            if mat_idx != -1:
+                                ob_mats.pop(mat_idx, update_data=True)
+                            mats = bpy.data.materials
+                            mat = mats.get("vc_" + name)
+                            if (mat is not None) and (mat.users < 2):
+                                mat.user_clear()
+                                bpy.data.materials.remove(mat)
 
                 collection.remove(idx)
                 self.report({'INFO'}, info)
@@ -775,6 +792,33 @@ class ImportLabels(Operator, ImportHelper):
         return {"RUNNING_MODAL"}
 
 
+class ImportBorders(Operator, ImportHelper):
+    bl_idname = "tb.import_borders"
+    bl_label = "Import border overlay"
+    bl_description = "Import border overlay to curves"
+    bl_options = {"REGISTER", "UNDO", "PRESET"}
+
+    directory = StringProperty(subtype="FILE_PATH")
+    files = CollectionProperty(name="Filepath",
+                               type=OperatorFileListElement)
+
+    name = StringProperty(
+        name="Name",
+        description="Specify a name for the object (default: filename)",
+        default="")
+
+    def execute(self, context):
+        filenames = [file.name for file in self.files]
+        tb_imp.import_borders(self.directory, filenames, self.name)
+
+        return {"FINISHED"}
+
+    def invoke(self, context, event):
+        context.window_manager.fileselect_add(self)
+
+        return {"RUNNING_MODAL"}
+
+
 class MassIsRenderedObjects(Menu):
     bl_idname = "tb.mass_is_rendered_objects"
     bl_label = "Vertex Group Specials"
@@ -811,6 +855,7 @@ class MassIsRenderedOverlays(Menu):
         layout.operator("tb.mass_select",
                         icon='SCENE',
                         text="Invert").action = 'INVERT_ov'
+
 
 class MassSelect(Operator):
     bl_idname = "tb.mass_select"
@@ -1120,6 +1165,25 @@ def material_enum_callback(self, context):
 
     return items
 
+
+def overlay_enum_callback(self, context):
+    """Populate the enum based on available options."""
+
+    scn = context.scene
+    tb = scn.tb
+
+    items = []
+    items.append(("scalars", "scalars", 
+                  "List the scalar overlays", 1))
+    items.append(("labels", "labels",
+                  "List the label overlays", 2))
+    if tb.objecttype == 'surfaces':
+        items.append(("borders", "borders",
+                      "List the border overlays", 3))
+
+    return items
+
+
 def material_enum_update(self, context):
     """Assign a new preset material to the object."""
 
@@ -1221,6 +1285,53 @@ class LabelProperties(PropertyGroup):
         size=4,
         min=0,
         max=1)
+
+
+class BorderProperties(PropertyGroup):
+    """Properties of border overlays."""
+
+    name = StringProperty(
+        name="Name",
+        description="The name of the border overlay")
+    icon = StringProperty(
+        name="Icon",
+        description="Icon for border overlays",
+        default="CURVE_BEZCIRCLE")
+    isvalid = BoolProperty(
+        name="Is Valid",
+        description="Indicates if the object passed validity checks",
+        default=True)
+    is_rendered = BoolProperty(
+        name="Is Rendered",
+        description="Indicates if the border is rendered",
+        default=True)
+    colour = FloatVectorProperty(
+        name="Border color",
+        description="The color of the border",
+        subtype="COLOR",
+        size=4,
+        min=0,
+        max=1)
+    iterations = IntProperty(
+        name="iterations",
+        description="smoothing iterations",
+        default=10,
+        min=0)
+    factor = FloatProperty(
+        name="factor",
+        description="smoothing factor",
+        default=0.5,
+        min=0)
+    bevel_depth = FloatProperty(
+        name="bevel_depth",
+        description="bevel depth",
+        default=0.5,
+        min=0)
+    bevel_resolution = IntProperty(
+        name="bevel_resolution",
+        description="bevel resolution",
+        default=10,
+        min=0)
 
 
 # TODO: remember and display filepaths
@@ -1394,6 +1505,15 @@ class SurfaceProperties(PropertyGroup):
     index_labels = IntProperty(
         name="label index",
         description="index of the labels collection",
+        default=0,
+        min=0)
+    borders = CollectionProperty(
+        type=BorderProperties,
+        name="borders",
+        description="The collection of loaded borders")
+    index_borders = IntProperty(
+        name="border index",
+        description="index of the borders collection",
         default=0,
         min=0)
 
@@ -1590,9 +1710,7 @@ class TractBlenderProperties(PropertyGroup):
     overlaytype = EnumProperty(
         name="overlay type",
         description="switch between overlay types",
-        items=[("scalars", "scalars", "List the scalar overlays", 1),
-               ("labels", "labels", "List the label overlays", 2)],
-        default="scalars")
+        items=overlay_enum_callback)
 
 #     colourtype = EnumProperty(
 #         name="material_presets",

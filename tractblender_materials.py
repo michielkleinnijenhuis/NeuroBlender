@@ -235,35 +235,128 @@ def create_vg_annot(ob, fpath, name=""):
 
     tb_ob = tb_utils.active_tb_object()[0]
 
-    labels, ctab, names = tb_imp.read_surfannot(fpath)
+    if name:
+        basename = name
+    else:
+        basename = os.path.basename(fpath)
+
+    if fpath.endswith('.border'):
+        borderlist = tb_imp.read_borders(fpath)
+        create_polygon_layer_int(ob, borderlist)
+        # (for each border?, will be expensive: do one for every file now)
+        # this already takes a long time...
+
+        mats = []
+        for i, border in enumerate(borderlist):
+
+            plname = basename + '.border.' + border['name']
+            plname = tb_utils.check_name(plname, fpath="", 
+                                         checkagainst=ob.data.polygon_layers_int)
+
+            value = i + 1
+            diffcol = list(border['rgb']) + [1.0]
+
+            matname = tb_utils.check_name(plname, fpath="", checkagainst=bpy.data.materials)
+            mat = make_material_basic_cycles(matname, diffcol, mix=0.05)
+            mats.append(mat)
+
+            tb_imp.add_label_to_collection(plname, value, diffcol)
+
+        pl = ob.data.polygon_layers_int["pl"]
+        set_materials_to_polygonlayers(ob, pl, mats)
+    else:
+#         is_border = False
+        labels, ctab, names = tb_imp.read_surfannot(fpath)
+
+        vgs = []
+        mats = []
+        for i, labelname in enumerate(names):
+
+            vgname = basename + '.' + labelname
+            vgname = tb_utils.check_name(vgname, fpath="",
+                                         checkagainst=ob.vertex_groups)
+
+            label = np.where(labels == i)[0]
+            value = ctab[i, 4]
+            diffcol = ctab[i, 0:4]/255
+
+            vg = set_vertex_group(ob, vgname, label)
+            vgs.append(vg)
+
+            matname = tb_utils.check_name(vgname, fpath="",
+                                          checkagainst=bpy.data.materials)
+            mat = make_material_basic_cycles(matname, diffcol, mix=0.05)
+            mats.append(mat)
+
+            tb_imp.add_label_to_collection(vgname, value, diffcol)
+
+        set_materials_to_vertexgroups(ob, vgs, mats)
+
+
+def create_border_curves(ob, fpath, name=""):
+    """Import an border file and create curves."""
+
+    tb_ob = tb_utils.active_tb_object()[0]
 
     if name:
         basename = name
     else:
         basename = os.path.basename(fpath)
-    vgs = []
+
+    borderlist = tb_imp.read_borders(fpath)
+
+    borderob = bpy.data.objects.new(name=basename, object_data=None)
+    bpy.context.scene.objects.link(borderob)
+    borderob.parent = ob
+
     mats = []
-    for i, labelname in enumerate(names):
+    for i, border in enumerate(borderlist):
 
-        vgname = basename + '.' + labelname
-        vgname = tb_utils.check_name(vgname, fpath="",
-                                     checkagainst=ob.vertex_groups)
+        plname = basename + '.border.' + border['name']
+        plname = tb_utils.check_name(plname, fpath="", 
+                                     checkagainst=ob.data.polygon_layers_int)
 
-        label = np.where(labels == i)[0]
-        value = ctab[i, 4]
-        diffcol = ctab[i, 0:4]/255
+        diffcol = list(border['rgb']) + [1.0]
 
-        vg = set_vertex_group(ob, vgname, label)
-        vgs.append(vg)
-
-        matname = tb_utils.check_name(vgname, fpath="",
-                                      checkagainst=bpy.data.materials)
+        matname = tb_utils.check_name(plname, fpath="", checkagainst=bpy.data.materials)
         mat = make_material_basic_cycles(matname, diffcol, mix=0.05)
         mats.append(mat)
 
-        tb_imp.add_label_to_collection(vgname, value, diffcol)
+        bevel_depth = 0.5
+        bevel_resolution = 10
+        iterations = 10
+        factor = 0.5
+        tb_imp.add_border_to_collection(plname, diffcol,
+                                        bevel_depth, bevel_resolution,
+                                        iterations, factor)
 
-    set_materials_to_vertexgroups(ob, vgs, mats)
+        curve = bpy.data.curves.new(name=plname, type='CURVE')
+        curve.dimensions = '3D'
+        curveob = bpy.data.objects.new(plname, curve)
+        bpy.context.scene.objects.link(curveob)
+        tb_imp.make_polyline_ob_vi(curve, ob, border['verts'][:,0])
+        curveob.data.fill_mode = 'FULL'
+        curveob.data.bevel_depth = bevel_depth
+        curveob.data.bevel_resolution = bevel_resolution
+        mod = curveob.modifiers.new("smooth", type='SMOOTH')
+        mod.iterations = iterations
+        mod.factor = factor
+        set_materials(curveob.data, mat)
+        curveob.parent = borderob
+
+
+def create_polygon_layer_int(ob, borderlist):
+    """Creates a polygon layer and sets value to the borderindex."""
+
+    me = ob.data
+    pl = me.polygon_layers_int.new("pl")
+    loopsets = [set([vi for vi in poly.vertices]) for poly in me.polygons]
+    for bi, border in enumerate(borderlist):
+        pi = [loopsets.index(set(tri)) for tri in border['verts']]
+        for poly in me.polygons:
+            if poly.index in pi:
+                # note that this overwrites double entriesZ
+                pl.data[poly.index].value = bi
 
 
 def create_vg_overlay(ob, fpath, name="", is_label=False, trans=1):
@@ -400,6 +493,32 @@ def assign_materialslots_to_faces(ob, vgs=None, mat_idxs=[]):
                         mat_idx = mat_idxs[vgs_idxs.index(g.group)]
                         poly.material_index = mat_idx
         me.update()
+
+    return ob
+
+
+def set_materials_to_polygonlayers(ob, pl, mats):
+    """Attach materials to polygons in polygonlayers."""
+
+    if pl is None:
+        set_materials(ob.data, mats[0])
+        return
+
+    mat_idxs = []
+    for mat in mats:
+        ob.data.materials.append(mat)
+        mat_idxs.append(len(ob.data.materials) - 1)
+
+    assign_materialslots_to_faces_pls(ob, pl, mat_idxs)
+
+
+def assign_materialslots_to_faces_pls(ob, pl=None, mat_idxs=[]):
+    """Assign a material slot to faces according to polygon_layer."""
+
+    me = ob.data
+    for poly in me.polygons:
+        poly.material_index = mat_idxs[pl.data[poly.index].value]
+    me.update()
 
     return ob
 

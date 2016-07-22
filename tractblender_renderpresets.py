@@ -94,7 +94,9 @@ def scene_preset(name="Brain", layer=10):
     preset_obs = [preset] + [centre] + [table] + [cam] + [lights] + list(lights.children)
     tracts = [bpy.data.objects[tb_ob.name] for tb_ob in tb.tracts]
     surfaces = [bpy.data.objects[tb_ob.name] for tb_ob in tb.surfaces]
-    cycles_obs = preset_obs + tracts + surfaces
+    borders = [bpy.data.objects[tb_ov.name] 
+               for tb_ob in tb.surfaces for tb_ov in tb_ob.borders]
+    cycles_obs = preset_obs + tracts + surfaces + borders
     prep_scenes('cycles', 'CYCLES', 'GPU', [0, 1, 10], True, cycles_obs)
 
     preset_obs = [preset] + [centre] + [cam]
