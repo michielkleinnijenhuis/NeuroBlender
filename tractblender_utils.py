@@ -30,11 +30,15 @@ import sys
 # ========================================================================== #
 
 
-def check_name(name, fpath, checkagainst, zfill=0, forcefill=False):
+def check_name(name, fpath, checkagainst, zfill=0, forcefill=False, maxlen=40):
     """Make sure a unique name is given."""
 
     if not name:
         name = os.path.basename(fpath)
+
+    if len(name) > maxlen:
+        name = name[-maxlen:]
+        print('name too long: truncated basename to ', name)
 
     if forcefill:
         firstname = name + "." + str(0).zfill(zfill)

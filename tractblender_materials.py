@@ -208,7 +208,7 @@ def create_vc_overlay(ob, fpath, name="", is_label=False):
 
     tb_imp.add_scalar_to_collection(vgname, scalarrange)
 
-    map_to_vertexcolours(ob, vcname='vc_'+vgname, vgs=[vg])
+    map_to_vertexcolours(ob, vcname=vgname, vgs=[vg])
 
     # NOTE: UV is useless without proper flatmaps ...
 #     uvname = 'uv_'+vgname
@@ -381,7 +381,7 @@ def create_vg_overlay(ob, fpath, name="", is_label=False, trans=1):
         tb_imp.add_scalar_to_collection(vgname, scalarrange)
 
         # TODO: only set this material to vertexgroup
-        map_to_vertexcolours(ob, vcname='vc_'+vgname,
+        map_to_vertexcolours(ob, vcname=vgname,
                              vgs=[vg], is_label=is_label)
 
     else:
@@ -1065,7 +1065,7 @@ def make_material_overlay_cycles(name, vcname):
     vrgb.name = name + "_" + "ColorRamp"
     vrgb.location = 100, 100
 
-    set_colorramp_preset(vrgb, mat=mat, prefix='vc_')
+    set_colorramp_preset(vrgb, mat=mat, prefix='')
 
     srgb = nodes.new("ShaderNodeSeparateRGB")
     srgb.label = "Separate RGB"
@@ -1309,7 +1309,7 @@ def make_material_overlaytract_cycles_group(diffcol, mix=0.04):
     return group
 
 
-def set_colorramp_preset(node, cmapname="r2b", mat=None, prefix='vc_'):
+def set_colorramp_preset(node, cmapname="r2b", mat=None, prefix=''):
     """Set a colourramp node to a preset."""
 
     tb_ob = tb_utils.active_tb_object()[0]

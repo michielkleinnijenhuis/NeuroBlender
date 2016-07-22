@@ -280,7 +280,7 @@ class TractBlenderAppearancePanel(Panel):
                         ng = bpy.data.node_groups.get("TractOvGroup")
                         ramp = ng.nodes["ColorRamp"]
                     else:
-                        mat = bpy.data.materials['vc_' + tb_ov.name]
+                        mat = bpy.data.materials[tb_ov.name]
                         ramp = mat.node_tree.nodes["_ColorRamp"]
                     box.template_color_ramp(ramp, "color_ramp", expand=True)
 
@@ -477,16 +477,16 @@ class ObjectListOperations(Operator):
                             if vg is not None:
                                 ob.vertex_groups.remove(vg)
 
-                            vc = ob.data.vertex_colors.get("vc_" + name)  #FIXME: no "vc_" in case of tract
+                            vc = ob.data.vertex_colors.get(name)
                             if vc is not None:
                                 ob.data.vertex_colors.remove(vc)
 
                             ob_mats = ob.data.materials
-                            mat_idx = ob_mats.find("vc_" + name)
+                            mat_idx = ob_mats.find(name)
                             if mat_idx != -1:
                                 ob_mats.pop(mat_idx, update_data=True)
                             mats = bpy.data.materials
-                            mat = mats.get("vc_" + name)
+                            mat = mats.get(name)
                             if (mat is not None) and (mat.users < 2):
                                 mat.user_clear()
                                 bpy.data.materials.remove(mat)

@@ -134,7 +134,7 @@ def renderselections_surfaces(tb_obs):
         ob = bpy.data.objects[tb_ob.name]
         ob.hide_render = not tb_ob.is_rendered
 
-        vgs_s, mat_idxs_s = renderselections_overlays(ob, tb_ob.scalars, matprefix="vc_")
+        vgs_s, mat_idxs_s = renderselections_overlays(ob, tb_ob.scalars, matprefix="")
         vgs_l, mat_idxs_l = renderselections_overlays(ob, tb_ob.labels)
         tb_mat.assign_materialslots_to_faces(ob,
                                              vgs_s + vgs_l,
@@ -529,7 +529,7 @@ def add_colourbars(cam):
         for surf in tb.surfaces:
             for scalar in surf.scalars:
                 if scalar.showcolourbar:
-                    cbar = bpy.data.objects.get("vc_" + scalar.name + "_colourbar")
+                    cbar = bpy.data.objects.get(scalar.name + "_colourbar")
                     cbars_render.append(cbar)
 #         for cbar in cbars.children:
 #             cbars_render.append(cbar)
