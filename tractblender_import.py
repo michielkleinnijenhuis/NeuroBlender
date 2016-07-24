@@ -1162,6 +1162,7 @@ def make_polyline_ob_vi(curvedata, ob, vi_list):
         polyline.points[i].co[:3] = ob.data.vertices[vi].co
     polyline.order_u = len(polyline.points)-1
     polyline.use_endpoint_u = True
+    polyline.use_cyclic_u = True
 
 
 # ========================================================================== #
