@@ -390,6 +390,8 @@ def prep_nifti(fpath, tmppath, is_label=False, file_format="RAW_8BIT"):
     as an 8bit raw binary volume with [x,y,z] layout (datarange=[0,255]).
     Labelvolumes: negative labels are ignored (i.e. set to 0)
     Only 3D volumes are handled.
+    TODO: check which colorspace is expected of the data
+    ...and convert here accordingly
     """
 
     scn = bpy.context.scene

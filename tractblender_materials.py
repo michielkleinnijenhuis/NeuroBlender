@@ -541,7 +541,7 @@ def map_to_vertexcolours(ob, vcname="", fpath="",
     materials = bpy.data.materials
     vcname = tb_utils.check_name(vcname, fpath, checkagainst=materials)
 
-    mat = make_material_overlay_cycles(vcname, vcname)
+    mat = make_material_overlay_cycles(vcname, vcname, ob)
 
     set_materials_to_vertexgroups(ob, vgs, [mat])
 
@@ -576,6 +576,7 @@ def assign_vc(ob, vertexcolours, vgs=None,
         for idx in poly.loop_indices:
             vi = ob.data.loops[idx].vertex_index
             w = sum_vertexweights(me.vertices[vi], vgs, group_lookup)
+            w = linear_to_sRGB(w)
             rgb = (w, w, w)
             vertexcolours.data[i].color = rgb  # TODO: foreach_set?
             i += 1
@@ -596,6 +597,28 @@ def sum_vertexweights(v, vgs, group_lookup):
             w += g.weight
 
     return w
+
+
+def sRGB_to_linear(C):
+    """Converts sRGB to linear color space."""
+
+    if(C <= 0.0404482362771082):
+        L = C / 12.92
+    else:
+        L = pow(((C + 0.055) / 1.055), 2.4)
+
+    return L
+
+
+def linear_to_sRGB(L):
+    """Converts linear to sRGB color space."""
+
+    if (L > 0.00313066844250063):
+        C = 1.055 * (pow(L, (1.0 / 2.4))) - 0.055
+    else:
+        C = 12.92 * L
+
+    return C
 
 
 def vgs2vc():
@@ -1018,7 +1041,7 @@ def make_material_dirtract_cycles(name, trans=1):
     return mat
 
 
-def make_material_overlay_cycles(name, vcname):
+def make_material_overlay_cycles(name, vcname, ob=None):
     """Create a Cycles material for colourramped vertexcolour rendering."""
 
     scn = bpy.context.scene
@@ -1077,6 +1100,26 @@ def make_material_overlay_cycles(name, vcname):
     attr.name = name + "_" + "Attribute"
     attr.attribute_name = vcname
     attr.label = "Attribute"
+
+#     if ob is not None:
+#         nnel = nodes.new("ShaderNodeValue")
+#         nnel.location = 100, 300
+#         nnel.name = name + "_" + "Value"
+#         nnel.label = "Value"
+#         driver = nnel.outputs[0].driver_add("default_value")
+#         var2 = driver.driver.variables.new()
+#         var2.name = "dmin"
+#         var2.targets[0].id = ob  #.id_data
+#         var2.targets[0].data_path = "scalars[" + name + "].range[0]"
+#         var3 = driver.driver.variables.new()
+#         var3.name = "dmax"
+#         var3.targets[0].id = ob  #.id_data
+#         var3.targets[0].data_path = "scalars[" + name + "].range[1]"
+#         var1 = driver.driver.variables.new()
+#         var1.name = "norm_pos"
+#         var1.targets[0].id = mat  # bpy.data.node_groups["Shader Nodetree"]  # mat.node_tree.id_data
+#         var1.targets[0].data_path = "node_tree.nodes['_ColorRamp'].color_ramp.elements[0].position"
+#         driver.driver.expression = "norm_pos * (dmax - dmin) - dmin" 
 
 #     driver = diffuse.inputs[1].driver_add("default_value")
 #     var = driver.driver.variables.new()
