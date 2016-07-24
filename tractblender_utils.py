@@ -30,26 +30,35 @@ import sys
 # ========================================================================== #
 
 
-def check_name(name, fpath, checkagainst, zfill=0, forcefill=False, maxlen=40):
+def check_name(name, fpath, checkagainst,
+               nzfill=3, forcefill=False, maxlen=40):
     """Make sure a unique name is given."""
 
+    # if unspecified, derive a name from the filename
     if not name:
         name = os.path.basename(fpath)
 
+    # long names are not handled in Blender (maxbytes=63)
     if len(name) > maxlen:
         name = name[-maxlen:]
         print('name too long: truncated basename to ', name)
 
+    # force a numeric postfix on the basename
     if forcefill:
-        firstname = name + "." + str(0).zfill(zfill)
+        firstname = name + "." + str(0).zfill(nzfill)
     else:
         firstname = name
 
-    if checkagainst.get(firstname) is not None:
+    # check if the name already exists ...
+    # in whatever collection(s) it is checked against
+    present = [ca.get(firstname) for ca in checkagainst]
+    if any(present):  # the name does exist somewhere
         i = 0
-        while checkagainst.get(name + '.' + str(i).zfill(zfill)) is not None:
+        while any([ca.get(name + '.' + str(i).zfill(nzfill)) 
+                   for ca in checkagainst]):
             i += 1
-        name = name + '.' + str(i).zfill(zfill)
+        # found the first available postfix
+        name = name + '.' + str(i).zfill(nzfill)
     else:
         name = firstname
 

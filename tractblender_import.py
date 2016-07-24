@@ -71,7 +71,8 @@ def import_objects(directory, files, importfun,
 
     for f in files:
         fpath = os.path.join(directory, f)
-        name = tb_utils.check_name(specname, fpath, bpy.data.objects)
+        ca = [bpy.data.objects]
+        name = tb_utils.check_name(specname, fpath, ca)
 
         ob = importfun(fpath, name, info=info)
 
@@ -245,7 +246,8 @@ def import_voxelvolume(directory, files, specname,
     scn.render.engine = "BLENDER_RENDER"
 
     fpath = os.path.join(directory, files[0])
-    name = tb_utils.check_name(specname, fpath, bpy.data.meshes)
+    ca = [bpy.data.meshes]
+    name = tb_utils.check_name(specname, fpath, ca)
 
     me = bpy.data.meshes.new(name)
     ob = bpy.data.objects.new(name, me)
