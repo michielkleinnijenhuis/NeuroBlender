@@ -283,6 +283,15 @@ class TractBlenderAppearancePanel(Panel):
                         mat = bpy.data.materials[tb_ov.name]
                         ramp = mat.node_tree.nodes["_ColorRamp"]
                     box.template_color_ramp(ramp, "color_ramp", expand=True)
+                    row = box.row()
+                    row.label(text="non-normalized colour stop positions:")
+                    self.calc_nn_elpos(tb_ov, ramp)
+                    row = box.row()
+                    row.enabled = False
+                    row.template_list("ObjectListCR", "",
+                                      tb_ov, "nn_elements",
+                                      tb_ov, "index_nn_elements",
+                                      rows=3)
 
                 elif ovtype == "labels":
                     row = layout.row()
@@ -341,6 +350,25 @@ class TractBlenderAppearancePanel(Panel):
                      icon='TRIA_RIGHT',
                      emboss=False)
 
+    def calc_nn_elpos(self, tb_ov, ramp):
+        # TODO: solve with drivers
+        els = ramp.color_ramp.elements
+        nnels = tb_ov.nn_elements
+        n_els = len(els)
+        n_nnels = len(nnels)
+        if n_els > n_nnels:
+            for _ in range(n_els-n_nnels):
+                nnels.add()
+        elif n_els < n_nnels:
+            for _ in range(n_nnels-n_els):
+                nnels.remove(0)
+        dmin = tb_ov.range[0]
+        dmax = tb_ov.range[1]
+        drange = dmax-dmin
+        for i, el in enumerate(nnels):
+            el.name = "colour stop " + str(i)
+            el.nn_position = els[i].position * drange + dmin
+
 
 class SwitchToMainScene(Operator):
     bl_idname = "tb.switch_to_main"
@@ -398,6 +426,23 @@ class ObjectListOv(UIList):
             col.active = item.is_rendered
             col.prop(item, "is_rendered", text="", emboss=False,
                      translate=False, icon='SCENE')
+        elif self.layout_type in {'GRID'}:
+            layout.alignment = 'CENTER'
+            layout.prop(text="", icon=item_icon)
+
+
+class ObjectListCR(UIList):
+
+    def draw_item(self, context, layout, data, item, icon,
+                  active_data, active_propname, index):
+
+        item_icon = "ARROW_LEFTRIGHT"
+
+        if self.layout_type in {'DEFAULT', 'COMPACT'}:
+            col = layout.column()
+            col.prop(item, "name", text="", emboss=False, translate=False, icon=item_icon)
+            col = layout.column()
+            col.prop(item, "nn_position", text="")
         elif self.layout_type in {'GRID'}:
             layout.alignment = 'CENTER'
             layout.prop(text="", icon=item_icon)
@@ -1227,6 +1272,18 @@ def cam_view_enum_update(self, context):
     tb.cam_view = list(cv_unit * tb.cam_distance)
 
 
+class ColorRampProperties(PropertyGroup):
+    """Custom properties of color ramps."""
+
+    name = StringProperty(
+        name="Name",
+        description="The name of the color stop.")
+    nn_position = FloatProperty(
+        name="nn_position",
+        description="The non-normalized position of the color stop",
+        default=0)
+
+
 class ScalarProperties(PropertyGroup):
     """Properties of scalar overlays."""
 
@@ -1254,6 +1311,15 @@ class ScalarProperties(PropertyGroup):
         name="Render colourbar",
         description="Show/hide colourbar in rendered image",
         default=True)
+    nn_elements = CollectionProperty(
+        type = ColorRampProperties, 
+        name="nn_elements",
+        description="The non-normalized color stops")
+    index_nn_elements = IntProperty(
+        name="nn_element index",
+        description="Index of the non-normalized color stops",
+        default=0,
+        min=0)
 
 
 class LabelProperties(PropertyGroup):
