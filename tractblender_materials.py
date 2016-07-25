@@ -246,10 +246,10 @@ def create_vg_annot(ob, fpath, name=""):
     (this can be found in commit c3b6d66)
     """
 
-    if name:
-        basename = name
-    else:
-        basename = os.path.basename(fpath)
+    tb_ob = tb_utils.active_tb_object()[0]
+    ca = [tb_ob.labelgroups]  # TODO: all other labelgroups
+    groupname = tb_utils.check_name(name, fpath, ca)
+    labelgroup = tb_imp.add_labelgroup_to_collection(groupname)
 
     if fpath.endswith('.border'):
         borderlist = tb_imp.read_borders(fpath)
@@ -260,10 +260,9 @@ def create_vg_annot(ob, fpath, name=""):
         new_mats = []
         for i, border in enumerate(borderlist):
 
-            name = basename + '.border.' + border['name']
             ca = [ob.data.polygon_layers_int,
                   bpy.data.materials]
-            name = tb_utils.check_name(name, "", ca)
+            name = tb_utils.check_name(border['name'], "", ca)
 
             value = i + 1
             diffcol = list(border['rgb']) + [1.0]
@@ -271,7 +270,7 @@ def create_vg_annot(ob, fpath, name=""):
             mat = make_material_basic_cycles(name, diffcol, mix=0.05)
             new_mats.append(mat)
 
-            tb_imp.add_label_to_collection(name, value, diffcol)
+            tb_imp.add_label_to_collection(labelgroup, name, value, diffcol)
 
         pl = ob.data.polygon_layers_int["pl"]
         set_materials_to_polygonlayers(ob, pl, new_mats)
@@ -283,10 +282,9 @@ def create_vg_annot(ob, fpath, name=""):
         new_mats = []
         for i, labelname in enumerate(names):
 
-            name = basename + '.' + labelname
             ca = [ob.vertex_groups,
                   bpy.data.materials]
-            name = tb_utils.check_name(name, "", ca)
+            name = tb_utils.check_name(labelname, "", ca)
 
             label = np.where(labels == i)[0]
             value = ctab[i, 4]
@@ -298,7 +296,7 @@ def create_vg_annot(ob, fpath, name=""):
             mat = make_material_basic_cycles(name, diffcol, mix=0.05)
             new_mats.append(mat)
 
-            tb_imp.add_label_to_collection(name, value, diffcol)
+            tb_imp.add_label_to_collection(labelgroup, name, value, diffcol)
 
         set_materials_to_vertexgroups(ob, new_vgs, new_mats)
 
@@ -317,10 +315,9 @@ def create_border_curves(ob, fpath, name=""):
 
     for i, border in enumerate(borderlist):
 
-        name = border['name']
         ca = [bpy.data.objects,
               bpy.data.materials]
-        name = tb_utils.check_name(name, "", ca)
+        name = tb_utils.check_name(border['name'], "", ca)
 
         diffcol = list(border['rgb']) + [1.0]
         mat = make_material_basic_cycles(name, diffcol, mix=0.05)
@@ -370,15 +367,14 @@ def create_vg_overlay(ob, fpath, name="", is_label=False, trans=1):
     a scalar-type overlay will be generated.
     """
 
-    tb_ob = tb_utils.active_tb_object()[0]
-
     label, scalars = tb_imp.read_surflabel(fpath, is_label)
 
-    ca = [ob.vertex_groups,
-          bpy.data.materials]
-    name = tb_utils.check_name(name, fpath, ca)
-
     if scalars is not None:
+        ca = [ob.vertex_groups,
+              ob.data.vertex_colors,
+              bpy.data.materials]
+        name = tb_utils.check_name(name, fpath, ca)
+        
         vgscalars, scalarrange = tb_imp.normalize_data(scalars)
 
         vg = set_vertex_group(ob, name, label, scalars)
@@ -389,6 +385,14 @@ def create_vg_overlay(ob, fpath, name="", is_label=False, trans=1):
         map_to_vertexcolours(ob, name, [vg], is_label)
 
     else:
+        tb_ob = tb_utils.active_tb_object()[0]
+        ca = [tb_ob.labelgroups]  # TODO: all other labelgroups
+        groupname = tb_utils.check_name(name, fpath, ca)
+        labelgroup = tb_imp.add_labelgroup_to_collection(groupname)
+
+        ca = [ob.vertex_groups,
+              bpy.data.materials]
+        name = tb_utils.check_name(name, fpath, ca)
         vg = set_vertex_group(ob, name, label, scalars)
 
         values = [label.value for label in tb_ob.labels] or [0]
@@ -397,7 +401,7 @@ def create_vg_overlay(ob, fpath, name="", is_label=False, trans=1):
         mat = make_material_basic_cycles(name, diffcol, mix=0.05)
         set_materials_to_vertexgroups(ob, [vg], [mat])
 
-        tb_imp.add_label_to_collection(name, value, diffcol)
+        tb_imp.add_label_to_collection(labelgroup, name, value, diffcol)
 
 
 def set_vertex_group(ob, name, label=None, scalars=None):

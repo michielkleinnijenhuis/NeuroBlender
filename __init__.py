@@ -293,31 +293,57 @@ class TractBlenderAppearancePanel(Panel):
                                       tb_ov, "index_nn_elements",
                                       rows=3)
 
-                elif ovtype == "labels":
+                elif ovtype == "labelgroups":
+                    labelgroup = tb_ov
                     row = layout.row()
-                    row.enabled = False
-                    row.prop(tb_ov, "value")
-                    row = layout.row()
-                    col = row.column()
-                    col.enabled = False
-                    col.label(text="original: ")
-                    col = row.column()
-                    col.enabled = False
-                    col.prop(tb_ov, "colour", text="")
-                    col = row.column()
-                    col.operator("tb.revert_" + "label",
-                                 icon='BACK', text="")
-
-                    box = layout.box()
-                    row = box.row()
-                    row.label(text="Convenience access to material:")
-                    row = box.row()
-                    mat = bpy.data.materials[tb_ov.name]
-                    colour = mat.node_tree.nodes["Diffuse BSDF"].inputs[0]
-                    row.prop(colour, "default_value", text="Colour")
-                    trans = mat.node_tree.nodes["Mix Shader.001"].inputs[0]
-                    row.prop(trans, "default_value", text="Transparency")
-                    # TODO: copy transparency from colourpicker
+                    row.template_list("ObjectListOv", "",
+                                      labelgroup, "labels",
+                                      labelgroup, "index_labels",
+                                      rows=2)
+                    col = row.column(align=True)
+                    col.operator("tb.oblist_ops",
+                                 icon='ZOOMOUT',
+                                 text="").action = 'REMOVE_ov'
+                    col.menu("tb.mass_is_rendered_overlays",
+                             icon='DOWNARROW_HLT',
+                             text="")
+                    col.separator()
+                    col.operator("tb.oblist_ops",
+                                 icon='TRIA_UP',
+                                 text="").action = 'UP_ov'
+                    col.operator("tb.oblist_ops",
+                                 icon='TRIA_DOWN',
+                                 text="").action = 'DOWN_ov'
+                    try:
+                        ov_idx = tb_ov.index_labels
+                        tb_ov = tb_ov.labels[ov_idx]
+                    except IndexError:
+                        pass
+                    else:
+                        row = layout.row()
+                        row.enabled = False
+                        row.prop(tb_ov, "value")
+                        row = layout.row()
+                        col = row.column()
+                        col.enabled = False
+                        col.label(text="original: ")
+                        col = row.column()
+                        col.enabled = False
+                        col.prop(tb_ov, "colour", text="")
+                        col = row.column()
+                        col.operator("tb.revert_" + "label",
+                                     icon='BACK', text="")
+    
+                        box = layout.box()
+                        row = box.row()
+                        row.label(text="Convenience access to material:")
+                        row = box.row()
+                        mat = bpy.data.materials[tb_ov.name]
+                        colour = mat.node_tree.nodes["Diffuse BSDF"].inputs[0]
+                        row.prop(colour, "default_value", text="Colour")
+                        trans = mat.node_tree.nodes["Mix Shader.001"].inputs[0]
+                        row.prop(trans, "default_value", text="Transparency")
+                        # TODO: copy transparency from colourpicker
                 elif ovtype == "bordergroups":
                     bordergroup = tb_ov
                     row = layout.row()
@@ -533,7 +559,7 @@ class ObjectListOperations(Operator):
         elif self.action.endswith('_ov'):
             tb_ov, ov_idx = tb_utils.active_tb_overlay()
             data = "tb_ov"
-            type = "borders"  # borders or labels
+            type = tb.overlaytype.replace("groups", "s")
 
         collection = eval("%s.%s" % (data, type))
         idx = eval("%s.index_%s" % (data, type))
@@ -631,6 +657,12 @@ class ObjectListOperations(Operator):
         self.remove_vertexcoll(ob.vertex_groups, tb_ov.name)
         self.remove_vertexcoll(ob.data.vertex_colors, tb_ov.name)
         self.remove_material(ob, tb_ov.name)
+
+    def remove_surfaces_labelgroups(self, tb_ov, ob):
+        """Remove label group."""
+
+        for label in tb_ov.labels:
+            self.remove_surfaces_labels(label, ob)
 
     def remove_surfaces_labels(self, tb_ov, ob):
         """Remove label overlay from a surface."""
@@ -965,8 +997,8 @@ class ImportScalars(Operator, ImportHelper):
         return {"RUNNING_MODAL"}
 
 
-class ImportLabels(Operator, ImportHelper):
-    bl_idname = "tb.import_labels"
+class ImportLabelGroups(Operator, ImportHelper):
+    bl_idname = "tb.import_labelgroups"
     bl_label = "Import label overlay"
     bl_description = "Import label overlay to vertexgroups/colours"
     bl_options = {"REGISTER", "UNDO", "PRESET"}
@@ -983,33 +1015,6 @@ class ImportLabels(Operator, ImportHelper):
     def execute(self, context):
         filenames = [file.name for file in self.files]
         tb_imp.import_labels(self.directory, filenames, self.name)
-
-        return {"FINISHED"}
-
-    def invoke(self, context, event):
-        context.window_manager.fileselect_add(self)
-
-        return {"RUNNING_MODAL"}
-
-
-class ImportBorders(Operator, ImportHelper):
-    bl_idname = "tb.import_borders"
-    bl_label = "Import border overlay"
-    bl_description = "Import border overlay to curves"
-    bl_options = {"REGISTER", "UNDO", "PRESET"}
-
-    directory = StringProperty(subtype="FILE_PATH")
-    files = CollectionProperty(name="Filepath",
-                               type=OperatorFileListElement)
-
-    name = StringProperty(
-        name="Name",
-        description="Specify a name for the object (default: filename)",
-        default="")
-
-    def execute(self, context):
-        filenames = [file.name for file in self.files]
-        tb_imp.import_borders(self.directory, filenames, self.name)
 
         return {"FINISHED"}
 
@@ -1326,7 +1331,8 @@ def validate_tb_objects(collections):
             else:
                 item.isvalid = True
                 # descend into the object's vertexgroups
-                validate_tb_overlays(ob, [item.scalars, item.labels])
+                validate_tb_overlays(ob, [item.scalars] + 
+                                     [lg.labels for lg in item.labelgroups])
 
 
 def validate_tb_overlays(ob, collections):
@@ -1401,7 +1407,7 @@ def overlay_enum_callback(self, context):
     items = []
     items.append(("scalars", "scalars",
                   "List the scalar overlays", 1))
-    items.append(("labels", "labels",
+    items.append(("labelgroups", "labelgroups",
                   "List the label overlays", 2))
     if tb.objecttype == 'surfaces':
         items.append(("bordergroups", "bordergroups",
@@ -1595,6 +1601,70 @@ class BorderProperties(PropertyGroup):
         min=0)
 
 
+class LabelGroupProperties(PropertyGroup):
+    """Properties of label groups."""
+
+    name = StringProperty(
+        name="Name",
+        description="The name of the label overlay")
+    filepath = StringProperty(
+        name="Filepath",
+        description="The filepath to the label overlay")
+    icon = StringProperty(
+        name="Icon",
+        description="Icon for label overlays",
+        default="BRUSH_VERTEXDRAW")
+    isvalid = BoolProperty(
+        name="Is Valid",
+        description="Indicates if the object passed validity checks",
+        default=True)
+    is_rendered = BoolProperty(
+        name="Is Rendered",
+        description="Indicates if the label is rendered",
+        default=True)
+    labels = CollectionProperty(
+        type=LabelProperties,
+        name="labels",
+        description="The collection of loaded labels")
+    index_labels = IntProperty(
+        name="label index",
+        description="index of the labels collection",
+        default=0,
+        min=0)
+
+
+class BorderGroupProperties(PropertyGroup):
+    """Properties of border groups."""
+
+    name = StringProperty(
+        name="Name",
+        description="The name of the border overlay")
+    filepath = StringProperty(
+        name="Filepath",
+        description="The filepath to the border overlay")
+    icon = StringProperty(
+        name="Icon",
+        description="Icon for border overlays",
+        default="CURVE_BEZCIRCLE")
+    isvalid = BoolProperty(
+        name="Is Valid",
+        description="Indicates if the object passed validity checks",
+        default=True)
+    is_rendered = BoolProperty(
+        name="Is Rendered",
+        description="Indicates if the border is rendered",
+        default=True)
+    borders = CollectionProperty(
+        type=BorderProperties,
+        name="borders",
+        description="The collection of loaded borders")
+    index_borders = IntProperty(
+        name="border index",
+        description="index of the borders collection",
+        default=0,
+        min=0)
+
+
 class TractProperties(PropertyGroup):
     """Properties of tracts."""
 
@@ -1657,13 +1727,13 @@ class TractProperties(PropertyGroup):
         description="index of the scalars collection",
         default=0,
         min=0)
-    labels = CollectionProperty(
-        type=LabelProperties,
-        name="labels",
-        description="The collection of loaded labels")
-    index_labels = IntProperty(
-        name="label index",
-        description="index of the labels collection",
+    labelgroups = CollectionProperty(
+        type=LabelGroupProperties,
+        name="labelgroups",
+        description="The collection of loaded labelgroups")
+    index_labelgroups = IntProperty(
+        name="labelgroup index",
+        description="index of the labelgroups collection",
         default=0,
         min=0)
 
@@ -1700,38 +1770,6 @@ class TractProperties(PropertyGroup):
         default=1.,
         min=0.,
         max=1.)
-
-
-class BorderGroupProperties(PropertyGroup):
-    """Properties of border groups."""
-
-    name = StringProperty(
-        name="Name",
-        description="The name of the border overlay")
-    filepath = StringProperty(
-        name="Filepath",
-        description="The filepath to the border overlay")
-    icon = StringProperty(
-        name="Icon",
-        description="Icon for border overlays",
-        default="CURVE_BEZCIRCLE")
-    isvalid = BoolProperty(
-        name="Is Valid",
-        description="Indicates if the object passed validity checks",
-        default=True)
-    is_rendered = BoolProperty(
-        name="Is Rendered",
-        description="Indicates if the border is rendered",
-        default=True)
-    borders = CollectionProperty(
-        type=BorderProperties,
-        name="borders",
-        description="The collection of loaded borders")
-    index_borders = IntProperty(
-        name="border index",
-        description="index of the borders collection",
-        default=0,
-        min=0)
 
 
 class SurfaceProperties(PropertyGroup):
@@ -1796,13 +1834,13 @@ class SurfaceProperties(PropertyGroup):
         description="index of the scalars collection",
         default=0,
         min=0)
-    labels = CollectionProperty(
-        type=LabelProperties,
-        name="labels",
-        description="The collection of loaded labels")
-    index_labels = IntProperty(
-        name="label index",
-        description="index of the labels collection",
+    labelgroups = CollectionProperty(
+        type=LabelGroupProperties,
+        name="labelgroups",
+        description="The collection of loaded labelgroups")
+    index_labelgroups = IntProperty(
+        name="labelgroup index",
+        description="index of the labelgroups collection",
         default=0,
         min=0)
     bordergroups = CollectionProperty(
@@ -1893,13 +1931,13 @@ class VoxelvolumeProperties(PropertyGroup):
         description="index of the scalars collection",
         default=0,
         min=0)
-    labels = CollectionProperty(
-        type=LabelProperties,
-        name="labels",
-        description="The collection of loaded labels")
-    index_labels = IntProperty(
-        name="label index",
-        description="index of the labels collection",
+    labelgroups = CollectionProperty(
+        type=LabelGroupProperties,
+        name="labelgroups",
+        description="The collection of loaded labelgroups")
+    index_labelgroups = IntProperty(
+        name="labelgroup index",
+        description="index of the labelgroups collection",
         default=0,
         min=0)
 

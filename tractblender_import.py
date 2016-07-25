@@ -286,13 +286,17 @@ def import_voxelvolume(directory, files, specname,
 
     items = []
     if is_label:
+        tb_ob = tb_utils.active_tb_object()[0]
+        ca = [tb_ob.labels]  # TODO: all other labelgroups
+        groupname = tb_utils.check_name(name, fpath, ca)
+        labelgroup = tb_imp.add_labelgroup_to_collection(groupname)
         for label in labels:
-            item = tb_ob.labels.add()
+            item = labelgroup.labels.add()
             item.name = name + "." + str(label).zfill(8)
             item.value = label
             item.colour = tb_mat.get_golden_angle_colour(label) + [1.]
             items.append(item)
-        tb_ob.index_labels = (len(tb_ob.labels)-1)
+        labelgroup.index_labels = (len(labelgroup.labels)-1)
     elif is_overlay:
         item = tb_ob.scalars.add()
         item.name = name
@@ -786,9 +790,6 @@ def import_voxoverlay(directory, filenames, name="", is_label=False):
 def add_scalar_to_collection(name, scalarrange):
     """Add scalar to the TractBlender collection."""
 
-    scn = bpy.context.scene
-    tb = scn.tb
-
     tb_ob = tb_utils.active_tb_object()[0]
 
     scalar = tb_ob.scalars.add()
@@ -798,20 +799,15 @@ def add_scalar_to_collection(name, scalarrange):
     tb_ob.index_scalars = (len(tb_ob.scalars)-1)
 
 
-def add_label_to_collection(name, value, colour):
+def add_label_to_collection(labelgroup, name, value, colour):
     """Add label to the TractBlender collection."""
 
-    scn = bpy.context.scene
-    tb = scn.tb
-
-    tb_ob = tb_utils.active_tb_object()[0]
-
-    label = tb_ob.labels.add()
+    label = labelgroup.labels.add()
     label.name = name
     label.value = value
     label.colour = colour
 
-    tb_ob.index_labels = (len(tb_ob.labels)-1)
+    labelgroup.index_labels = (len(labelgroup.labels)-1)
 
 
 def add_bordergroup_to_collection(name):
@@ -825,6 +821,19 @@ def add_bordergroup_to_collection(name):
     tb_ob.index_bordergroups = (len(tb_ob.bordergroups)-1)
 
     return bordergroup
+
+
+def add_labelgroup_to_collection(name):
+    """Add labelgroup to the TractBlender collection."""
+
+    tb_ob = tb_utils.active_tb_object()[0]
+
+    labelgroup = tb_ob.labelgroups.add()
+    labelgroup.name = name
+
+    tb_ob.index_labelgroups = (len(tb_ob.labelgroups)-1)
+
+    return labelgroup
 
 
 def add_border_to_collection(name, bordergroup, colour,
