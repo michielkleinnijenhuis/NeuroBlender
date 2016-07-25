@@ -92,7 +92,7 @@ class TractBlenderImportPanel(Panel):
 
         else:
             row = self.layout.row()
-            row.label(text="Please use the main scene for TractBlender imports.")
+            row.label(text="Please use the main scene for TractBlender.")
             row = self.layout.row()
             row.operator("tb.switch_to_main",
                          text="Switch to main",
@@ -129,7 +129,6 @@ class TractBlenderImportPanel(Panel):
                      icon='TRIA_DOWN',
                      text="").action = 'DOWN_ob'
 
-
         obtype = tb.objecttype
         try:
             idx = eval("tb.index_%s" % obtype)
@@ -144,7 +143,7 @@ class TractBlenderImportPanel(Panel):
                          emboss=False)
                 row = layout.row()
                 row.prop(tb_ob, "sformfile")
-    
+
                 ob = bpy.data.objects[tb_ob.name]
                 mw = ob.matrix_world
                 txts = ["srow_%s  %8.3f %8.3f %8.3f %8.3f" % (dim,
@@ -163,7 +162,6 @@ class TractBlenderImportPanel(Panel):
                 row.prop(tb, "show_transform_options",
                          icon='TRIA_RIGHT',
                          emboss=False)
-
 
 
 class TractBlenderAppearancePanel(Panel):
@@ -190,7 +188,7 @@ class TractBlenderAppearancePanel(Panel):
                 row.label(text="No geometry loaded ...")
             else:
                 row = self.layout.row()
-                row.label(text="Properties of %s:" % tb_ob.name, 
+                row.label(text="Properties of %s:" % tb_ob.name,
                           icon=tb_ob.icon)
                 self.draw_appearance(self.layout, tb, tb_ob)
                 self.draw_tb_ov(self.layout, tb, tb_ob)
@@ -198,7 +196,7 @@ class TractBlenderAppearancePanel(Panel):
 
         else:
             row = self.layout.row()
-            row.label(text="Please use the main scene for TractBlender imports.")
+            row.label(text="Please use the main scene for TractBlender.")
             row = self.layout.row()
             row.operator("tb.switch_to_main",
                          text="Switch to main",
@@ -212,7 +210,7 @@ class TractBlenderAppearancePanel(Panel):
                      icon='TRIA_DOWN',
                      emboss=False)
             if tb.objecttype != "voxelvolumes":
-                
+
                 row = layout.row()
                 col1 = row.column()
                 row1 = col1.row()
@@ -282,6 +280,7 @@ class TractBlenderAppearancePanel(Panel):
                     else:
                         mat = bpy.data.materials[tb_ov.name]
                         ramp = mat.node_tree.nodes["_ColorRamp"]
+                        # FIXME: this fails on voxelvolumes
                     box.template_color_ramp(ramp, "color_ramp", expand=True)
                     row = box.row()
                     row.label(text="non-normalized colour stop positions:")
@@ -396,9 +395,9 @@ class ObjectListOb(UIList):
         if self.layout_type in {'DEFAULT', 'COMPACT'}:
             col = layout.column()
             col.prop(item, "name", text="", emboss=False,
-                        translate=False, icon=item_icon)
+                     translate=False, icon=item_icon)
             col = layout.column()
-            col.alignment =  "RIGHT"
+            col.alignment = "RIGHT"
             col.active = item.is_rendered
             col.prop(item, "is_rendered", text="", emboss=False,
                      translate=False, icon='SCENE')
@@ -420,9 +419,9 @@ class ObjectListOv(UIList):
         if self.layout_type in {'DEFAULT', 'COMPACT'}:
             col = layout.column()
             col.prop(item, "name", text="", emboss=False,
-                        translate=False, icon=item_icon)
+                     translate=False, icon=item_icon)
             col = layout.column()
-            col.alignment =  "RIGHT"
+            col.alignment = "RIGHT"
             col.active = item.is_rendered
             col.prop(item, "is_rendered", text="", emboss=False,
                      translate=False, icon='SCENE')
@@ -440,7 +439,8 @@ class ObjectListCR(UIList):
 
         if self.layout_type in {'DEFAULT', 'COMPACT'}:
             col = layout.column()
-            col.prop(item, "name", text="", emboss=False, translate=False, icon=item_icon)
+            col.prop(item, "name", text="", emboss=False,
+                     translate=False, icon=item_icon)
             col = layout.column()
             col.prop(item, "nn_position", text="")
         elif self.layout_type in {'GRID'}:
@@ -515,7 +515,8 @@ class ObjectListOperations(Operator):
                                 ob.select = ob.name == name
                             scn.objects.active = bpy.data.objects[name]
                             bpy.ops.object.delete()
-                            # TODO: remove the empty that groups the curves if border is last
+                            # TODO: remove the empty
+                            # that groups the curves if border is last
                         else:
                             ob = bpy.data.objects[tb_ob.name]
                             vg = ob.vertex_groups.get(name)
@@ -523,6 +524,7 @@ class ObjectListOperations(Operator):
                                 ob.vertex_groups.remove(vg)
 
                             vc = ob.data.vertex_colors.get(name)
+                            # FIXME: does not work for tract-scalars
                             if vc is not None:
                                 ob.data.vertex_colors.remove(vc)
 
@@ -1018,7 +1020,7 @@ class TractBlenderScenePanel(Panel):
 
         else:
             row = self.layout.row()
-            row.label(text="Please use the main scene for TractBlender imports.")
+            row.label(text="Please use the main scene for TractBlender.")
             row = self.layout.row()
             row.operator("tb.switch_to_main",
                          text="Switch to main",
@@ -1068,7 +1070,7 @@ class TractBlenderSettingsPanel(Panel):
 
         else:
             row = self.layout.row()
-            row.label(text="Please use the main scene for TractBlender imports.")
+            row.label(text="Please use the main scene for TractBlender.")
             row = self.layout.row()
             row.operator("tb.switch_to_main",
                          text="Switch to main",
@@ -1076,7 +1078,6 @@ class TractBlenderSettingsPanel(Panel):
 
     def draw_nibabel(self, layout, tb):
 
-#         if not tb.nibabel_valid:
         box = layout.box()
         row = box.row()
         row.prop(tb, "nibabel_use")
@@ -1190,7 +1191,7 @@ def material_enum_callback(self, context):
     ob = bpy.data.objects[tb_ob.name]
 
     items = []
-    items.append(("none", "none", 
+    items.append(("none", "none",
                   "Add an empty material", 1))
     items.append(("pick", "pick",
                   "Add a material with the chosen colour", 2))
@@ -1218,7 +1219,7 @@ def overlay_enum_callback(self, context):
     tb = scn.tb
 
     items = []
-    items.append(("scalars", "scalars", 
+    items.append(("scalars", "scalars",
                   "List the scalar overlays", 1))
     items.append(("labels", "labels",
                   "List the label overlays", 2))
@@ -1312,7 +1313,7 @@ class ScalarProperties(PropertyGroup):
         description="Show/hide colourbar in rendered image",
         default=True)
     nn_elements = CollectionProperty(
-        type = ColorRampProperties, 
+        type=ColorRampProperties,
         name="nn_elements",
         description="The non-normalized color stops")
     index_nn_elements = IntProperty(
@@ -1836,7 +1837,7 @@ class TractBlenderProperties(PropertyGroup):
 
     cam_distance = FloatProperty(
         name="Camera distance",
-        description="Relative distance of the camera (relative to bounding box)",
+        description="Relative distance of the camera (to bounding box)",
         default=4,
         min=1,
         update=cam_view_enum_update)
@@ -1848,6 +1849,7 @@ class TractBlenderProperties(PropertyGroup):
 def register():
     bpy.utils.register_module(__name__)
     bpy.types.Scene.tb = PointerProperty(type=TractBlenderProperties)
+
 
 def unregister():
     bpy.utils.unregister_module(__name__)

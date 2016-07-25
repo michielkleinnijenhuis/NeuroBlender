@@ -91,10 +91,11 @@ def scene_preset(name="Brain", layer=10):
     # handle double vertexgroups
 
     # TODO: add colourbars
-    preset_obs = [preset] + [centre] + [table] + [cam] + [lights] + list(lights.children)
+    preset_obs = [preset] + [centre] + [table] + \
+        [cam] + [lights] + list(lights.children)
     tracts = [bpy.data.objects[tb_ob.name] for tb_ob in tb.tracts]
     surfaces = [bpy.data.objects[tb_ob.name] for tb_ob in tb.surfaces]
-    borders = [bpy.data.objects[tb_ov.name] 
+    borders = [bpy.data.objects[tb_ov.name]
                for tb_ob in tb.surfaces for tb_ov in tb_ob.borders]
     cycles_obs = preset_obs + tracts + surfaces + borders
     prep_scenes('cycles', 'CYCLES', 'GPU', [0, 1, 10], True, cycles_obs)
@@ -124,7 +125,9 @@ def renderselections_tracts(tb_obs):
             if tb_ov.is_rendered:
                 prefix = ob.name + '_' + tb_ov.name + '_spline'
                 for i, spline in enumerate(ob.data.splines):
-                    spline.material_index = ob.material_slots.find(prefix + str(i).zfill(8))
+                    ms = ob.material_slots
+                    splname = prefix + str(i).zfill(8)
+                    spline.material_index = ms.find(splname)
 
 
 def renderselections_surfaces(tb_obs):
@@ -134,7 +137,8 @@ def renderselections_surfaces(tb_obs):
         ob = bpy.data.objects[tb_ob.name]
         ob.hide_render = not tb_ob.is_rendered
 
-        vgs_s, mat_idxs_s = renderselections_overlays(ob, tb_ob.scalars, matprefix="")
+        vgs_s, mat_idxs_s = renderselections_overlays(ob, tb_ob.scalars,
+                                                      matprefix="")
         vgs_l, mat_idxs_l = renderselections_overlays(ob, tb_ob.labels)
         tb_mat.assign_materialslots_to_faces(ob,
                                              vgs_s + vgs_l,
@@ -396,6 +400,7 @@ def create_lighting(name, braincentre, bbox, dims, cam, camview=(1, 1, 1)):
 
     return lights
 
+
 def create_light(name, braincentre, bbox, dims, scale, loc, emission):
     """"""
 
@@ -446,7 +451,7 @@ def create_table(name, centre, bbox, dims):
                    centre.location[1],
                    bbox[2, 0])
 
-    diffcol= [0.5, 0.5, 0.5, 1.0]
+    diffcol = [0.5, 0.5, 0.5, 1.0]
     mat = tb_mat.make_material_basic_cycles(name, diffcol, mix=0.8)
     tb_mat.set_materials(ob.data, mat)
 
@@ -471,7 +476,7 @@ def create_world():
 
 
 # ========================================================================== #
-# Colourbar placement 
+# Colourbar placement
 # ========================================================================== #
 # (reuse of code from http://blender.stackexchange.com/questions/6625)
 
@@ -481,7 +486,7 @@ def SetupDriverVariables(driver, imageplane):
     camAngle.name = 'camAngle'
     camAngle.type = 'SINGLE_PROP'
     camAngle.targets[0].id = imageplane.parent
-    camAngle.targets[0].data_path ="data.angle"
+    camAngle.targets[0].data_path = "data.angle"
     depth = driver.variables.new()
     depth.name = 'depth'
     depth.type = 'TRANSFORMS'
@@ -495,14 +500,18 @@ def SetupDriversForImagePlane(imageplane, scaling=[1.0, 1.0]):
     driver = imageplane.driver_add('scale', 1).driver
     driver.type = 'SCRIPTED'
     SetupDriverVariables(driver, imageplane)
-    driver.expression = str(scaling[0]) + "*(-depth*tan(camAngle/2)*bpy.context.scene.render.resolution_y * bpy.context.scene.render.pixel_aspect_y/(bpy.context.scene.render.resolution_x * bpy.context.scene.render.pixel_aspect_x))"
+    driver.expression = str(scaling[0]) + \
+        " * (-depth*tan(camAngle/2)*bpy.context.scene.render.resolution_y" + \
+        " * bpy.context.scene.render.pixel_aspect_y" + \
+        " / (bpy.context.scene.render.resolution_x" + \
+        " * bpy.context.scene.render.pixel_aspect_x))"
     driver = imageplane.driver_add('scale', 0).driver
     driver.type = 'SCRIPTED'
     SetupDriverVariables(driver, imageplane)
-    driver.expression = str(scaling[1]) + "*-depth*tan(camAngle/2)"
+    driver.expression = str(scaling[1]) + " * -depth * tan(camAngle / 2)"
 
 
-def place_colourbar(camera, colourbar, location=[0,1]):
+def place_colourbar(camera, colourbar, location=[0, 1]):
     """Place the colourbar in front of the camera."""
 
     colourbar.location = (0, 0, -10)
@@ -524,7 +533,9 @@ def add_colourbars(cam):
         pass
     else:
         # TODO: limit number of cbars (5)
-        # FIXME: hacky non-general approach (left like this for now because preset handling will be changed anyway)
+        # FIXME: hacky non-general approach
+        # (left like this for now because preset
+        # handling will be changed anyway)
         cbars_render = []
         for surf in tb.surfaces:
             for scalar in surf.scalars:

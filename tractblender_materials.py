@@ -46,9 +46,9 @@ def materialise(ob, colourtype='primary6', colourpicker=(1, 1, 1), trans=1):
     if colourtype == "none":
         mat = None
 
-    elif colourtype in ["primary6", 
-                        "random", 
-                        "pick", 
+    elif colourtype in ["primary6",
+                        "random",
+                        "pick",
                         "golden_angle"]:
 
         ca = [ob.data.materials]
@@ -84,7 +84,7 @@ def materialise(ob, colourtype='primary6', colourpicker=(1, 1, 1), trans=1):
 def set_materials(me, mat):
     """Attach a material to a mesh.
 
-    TODO: make sure shifting the material slots around 
+    TODO: make sure shifting the material slots around
           does not conflict with per-vertex material assignment
     """
 
@@ -149,7 +149,7 @@ def create_vc_overlay_tract(ob, fpath, name="", is_label=False):
     """Create scalar overlay for a surface object."""
 
     nn_scalars = tb_imp.read_tractscalar(fpath)
-    datamin =  float('Inf')
+    datamin = float('Inf')
     datamax = -float('Inf')
     for s in nn_scalars:
         datamin = min(datamin, min(s))
@@ -174,7 +174,7 @@ def create_vc_overlay_tract(ob, fpath, name="", is_label=False):
 
         # TODO: implement name check that checks for the prefix 'name'
         splname = name + '_spl' + str(i).zfill(8)
-        ca = [bpy.data.images, 
+        ca = [bpy.data.images,
               bpy.data.materials]
         splname = tb_utils.check_name(splname, fpath, ca, maxlen=52)
 
@@ -212,9 +212,9 @@ def create_vc_overlay(ob, fpath, name="", is_label=False):
     scalars = tb_imp.read_surfscalar(fpath)
     scalars, scalarrange = tb_imp.normalize_data(scalars)
 
-    ca = [ob.vertex_groups, 
-           ob.data.vertex_colors, 
-           bpy.data.materials]
+    ca = [ob.vertex_groups,
+          ob.data.vertex_colors,
+          bpy.data.materials]
     name = tb_utils.check_name(name, fpath, ca)
 
     vg = set_vertex_group(ob, name, label=None, scalars=scalars)
@@ -239,7 +239,7 @@ def create_vc_overlay(ob, fpath, name="", is_label=False):
 
 def create_vg_annot(ob, fpath, name=""):
     """Import an annotation file to vertex groups.
-    
+
     TODO: decide what is the best approach:
     reading gifti and converting to freesurfer format (current) or
     have a seperate functions for handling .gii annotations
@@ -261,7 +261,7 @@ def create_vg_annot(ob, fpath, name=""):
         for i, border in enumerate(borderlist):
 
             name = basename + '.border.' + border['name']
-            ca = [ob.data.polygon_layers_int, 
+            ca = [ob.data.polygon_layers_int,
                   bpy.data.materials]
             name = tb_utils.check_name(name, "", ca)
 
@@ -339,7 +339,7 @@ def create_border_curves(ob, fpath, name=""):
         curve.dimensions = '3D'
         curveob = bpy.data.objects.new(name, curve)
         bpy.context.scene.objects.link(curveob)
-        tb_imp.make_polyline_ob_vi(curve, ob, border['verts'][:,0])
+        tb_imp.make_polyline_ob_vi(curve, ob, border['verts'][:, 0])
         curveob.data.fill_mode = 'FULL'
         curveob.data.bevel_depth = bevel_depth
         curveob.data.bevel_resolution = bevel_resolution
@@ -533,7 +533,7 @@ def assign_materialslots_to_faces_pls(ob, pl=None, mat_idxs=[]):
 
 def map_to_vertexcolours(ob, name="", vgs=None, is_label=False, colourtype=""):
     """Write vertex group weights to a vertex colour attribute.
-    
+
     A colourbar is prepared for scalar overlays.
     """
 
@@ -643,7 +643,7 @@ def get_voxmatname(name):
     return name
 
 
-def get_voxmat(matname, img, dims, file_format="IMAGE_SEQUENCE", 
+def get_voxmat(matname, img, dims, file_format="IMAGE_SEQUENCE",
                is_overlay=False, is_label=False, labels=None):
     """Return a textured material for voxeldata."""
 
@@ -662,7 +662,8 @@ def get_voxmat(matname, img, dims, file_format="IMAGE_SEQUENCE",
     if is_label:
         tex.voxel_data.interpolation = "NEREASTNEIGHBOR"
         # FIXME: unexpected behaviour of colorramp
-        # ... (image sequence data does not seem to agree with ticks on colorramp)
+        # ... (image sequence data does not seem ...
+        # to agree with ticks on colorramp)
         tex.use_color_ramp = True
         cr = tex.color_ramp
         cr.interpolation = 'CONSTANT'
@@ -674,8 +675,8 @@ def get_voxmat(matname, img, dims, file_format="IMAGE_SEQUENCE",
         maxlabel = max([label.value for label in labels])
 #         offset = 1/maxlabel*1/2
         for label in labels[1:]:
-#             el = cre.new((label.value-1)/maxlabel + offset)
             el = cre.new(prevlabel.value/maxlabel)
+#             el = cre.new((label.value-1)/maxlabel + offset)
             el.color = label.colour
             prevlabel = label
     elif is_overlay:
@@ -684,8 +685,8 @@ def get_voxmat(matname, img, dims, file_format="IMAGE_SEQUENCE",
         cr.color_mode = 'HSV'
         cr.hue_interpolation = 'FAR'
         cre = cr.elements
-        cre[0].color = (0, 0.01,1, 0)
-        cre[1].color = (0, 0,   1, 1)
+        cre[0].color = (0, 0.01, 1, 0)
+        cre[1].color = (0, 0,    1, 1)
         # TODO: get easily customizable overlay colorramps
 
     mat = bpy.data.materials.new(matname)
@@ -898,7 +899,6 @@ def make_material_dirsurf_cycles(name, trans=1):
     diff.name = name + "_" + "Diffuse BSDF"
     diff.location = 200, 0
 
-
     geom = nodes.new("ShaderNodeNewGeometry")
     geom.label = "Geometry"
     geom.name = name + "_" + "Geometry"
@@ -969,7 +969,6 @@ def make_material_dirtract_cycles(name, trans=1):
     diff.name = name + "_" + "Diffuse BSDF"
     diff.location = 200, 0
 
-
     crgb = nodes.new("ShaderNodeCombineRGB")
     crgb.label = "Combine RGB"
     crgb.name = name + "_" + "Combine RGB"
@@ -1014,7 +1013,6 @@ def make_material_dirtract_cycles(name, trans=1):
     tang.name = name + "_" + "Tangent"
     tang.direction_type = 'UV_MAP'
     tang.location = -1000, 0
-
 
     links.new(mix1.outputs["Shader"], out.inputs["Surface"])
     links.new(mix2.outputs["Shader"], mix1.inputs[1])
@@ -1112,9 +1110,9 @@ def make_material_overlay_cycles(name, vcname, ob=None):
 #         var3.targets[0].data_path = "scalars[" + name + "].range[1]"
 #         var1 = driver.driver.variables.new()
 #         var1.name = "norm_pos"
-#         var1.targets[0].id = mat  # bpy.data.node_groups["Shader Nodetree"]  # mat.node_tree.id_data
+#         var1.targets[0].id = mat  # bpy.data.node_groups["Shader Nodetree"]
 #         var1.targets[0].data_path = "node_tree.nodes['_ColorRamp'].color_ramp.elements[0].position"
-#         driver.driver.expression = "norm_pos * (dmax - dmin) - dmin" 
+#         driver.driver.expression = "norm_pos * (dmax - dmin) - dmin"
 
 #     driver = diffuse.inputs[1].driver_add("default_value")
 #     var = driver.driver.variables.new()
@@ -1435,7 +1433,7 @@ def get_color_bar(name="Colourbar", width=1., height=0.1):
     # FIXME: this only works for small scalarrange
     tb_ov, ov_idx = tb_utils.active_tb_overlay()
     scalarrange = tb_ov.range
-      # ("label:%8.4f" % label['label'])
+    # ("label:%8.4f" % label['label'])
     labels = [{'label': "%4.2f" % scalarrange[0],
                'loc': [0.025, 0.015]},
               {'label': "%4.2f" % scalarrange[1],
@@ -1482,8 +1480,6 @@ def create_colourbar(name="Colourbar", width=1., height=0.1):
     me.update()
 
     return ob
-
-
 
 
 # ========================================================================== #
@@ -1534,7 +1530,7 @@ def get_vc_material(ob, name, fpath, colourtype="", is_label=False):
         mat = materials.get(name)
     else:
         if colourtype == "directional":
-          # TODO: check if normals can avoid vertex colour 
+          # TODO: check if normals can avoid vertex colour
           # by accesing directly from cycles attribute node
             name = colourtype + ob.type
             name = tb_utils.check_name(name, "", checkagainst=materials)
@@ -1660,5 +1656,3 @@ def make_material_labels_cycles(name, vcname):
     # FIXME: node names will truncate if too long; this will error
 
     return mat
-
-

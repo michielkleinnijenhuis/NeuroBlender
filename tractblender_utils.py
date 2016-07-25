@@ -54,7 +54,7 @@ def check_name(name, fpath, checkagainst,
     present = [ca.get(firstname) for ca in checkagainst]
     if any(present):  # the name does exist somewhere
         i = 0
-        while any([ca.get(name + '.' + str(i).zfill(nzfill)) 
+        while any([ca.get(name + '.' + str(i).zfill(nzfill))
                    for ca in checkagainst]):
             i += 1
         # found the first available postfix
