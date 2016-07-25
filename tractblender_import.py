@@ -814,7 +814,7 @@ def add_label_to_collection(name, value, colour):
     tb_ob.index_labels = (len(tb_ob.labels)-1)
 
 
-def add_border_to_collection(name, colour,
+def add_border_to_collection(name, groupname, colour,
                              bevel_depth=0.5, bevel_resolution=10,
                              iterations=10, factor=0.5):
     """Add border to the TractBlender collection."""
@@ -826,6 +826,7 @@ def add_border_to_collection(name, colour,
 
     border = tb_ob.borders.add()
     border.name = name
+    border.group = groupname
     border.colour = colour
     border.bevel_depth = bevel_depth
     border.bevel_resolution = bevel_resolution

@@ -306,14 +306,11 @@ def create_vg_annot(ob, fpath, name=""):
 def create_border_curves(ob, fpath, name=""):
     """Import an border file and create curves."""
 
-    if name:
-        basename = name
-    else:
-        basename = os.path.basename(fpath)
-
     borderlist = tb_imp.read_borders(fpath)
 
-    bordergroup = bpy.data.objects.new(name=basename, object_data=None)
+    ca = [bpy.data.objects]
+    groupname = tb_utils.check_name(name, fpath, ca)
+    bordergroup = bpy.data.objects.new(groupname, object_data=None)
     bpy.context.scene.objects.link(bordergroup)
     bordergroup.parent = ob
 
@@ -331,7 +328,7 @@ def create_border_curves(ob, fpath, name=""):
         bevel_resolution = 10
         iterations = 10
         factor = 0.5
-        tb_imp.add_border_to_collection(name, diffcol,
+        tb_imp.add_border_to_collection(name, groupname, diffcol,
                                         bevel_depth, bevel_resolution,
                                         iterations, factor)
 

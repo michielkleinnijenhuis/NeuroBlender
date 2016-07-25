@@ -277,10 +277,11 @@ class TractBlenderAppearancePanel(Panel):
                     if tb.objecttype == "tracts":
                         ng = bpy.data.node_groups.get("TractOvGroup")
                         ramp = ng.nodes["ColorRamp"]
-                    else:
+                    elif tb.objecttype == "surfaces":
                         mat = bpy.data.materials[tb_ov.name]
                         ramp = mat.node_tree.nodes["ColorRamp"]
-                        # FIXME: this fails on voxelvolumes
+                    elif tb.objecttype == "voxelvolumes":
+                        ramp = bpy.data.textures[tb_ov.name]
                     box.template_color_ramp(ramp, "color_ramp", expand=True)
                     row = box.row()
                     row.label(text="non-normalized colour stop positions:")
@@ -493,56 +494,149 @@ class ObjectListOperations(Operator):
                 exec("%s.index_%s -= 1" % (data, type))
             elif self.action.startswith('REMOVE'):
                 name = collection[idx].name
+                self.remove_items(tb, tb_ob, name, data, type, collection, idx)
                 info = 'removed %s' % (name)
-
-                if self.action.endswith('_ob'):
-                    for ob in bpy.data.objects:
-                        ob.select = ob.name == name
-                    scn.objects.active = ob
-                    bpy.ops.object.mode_set(mode='OBJECT')
-                    bpy.ops.object.delete()
-                    for border in tb_ob.borders:
-                        for ob in bpy.data.objects:
-                            ob.select = ob.name == border.name
-                        scn.objects.active = bpy.data.objects[border.name]
-                        bpy.ops.object.delete()
-                        # TODO: remove the empty that groups the curves
-                elif self.action.endswith('_ov'):
-                    if tb_ob.isvalid:
-                        if type == 'borders':
-                            name = collection[idx].name
-                            for ob in bpy.data.objects:
-                                ob.select = ob.name == name
-                            scn.objects.active = bpy.data.objects[name]
-                            bpy.ops.object.delete()
-                            # TODO: remove the empty
-                            # that groups the curves if border is last
-                        else:
-                            ob = bpy.data.objects[tb_ob.name]
-                            vg = ob.vertex_groups.get(name)
-                            if vg is not None:
-                                ob.vertex_groups.remove(vg)
-
-                            vc = ob.data.vertex_colors.get(name)
-                            # FIXME: does not work for tract-scalars
-                            if vc is not None:
-                                ob.data.vertex_colors.remove(vc)
-
-                            ob_mats = ob.data.materials
-                            mat_idx = ob_mats.find(name)
-                            if mat_idx != -1:
-                                ob_mats.pop(mat_idx, update_data=True)
-                            mats = bpy.data.materials
-                            mat = mats.get(name)
-                            if (mat is not None) and (mat.users < 2):
-                                mat.user_clear()
-                                bpy.data.materials.remove(mat)
-
-                collection.remove(idx)
                 self.report({'INFO'}, info)
-                exec("%s.index_%s -= 1" % (data, type))
+
+        scn.update()  # FIXME: update the viewports
 
         return {"FINISHED"}
+
+    def remove_items(self, tb, tb_ob, name, data, type, collection, idx):
+        """Remove items from TractBlender."""
+
+        ob = bpy.data.objects[tb_ob.name]
+
+        if self.action.endswith('_ob'):
+            # remove all children
+            exec("self.remove_%s_overlays(tb_ob, ob)" % type)
+            # remove the object itself
+            if type == 'voxelvolumes':
+                self.remove_material(ob, name)
+#             for ms in ob.material_slots:
+#                 self.remove_material(ob, ms.name)  # FIXME: causes crash
+            bpy.data.objects.remove(ob, do_unlink=True)
+
+        elif self.action.endswith('_ov'):
+            if tb_ob.isvalid:
+                ob = bpy.data.objects[tb_ob.name]
+                exec("self.remove_%s_%s(collection[idx], ob)" 
+                     % (tb.objecttype, type))
+
+        collection.remove(idx)
+        exec("%s.index_%s -= 1" % (data, type))
+
+    def remove_tracts_overlays(self, tb_ob, ob):
+        """Remove tract scalars and labels."""
+
+        for scalar in tb_ob.scalars:
+            self.remove_tracts_scalars(scalar, ob)
+        for label in tb_ob.labels:
+            pass  # TODO
+
+    def remove_surfaces_overlays(self, tb_ob, ob):
+        """Remove surface scalars, labels and borders."""
+
+        for scalar in tb_ob.scalars:
+            self.remove_surfaces_scalars(scalar, ob)
+        for label in tb_ob.labels:
+            self.remove_surfaces_labels(label, ob)
+        for border in tb_ob.borders:
+            self.remove_surfaces_borders(border, ob)
+            self.remove_surfaces_bordergroup(border, ob)
+
+    def remove_voxelvolumes_overlays(self, tb_ob, ob):
+        """Remove voxelvolume scalars and labels."""
+
+        for scalar in tb_ob.scalars:
+            self.remove_voxelvolumes_scalars(scalar, ob)
+        for label in tb_ob.labels:
+            self.remove_voxelvolumes_labels(label, ob)
+
+    def remove_tracts_scalars(self, scalar, ob):
+        """Remove scalar overlay from tract."""
+
+        for i, spline in enumerate(ob.data.splines):
+            splname = scalar.name + '_spl' + str(i).zfill(8)
+            self.remove_material(ob, splname)
+            self.remove_image(ob, splname)
+
+    def remove_tracts_labels(self, label, ob):
+        """Remove scalar overlay from tract."""
+
+        pass  # TODO
+
+    def remove_surfaces_scalars(self, tb_ov, ob):
+        """Remove scalar overlay from a surface."""
+
+        # TODO: remove colourbars
+        self.remove_vertexcoll(ob.vertex_groups, tb_ov.name)
+        self.remove_vertexcoll(ob.data.vertex_colors, tb_ov.name)
+        self.remove_material(ob, tb_ov.name)
+
+    def remove_surfaces_labels(self, tb_ov, ob):
+        """Remove label overlay from a surface."""
+
+        self.remove_vertexcoll(ob.vertex_groups, tb_ov.name)
+        self.remove_material(ob, tb_ov.name)
+
+    def remove_surfaces_borders(self, tb_ov, ob):
+        """Remove border overlay from a surface."""
+
+        border_ob = bpy.data.objects[tb_ov.name]
+        bpy.data.objects.remove(border_ob, do_unlink=True)
+        self.remove_material(ob, tb_ov.name)
+
+    def remove_surfaces_bordergroup(self, tb_ov, ob):
+        """Remove border group."""
+
+        bordergroup = bpy.data.objects.get(tb_ov.group)
+        if bordergroup:
+            bpy.data.objects.remove(bordergroup, do_unlink=True)
+
+    def remove_voxelvolumes_scalars(self, tb_ov, ob):
+        """Remove scalar overlay from a voxelvolume."""
+
+        self.remove_material(ob, tb_ov.name)
+        ob = bpy.data.objects[tb_ov.name]
+        bpy.data.objects.remove(ob, do_unlink=True)
+
+    def remove_voxelvolumes_labels(self, tb_ov, ob):
+        """Remove label overlay from a voxelvolume."""
+
+        self.remove_material(ob, tb_ov.name)
+        ob = bpy.data.objects[tb_ov.name]
+        bpy.data.objects.remove(ob, do_unlink=True)
+
+    def remove_material(self, ob, name):
+        """Remove a material."""
+
+        ob_mats = ob.data.materials
+        mat_idx = ob_mats.find(name)
+        if mat_idx != -1:
+            ob_mats.pop(mat_idx, update_data=True)
+
+        self.remove_data(bpy.data.materials, name)
+
+    def remove_image(self, ob, name):
+        """Remove an image."""
+
+        self.remove_data(bpy.data.images, name)
+
+    def remove_data(self, coll, name):
+        """Remove data if it is only has a single user."""
+
+        item = coll.get(name)
+        if (item is not None) and (item.users < 2):
+            item.user_clear()
+            coll.remove(item)
+
+    def remove_vertexcoll(self, coll, name):
+        """Remove vertexgroup or vertex_color attribute"""
+
+        item = coll.get(name)
+        if item is not None:
+            coll.remove(item)
 
 
 class ImportTracts(Operator, ImportHelper):
@@ -1374,6 +1468,9 @@ class BorderProperties(PropertyGroup):
         name="Is Rendered",
         description="Indicates if the border is rendered",
         default=True)
+    group = StringProperty(
+        name="Group",
+        description="The group the border overlay belongs to")
     colour = FloatVectorProperty(
         name="Border color",
         description="The color of the border",
