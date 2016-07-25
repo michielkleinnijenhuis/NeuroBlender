@@ -279,7 +279,7 @@ class TractBlenderAppearancePanel(Panel):
                         ramp = ng.nodes["ColorRamp"]
                     else:
                         mat = bpy.data.materials[tb_ov.name]
-                        ramp = mat.node_tree.nodes["_ColorRamp"]
+                        ramp = mat.node_tree.nodes["ColorRamp"]
                         # FIXME: this fails on voxelvolumes
                     box.template_color_ramp(ramp, "color_ramp", expand=True)
                     row = box.row()
@@ -312,9 +312,9 @@ class TractBlenderAppearancePanel(Panel):
                     row.label(text="Convenience access to material:")
                     row = box.row()
                     mat = bpy.data.materials[tb_ov.name]
-                    colour = mat.node_tree.nodes["_Diffuse BSDF"].inputs[0]
+                    colour = mat.node_tree.nodes["Diffuse BSDF"].inputs[0]
                     row.prop(colour, "default_value", text="Colour")
-                    trans = mat.node_tree.nodes["_Mix Shader.001"].inputs[0]
+                    trans = mat.node_tree.nodes["Mix Shader.001"].inputs[0]
                     row.prop(trans, "default_value", text="Transparency")
                     # TODO: copy transparency from colourpicker
                 elif ovtype == "borders":
@@ -1282,7 +1282,8 @@ class ColorRampProperties(PropertyGroup):
     nn_position = FloatProperty(
         name="nn_position",
         description="The non-normalized position of the color stop",
-        default=0)
+        default=0,
+        precision=4)
 
 
 class ScalarProperties(PropertyGroup):
@@ -1307,7 +1308,8 @@ class ScalarProperties(PropertyGroup):
         name="Range",
         description="The original min-max of scalars mapped in vertexweights",
         default=(0, 0),
-        size=2)
+        size=2,
+        precision=4)
     showcolourbar = BoolProperty(
         name="Render colourbar",
         description="Show/hide colourbar in rendered image",

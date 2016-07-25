@@ -729,22 +729,22 @@ def make_material_basic_cycles(name, diffcol, mix=0.04):
     links = mat.node_tree.links
 
     nodes.clear()
-    name = ""
+    prefix = ""
 
     out = nodes.new("ShaderNodeOutputMaterial")
     out.label = "Material Output"
-    out.name = name + "_" + "Material Output"
+    out.name = prefix + "Material Output"
     out.location = 800, 0
 
     mix1 = nodes.new("ShaderNodeMixShader")
     mix1.label = "Mix Shader"
-    mix1.name = name + "_" + "Mix Shader"
+    mix1.name = prefix + "Mix Shader"
     mix1.inputs[0].default_value = mix
     mix1.location = 600, 0
 
     glos = nodes.new("ShaderNodeBsdfGlossy")
     glos.label = "Glossy BSDF"
-    glos.name = name + "_" + "Glossy BSDF"
+    glos.name = prefix + "Glossy BSDF"
     glos.inputs[0].default_value = glossy['colour']
     glos.inputs[1].default_value = glossy['roughness']
     glos.distribution = "BECKMANN"
@@ -752,18 +752,18 @@ def make_material_basic_cycles(name, diffcol, mix=0.04):
 
     mix2 = nodes.new("ShaderNodeMixShader")
     mix2.label = "Mix Shader"
-    mix2.name = name + "_" + "Mix Shader"
+    mix2.name = prefix + "Mix Shader"
     mix2.inputs[0].default_value = diffuse['colour'][3]
     mix2.location = 400, 100
 
     trans = nodes.new("ShaderNodeBsdfTransparent")
     trans.label = "Transparent BSDF"
-    trans.name = name + "_" + "Transparent BSDF"
+    trans.name = prefix + "Transparent BSDF"
     trans.location = 200, 200
 
     diff = nodes.new("ShaderNodeBsdfDiffuse")
     diff.label = "Diffuse BSDF"
-    diff.name = name + "_" + "Diffuse BSDF"
+    diff.name = prefix + "Diffuse BSDF"
     diff.inputs[0].default_value = diffuse['colour']
     diff.inputs[1].default_value = diffuse['roughness']
     diff.location = 200, 0
@@ -792,16 +792,16 @@ def make_material_emit_cycles(name, emission):
     links = mat.node_tree.links
 
     nodes.clear()
-    name = ""
+    prefix = ""
 
     out = nodes.new("ShaderNodeOutputMaterial")
     out.label = "Material Output"
-    out.name = name + "_" + "Material Output"
+    out.name = prefix + "Material Output"
     out.location = 800, 0
 
     emit = nodes.new("ShaderNodeEmission")
     emit.label = "Emission"
-    emit.name = name + "_" + "Emission"
+    emit.name = prefix + "Emission"
     emit.inputs[0].default_value = emission['colour']
     emit.inputs[1].default_value = emission['strength']
     emit.location = 600, -100
@@ -827,16 +827,16 @@ def make_material_emit_internal(name, emission, is_addition=False):
 
     if not is_addition:
         nodes.clear()
-    name = ""
+    prefix = ""
 
     out = nodes.new("ShaderNodeOutput")
     out.label = "Output"
-    out.name = name + "_" + "Output"
+    out.name = prefix + "Output"
     out.location = 800, -500
 
     mtrl = nodes.new("ShaderNodeMaterial")
     mtrl.label = "Material"
-    mtrl.name = name + "_" + "Material"
+    mtrl.name = prefix + "Material"
     mtrl.material = bpy.data.materials[mat.name]
     mtrl.location = 600, -600
 
@@ -863,45 +863,45 @@ def make_material_dirsurf_cycles(name, trans=1):
     links = mat.node_tree.links
 
     nodes.clear()
-    name = ""
+    prefix = ""
 
     out = nodes.new("ShaderNodeOutputMaterial")
     out.label = "Material Output"
-    out.name = name + "_" + "Material Output"
+    out.name = prefix + "Material Output"
     out.location = 800, 0
 
     mix1 = nodes.new("ShaderNodeMixShader")
     mix1.label = "Mix Shader"
-    mix1.name = name + "_" + "Mix Shader"
+    mix1.name = prefix + "Mix Shader"
     mix1.inputs[0].default_value = 0.04
     mix1.location = 600, 0
 
     glos = nodes.new("ShaderNodeBsdfGlossy")
     glos.label = "Glossy BSDF"
-    glos.name = name + "_" + "Glossy BSDF"
+    glos.name = prefix + "Glossy BSDF"
     glos.inputs[1].default_value = 0.15
     glos.distribution = "BECKMANN"
     glos.location = 400, -100
 
     mix2 = nodes.new("ShaderNodeMixShader")
     mix2.label = "Mix Shader"
-    mix2.name = name + "_" + "Mix Shader"
+    mix2.name = prefix + "Mix Shader"
     mix2.inputs[0].default_value = trans
     mix2.location = 400, 100
 
     trans = nodes.new("ShaderNodeBsdfTransparent")
     trans.label = "Transparent BSDF"
-    trans.name = name + "_" + "Transparent BSDF"
+    trans.name = prefix + "Transparent BSDF"
     trans.location = 200, 200
 
     diff = nodes.new("ShaderNodeBsdfDiffuse")
     diff.label = "Diffuse BSDF"
-    diff.name = name + "_" + "Diffuse BSDF"
+    diff.name = prefix + "Diffuse BSDF"
     diff.location = 200, 0
 
     geom = nodes.new("ShaderNodeNewGeometry")
     geom.label = "Geometry"
-    geom.name = name + "_" + "Geometry"
+    geom.name = prefix + "Geometry"
     geom.location = 0, 0
 
     links.new(mix1.outputs["Shader"], out.inputs["Surface"])
@@ -933,84 +933,84 @@ def make_material_dirtract_cycles(name, trans=1):
     links = mat.node_tree.links
 
     nodes.clear()
-    name = ""
+    prefix = ""
 
     out = nodes.new("ShaderNodeOutputMaterial")
     out.label = "Material Output"
-    out.name = name + "_" + "Material Output"
+    out.name = prefix + "Material Output"
     out.location = 800, 0
 
     mix1 = nodes.new("ShaderNodeMixShader")
     mix1.label = "Mix Shader"
-    mix1.name = name + "_" + "Mix Shader"
+    mix1.name = prefix + "Mix Shader"
     mix1.inputs[0].default_value = 0.04
     mix1.location = 600, 0
 
     glos = nodes.new("ShaderNodeBsdfGlossy")
     glos.label = "Glossy BSDF"
-    glos.name = name + "_" + "Glossy BSDF"
+    glos.name = prefix + "Glossy BSDF"
     glos.inputs[1].default_value = 0.15
     glos.distribution = "BECKMANN"
     glos.location = 400, -100
 
     mix2 = nodes.new("ShaderNodeMixShader")
     mix2.label = "Mix Shader"
-    mix2.name = name + "_" + "Mix Shader"
+    mix2.name = prefix + "Mix Shader"
     mix2.inputs[0].default_value = trans
     mix2.location = 400, 100
 
     trans = nodes.new("ShaderNodeBsdfTransparent")
     trans.label = "Transparent BSDF"
-    trans.name = name + "_" + "Transparent BSDF"
+    trans.name = prefix + "Transparent BSDF"
     trans.location = 200, 200
 
     diff = nodes.new("ShaderNodeBsdfDiffuse")
     diff.label = "Diffuse BSDF"
-    diff.name = name + "_" + "Diffuse BSDF"
+    diff.name = prefix + "Diffuse BSDF"
     diff.location = 200, 0
 
     crgb = nodes.new("ShaderNodeCombineRGB")
     crgb.label = "Combine RGB"
-    crgb.name = name + "_" + "Combine RGB"
+    crgb.name = prefix + "Combine RGB"
     crgb.location = 0, 0
     crgb.hide = True
 
     invt = nodes.new("ShaderNodeInvert")
     invt.label = "Invert"
-    invt.name = name + "_" + "Invert"
+    invt.name = prefix + "Invert"
     invt.location = -200, -150
     invt.hide = True
 
     math1 = nodes.new("ShaderNodeMath")
     math1.label = "Add"
-    math1.name = name + "_" + "MathAdd"
+    math1.name = prefix + "MathAdd"
     math1.operation = 'ADD'
     math1.location = -400, -150
     math1.hide = True
 
     math2 = nodes.new("ShaderNodeMath")
     math2.label = "Absolute"
-    math2.name = name + "_" + "MathAbs2"
+    math2.name = prefix + "MathAbs2"
     math2.operation = 'ABSOLUTE'
     math2.location = -600, -50
     math2.hide = True
 
     math3 = nodes.new("ShaderNodeMath")
     math3.label = "Absolute"
-    math3.name = name + "_" + "MathAbs1"
+    math3.name = prefix + "MathAbs1"
     math3.operation = 'ABSOLUTE'
     math3.location = -600, 0
     math3.hide = True
 
     srgb = nodes.new("ShaderNodeSeparateRGB")
     srgb.label = "Separate RGB"
-    srgb.name = name + "_" + "Separate RGB"
+    srgb.name = prefix + "Separate RGB"
     srgb.location = -800, 0
     srgb.hide = True
 
     tang = nodes.new("ShaderNodeTangent")
     tang.label = "Tangent"
-    tang.name = name + "_" + "Tangent"
+    tang.name = prefix + "Tangent"
     tang.direction_type = 'UV_MAP'
     tang.location = -1000, 0
 
@@ -1051,53 +1051,53 @@ def make_material_overlay_cycles(name, vcname, ob=None):
     links = mat.node_tree.links
 
     nodes.clear()
-    name = ""
+    prefix = ""
 
     out = nodes.new("ShaderNodeOutputMaterial")
     out.label = "Material Output"
-    out.name = name + "_" + "Material Output"
+    out.name = prefix + "Material Output"
     out.location = 800, 0
 
     mix1 = nodes.new("ShaderNodeMixShader")
     mix1.label = "Mix Shader"
-    mix1.name = name + "_" + "Mix Shader"
+    mix1.name = prefix + "Mix Shader"
     mix1.inputs[0].default_value = 0.04
     mix1.location = 600, 0
 
     glos = nodes.new("ShaderNodeBsdfGlossy")
     glos.label = "Glossy BSDF"
-    glos.name = name + "_" + "Glossy BSDF"
+    glos.name = prefix + "Glossy BSDF"
     glos.inputs[1].default_value = 0.15
     glos.distribution = "BECKMANN"
     glos.location = 400, -100
 
     diff = nodes.new("ShaderNodeBsdfDiffuse")
     diff.label = "Diffuse BSDF"
-    diff.name = name + "_" + "Diffuse BSDF"
+    diff.name = prefix + "Diffuse BSDF"
     diff.location = 400, 100
 
     vrgb = nodes.new("ShaderNodeValToRGB")
     vrgb.label = "ColorRamp"
-    vrgb.name = name + "_" + "ColorRamp"
+    vrgb.name = prefix + "ColorRamp"
     vrgb.location = 100, 100
 
     set_colorramp_preset(vrgb, mat=mat)
 
     srgb = nodes.new("ShaderNodeSeparateRGB")
     srgb.label = "Separate RGB"
-    srgb.name = name + "_" + "Separate RGB"
+    srgb.name = prefix + "Separate RGB"
     srgb.location = -300, 100
 
     attr = nodes.new("ShaderNodeAttribute")
     attr.location = -500, 100
-    attr.name = name + "_" + "Attribute"
+    attr.name = prefix + "Attribute"
     attr.attribute_name = vcname
     attr.label = "Attribute"
 
 #     if ob is not None:
 #         nnel = nodes.new("ShaderNodeValue")
 #         nnel.location = 100, 300
-#         nnel.name = name + "_" + "Value"
+#         nnel.name = prefix + "Value"
 #         nnel.label = "Value"
 #         driver = nnel.outputs[0].driver_add("default_value")
 #         var2 = driver.driver.variables.new()
@@ -1151,52 +1151,52 @@ def make_material_uvoverlay_cycles(name, vcname, img):
     links = mat.node_tree.links
 
     nodes.clear()
-    name = ""
+    prefix = ""
 
     out = nodes.new("ShaderNodeOutputMaterial")
     out.label = "Material Output"
-    out.name = name + "_" + "Material Output"
+    out.name = prefix + "Material Output"
     out.location = 800, 0
 
     mix1 = nodes.new("ShaderNodeMixShader")
     mix1.label = "Mix Shader"
-    mix1.name = name + "_" + "Mix Shader"
+    mix1.name = prefix + "Mix Shader"
     mix1.inputs[0].default_value = 0.04
     mix1.location = 600, 0
 
     glos = nodes.new("ShaderNodeBsdfGlossy")
     glos.label = "Glossy BSDF"
-    glos.name = name + "_" + "Glossy BSDF"
+    glos.name = prefix + "Glossy BSDF"
     glos.inputs[1].default_value = 0.15
     glos.distribution = "BECKMANN"
     glos.location = 400, -100
 
     diff = nodes.new("ShaderNodeBsdfDiffuse")
     diff.label = "Diffuse BSDF"
-    diff.name = name + "_" + "Diffuse BSDF"
+    diff.name = prefix + "Diffuse BSDF"
     diff.location = 400, 100
 
     vrgb = nodes.new("ShaderNodeValToRGB")
     vrgb.label = "ColorRamp"
-    vrgb.name = name + "_" + "ColorRamp"
+    vrgb.name = prefix + "ColorRamp"
     vrgb.location = 100, 100
 
     set_colorramp_preset(vrgb, mat=mat, prefix='uv_')
 
     srgb = nodes.new("ShaderNodeSeparateRGB")
     srgb.label = "Separate RGB"
-    srgb.name = name + "_" + "Separate RGB"
+    srgb.name = prefix + "Separate RGB"
     srgb.location = -300, 100
 
     itex = nodes.new("ShaderNodeTexImage")
     itex.location = 600, 100
-    itex.name = name + "_" + "Image Texture"
+    itex.name = prefix + "Image Texture"
     itex.image = img
     itex.label = "Image texture"
 
     texc = nodes.new("ShaderNodeTexCoord")
     texc.location = 800, 100
-    texc.name = name + "_" + "Texture Coordinate"
+    texc.name = prefix + "Texture Coordinate"
     texc.label = "Texture Coordinate"
 
     links.new(mix1.outputs["Shader"], out.inputs["Surface"])
@@ -1221,28 +1221,28 @@ def make_material_overlaytract_cycles_withgroup(name, img, group):
     links = mat.node_tree.links
 
     nodes.clear()
-    name = ""
+    prefix = ""
 
     out = nodes.new("ShaderNodeOutputMaterial")
     out.label = "Material Output"
-    out.name = name + "_" + "Material Output"
+    out.name = prefix + "Material Output"
     out.location = 800, 0
 
     groupnode = nodes.new("ShaderNodeGroup")
     groupnode.location = 600, 0
-    groupnode.name = name + "_" + "NodeGroup"
+    groupnode.name = prefix + "NodeGroup"
     groupnode.node_tree = group
     groupnode.label = "NodeGroup"
 
     itex = nodes.new("ShaderNodeTexImage")
     itex.location = 400, 100
-    itex.name = name + "_" + "Image Texture"
+    itex.name = prefix + "Image Texture"
     itex.image = img
     itex.label = "Image texture"
 
     texc = nodes.new("ShaderNodeTexCoord")
     texc.location = 200, 100
-    texc.name = name + "_" + "Texture Coordinate"
+    texc.name = prefix + "Texture Coordinate"
     texc.label = "Texture Coordinate"
 
     links.new(groupnode.outputs["Shader"], out.inputs["Surface"])
@@ -1614,45 +1614,45 @@ def make_material_labels_cycles(name, vcname):
     links = mat.node_tree.links
 
     nodes.clear()
-    name = ""
+    prefix = ""
 
     node = nodes.new("ShaderNodeOutputMaterial")
     node.label = "Material Output"
-    node.name = name + "_" + "Material Output"
+    node.name = prefix + "Material Output"
     node.location = 800, 0
 
     node = nodes.new("ShaderNodeMixShader")
     node.label = "Mix Shader"
-    node.name = name + "_" + "Mix Shader"
+    node.name = prefix + "Mix Shader"
     node.inputs[0].default_value = 0.04
     node.location = 600, 0
 
     node = nodes.new("ShaderNodeBsdfGlossy")
     node.label = "Glossy BSDF"
-    node.name = name + "_" + "Glossy BSDF"
+    node.name = prefix + "Glossy BSDF"
     node.inputs[1].default_value = 0.15
     node.distribution = "BECKMANN"
     node.location = 400, -100
 
     node = nodes.new("ShaderNodeBsdfDiffuse")
     node.label = "Diffuse BSDF"
-    node.name = name + "_" + "Diffuse BSDF"
+    node.name = prefix + "Diffuse BSDF"
     node.location = 400, 100
 
     node = nodes.new("ShaderNodeAttribute")
     node.location = 200, 100
-    node.name = name + "_" + "Attribute"
+    node.name = prefix + "Attribute"
     node.attribute_name = vcname
     node.label = "Attribute"
 
-    links.new(nodes[name + "_" + "Mix Shader"].outputs["Shader"],
-              nodes[name + "_" + "Material Output"].inputs["Surface"])
-    links.new(nodes[name + "_" + "Glossy BSDF"].outputs["BSDF"],
-              nodes[name + "_" + "Mix Shader"].inputs[2])
-    links.new(nodes[name + "_" + "Diffuse BSDF"].outputs["BSDF"],
-              nodes[name + "_" + "Mix Shader"].inputs[1])
-    links.new(nodes[name + "_" + "Attribute"].outputs["Color"],
-              nodes[name + "_" + "Diffuse BSDF"].inputs["Color"])
+    links.new(nodes[prefix + "Mix Shader"].outputs["Shader"],
+              nodes[prefix + "Material Output"].inputs["Surface"])
+    links.new(nodes[prefix + "Glossy BSDF"].outputs["BSDF"],
+              nodes[prefix + "Mix Shader"].inputs[2])
+    links.new(nodes[prefix + "Diffuse BSDF"].outputs["BSDF"],
+              nodes[prefix + "Mix Shader"].inputs[1])
+    links.new(nodes[prefix + "Attribute"].outputs["Color"],
+              nodes[prefix + "Diffuse BSDF"].inputs["Color"])
     # FIXME: node names will truncate if too long; this will error
 
     return mat
