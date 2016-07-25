@@ -814,26 +814,34 @@ def add_label_to_collection(name, value, colour):
     tb_ob.index_labels = (len(tb_ob.labels)-1)
 
 
-def add_border_to_collection(name, groupname, colour,
+def add_bordergroup_to_collection(name):
+    """Add bordergroup to the TractBlender collection."""
+
+    tb_ob = tb_utils.active_tb_object()[0]
+
+    bordergroup = tb_ob.bordergroups.add()
+    bordergroup.name = name
+
+    tb_ob.index_bordergroups = (len(tb_ob.bordergroups)-1)
+
+    return bordergroup
+
+
+def add_border_to_collection(name, bordergroup, colour,
                              bevel_depth=0.5, bevel_resolution=10,
                              iterations=10, factor=0.5):
     """Add border to the TractBlender collection."""
 
-    scn = bpy.context.scene
-    tb = scn.tb
-
-    tb_ob = tb_utils.active_tb_object()[0]
-
-    border = tb_ob.borders.add()
+    border = bordergroup.borders.add()
     border.name = name
-    border.group = groupname
+    border.group = bordergroup.name
     border.colour = colour
     border.bevel_depth = bevel_depth
     border.bevel_resolution = bevel_resolution
     border.iterations = iterations
     border.factor = factor
 
-    tb_ob.index_borders = (len(tb_ob.borders)-1)
+    bordergroup.index_borders = (len(bordergroup.borders)-1)
 
 
 # ========================================================================== #

@@ -236,7 +236,7 @@ class TractBlenderAppearancePanel(Panel):
             row = layout.row()
             row.prop(tb, "overlaytype", expand=True)
             row = layout.row()
-            row.template_list("ObjectListOv", "",
+            row.template_list("ObjectListOvGroup", "",
                               tb_ob, ovtype,
                               tb_ob, "index_" + ovtype,
                               rows=2)
@@ -246,17 +246,17 @@ class TractBlenderAppearancePanel(Panel):
                          text="")
             col.operator("tb.oblist_ops",
                          icon='ZOOMOUT',
-                         text="").action = 'REMOVE_ov'
+                         text="").action = 'REMOVE_ovg'
             col.menu("tb.mass_is_rendered_overlays",
                      icon='DOWNARROW_HLT',
                      text="")
             col.separator()
             col.operator("tb.oblist_ops",
                          icon='TRIA_UP',
-                         text="").action = 'UP_ov'
+                         text="").action = 'UP_ovg'
             col.operator("tb.oblist_ops",
                          icon='TRIA_DOWN',
-                         text="").action = 'DOWN_ov'
+                         text="").action = 'DOWN_ovg'
             try:
                 ov_idx = eval("tb_ob.index_%s" % ovtype)
                 tb_ov = eval("tb_ob.%s[%d]" % (ovtype, ov_idx))
@@ -318,10 +318,36 @@ class TractBlenderAppearancePanel(Panel):
                     trans = mat.node_tree.nodes["Mix Shader.001"].inputs[0]
                     row.prop(trans, "default_value", text="Transparency")
                     # TODO: copy transparency from colourpicker
-                elif ovtype == "borders":
+                elif ovtype == "bordergroups":
+                    bordergroup = tb_ov
                     row = layout.row()
-                    row.enabled = False
-                    row.prop(tb_ov, "colour")
+                    row.template_list("ObjectListOv", "",
+                                      bordergroup, "borders",
+                                      bordergroup, "index_borders",
+                                      rows=2)
+                    col = row.column(align=True)
+                    col.operator("tb.oblist_ops",
+                                 icon='ZOOMOUT',
+                                 text="").action = 'REMOVE_ov'
+                    col.menu("tb.mass_is_rendered_overlays",
+                             icon='DOWNARROW_HLT',
+                             text="")
+                    col.separator()
+                    col.operator("tb.oblist_ops",
+                                 icon='TRIA_UP',
+                                 text="").action = 'UP_ov'
+                    col.operator("tb.oblist_ops",
+                                 icon='TRIA_DOWN',
+                                 text="").action = 'DOWN_ov'
+                    try:
+                        ov_idx = tb_ov.index_borders
+                        tb_ov = tb_ov.borders[ov_idx]
+                    except IndexError:
+                        pass
+                    else:
+                        row = layout.row()
+                        row.enabled = False
+                        row.prop(tb_ov, "colour")
         else:
             row.prop(tb, "show_overlay_options",
                      icon='TRIA_RIGHT',
@@ -407,6 +433,30 @@ class ObjectListOb(UIList):
             layout.prop(text="", icon=item_icon)
 
 
+class ObjectListOvGroup(UIList):
+
+    def draw_item(self, context, layout, data, item, icon,
+                  active_data, active_propname, index):
+
+        if item.isvalid:
+            item_icon = item.icon
+        else:
+            item_icon = "CANCEL"
+
+        if self.layout_type in {'DEFAULT', 'COMPACT'}:
+            col = layout.column()
+            col.prop(item, "name", text="", emboss=False,
+                     translate=False, icon=item_icon)
+            col = layout.column()
+            col.alignment = "RIGHT"
+            col.active = item.is_rendered
+            col.prop(item, "is_rendered", text="", emboss=False,
+                     translate=False, icon='SCENE')
+        elif self.layout_type in {'GRID'}:
+            layout.alignment = 'CENTER'
+            layout.prop(text="", icon=item_icon)
+
+
 class ObjectListOv(UIList):
 
     def draw_item(self, context, layout, data, item, icon,
@@ -457,6 +507,9 @@ class ObjectListOperations(Operator):
         items=(('UP_ob', "UpOb", ""),
                ('DOWN_ob', "DownOb", ""),
                ('REMOVE_ob', "RemoveOb", ""),
+               ('UP_ovg', "UpOvG", ""),
+               ('DOWN_ovg', "DownOvG", ""),
+               ('REMOVE_ovg', "RemoveOvG", ""),
                ('UP_ov', "UpOv", ""),
                ('DOWN_ov', "DownOv", ""),
                ('REMOVE_ov', "RemoveOv", "")))
@@ -474,9 +527,13 @@ class ObjectListOperations(Operator):
         if self.action.endswith('_ob'):
             data = "tb"
             type = tb.objecttype
-        elif self.action.endswith('_ov'):
+        elif self.action.endswith('_ovg'):
             data = "tb_ob"
             type = tb.overlaytype
+        elif self.action.endswith('_ov'):
+            tb_ov, ov_idx = tb_utils.active_tb_overlay()
+            data = "tb_ov"
+            type = "borders"  # borders or labels
 
         collection = eval("%s.%s" % (data, type))
         idx = eval("%s.index_%s" % (data, type))
@@ -493,18 +550,19 @@ class ObjectListOperations(Operator):
                 collection.move(idx, idx-1)
                 exec("%s.index_%s -= 1" % (data, type))
             elif self.action.startswith('REMOVE'):
-                name = collection[idx].name
-                self.remove_items(tb, tb_ob, name, data, type, collection, idx)
-                info = 'removed %s' % (name)
+                info = 'removed %s' % (collection[idx].name)
+                self.remove_items(tb, data, type, collection, idx)
                 self.report({'INFO'}, info)
 
         scn.update()  # FIXME: update the viewports
 
         return {"FINISHED"}
 
-    def remove_items(self, tb, tb_ob, name, data, type, collection, idx):
+    def remove_items(self, tb, data, type, collection, idx):
         """Remove items from TractBlender."""
 
+        name = collection[idx].name
+        tb_ob, ob_idx = tb_utils.active_tb_object()
         ob = bpy.data.objects[tb_ob.name]
 
         if self.action.endswith('_ob'):
@@ -517,8 +575,9 @@ class ObjectListOperations(Operator):
 #                 self.remove_material(ob, ms.name)  # FIXME: causes crash
             bpy.data.objects.remove(ob, do_unlink=True)
 
-        elif self.action.endswith('_ov'):
+        else:
             if tb_ob.isvalid:
+                tb_ov, ov_idx = tb_utils.active_tb_overlay()
                 ob = bpy.data.objects[tb_ob.name]
                 exec("self.remove_%s_%s(collection[idx], ob)" 
                      % (tb.objecttype, type))
@@ -541,9 +600,8 @@ class ObjectListOperations(Operator):
             self.remove_surfaces_scalars(scalar, ob)
         for label in tb_ob.labels:
             self.remove_surfaces_labels(label, ob)
-        for border in tb_ob.borders:
-            self.remove_surfaces_borders(border, ob)
-            self.remove_surfaces_bordergroup(border, ob)
+        for bordergroup in tb_ob.bordergroups:
+            self.remove_surfaces_bordergroups(bordergroup, ob)
 
     def remove_voxelvolumes_overlays(self, tb_ob, ob):
         """Remove voxelvolume scalars and labels."""
@@ -580,19 +638,20 @@ class ObjectListOperations(Operator):
         self.remove_vertexcoll(ob.vertex_groups, tb_ov.name)
         self.remove_material(ob, tb_ov.name)
 
+    def remove_surfaces_bordergroups(self, tb_ov, ob):
+        """Remove border group."""
+
+        for border in tb_ov.borders:
+            self.remove_surfaces_borders(border, ob)
+        bordergroup_ob = bpy.data.objects.get(tb_ov.name)
+        bpy.data.objects.remove(bordergroup_ob, do_unlink=True)
+
     def remove_surfaces_borders(self, tb_ov, ob):
         """Remove border overlay from a surface."""
 
         border_ob = bpy.data.objects[tb_ov.name]
         bpy.data.objects.remove(border_ob, do_unlink=True)
         self.remove_material(ob, tb_ov.name)
-
-    def remove_surfaces_bordergroup(self, tb_ov, ob):
-        """Remove border group."""
-
-        bordergroup = bpy.data.objects.get(tb_ov.group)
-        if bordergroup:
-            bpy.data.objects.remove(bordergroup, do_unlink=True)
 
     def remove_voxelvolumes_scalars(self, tb_ov, ob):
         """Remove scalar overlay from a voxelvolume."""
@@ -937,6 +996,33 @@ class ImportBorders(Operator, ImportHelper):
     bl_idname = "tb.import_borders"
     bl_label = "Import border overlay"
     bl_description = "Import border overlay to curves"
+    bl_options = {"REGISTER", "UNDO", "PRESET"}
+
+    directory = StringProperty(subtype="FILE_PATH")
+    files = CollectionProperty(name="Filepath",
+                               type=OperatorFileListElement)
+
+    name = StringProperty(
+        name="Name",
+        description="Specify a name for the object (default: filename)",
+        default="")
+
+    def execute(self, context):
+        filenames = [file.name for file in self.files]
+        tb_imp.import_borders(self.directory, filenames, self.name)
+
+        return {"FINISHED"}
+
+    def invoke(self, context, event):
+        context.window_manager.fileselect_add(self)
+
+        return {"RUNNING_MODAL"}
+
+
+class ImportBorderGroups(Operator, ImportHelper):
+    bl_idname = "tb.import_bordergroups"
+    bl_label = "Import bordergroup overlay"
+    bl_description = "Import bordergroup overlay to curves"
     bl_options = {"REGISTER", "UNDO", "PRESET"}
 
     directory = StringProperty(subtype="FILE_PATH")
@@ -1318,8 +1404,8 @@ def overlay_enum_callback(self, context):
     items.append(("labels", "labels",
                   "List the label overlays", 2))
     if tb.objecttype == 'surfaces':
-        items.append(("borders", "borders",
-                      "List the border overlays", 3))
+        items.append(("bordergroups", "bordergroups",
+                      "List the bordergroups", 3))
 
     return items
 
@@ -1386,6 +1472,9 @@ class ScalarProperties(PropertyGroup):
     name = StringProperty(
         name="Name",
         description="The name of the scalar overlay")
+    filepath = StringProperty(
+        name="Filepath",
+        description="The filepath to the scalar overlay")
     icon = StringProperty(
         name="Icon",
         description="Icon for scalar overlays",
@@ -1425,6 +1514,9 @@ class LabelProperties(PropertyGroup):
     name = StringProperty(
         name="Name",
         description="The name of the label overlay")
+    filepath = StringProperty(
+        name="Filepath",
+        description="The filepath to the label overlay")
     icon = StringProperty(
         name="Icon",
         description="Icon for label overlays",
@@ -1456,6 +1548,9 @@ class BorderProperties(PropertyGroup):
     name = StringProperty(
         name="Name",
         description="The name of the border overlay")
+    filepath = StringProperty(
+        name="Filepath",
+        description="The filepath to the border overlay")
     icon = StringProperty(
         name="Icon",
         description="Icon for border overlays",
@@ -1500,7 +1595,6 @@ class BorderProperties(PropertyGroup):
         min=0)
 
 
-# TODO: remember and display filepaths
 class TractProperties(PropertyGroup):
     """Properties of tracts."""
 
@@ -1508,6 +1602,9 @@ class TractProperties(PropertyGroup):
         name="Name",
         description="Specify a name for the tract (default: filename)",
         default="")
+    filepath = StringProperty(
+        name="Filepath",
+        description="The filepath to the tract")
     icon = StringProperty(
         name="Icon",
         description="Icon for tract objects",
@@ -1605,6 +1702,38 @@ class TractProperties(PropertyGroup):
         max=1.)
 
 
+class BorderGroupProperties(PropertyGroup):
+    """Properties of border groups."""
+
+    name = StringProperty(
+        name="Name",
+        description="The name of the border overlay")
+    filepath = StringProperty(
+        name="Filepath",
+        description="The filepath to the border overlay")
+    icon = StringProperty(
+        name="Icon",
+        description="Icon for border overlays",
+        default="CURVE_BEZCIRCLE")
+    isvalid = BoolProperty(
+        name="Is Valid",
+        description="Indicates if the object passed validity checks",
+        default=True)
+    is_rendered = BoolProperty(
+        name="Is Rendered",
+        description="Indicates if the border is rendered",
+        default=True)
+    borders = CollectionProperty(
+        type=BorderProperties,
+        name="borders",
+        description="The collection of loaded borders")
+    index_borders = IntProperty(
+        name="border index",
+        description="index of the borders collection",
+        default=0,
+        min=0)
+
+
 class SurfaceProperties(PropertyGroup):
     """Properties of surfaces."""
 
@@ -1612,6 +1741,9 @@ class SurfaceProperties(PropertyGroup):
         name="Name",
         description="Specify a name for the surface (default: filename)",
         default="")
+    filepath = StringProperty(
+        name="Filepath",
+        description="The filepath to the surface")
     icon = StringProperty(
         name="Icon",
         description="Icon for surface objects",
@@ -1673,13 +1805,13 @@ class SurfaceProperties(PropertyGroup):
         description="index of the labels collection",
         default=0,
         min=0)
-    borders = CollectionProperty(
-        type=BorderProperties,
-        name="borders",
-        description="The collection of loaded borders")
-    index_borders = IntProperty(
-        name="border index",
-        description="index of the borders collection",
+    bordergroups = CollectionProperty(
+        type=BorderGroupProperties,
+        name="bordergroups",
+        description="The collection of loaded bordergroups")
+    index_bordergroups = IntProperty(
+        name="bordergroup index",
+        description="index of the bordergroups collection",
         default=0,
         min=0)
 
@@ -1706,6 +1838,9 @@ class VoxelvolumeProperties(PropertyGroup):
         name="Name",
         description="Specify a name for the voxelvolume (default: filename)",
         default="")
+    filepath = StringProperty(
+        name="Filepath",
+        description="The filepath to the voxelvolume")
     icon = StringProperty(
         name="Icon",
         description="Icon for surface objects",

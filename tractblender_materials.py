@@ -310,9 +310,10 @@ def create_border_curves(ob, fpath, name=""):
 
     ca = [bpy.data.objects]
     groupname = tb_utils.check_name(name, fpath, ca)
-    bordergroup = bpy.data.objects.new(groupname, object_data=None)
-    bpy.context.scene.objects.link(bordergroup)
-    bordergroup.parent = ob
+    bordergroup_ob = bpy.data.objects.new(groupname, object_data=None)
+    bpy.context.scene.objects.link(bordergroup_ob)
+    bordergroup_ob.parent = ob
+    bordergroup = tb_imp.add_bordergroup_to_collection(groupname)
 
     for i, border in enumerate(borderlist):
 
@@ -328,7 +329,7 @@ def create_border_curves(ob, fpath, name=""):
         bevel_resolution = 10
         iterations = 10
         factor = 0.5
-        tb_imp.add_border_to_collection(name, groupname, diffcol,
+        tb_imp.add_border_to_collection(name, bordergroup, diffcol,
                                         bevel_depth, bevel_resolution,
                                         iterations, factor)
 
@@ -340,7 +341,7 @@ def create_border_curves(ob, fpath, name=""):
         curveob.data.fill_mode = 'FULL'
         curveob.data.bevel_depth = bevel_depth
         curveob.data.bevel_resolution = bevel_resolution
-        curveob.parent = bordergroup
+        curveob.parent = bordergroup_ob
         mod = curveob.modifiers.new("smooth", type='SMOOTH')
         mod.iterations = iterations
         mod.factor = factor
