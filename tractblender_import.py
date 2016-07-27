@@ -145,13 +145,8 @@ def import_tract(fpath, name, sformfile="", info=None):
     affine = read_affine_matrix(sformfile)
     ob.matrix_world = affine
 
-    tract = tb.tracts.add()
-    tb.index_tracts = (len(tb.tracts)-1)
-    tract.name = name
-    tract.nstreamlines = nsamples
-    tract.tract_weeded = weed_tract
-    tract.streamlines_interpolated = interpolate_streamlines
-    tract.sformfile = sformfile
+    add_tract_to_collection(name, fpath, sformfile,
+                            nsamples, weed_tract, interpolate_streamlines)
 
     tb_utils.move_to_layer(ob, 0)
     scn.layers[0] = True
@@ -223,10 +218,7 @@ def import_surface(fpath, name, sformfile="", info=None):
 
     ob.matrix_world = affine
 
-    surface = tb.surfaces.add()
-    tb.index_surfaces = (len(tb.surfaces)-1)
-    surface.name = name
-    surface.sformfile = sformfile
+    add_surface_to_collection(name, fpath, sformfile)
 
     tb_utils.move_to_layer(ob, 1)
     scn.layers[1] = True
@@ -246,21 +238,21 @@ def import_voxelvolume(directory, files, specname,
     scn.render.engine = "BLENDER_RENDER"
 
     fpath = os.path.join(directory, files[0])
-    ca = [bpy.data.meshes]
+    ca = [bpy.data.meshes,
+          bpy.data.materials,
+          bpy.data.textures]
     name = tb_utils.check_name(specname, fpath, ca)
 
     me = bpy.data.meshes.new(name)
     ob = bpy.data.objects.new(name, me)
     bpy.context.scene.objects.link(ob)
 
-    matname = tb_mat.get_voxmatname(name)
-
     if (fpath.endswith('.nii') | fpath.endswith('.nii.gz')):
-        file_format = "RAW_8BIT"  # "IMAGE_SEQUENCE"
+        file_format = "RAW_8BIT"
         if file_format == "IMAGE_SEQUENCE":
-            tmppath = tempfile.mkdtemp(prefix=matname, dir=bpy.app.tempdir)
+            tmppath = tempfile.mkdtemp(prefix=name, dir=bpy.app.tempdir)
         elif file_format == "RAW_8BIT":
-            tmppath = tempfile.mkstemp(prefix=matname, dir=bpy.app.tempdir)[1]
+            tmppath = tempfile.mkstemp(prefix=name, dir=bpy.app.tempdir)[1]
         dims, datarange, labels, img = prep_nifti(fpath, tmppath,
                                                   is_label, file_format)
         if not is_overlay:
@@ -280,40 +272,34 @@ def import_voxelvolume(directory, files, specname,
         return
 
     if file_format == "IMAGE_SEQUENCE":
-        img.name = matname
+        img.name = name
         img.source = 'SEQUENCE'
         img.reload()
 
-    items = []
     if is_label:
         tb_ob = tb_utils.active_tb_object()[0]
-        ca = [tb_ob.labels]  # TODO: all other labelgroups
+        ca = [tb_ob.labelgroups]  # TODO: all other labelgroups
         groupname = tb_utils.check_name(name, fpath, ca)
-        labelgroup = tb_imp.add_labelgroup_to_collection(groupname)
+        labelgroup = add_labelgroup_to_collection(groupname)
         for label in labels:
-            item = labelgroup.labels.add()
-            item.name = name + "." + str(label).zfill(8)
-            item.value = label
-            item.colour = tb_mat.get_golden_angle_colour(label) + [1.]
-            items.append(item)
-        labelgroup.index_labels = (len(labelgroup.labels)-1)
+            name = "label." + str(label).zfill(2)
+            colour = tb_mat.get_golden_angle_colour(label) + [1.]
+            add_label_to_collection(labelgroup, name, label, colour)
+        matname = labelgroup.name
     elif is_overlay:
-        item = tb_ob.scalars.add()
-        item.name = name
-        item.range = datarange
-        tb_ob.index_scalars = (len(tb_ob.scalars)-1)
-        items.append(item)
+        add_scalar_to_collection(name, datarange)
+        labelgroup = None
+        matname = name
     else:
-        item = tb.voxelvolumes.add()
-        tb.index_voxelvolume = (len(tb.voxelvolumes)-1)
-        item.name = name
-        item.sformfile = sformfile
+        add_voxelvolume_to_collection(name, fpath, sformfile, datarange)
+        labelgroup = None
+        matname = name
 
     affine = read_affine_matrix(sformfile)
     ob.matrix_world = affine
 
     mat = tb_mat.get_voxmat(matname, img, dims, file_format,
-                            is_overlay, is_label, items)
+                            is_overlay, is_label, labelgroup)
     tb_mat.set_materials(me, mat)
 
     voxelvolume_box(me, dims)
@@ -787,6 +773,53 @@ def import_voxoverlay(directory, filenames, name="", is_label=False):
     ob.parent = parentvolume
 
 
+def add_tract_to_collection(name, fpath, sformfile,
+                            nsamples, weed_tract, interpolate_streamlines):
+    """Add tract to the TractBlender collection."""
+
+    scn = bpy.context.scene
+    tb = scn.tb
+
+    tract = tb.tracts.add()
+    tract.name = name
+    tract.filepath = fpath
+    tract.sformfile = sformfile
+    tract.nstreamlines = nsamples
+    tract.tract_weeded = weed_tract
+    tract.streamlines_interpolated = interpolate_streamlines
+
+    tb.index_tracts = (len(tb.tracts)-1)
+
+
+def add_surface_to_collection(name, fpath, sformfile):
+    """Add surface to the TractBlender collection."""
+
+    scn = bpy.context.scene
+    tb = scn.tb
+
+    surface = tb.surfaces.add()
+    surface.name = name
+    surface.filepath = fpath
+    surface.sformfile = sformfile
+
+    tb.index_surfaces = (len(tb.surfaces)-1)
+
+
+def add_voxelvolume_to_collection(name, fpath, sformfile, datarange):
+    """Add voxelvolume to the TractBlender collection."""
+
+    scn = bpy.context.scene
+    tb = scn.tb
+
+    vvol = tb.voxelvolumes.add()
+    vvol.name = name
+    vvol.filepath = fpath
+    vvol.range = datarange
+    vvol.sformfile = sformfile
+
+    tb.index_voxelvolume = (len(tb.voxelvolumes)-1)
+
+
 def add_scalar_to_collection(name, scalarrange):
     """Add scalar to the TractBlender collection."""
 
@@ -810,45 +843,41 @@ def add_label_to_collection(labelgroup, name, value, colour):
     labelgroup.index_labels = (len(labelgroup.labels)-1)
 
 
-def add_bordergroup_to_collection(name):
+def add_bordergroup_to_collection(name, fpath):
     """Add bordergroup to the TractBlender collection."""
 
     tb_ob = tb_utils.active_tb_object()[0]
 
     bordergroup = tb_ob.bordergroups.add()
     bordergroup.name = name
+    bordergroup.filepath = fpath
 
     tb_ob.index_bordergroups = (len(tb_ob.bordergroups)-1)
 
     return bordergroup
 
 
-def add_labelgroup_to_collection(name):
+def add_labelgroup_to_collection(name, fpath):
     """Add labelgroup to the TractBlender collection."""
 
     tb_ob = tb_utils.active_tb_object()[0]
 
     labelgroup = tb_ob.labelgroups.add()
     labelgroup.name = name
+    labelgroup.filepath = fpath
 
     tb_ob.index_labelgroups = (len(tb_ob.labelgroups)-1)
 
     return labelgroup
 
 
-def add_border_to_collection(name, bordergroup, colour,
-                             bevel_depth=0.5, bevel_resolution=10,
-                             iterations=10, factor=0.5):
+def add_border_to_collection(name, bordergroup, colour):
     """Add border to the TractBlender collection."""
 
     border = bordergroup.borders.add()
     border.name = name
     border.group = bordergroup.name
     border.colour = colour
-    border.bevel_depth = bevel_depth
-    border.bevel_resolution = bevel_resolution
-    border.iterations = iterations
-    border.factor = factor
 
     bordergroup.index_borders = (len(bordergroup.borders)-1)
 

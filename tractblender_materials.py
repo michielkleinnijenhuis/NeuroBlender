@@ -249,7 +249,7 @@ def create_vg_annot(ob, fpath, name=""):
     tb_ob = tb_utils.active_tb_object()[0]
     ca = [tb_ob.labelgroups]  # TODO: all other labelgroups
     groupname = tb_utils.check_name(name, fpath, ca)
-    labelgroup = tb_imp.add_labelgroup_to_collection(groupname)
+    labelgroup = tb_imp.add_labelgroup_to_collection(groupname, fpath)
 
     if fpath.endswith('.border'):
         borderlist = tb_imp.read_borders(fpath)
@@ -311,7 +311,7 @@ def create_border_curves(ob, fpath, name=""):
     bordergroup_ob = bpy.data.objects.new(groupname, object_data=None)
     bpy.context.scene.objects.link(bordergroup_ob)
     bordergroup_ob.parent = ob
-    bordergroup = tb_imp.add_bordergroup_to_collection(groupname)
+    bordergroup = tb_imp.add_bordergroup_to_collection(groupname, fpath)
 
     for i, border in enumerate(borderlist):
 
@@ -326,9 +326,7 @@ def create_border_curves(ob, fpath, name=""):
         bevel_resolution = 10
         iterations = 10
         factor = 0.5
-        tb_imp.add_border_to_collection(name, bordergroup, diffcol,
-                                        bevel_depth, bevel_resolution,
-                                        iterations, factor)
+        tb_imp.add_border_to_collection(name, bordergroup, diffcol)
 
         curve = bpy.data.curves.new(name=name, type='CURVE')
         curve.dimensions = '3D'
@@ -634,23 +632,13 @@ def vgs2vc():
 # =========================================================================== #
 
 
-def get_voxmatname(name):
-    """Return a unique name for a voxelvolume material and texture."""
-
-    name = name
-    ca = [bpy.data.materials,
-          bpy.data.textures]
-    name = tb_utils.check_name(name, "", ca)
-
-    return name
-
-
 def get_voxmat(matname, img, dims, file_format="IMAGE_SEQUENCE",
-               is_overlay=False, is_label=False, labels=None):
+               is_overlay=False, is_label=False, labelgroup=None):
     """Return a textured material for voxeldata."""
 
     tex = bpy.data.textures.new(matname, 'VOXEL_DATA')
     tex.use_preview_alpha = True
+    tex.use_color_ramp = True
     tex.voxel_data.file_format = file_format
     if file_format == "IMAGE_SEQUENCE":
         tex.image_user.frame_duration = dims[2]
@@ -662,27 +650,21 @@ def get_voxmat(matname, img, dims, file_format="IMAGE_SEQUENCE",
         tex.voxel_data.resolution = [int(dim) for dim in dims]
 
     if is_label:
+        labels = labelgroup.labels
         tex.voxel_data.interpolation = "NEREASTNEIGHBOR"
-        # FIXME: unexpected behaviour of colorramp
-        # ... (image sequence data does not seem ...
-        # to agree with ticks on colorramp)
-        tex.use_color_ramp = True
         cr = tex.color_ramp
         cr.interpolation = 'CONSTANT'
         cre = cr.elements
-        cre[1].position = 0.001
-        cre[1].color = labels[0].colour
-        # FIXME: blender often crashes on creating colorramp ticks
-        prevlabel = labels[0]
         maxlabel = max([label.value for label in labels])
-#         offset = 1/maxlabel*1/2
+        step = 1. / maxlabel
+        offset = step / 2.
+        cre[1].position = labels[0].value / maxlabel - offset
+        cre[1].color = labels[0].colour
         for label in labels[1:]:
-            el = cre.new(prevlabel.value/maxlabel)
-#             el = cre.new((label.value-1)/maxlabel + offset)
+            pos = label.value / maxlabel - offset
+            el = cre.new(pos)
             el.color = label.colour
-            prevlabel = label
     elif is_overlay:
-        tex.use_color_ramp = True
         cr = tex.color_ramp
         cr.color_mode = 'HSV'
         cr.hue_interpolation = 'FAR'
