@@ -87,11 +87,11 @@ class TractBlenderImportPanel(Panel):
         tb = scn.tb
 
         if tb.is_enabled:
-            self.draw_tb_geom(self.layout, tb)
+            self.draw_tb_panel(self.layout, tb)
         else:
             switch_to_main_scene(self.layout, tb)
 
-    def draw_tb_geom(self, layout, tb):
+    def draw_tb_panel(self, layout, tb):
 
         obtype = tb.objecttype
 
@@ -107,6 +107,7 @@ class TractBlenderImportPanel(Panel):
             pass
         else:
             self.drawunit_tri(layout, "transform", tb, tb_ob)
+            self.drawunit_tri(layout, "material", tb, tb_ob)
             self.drawunit_tri(layout, "info", tb, tb_ob)
 
     def drawunit_UIList(self, layout, uilistlevel, data, type, addopt=True):
@@ -116,6 +117,7 @@ class TractBlenderImportPanel(Panel):
                           data, type,
                           data, "index_" + type,
                           rows=2)
+
         col = row.column(align=True)
         if addopt:
             col.operator("tb.import_" + type,
@@ -141,9 +143,9 @@ class TractBlenderImportPanel(Panel):
         prop = "show_%s" % triflag
         if eval("tb.%s" % prop):
             exec("self.drawunit_tri_%s(layout, tb, data)" % triflag)
-            icon='TRIA_DOWN'
+            icon = 'TRIA_DOWN'
         else:
-            icon='TRIA_RIGHT'
+            icon = 'TRIA_RIGHT'
         row.prop(tb, prop, icon=icon, emboss=False)
 
     def drawunit_tri_transform(self, layout, tb, tb_ob):
@@ -166,13 +168,22 @@ class TractBlenderImportPanel(Panel):
         row.enabled = False
         row.label(text=txts[2])
 
+    def drawunit_tri_material(self, layout, tb, tb_ob):
+
+        if tb.objecttype == "voxelvolumes":
+            tex = bpy.data.textures[tb_ob.name]
+            self.drawunit_texture(layout, tex, tb_ob)
+        else:
+            self.drawunit_new_material(layout, tb_ob)
+
     def drawunit_tri_info(self, layout, tb, tb_ob):
 
+        row = layout.row()
+        row.enabled = False
+        row.prop(tb_ob, "filepath",
+                 text="Path", emboss=False)
+
         if tb.objecttype == "tracts":
-            row = layout.row()
-            row.enabled = False
-            row.prop(tb_ob, "filepath",
-                     text="Path", emboss=False)
             row = layout.row()
             row.enabled = False
             row.prop(tb_ob, "nstreamlines",
@@ -185,249 +196,15 @@ class TractBlenderImportPanel(Panel):
             row.enabled = False
             row.prop(tb_ob, "tract_weeded",
                      text="Tract weeding factor", emboss=False)
+
         elif tb.objecttype == 'surfaces':
-            row = layout.row()
-            row.enabled = False
-            row.prop(tb_ob, "filepath",
-                     text="Path", emboss=False)
+            pass
+
         elif tb.objecttype == 'voxelvolumes':
-            row = layout.row()
-            row.enabled = False
-            row.prop(tb_ob, "filepath",
-                     text="Path", emboss=False)
             row = layout.row()
             row.enabled = False
             row.prop(tb_ob, "range",
                      text="Datarange", emboss=False)
-
-
-class TractBlenderAppearancePanel(Panel):
-    """Host the TractBlender materials functions"""
-    bl_idname = "OBJECT_PT_tb_materials"
-    bl_label = "TractBlender - Materials"
-    bl_space_type = "PROPERTIES"
-    bl_region_type = "WINDOW"
-    bl_context = "scene"
-
-    def draw(self, context):
-
-        scn = bpy.context.scene
-        tb = scn.tb
-
-        if tb.is_enabled:
-            self.draw_tb_mats(self.layout, tb)
-        else:
-            switch_to_main_scene(self.layout, tb)
-
-    def draw_tb_mats(self, layout, tb):
-
-        obtype = tb.objecttype
-
-        try:
-            idx = eval("tb.index_%s" % obtype)
-            tb_ob = eval("tb.%s[%d]" % (obtype, idx))
-        except IndexError:
-            row = self.layout.row()
-            row.label(text="No " + obtype + " loaded ...")
-        else:
-            row = self.layout.row()
-            row.label(text="Properties of %s:" % tb_ob.name,
-                      icon=tb_ob.icon)
-            self.drawunit_tri(self.layout, "appearance", tb, tb_ob)
-            self.drawunit_tri(self.layout, "overlays", tb, tb_ob)
-
-    def drawunit_tri(self, layout, triflag, tb, data):
-
-        row = layout.row()
-        prop = "show_%s" % triflag
-        if eval("tb.%s" % prop):
-            exec("self.drawunit_tri_%s(layout, tb, data)" % triflag)
-            icon='TRIA_DOWN'
-        else:
-            icon='TRIA_RIGHT'
-        row.prop(tb, prop, icon=icon, emboss=False)
-
-    def drawunit_tri_appearance(self, layout, tb, tb_ob):
-
-        if tb.objecttype == "voxelvolumes":
-
-            row = layout.row()
-            row.enabled = False
-            row.prop(tb_ob, "range")  # TODO: move to info?
-
-            box = layout.box()
-            tex = bpy.data.textures[tb_ob.name]
-            text = "Convenience access to '" + tb_ob.name + \
-                   "' texture basics:"
-            # FIXME: nn_range display does not work here
-#                 self.drawunit_texture(box, tex, tb_ob, text)
-            self.drawunit_texture(box, tex, text=text)
-        else:
-            self.drawunit_new_material(layout, tb_ob)
-
-    def drawunit_tri_overlays(self, layout, tb, tb_ob):
-
-        ovtype = tb.overlaytype
-
-        row = layout.row()
-        row.prop(tb, "overlaytype", expand=True)
-
-        self.drawunit_UIList(layout, "L2", tb_ob, ovtype)
-
-        try:
-            ov_idx = eval("tb_ob.index_%s" % ovtype)
-            tb_ov = eval("tb_ob.%s[%d]" % (ovtype, ov_idx))
-        except IndexError:
-            pass
-        else:
-            if ovtype == "scalars":
-                self.drawunit_scalars(layout, tb, tb_ov)
-            else:
-                self.drawunit_tri(layout, "items", tb, tb_ov)
-
-    def drawunit_UIList(self, layout, uilistlevel, data, type, addopt=True):
-
-        row = layout.row()
-        row.template_list("ObjectList" + uilistlevel, "",
-                          data, type,
-                          data, "index_" + type,
-                          rows=2)
-        col = row.column(align=True)
-        if addopt:
-            col.operator("tb.import_" + type,
-                         icon='ZOOMIN',
-                         text="")
-        col.operator("tb.oblist_ops",
-                     icon='ZOOMOUT',
-                     text="").action = 'REMOVE_' + uilistlevel
-        col.menu("tb.mass_is_rendered_objects",
-                 icon='DOWNARROW_HLT',
-                 text="")
-        col.separator()
-        col.operator("tb.oblist_ops",
-                     icon='TRIA_UP',
-                     text="").action = 'UP_' + uilistlevel
-        col.operator("tb.oblist_ops",
-                     icon='TRIA_DOWN',
-                     text="").action = 'DOWN_' + uilistlevel
-
-    def drawunit_tri_items(self, layout, tb, tb_ov):
-
-        type = tb.overlaytype.replace("groups", "s")
-
-        row = layout.row()
-        text = type + " in group '" + tb_ov.name + "'."
-        row.label(text=text)
-
-        self.drawunit_UIList(layout, "L3", tb_ov, type, addopt=False)
-        self.drawunit_tri(layout, "itemprops", tb, tb_ov)
-
-    def drawunit_scalars(self, layout, tb, tb_ov):
-
-        # TODO: create 'info' dropdown?
-        row = layout.row()
-        row.enabled = False
-        row.prop(tb_ov, "range")
-
-        row = layout.row()
-        row.prop(tb_ov, "showcolourbar")
-
-        box = layout.box()
-        if tb.objecttype == "tracts":
-            ng = bpy.data.node_groups.get("TractOvGroup")
-            ramp = ng.nodes["ColorRamp"]
-            text = "Convenience access to color ramp:"
-            self.drawunit_colourramp(box, ramp, tb_ov, text)
-        elif tb.objecttype == "surfaces":
-            text = "Convenience access to '" + tb_ov.name + \
-                   "' material basics:"
-            nt = bpy.data.materials[tb_ov.name].node_tree
-            self.drawunit_material(box, nt, tb_ov, text)
-        if tb.objecttype == "voxelvolumes":
-            tex = bpy.data.textures[tb_ov.name]
-            text = "Convenience access to '" + tb_ov.name + \
-                   "' texture basics:"
-            self.drawunit_texture(box, tex, tb_ov, text)
-
-    def drawunit_tri_itemprops(self, layout, tb, tb_ov):
-
-        type = tb.overlaytype.replace("groups", "s")
-
-        try:
-            idx = eval("tb_ov.index_%s" % type)
-            data = eval("tb_ov.%s[%d]" % (type, idx))
-        except IndexError:
-            pass
-        else:
-            if type == "labels":
-                self.drawunit_labels(layout, tb, data)
-            elif type == "borders":
-                self.drawunit_borders(layout, tb, data)
-
-    def drawunit_labels(self, layout, tb, tb_ov):
-
-        row = layout.row()
-        row.enabled = False
-        row.prop(tb_ov, "value")
-        row.prop(tb_ov, "colour", text="")
-
-        box = layout.box()
-        row = box.row()
-        if tb.objecttype == "voxelvolumes":
-            tb_overlay = tb_utils.active_tb_overlay()[0]
-            row.label(text="Convenience access to label properties:")
-            tex = bpy.data.textures[tb_overlay.name]
-            el = tex.color_ramp.elements[tb_overlay.index_labels + 1]
-            row = box.row()
-            row.prop(el, "color")
-            mat = bpy.data.materials[tb_overlay.name]
-            row = box.row()
-            row.prop(mat.texture_slots[0], "emission_factor")
-            row.prop(mat.texture_slots[0], "emission_color_factor")
-        else:
-            row.label(text="Convenience access to label material:")
-            row = box.row()
-            mat = bpy.data.materials[tb_ov.name]
-            colour = mat.node_tree.nodes["Diffuse BSDF"].inputs[0]
-            trans = mat.node_tree.nodes["Mix Shader.001"].inputs[0]
-            row.prop(colour, "default_value", text="Colour")
-            row.prop(trans, "default_value", text="Transparency")
-            row.operator("tb.revert_label", icon='BACK', text="")
-            row = box.row()
-            nt = mat.node_tree
-            row.prop(nt.nodes["Diffuse BSDF"].inputs[1], 
-                     "default_value", text="diffuse")
-            row.prop(nt.nodes["Glossy BSDF"].inputs[1], 
-                     "default_value", text="glossy")
-            row.prop(nt.nodes["Mix Shader"].inputs[0], 
-                     "default_value", text="mix")
-            # TODO: copy transparency from colourpicker (via driver?)
-#             nt.nodes["Diffuse BSDF"].inputs[0].default_value = (0.627451, 0.392157, 0.196078, 0.6)
-
-    def drawunit_borders(self, layout, tb, tb_ov):
-
-        ob = bpy.data.objects[tb_ov.name]
-
-#             row = box.row()
-#             row.prop(tb_ov, "colour")
-
-        box = layout.box()
-        row = box.row()
-        row.label(text="Convenience access to border properties:")
-        row = box.row()
-        mat = bpy.data.materials[tb_ov.name]
-        colour = mat.node_tree.nodes["Diffuse BSDF"].inputs[0]
-        row.prop(colour, "default_value", text="Colour")
-        trans = mat.node_tree.nodes["Mix Shader.001"].inputs[0]
-        row.prop(trans, "default_value", text="Transparency")
-        row = box.row()
-        row.label(text="Smoothing:")
-        row.prop(ob.modifiers["smooth"], "factor")
-        row.prop(ob.modifiers["smooth"], "iterations")
-        row = box.row()
-        row.label(text="Bevel:")
-        row.prop(ob.data, "bevel_depth")
-        row.prop(ob.data, "bevel_resolution")
 
     def drawunit_new_material(self, layout, tb_ob):
 
@@ -439,19 +216,6 @@ class TractBlenderAppearancePanel(Panel):
         row1.prop(tb_ob, "colourpicker")
         col2 = row.column()
         col2.prop(tb_ob, "colourtype", expand=True)
-
-    def drawunit_material(self, layout, nt, tb_coll=None, text=""):
-
-        if text:
-            row = layout.row()
-            row.label(text=text)
-
-        row = layout.row()
-        row.prop(nt.nodes["Diffuse BSDF"].inputs[1], "default_value", text="diffuse")
-        row.prop(nt.nodes["Glossy BSDF"].inputs[1], "default_value", text="glossy")
-        row.prop(nt.nodes["Mix Shader"].inputs[0], "default_value", text="mix")
-        ramp = nt.nodes["ColorRamp"]
-        self.drawunit_colourramp(layout, ramp, tb_coll)
 
     def drawunit_texture(self, layout, tex, tb_coll=None, text=""):
 
@@ -465,7 +229,8 @@ class TractBlenderAppearancePanel(Panel):
         row.prop(tex, "saturation")
 
         if tex.use_color_ramp:
-            self.drawunit_colourramp(layout, tex, tb_coll)
+            box = layout.box()
+            self.drawunit_colourramp(box, tex, tb_coll)
 
     def drawunit_colourramp(self, layout, ramp, tb_coll=None, text=""):
 
@@ -485,7 +250,7 @@ class TractBlenderAppearancePanel(Panel):
             row.template_list("ObjectListCR", "",
                               tb_coll, "nn_elements",
                               tb_coll, "index_nn_elements",
-                              rows=3)
+                              rows=2)
 
     def calc_nn_elpos(self, tb_ov, ramp):
         # TODO: solve with drivers
@@ -507,17 +272,183 @@ class TractBlenderAppearancePanel(Panel):
             el.nn_position = els[i].position * drange + dmin
 
 
-class SwitchToMainScene(Operator):
-    bl_idname = "tb.switch_to_main"
-    bl_label = "Switch to main"
-    bl_description = "Switch to main TractBlender scene to import"
-    bl_options = {"REGISTER"}
+class TractBlenderOverlayPanel(Panel):
+    """Host the TractBlender overlay functions"""
+    bl_idname = "OBJECT_PT_tb_overlays"
+    bl_label = "TractBlender - Overlays"
+    bl_space_type = "PROPERTIES"
+    bl_region_type = "WINDOW"
+    bl_context = "scene"
 
-    def execute(self, context):
+    # delegate some methods
+    draw = TractBlenderImportPanel.draw
+    drawunit_UIList = TractBlenderImportPanel.drawunit_UIList
+    drawunit_tri = TractBlenderImportPanel.drawunit_tri
+    drawunit_texture = TractBlenderImportPanel.drawunit_texture
+    drawunit_colourramp = TractBlenderImportPanel.drawunit_colourramp
+    calc_nn_elpos = TractBlenderImportPanel.calc_nn_elpos
 
-        context.window.screen.scene = bpy.data.scenes["Scene"]
+    def draw_tb_panel(self, layout, tb):
 
-        return {"FINISHED"}
+        obtype = tb.objecttype
+
+        try:
+            idx = eval("tb.index_%s" % obtype)
+            tb_ob = eval("tb.%s[%d]" % (obtype, idx))
+        except IndexError:
+            row = self.layout.row()
+            row.label(text="No " + obtype + " loaded ...")
+        else:
+
+            row = layout.row()
+            row.prop(tb, "overlaytype", expand=True)
+
+            self.drawunit_UIList(layout, "L2", tb_ob, tb.overlaytype)
+
+            ovtype = tb.overlaytype
+            try:
+                ov_idx = eval("tb_ob.index_%s" % ovtype)
+                tb_ov = eval("tb_ob.%s[%d]" % (ovtype, ov_idx))
+            except IndexError:
+                pass
+            else:
+                if ovtype == "scalars":
+                    self.drawunit_tri(layout, "overlay_material", tb, tb_ov)
+                else:
+                    self.drawunit_tri(layout, "items", tb, tb_ov)
+                self.drawunit_tri(layout, "overlay_info", tb, tb_ov)
+
+    def drawunit_tri_overlay_material(self, layout, tb, tb_ov):
+
+#         TODO: implement colourbar for all and move into UIList
+#         row = layout.row()
+#         row.prop(tb_ov, "showcolourbar")
+
+        if tb.objecttype == "tracts":
+            ng = bpy.data.node_groups.get("TractOvGroup")
+            ramp = ng.nodes["ColorRamp"]
+            self.drawunit_colourramp(layout, ramp, tb_ov)
+
+        elif tb.objecttype == "surfaces":
+            nt = bpy.data.materials[tb_ov.name].node_tree
+            self.drawunit_material(layout, nt, tb_ov)
+
+        elif tb.objecttype == "voxelvolumes":
+            tex = bpy.data.textures[tb_ov.name]
+            self.drawunit_texture(layout, tex, tb_ov)
+
+    def drawunit_tri_items(self, layout, tb, tb_ov):
+
+        type = tb.overlaytype.replace("groups", "s")
+
+        self.drawunit_UIList(layout, "L3", tb_ov, type, addopt=False)
+        self.drawunit_tri(layout, "itemprops", tb, tb_ov)
+
+    def drawunit_tri_itemprops(self, layout, tb, tb_ov):
+
+        type = tb.overlaytype.replace("groups", "s")
+
+        try:
+            idx = eval("tb_ov.index_%s" % type)
+            data = eval("tb_ov.%s[%d]" % (type, idx))
+        except IndexError:
+            pass
+        else:
+            exec("self.drawunit_%s(layout, tb, data)" % type)
+
+    def drawunit_labels(self, layout, tb, tb_ov):
+
+        if tb.objecttype == "voxelvolumes":
+            tb_overlay = tb_utils.active_tb_overlay()[0]
+
+            row = layout.row()
+            row.label(text="Convenience access to label properties:")
+
+            tex = bpy.data.textures[tb_overlay.name]
+            el = tex.color_ramp.elements[tb_overlay.index_labels + 1]
+            row = layout.row()
+            row.prop(el, "color")
+
+            mat = bpy.data.materials[tb_overlay.name]
+            row = layout.row()
+            row.prop(mat.texture_slots[0], "emission_factor")
+            row.prop(mat.texture_slots[0], "emission_color_factor")
+
+        else:
+            row = layout.row()
+            row.label(text="Convenience access to label material:")
+
+            mat = bpy.data.materials[tb_ov.name]
+            colour = mat.node_tree.nodes["Diffuse BSDF"].inputs[0]
+            trans = mat.node_tree.nodes["Mix Shader.001"].inputs[0]
+            row = layout.row()
+            row.prop(colour, "default_value", text="Colour")
+            row.prop(trans, "default_value", text="Transparency")
+            # TODO: copy transparency from colourpicker (via driver?)
+#             nt.nodes["Diffuse BSDF"].inputs[0].default_value[4]
+            row.operator("tb.revert_label", icon='BACK', text="")
+
+            nt = mat.node_tree
+            row = layout.row()
+            row.prop(nt.nodes["Diffuse BSDF"].inputs[1],
+                     "default_value", text="diffuse")
+            row.prop(nt.nodes["Glossy BSDF"].inputs[1],
+                     "default_value", text="glossy")
+            row.prop(nt.nodes["Mix Shader"].inputs[0],
+                     "default_value", text="mix")
+
+    def drawunit_borders(self, layout, tb, tb_ov):
+
+        ob = bpy.data.objects[tb_ov.name]
+
+        row = layout.row()
+        row.label(text="Convenience access to border properties:")
+
+        mat = bpy.data.materials[tb_ov.name]
+        colour = mat.node_tree.nodes["Diffuse BSDF"].inputs[0]
+        trans = mat.node_tree.nodes["Mix Shader.001"].inputs[0]
+        row = layout.row()
+        row.prop(colour, "default_value", text="Colour")
+        row.prop(trans, "default_value", text="Transparency")
+
+        row = layout.row()
+        row.label(text="Smoothing:")
+        row.prop(ob.modifiers["smooth"], "factor")
+        row.prop(ob.modifiers["smooth"], "iterations")
+
+        row = layout.row()
+        row.label(text="Bevel:")
+        row.prop(ob.data, "bevel_depth")
+        row.prop(ob.data, "bevel_resolution")
+
+    def drawunit_material(self, layout, nt, tb_coll=None, text=""):
+
+        if text:
+            row = layout.row()
+            row.label(text=text)
+
+        row = layout.row()
+        row.prop(nt.nodes["Diffuse BSDF"].inputs[1],
+                 "default_value", text="diffuse")
+        row.prop(nt.nodes["Glossy BSDF"].inputs[1],
+                 "default_value", text="glossy")
+        row.prop(nt.nodes["Mix Shader"].inputs[0],
+                 "default_value", text="mix")
+
+        ramp = nt.nodes["ColorRamp"]
+        box = layout.box()
+        self.drawunit_colourramp(box, ramp, tb_coll)
+
+    def drawunit_tri_overlay_info(self, layout, tb, tb_ov):
+
+        row = layout.row()
+        row.enabled = False
+        row.prop(tb_ov, "filepath")
+
+        if tb.overlaytype == "scalars":
+            row = layout.row()
+            row.enabled = False
+            row.prop(tb_ov, "range")
 
 
 class ObjectListL1(UIList):
@@ -531,14 +462,20 @@ class ObjectListL1(UIList):
             item_icon = "CANCEL"
 
         if self.layout_type in {'DEFAULT', 'COMPACT'}:
+
             col = layout.column()
             col.prop(item, "name", text="", emboss=False,
                      translate=False, icon=item_icon)
+
+            # TODO: display Ntracts for tracts
+            # TODO: display range for voxelvolumes
+
             col = layout.column()
             col.alignment = "RIGHT"
             col.active = item.is_rendered
             col.prop(item, "is_rendered", text="", emboss=False,
                      translate=False, icon='SCENE')
+
         elif self.layout_type in {'GRID'}:
             layout.alignment = 'CENTER'
             layout.prop(text="", icon=item_icon)
@@ -555,14 +492,20 @@ class ObjectListL2(UIList):
             item_icon = "CANCEL"
 
         if self.layout_type in {'DEFAULT', 'COMPACT'}:
+
             col = layout.column()
             col.prop(item, "name", text="", emboss=False,
                      translate=False, icon=item_icon)
+
+            # TODO: display range for scalars
+            # TODO: display Nitems for groups
+
             col = layout.column()
             col.alignment = "RIGHT"
             col.active = item.is_rendered
             col.prop(item, "is_rendered", text="", emboss=False,
                      translate=False, icon='SCENE')
+
         elif self.layout_type in {'GRID'}:
             layout.alignment = 'CENTER'
             layout.prop(text="", icon=item_icon)
@@ -579,14 +522,27 @@ class ObjectListL3(UIList):
             item_icon = "CANCEL"
 
         if self.layout_type in {'DEFAULT', 'COMPACT'}:
+
             col = layout.column()
             col.prop(item, "name", text="", emboss=False,
                      translate=False, icon=item_icon)
+
+            col = layout.column()
+            col.alignment = "RIGHT"
+            col.enabled = False
+            col.prop(item, "value", text="", emboss=False)
+
+            col = layout.column()
+            col.alignment = "RIGHT"
+            col.enabled = False
+            col.prop(item, "colour", text="")
+
             col = layout.column()
             col.alignment = "RIGHT"
             col.active = item.is_rendered
             col.prop(item, "is_rendered", text="", emboss=False,
                      translate=False, icon='SCENE')
+
         elif self.layout_type in {'GRID'}:
             layout.alignment = 'CENTER'
             layout.prop(text="", icon=item_icon)
@@ -690,7 +646,7 @@ class ObjectListOperations(Operator):
             if tb_ob.isvalid:
                 tb_ov, ov_idx = tb_utils.active_tb_overlay()
                 ob = bpy.data.objects[tb_ob.name]
-                exec("self.remove_%s_%s(collection[idx], ob)" 
+                exec("self.remove_%s_%s(collection[idx], ob)"
                      % (tb.objecttype, type))
 
         collection.remove(idx)
@@ -701,7 +657,7 @@ class ObjectListOperations(Operator):
 
         for scalar in tb_ob.scalars:
             self.remove_tracts_scalars(scalar, ob)
-        for label in tb_ob.labels:
+        for labelgroup in tb_ob.labelgroups:
             pass  # TODO
 
     def remove_surfaces_overlays(self, tb_ob, ob):
@@ -709,8 +665,8 @@ class ObjectListOperations(Operator):
 
         for scalar in tb_ob.scalars:
             self.remove_surfaces_scalars(scalar, ob)
-        for label in tb_ob.labels:
-            self.remove_surfaces_labels(label, ob)
+        for labelgroup in tb_ob.labelgroups:
+            self.remove_surfaces_labelgroups(labelgroup, ob)
         for bordergroup in tb_ob.bordergroups:
             self.remove_surfaces_bordergroups(bordergroup, ob)
 
@@ -719,8 +675,8 @@ class ObjectListOperations(Operator):
 
         for scalar in tb_ob.scalars:
             self.remove_voxelvolumes_scalars(scalar, ob)
-        for label in tb_ob.labels:
-            self.remove_voxelvolumes_labels(label, ob)
+        for labelgroup in tb_ob.labelgroups:
+            self.remove_voxelvolumes_labelgroups(labelgroup, ob)
 
     def remove_tracts_scalars(self, scalar, ob):
         """Remove scalar overlay from tract."""
@@ -730,7 +686,7 @@ class ObjectListOperations(Operator):
             self.remove_material(ob, splname)
             self.remove_image(ob, splname)
 
-    def remove_tracts_labels(self, label, ob):
+    def remove_tracts_labelgroups(self, label, ob):
         """Remove scalar overlay from tract."""
 
         pass  # TODO
@@ -750,13 +706,13 @@ class ObjectListOperations(Operator):
             self.remove_surfaces_labels(label, ob)
 
     def remove_surfaces_labels(self, tb_ov, ob):
-        """Remove label overlay from a surface."""
+        """Remove label from a labelgroup."""
 
         self.remove_vertexcoll(ob.vertex_groups, tb_ov.name)
         self.remove_material(ob, tb_ov.name)
 
     def remove_surfaces_bordergroups(self, tb_ov, ob):
-        """Remove border group."""
+        """Remove a bordergroup overlay from a surface."""
 
         for border in tb_ov.borders:
             self.remove_surfaces_borders(border, ob)
@@ -764,7 +720,7 @@ class ObjectListOperations(Operator):
         bpy.data.objects.remove(bordergroup_ob, do_unlink=True)
 
     def remove_surfaces_borders(self, tb_ov, ob):
-        """Remove border overlay from a surface."""
+        """Remove border from a bordergroup."""
 
         border_ob = bpy.data.objects[tb_ov.name]
         bpy.data.objects.remove(border_ob, do_unlink=True)
@@ -777,8 +733,15 @@ class ObjectListOperations(Operator):
         ob = bpy.data.objects[tb_ov.name]
         bpy.data.objects.remove(ob, do_unlink=True)
 
+    def remove_voxelvolumes_labelgroups(self, tb_ov, ob):
+        """Remove labelgroup overlay from a voxelvolume."""
+
+        self.remove_material(ob, tb_ov.name)
+        ob = bpy.data.objects[tb_ov.name]
+        bpy.data.objects.remove(ob, do_unlink=True)
+
     def remove_voxelvolumes_labels(self, tb_ov, ob):
-        """Remove label overlay from a voxelvolume."""
+        """Remove label from a labelgroup."""
 
         self.remove_material(ob, tb_ov.name)
         ob = bpy.data.objects[tb_ov.name]
@@ -1243,17 +1206,9 @@ class TractBlenderScenePanel(Panel):
     bl_region_type = "WINDOW"
     bl_context = "scene"
 
-    def draw(self, context):
+    draw = TractBlenderImportPanel.draw
 
-        scn = context.scene
-        tb = scn.tb
-
-        if tb.is_enabled:
-            self.draw_tb_scene(self.layout, tb)
-        else:
-            switch_to_main_scene(self.layout, tb)
-
-    def draw_tb_scene(self, layout, tb):
+    def draw_tb_panel(self, layout, tb):
 
         obs = [ob for ob in bpy.data.objects
                if ob.type not in ["CAMERA", "LAMP", "EMPTY"]]
@@ -1312,17 +1267,9 @@ class TractBlenderSettingsPanel(Panel):
     bl_region_type = "WINDOW"
     bl_context = "scene"
 
-    def draw(self, context):
+    draw = TractBlenderImportPanel.draw
 
-        scn = context.scene
-        tb = scn.tb
-
-        if tb.is_enabled:
-            self.draw_tb_settings(self.layout, tb)
-        else:
-            switch_to_main_scene(self.layout, tb)
-
-    def draw_tb_settings(self, layout, tb):
+    def draw_tb_panel(self, layout, tb):
 
         self.draw_nibabel(layout, tb)
         # TODO: etc
@@ -1368,6 +1315,19 @@ class MakeNibabelPersistent(Operator):
         return {"FINISHED"}
 
 
+class SwitchToMainScene(Operator):
+    bl_idname = "tb.switch_to_main"
+    bl_label = "Switch to main"
+    bl_description = "Switch to main TractBlender scene to import"
+    bl_options = {"REGISTER"}
+
+    def execute(self, context):
+
+        context.window.screen.scene = bpy.data.scenes["Scene"]
+
+        return {"FINISHED"}
+
+
 def switch_to_main_scene(layout, tb):
 
     row = layout.row()
@@ -1376,6 +1336,7 @@ def switch_to_main_scene(layout, tb):
     row.operator("tb.switch_to_main",
                  text="Switch to main",
                  icon="FORWARD")
+
 
 def vgs2vc_enum_callback(self, context):
     """Populate the enum with vertex groups."""
@@ -1406,7 +1367,7 @@ def validate_tb_objects(collections):
             else:
                 item.isvalid = True
                 # descend into the object's vertexgroups
-                validate_tb_overlays(ob, [item.scalars] + 
+                validate_tb_overlays(ob, [item.scalars] +
                                      [lg.labels for lg in item.labelgroups])
 
 
@@ -1607,6 +1568,9 @@ class LabelProperties(PropertyGroup):
         name="Is Rendered",
         description="Indicates if the label is rendered",
         default=True)
+    group = StringProperty(
+        name="Group",
+        description="The group the border overlay belongs to")
     value = IntProperty(
         name="Label value",
         description="The value of the label in vertexgroup 'scalarname'",
@@ -1641,6 +1605,10 @@ class BorderProperties(PropertyGroup):
     group = StringProperty(
         name="Group",
         description="The group the border overlay belongs to")
+    value = IntProperty(
+        name="Label value",
+        description="The value of the label in vertexgroup 'scalarname'",
+        default=0)
     colour = FloatVectorProperty(
         name="Border color",
         description="The color of the border",
@@ -2062,22 +2030,22 @@ class TractBlenderProperties(PropertyGroup):
         name="Transform",
         default=False,
         description="Show/hide the object's transform options")
+    show_material = BoolProperty(
+        name="Material",
+        default=False,
+        description="Show/hide the object's materials options")
     show_info = BoolProperty(
         name="Info",
         default=False,
         description="Show/hide the object's info")
-    show_overlays = BoolProperty(
-        name="Overlays",
+    show_overlay_material = BoolProperty(
+        name="Overlay material",
         default=False,
-        description="Show/hide the object's overlay options")
-    show_appearance = BoolProperty(
-        name="Base material",
+        description="Show/hide the object's overlay material")
+    show_overlay_info = BoolProperty(
+        name="Overlay info",
         default=False,
-        description="Show/hide the object's preset materials options")
-    show_additional = BoolProperty(
-        name="Additional options",
-        default=False,
-        description="Show/hide the object's additional options")
+        description="Show/hide the overlay's info")
     show_items = BoolProperty(
         name="Items",
         default=False,
@@ -2086,6 +2054,10 @@ class TractBlenderProperties(PropertyGroup):
         name="Item properties",
         default=False,
         description="Show/hide the properties of the item")
+    show_additional = BoolProperty(
+        name="Additional options",
+        default=False,
+        description="Show/hide the object's additional options")
 
     objecttype = EnumProperty(
         name="object type",

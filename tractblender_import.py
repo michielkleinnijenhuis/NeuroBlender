@@ -151,7 +151,10 @@ def import_tract(fpath, name, sformfile="", info=None):
     tb_utils.move_to_layer(ob, 0)
     scn.layers[0] = True
 
-    return bpy.data.objects[name]
+    bpy.context.scene.objects.active = ob
+    ob.select = True
+
+    return ob
 
 
 def import_surface(fpath, name, sformfile="", info=None):
@@ -207,8 +210,6 @@ def import_surface(fpath, name, sformfile="", info=None):
             me.from_pydata(verts, [], faces)
             ob = bpy.data.objects.new(name, me)
             bpy.context.scene.objects.link(ob)
-            bpy.context.scene.objects.active = ob
-            ob.select = True
             if (fpath.endswith('.func.gii')) | (fpath.endswith('.shape.gii')):
                 pass  # TODO: create nice overlays for functionals etc
 
@@ -222,6 +223,9 @@ def import_surface(fpath, name, sformfile="", info=None):
 
     tb_utils.move_to_layer(ob, 1)
     scn.layers[1] = True
+
+    bpy.context.scene.objects.active = ob
+    ob.select = True
 
     return ob
 
@@ -280,7 +284,7 @@ def import_voxelvolume(directory, files, specname,
         tb_ob = tb_utils.active_tb_object()[0]
         ca = [tb_ob.labelgroups]  # TODO: all other labelgroups
         groupname = tb_utils.check_name(name, fpath, ca)
-        labelgroup = add_labelgroup_to_collection(groupname)
+        labelgroup = add_labelgroup_to_collection(groupname, fpath)
         for label in labels:
             name = "label." + str(label).zfill(2)
             colour = tb_mat.get_golden_angle_colour(label) + [1.]
@@ -306,6 +310,9 @@ def import_voxelvolume(directory, files, specname,
 
     tb_utils.move_to_layer(ob, 2)
     scn.layers[2] = True
+
+    bpy.context.scene.objects.active = ob
+    ob.select = True
 
     return ob
 
