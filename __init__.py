@@ -1844,7 +1844,10 @@ class SurfaceProperties(PropertyGroup):
     colourtype = EnumProperty(
         name="colourtype",
         description="Apply this colour method",
-        items=material_enum_callback,
+        items=[("basic", "basic", 
+                "Switch to basic material", 1),
+               ("directional", "directional", 
+                "Switch to directional colour-coding", 2)],
         update=material_enum_update)
     colourpicker = FloatVectorProperty(
         name="",
@@ -1932,7 +1935,10 @@ class VoxelvolumeProperties(PropertyGroup):
     colourtype = EnumProperty(
         name="colourtype",
         description="Apply this colour method",
-        items=material_enum_callback,
+        items=[("basic", "basic", 
+                "Switch to basic material", 1),
+               ("directional", "directional", 
+                "Switch to directional colour-coding", 2)],
         update=material_enum_update)
     colourpicker = FloatVectorProperty(
         name="",
