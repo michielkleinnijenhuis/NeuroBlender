@@ -174,7 +174,7 @@ class TractBlenderImportPanel(Panel):
             tex = bpy.data.textures[tb_ob.name]
             self.drawunit_texture(layout, tex, tb_ob)
         else:
-            self.drawunit_new_material(layout, tb_ob)
+            self.drawunit_material(layout, tb_ob)
 
     def drawunit_tri_info(self, layout, tb, tb_ob):
 
@@ -206,16 +206,35 @@ class TractBlenderImportPanel(Panel):
             row.prop(tb_ob, "range",
                      text="Datarange", emboss=False)
 
-    def drawunit_new_material(self, layout, tb_ob):
+    def drawunit_material(self, layout, tb_ob):
 
         row = layout.row()
-        col1 = row.column()
-        row1 = col1.row()
-        row1.prop(tb_ob, "transparency")
-        row1 = col1.row()
-        row1.prop(tb_ob, "colourpicker")
-        col2 = row.column()
-        col2.prop(tb_ob, "colourtype", expand=True)
+        row.prop(tb_ob, "colourtype", expand=True)
+        self.drawunit_basic_cycles(layout, tb_ob)
+
+    def drawunit_basic_cycles(self, layout, tb_ob):
+
+        row = layout.row()
+        row.label(text="Convenience access to material:")
+
+        mat = bpy.data.materials[tb_ob.name]
+        colour = mat.node_tree.nodes["Diffuse BSDF"].inputs[0]
+        trans = mat.node_tree.nodes["Mix Shader.001"].inputs[0]
+        row = layout.row()
+        row.prop(colour, "default_value", text="Colour")
+        row.prop(trans, "default_value", text="Transparency")
+        # TODO: copy transparency from colourpicker (via driver?)
+    #             nt.nodes["Diffuse BSDF"].inputs[0].default_value[4]
+        row.operator("tb.revert_label", icon='BACK', text="")
+
+        nt = mat.node_tree
+        row = layout.row()
+        row.prop(nt.nodes["Diffuse BSDF"].inputs[1],
+                 "default_value", text="diffuse")
+        row.prop(nt.nodes["Glossy BSDF"].inputs[1],
+                 "default_value", text="glossy")
+        row.prop(nt.nodes["Mix Shader"].inputs[0],
+                 "default_value", text="mix")
 
     def drawunit_texture(self, layout, tex, tb_coll=None, text=""):
 
@@ -284,6 +303,7 @@ class TractBlenderOverlayPanel(Panel):
     draw = TractBlenderImportPanel.draw
     drawunit_UIList = TractBlenderImportPanel.drawunit_UIList
     drawunit_tri = TractBlenderImportPanel.drawunit_tri
+    drawunit_basic_cycles = TractBlenderImportPanel.drawunit_basic_cycles
     drawunit_texture = TractBlenderImportPanel.drawunit_texture
     drawunit_colourramp = TractBlenderImportPanel.drawunit_colourramp
     calc_nn_elpos = TractBlenderImportPanel.calc_nn_elpos
@@ -375,27 +395,7 @@ class TractBlenderOverlayPanel(Panel):
             row.prop(mat.texture_slots[0], "emission_color_factor")
 
         else:
-            row = layout.row()
-            row.label(text="Convenience access to label material:")
-
-            mat = bpy.data.materials[tb_ov.name]
-            colour = mat.node_tree.nodes["Diffuse BSDF"].inputs[0]
-            trans = mat.node_tree.nodes["Mix Shader.001"].inputs[0]
-            row = layout.row()
-            row.prop(colour, "default_value", text="Colour")
-            row.prop(trans, "default_value", text="Transparency")
-            # TODO: copy transparency from colourpicker (via driver?)
-#             nt.nodes["Diffuse BSDF"].inputs[0].default_value[4]
-            row.operator("tb.revert_label", icon='BACK', text="")
-
-            nt = mat.node_tree
-            row = layout.row()
-            row.prop(nt.nodes["Diffuse BSDF"].inputs[1],
-                     "default_value", text="diffuse")
-            row.prop(nt.nodes["Glossy BSDF"].inputs[1],
-                     "default_value", text="glossy")
-            row.prop(nt.nodes["Mix Shader"].inputs[0],
-                     "default_value", text="mix")
+            self.drawunit_basic_cycles(layout, tb_ov)
 
     def drawunit_borders(self, layout, tb, tb_ov):
 
@@ -1404,36 +1404,6 @@ def sformfile_update(self, context):
     ob.matrix_world = affine
 
 
-def material_enum_callback(self, context):
-    """Populate the enum based on available options."""
-    # TODO: set the enum value on the basis of currect material?
-    # TODO: handle multiple objects at once?
-
-    tb_ob = tb_utils.active_tb_object()[0]
-    ob = bpy.data.objects[tb_ob.name]
-
-    items = []
-    items.append(("none", "none",
-                  "Add an empty material", 1))
-    items.append(("pick", "pick",
-                  "Add a material with the chosen colour", 2))
-    items.append(("golden_angle", "golden angle",
-                  "Add a material with golden angle colour increment", 3))
-    items.append(("primary6", "primary6",
-                  "Add a material of the primary6 set", 4))
-    items.append(("random", "random",
-                  "Add a material with a randomly picked colour", 5))
-    if ob.type == "MESH":
-        attrib = ob.data.vertex_colors
-    elif ob.type == "CURVE":
-        attrib = ob.data.materials
-    if attrib.get("directional" + ob.type) is None:
-        items.append(("directional", "directional",
-                      "Add a material with directional colour-coding", 6))
-
-    return items
-
-
 def overlay_enum_callback(self, context):
     """Populate the enum based on available options."""
 
@@ -1456,11 +1426,9 @@ def material_enum_update(self, context):
     """Assign a new preset material to the object."""
 
     tb_ob = tb_utils.active_tb_object()[0]
-    ob = bpy.data.objects[tb_ob.name]
 
-    tb_mat.materialise(ob, tb_ob.colourtype, tb_ob.colourpicker,
-                       tb_ob.transparency)
-
+    mat = bpy.data.materials[tb_ob.name]
+    tb_mat.link_innode(mat, tb_ob.colourtype)
 
 def material_enum_set(self, value):
     """Set the value of the enum."""
@@ -1538,7 +1506,7 @@ class ScalarProperties(PropertyGroup):
     showcolourbar = BoolProperty(
         name="Render colourbar",
         description="Show/hide colourbar in rendered image",
-        default=True)
+        default=False)
     nn_elements = CollectionProperty(
         type=ColorRampProperties,
         name="nn_elements",
@@ -1757,7 +1725,10 @@ class TractProperties(PropertyGroup):
     colourtype = EnumProperty(
         name="colourtype",
         description="Apply this colour method",
-        items=material_enum_callback,
+        items=[("basic", "basic", 
+                "Switch to basic material", 1),
+               ("directional", "directional", 
+                "Switch to directional colour-coding", 2)],
         update=material_enum_update)
     colourpicker = FloatVectorProperty(
         name="",

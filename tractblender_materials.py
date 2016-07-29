@@ -38,47 +38,66 @@ from . import tractblender_import as tb_imp
 def materialise(ob, colourtype='primary6', colourpicker=(1, 1, 1), trans=1):
     """Attach material to an object."""
 
+    scn = bpy.context.scene
+    tb = scn.tb
+
     primary6_colours = [[1, 0, 0], [0, 1, 0], [0, 0, 1],
                         [1, 1, 0], [1, 0, 1], [0, 1, 1]]
 
     ob.show_transparent = True
 
+    matname = ob.name
+
+    if ob.type == "CURVE":
+        ob.data.use_uv_as_generated = True
+        group = make_nodegroup_dirtracts()
+    elif ob.type == "MESH":
+        group = make_nodegroup_dirsurfaces()
+
+    diffcol = [1, 1, 1]
+    mix = 0.05
+    diff_rn = 0.1
+
+    idx = eval("tb.index_%s" % tb.objecttype)
     if colourtype == "none":
-        mat = None
+        mix = 0.0
+        diff_rn = 0.0
+        trans = 1.0
+    elif colourtype == "golden_angle":
+        diffcol = get_golden_angle_colour(idx)
+    elif colourtype == "primary6":
+        diffcol = primary6_colours[idx % len(primary6_colours)]
+    elif colourtype == "pick":
+        diffcol = list(colourpicker)
+    elif colourtype == "random":
+        diffcol = [random.random() for _ in range(3)]
 
-    elif colourtype in ["primary6",
-                        "random",
-                        "pick",
-                        "golden_angle"]:
+    diffcol.append(trans)
 
-        ca = [ob.data.materials]
-        matname = tb_utils.check_name(colourtype, "", ca, forcefill=True)
+    mat = make_material_basic_cycles(matname, diffcol, mix, diff_rn, group)
 
-        if colourtype == "primary6":
-            diffcol = primary6_colours[int(matname[-3:]) % 6]
-        elif colourtype == "random":
-            diffcol = [random.random() for _ in range(3)]
-        elif colourtype == "pick":
-            diffcol = list(colourpicker)
-        elif colourtype == "golden_angle":
-            rgb = get_golden_angle_colour(int(matname[-3:]))
-            diffcol = rgb
-        diffcol.append(trans)
-
-        if bpy.data.materials.get(matname) is not None:
-            mat = bpy.data.materials[matname]
-        else:
-            mat = make_material_basic_cycles(matname, diffcol, mix=0.05)
-
-    elif colourtype == "directional":
-        matname = colourtype + ob.type
-        if ob.type == "CURVE":
-            ob.data.use_uv_as_generated = True
-            mat = make_material_dirtract_cycles(matname, trans)
-        elif ob.type == "MESH":
-            mat = make_material_dirsurf_cycles(matname, trans)
+    link_innode(mat, colourtype)
 
     set_materials(ob.data, mat)
+
+
+def link_innode(mat, colourtype):
+
+    nodes = mat.node_tree.nodes
+    links = mat.node_tree.links
+
+    diff = nodes["Diffuse BSDF"]
+    in_node = nodes["diff_ingroup"]
+
+    if colourtype == "directional":
+        links.new(in_node.outputs["Color"], diff.inputs["Color"])
+    else:
+        try:
+            link = in_node.outputs["Color"].links[0]
+        except IndexError:
+            pass
+        else:
+            links.remove(link)
 
 
 def set_materials(me, mat):
@@ -692,13 +711,14 @@ def get_voxmat(matname, img, dims, file_format="IMAGE_SEQUENCE",
 # ========================================================================== #
 
 
-def make_material_basic_cycles(name, diffcol, mix=0.04):
+def make_material_basic_cycles(name, diff_col, mix=0.04, 
+                               diff_rn=0.1, diff_ingroup=None):
     """Create a basic Cycles material.
 
     The material mixes difffuse, transparent and glossy.
     """
 
-    diffuse = {'colour': diffcol, 'roughness': 0.1}
+    diffuse = {'colour': diff_col, 'roughness': diff_rn}
     glossy = {'colour': (1.0, 1.0, 1.0, 1.0), 'roughness': 0.1}
 
     scn = bpy.context.scene
@@ -718,13 +738,13 @@ def make_material_basic_cycles(name, diffcol, mix=0.04):
     out = nodes.new("ShaderNodeOutputMaterial")
     out.label = "Material Output"
     out.name = prefix + "Material Output"
-    out.location = 800, 0
+    out.location = 600, 0
 
     mix1 = nodes.new("ShaderNodeMixShader")
     mix1.label = "Mix Shader"
     mix1.name = prefix + "Mix Shader"
     mix1.inputs[0].default_value = mix
-    mix1.location = 600, 0
+    mix1.location = 400, 0
 
     glos = nodes.new("ShaderNodeBsdfGlossy")
     glos.label = "Glossy BSDF"
@@ -732,31 +752,38 @@ def make_material_basic_cycles(name, diffcol, mix=0.04):
     glos.inputs[0].default_value = glossy['colour']
     glos.inputs[1].default_value = glossy['roughness']
     glos.distribution = "BECKMANN"
-    glos.location = 400, -100
+    glos.location = 200, -100
 
     mix2 = nodes.new("ShaderNodeMixShader")
     mix2.label = "Mix Shader"
     mix2.name = prefix + "Mix Shader"
     mix2.inputs[0].default_value = diffuse['colour'][3]
-    mix2.location = 400, 100
+    mix2.location = 200, 100
 
     trans = nodes.new("ShaderNodeBsdfTransparent")
     trans.label = "Transparent BSDF"
     trans.name = prefix + "Transparent BSDF"
-    trans.location = 200, 200
+    trans.location = 0, 200
 
     diff = nodes.new("ShaderNodeBsdfDiffuse")
     diff.label = "Diffuse BSDF"
     diff.name = prefix + "Diffuse BSDF"
     diff.inputs[0].default_value = diffuse['colour']
     diff.inputs[1].default_value = diffuse['roughness']
-    diff.location = 200, 0
+    diff.location = 0, 0
 
     links.new(mix1.outputs["Shader"], out.inputs["Surface"])
     links.new(mix2.outputs["Shader"], mix1.inputs[1])
     links.new(glos.outputs["BSDF"], mix1.inputs[2])
     links.new(trans.outputs["BSDF"], mix2.inputs[1])
     links.new(diff.outputs["BSDF"], mix2.inputs[2])
+
+    if diff_ingroup is not None:
+        in_node = nodes.new("ShaderNodeGroup")
+        in_node.location = -200, 0
+        in_node.name = "diff_ingroup"
+        in_node.label = "diff_ingroup"
+        in_node.node_tree = diff_ingroup
 
     return mat
 
@@ -832,179 +859,70 @@ def make_material_emit_internal(name, emission, is_addition=False):
     return mat
 
 
-def make_material_dirsurf_cycles(name, trans=1):
-    """Create a material for directional (normals) surface colour."""
-
-    scn = bpy.context.scene
-    if not scn.render.engine == "CYCLES":
-        scn.render.engine = "CYCLES"
-
-    mat = (bpy.data.materials.get(name) or
-           bpy.data.materials.new(name))
-    mat.use_nodes = True
-
-    nodes = mat.node_tree.nodes
-    links = mat.node_tree.links
-
-    nodes.clear()
-    prefix = ""
-
-    out = nodes.new("ShaderNodeOutputMaterial")
-    out.label = "Material Output"
-    out.name = prefix + "Material Output"
-    out.location = 800, 0
-
-    mix1 = nodes.new("ShaderNodeMixShader")
-    mix1.label = "Mix Shader"
-    mix1.name = prefix + "Mix Shader"
-    mix1.inputs[0].default_value = 0.04
-    mix1.location = 600, 0
-
-    glos = nodes.new("ShaderNodeBsdfGlossy")
-    glos.label = "Glossy BSDF"
-    glos.name = prefix + "Glossy BSDF"
-    glos.inputs[1].default_value = 0.15
-    glos.distribution = "BECKMANN"
-    glos.location = 400, -100
-
-    mix2 = nodes.new("ShaderNodeMixShader")
-    mix2.label = "Mix Shader"
-    mix2.name = prefix + "Mix Shader"
-    mix2.inputs[0].default_value = trans
-    mix2.location = 400, 100
-
-    trans = nodes.new("ShaderNodeBsdfTransparent")
-    trans.label = "Transparent BSDF"
-    trans.name = prefix + "Transparent BSDF"
-    trans.location = 200, 200
-
-    diff = nodes.new("ShaderNodeBsdfDiffuse")
-    diff.label = "Diffuse BSDF"
-    diff.name = prefix + "Diffuse BSDF"
-    diff.location = 200, 0
-
-    geom = nodes.new("ShaderNodeNewGeometry")
-    geom.label = "Geometry"
-    geom.name = prefix + "Geometry"
-    geom.location = 0, 0
-
-    links.new(mix1.outputs["Shader"], out.inputs["Surface"])
-    links.new(mix2.outputs["Shader"], mix1.inputs[1])
-    links.new(glos.outputs["BSDF"], mix1.inputs[2])
-    links.new(trans.outputs["BSDF"], mix2.inputs[1])
-    links.new(diff.outputs["BSDF"], mix2.inputs[2])
-
-    links.new(geom.outputs["Normal"], diff.inputs["Color"])
-
-    return mat
-
-
-def make_material_dirtract_cycles(name, trans=1):
-    """Create a material for directional (tangent) tract colour.
+def make_nodegroup_dirtracts(name="DirTractsGroup"):
+    """Create a nodegroup for directional (tangent) tract colour.
 
     # http://blender.stackexchange.com/questions/43102
     """
 
-    scn = bpy.context.scene
-    if not scn.render.engine == "CYCLES":
-        scn.render.engine = "CYCLES"
+    group = bpy.data.node_groups.new(name, "ShaderNodeTree")
+    group.outputs.new("NodeSocketColor", "Color")
 
-    mat = (bpy.data.materials.get(name) or
-           bpy.data.materials.new(name))
-    mat.use_nodes = True
-
-    nodes = mat.node_tree.nodes
-    links = mat.node_tree.links
+    nodes = group.nodes
+    links = group.links
 
     nodes.clear()
     prefix = ""
 
-    out = nodes.new("ShaderNodeOutputMaterial")
-    out.label = "Material Output"
-    out.name = prefix + "Material Output"
-    out.location = 800, 0
-
-    mix1 = nodes.new("ShaderNodeMixShader")
-    mix1.label = "Mix Shader"
-    mix1.name = prefix + "Mix Shader"
-    mix1.inputs[0].default_value = 0.04
-    mix1.location = 600, 0
-
-    glos = nodes.new("ShaderNodeBsdfGlossy")
-    glos.label = "Glossy BSDF"
-    glos.name = prefix + "Glossy BSDF"
-    glos.inputs[1].default_value = 0.15
-    glos.distribution = "BECKMANN"
-    glos.location = 400, -100
-
-    mix2 = nodes.new("ShaderNodeMixShader")
-    mix2.label = "Mix Shader"
-    mix2.name = prefix + "Mix Shader"
-    mix2.inputs[0].default_value = trans
-    mix2.location = 400, 100
-
-    trans = nodes.new("ShaderNodeBsdfTransparent")
-    trans.label = "Transparent BSDF"
-    trans.name = prefix + "Transparent BSDF"
-    trans.location = 200, 200
-
-    diff = nodes.new("ShaderNodeBsdfDiffuse")
-    diff.label = "Diffuse BSDF"
-    diff.name = prefix + "Diffuse BSDF"
-    diff.location = 200, 0
+    output_node = nodes.new("NodeGroupOutput")
+    output_node.location = (-200, 0)
 
     crgb = nodes.new("ShaderNodeCombineRGB")
     crgb.label = "Combine RGB"
     crgb.name = prefix + "Combine RGB"
-    crgb.location = 0, 0
+    crgb.location = -400, 0
     crgb.hide = True
 
     invt = nodes.new("ShaderNodeInvert")
     invt.label = "Invert"
     invt.name = prefix + "Invert"
-    invt.location = -200, -150
+    invt.location = -600, -150
     invt.hide = True
 
     math1 = nodes.new("ShaderNodeMath")
     math1.label = "Add"
     math1.name = prefix + "MathAdd"
     math1.operation = 'ADD'
-    math1.location = -400, -150
+    math1.location = -800, -150
     math1.hide = True
 
     math2 = nodes.new("ShaderNodeMath")
     math2.label = "Absolute"
     math2.name = prefix + "MathAbs2"
     math2.operation = 'ABSOLUTE'
-    math2.location = -600, -50
+    math2.location = -1000, -50
     math2.hide = True
 
     math3 = nodes.new("ShaderNodeMath")
     math3.label = "Absolute"
     math3.name = prefix + "MathAbs1"
     math3.operation = 'ABSOLUTE'
-    math3.location = -600, 0
+    math3.location = -1000, 0
     math3.hide = True
 
     srgb = nodes.new("ShaderNodeSeparateRGB")
     srgb.label = "Separate RGB"
     srgb.name = prefix + "Separate RGB"
-    srgb.location = -800, 0
+    srgb.location = -1200, 0
     srgb.hide = True
 
     tang = nodes.new("ShaderNodeTangent")
     tang.label = "Tangent"
     tang.name = prefix + "Tangent"
     tang.direction_type = 'UV_MAP'
-    tang.location = -1000, 0
+    tang.location = -1400, 0
 
-    links.new(mix1.outputs["Shader"], out.inputs["Surface"])
-    links.new(mix2.outputs["Shader"], mix1.inputs[1])
-    links.new(glos.outputs["BSDF"], mix1.inputs[2])
-    links.new(trans.outputs["BSDF"], mix2.inputs[1])
-    links.new(diff.outputs["BSDF"], mix2.inputs[2])
-
-    links.new(crgb.outputs["Image"], diff.inputs["Color"])
+    links.new(crgb.outputs["Image"], output_node.inputs[0])
     links.new(invt.outputs["Color"], crgb.inputs[2])
     links.new(math2.outputs["Value"], crgb.inputs[1])
     links.new(math3.outputs["Value"], crgb.inputs[0])
@@ -1015,7 +933,32 @@ def make_material_dirtract_cycles(name, trans=1):
     links.new(srgb.outputs["R"], math3.inputs["Value"])
     links.new(tang.outputs["Tangent"], srgb.inputs["Image"])
 
-    return mat
+    return group
+
+
+def make_nodegroup_dirsurfaces(name="DirSurfacesGroup"):
+    """Create a nodegroup for directional (normal) surface colour."""
+
+    group = bpy.data.node_groups.new(name, "ShaderNodeTree")
+    group.outputs.new("NodeSocketColor", "Color")
+
+    nodes = group.nodes
+    links = group.links
+
+    nodes.clear()
+    prefix = ""
+
+    output_node = nodes.new("NodeGroupOutput")
+    output_node.location = (-200, 0)
+
+    geom = nodes.new("ShaderNodeNewGeometry")
+    geom.label = "Geometry"
+    geom.name = prefix + "Geometry"
+    geom.location = -400, 0
+
+    links.new(geom.outputs["Normal"], output_node.inputs[0])
+
+    return group
 
 
 def make_material_overlay_cycles(name, vcname, ob=None):
@@ -1361,7 +1304,6 @@ def set_colorramp_preset(node, cmapname="r2b", mat=None, prefix=''):
         positions = [0.0, 1.0]
         colors = [(0.0, 1.0, 0.0, 1.0), (0.0, 0.0, 1.0, 1.0)]
 
-    # FIXME: wromng range and multiplication factors on loading!
     # TODO: extend colourmaps
 #     node.color_ramp.color_mode = 'HSV'  # HSV, HSL / RGB
 #     # NEAR, FAR, CW, CCW / LINEAR, B_SPLINE, ...Z

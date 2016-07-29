@@ -71,7 +71,8 @@ def import_objects(directory, files, importfun,
 
     for f in files:
         fpath = os.path.join(directory, f)
-        ca = [bpy.data.objects]
+        ca = [bpy.data.objects,
+              bpy.data.materials]
         name = tb_utils.check_name(specname, fpath, ca)
 
         ob = importfun(fpath, name, info=info)
@@ -786,8 +787,11 @@ def add_tract_to_collection(name, fpath, sformfile,
 
     scn = bpy.context.scene
     tb = scn.tb
+    tb.objecttype = 'tracts'
 
     tract = tb.tracts.add()
+    tb.index_tracts = (len(tb.tracts)-1)
+
     tract.name = name
     tract.filepath = fpath
     tract.sformfile = sformfile
@@ -795,21 +799,20 @@ def add_tract_to_collection(name, fpath, sformfile,
     tract.tract_weeded = weed_tract
     tract.streamlines_interpolated = interpolate_streamlines
 
-    tb.index_tracts = (len(tb.tracts)-1)
-
 
 def add_surface_to_collection(name, fpath, sformfile):
     """Add surface to the TractBlender collection."""
 
     scn = bpy.context.scene
     tb = scn.tb
+    tb.objecttype = 'surfaces'
 
     surface = tb.surfaces.add()
+    tb.index_surfaces = (len(tb.surfaces)-1)
+
     surface.name = name
     surface.filepath = fpath
     surface.sformfile = sformfile
-
-    tb.index_surfaces = (len(tb.surfaces)-1)
 
 
 def add_voxelvolume_to_collection(name, fpath, sformfile, datarange):
@@ -817,14 +820,15 @@ def add_voxelvolume_to_collection(name, fpath, sformfile, datarange):
 
     scn = bpy.context.scene
     tb = scn.tb
+    tb.objecttype = 'voxelvolumes'
 
     vvol = tb.voxelvolumes.add()
+    tb.index_voxelvolume = (len(tb.voxelvolumes)-1)
+
     vvol.name = name
     vvol.filepath = fpath
     vvol.range = datarange
     vvol.sformfile = sformfile
-
-    tb.index_voxelvolume = (len(tb.voxelvolumes)-1)
 
 
 def add_scalar_to_collection(name, scalarrange):
@@ -832,36 +836,15 @@ def add_scalar_to_collection(name, scalarrange):
 
     tb_ob = tb_utils.active_tb_object()[0]
 
-    scalar = tb_ob.scalars.add()
-    scalar.name = name
-    scalar.range = scalarrange
+    scn = bpy.context.scene
+    tb = scn.tb
+    tb.overlaytype = 'scalars'
 
+    scalar = tb_ob.scalars.add()
     tb_ob.index_scalars = (len(tb_ob.scalars)-1)
 
-
-def add_label_to_collection(labelgroup, name, value, colour):
-    """Add label to the TractBlender collection."""
-
-    label = labelgroup.labels.add()
-    label.name = name
-    label.value = value
-    label.colour = colour
-
-    labelgroup.index_labels = (len(labelgroup.labels)-1)
-
-
-def add_bordergroup_to_collection(name, fpath):
-    """Add bordergroup to the TractBlender collection."""
-
-    tb_ob = tb_utils.active_tb_object()[0]
-
-    bordergroup = tb_ob.bordergroups.add()
-    bordergroup.name = name
-    bordergroup.filepath = fpath
-
-    tb_ob.index_bordergroups = (len(tb_ob.bordergroups)-1)
-
-    return bordergroup
+    scalar.name = name
+    scalar.range = scalarrange
 
 
 def add_labelgroup_to_collection(name, fpath):
@@ -869,24 +852,65 @@ def add_labelgroup_to_collection(name, fpath):
 
     tb_ob = tb_utils.active_tb_object()[0]
 
+    scn = bpy.context.scene
+    tb = scn.tb
+    tb.overlaytype = 'labelgroups'
+
     labelgroup = tb_ob.labelgroups.add()
+    tb_ob.index_labelgroups = (len(tb_ob.labelgroups)-1)
+
     labelgroup.name = name
     labelgroup.filepath = fpath
 
-    tb_ob.index_labelgroups = (len(tb_ob.labelgroups)-1)
-
     return labelgroup
+
+
+def add_label_to_collection(labelgroup, name, value, colour):
+    """Add label to the TractBlender collection."""
+
+    scn = bpy.context.scene
+    tb = scn.tb
+    tb.overlaytype = 'labelgroups'
+
+    label = labelgroup.labels.add()
+    labelgroup.index_labels = (len(labelgroup.labels)-1)
+
+    label.name = name
+    label.value = value
+    label.colour = colour
+
+
+def add_bordergroup_to_collection(name, fpath):
+    """Add bordergroup to the TractBlender collection."""
+
+    tb_ob = tb_utils.active_tb_object()[0]
+
+    scn = bpy.context.scene
+    tb = scn.tb
+    tb.overlaytype = 'bordergroups'
+
+    bordergroup = tb_ob.bordergroups.add()
+    tb_ob.index_bordergroups = (len(tb_ob.bordergroups)-1)
+
+    bordergroup.name = name
+    bordergroup.filepath = fpath
+
+    return bordergroup
 
 
 def add_border_to_collection(name, bordergroup, colour):
     """Add border to the TractBlender collection."""
 
+    scn = bpy.context.scene
+    tb = scn.tb
+    tb.overlaytype = 'bordergroups'
+
     border = bordergroup.borders.add()
+    bordergroup.index_borders = (len(bordergroup.borders)-1)
+
     border.name = name
     border.group = bordergroup.name
     border.colour = colour
-
-    bordergroup.index_borders = (len(bordergroup.borders)-1)
 
 
 # ========================================================================== #
