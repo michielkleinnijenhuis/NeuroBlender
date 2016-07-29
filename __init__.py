@@ -126,7 +126,7 @@ class TractBlenderImportPanel(Panel):
         col.operator("tb.oblist_ops",
                      icon='ZOOMOUT',
                      text="").action = 'REMOVE_' + uilistlevel
-        col.menu("tb.mass_is_rendered_objects",
+        col.menu("tb.mass_is_rendered_" + uilistlevel,
                  icon='DOWNARROW_HLT',
                  text="")
         col.separator()
@@ -1099,8 +1099,8 @@ class ImportBorderGroups(Operator, ImportHelper):
         return {"RUNNING_MODAL"}
 
 
-class MassIsRenderedObjects(Menu):
-    bl_idname = "tb.mass_is_rendered_objects"
+class MassIsRenderedL1(Menu):
+    bl_idname = "tb.mass_is_rendered_L1"
     bl_label = "Vertex Group Specials"
     bl_description = "Menu for group selection of rendering option"
     bl_options = {"REGISTER"}
@@ -1109,17 +1109,17 @@ class MassIsRenderedObjects(Menu):
         layout = self.layout
         layout.operator("tb.mass_select",
                         icon='SCENE',
-                        text="Select All").action = 'SELECT_ob'
+                        text="Select All").action = 'SELECT_L1'
         layout.operator("tb.mass_select",
                         icon='SCENE',
-                        text="Deselect All").action = 'DESELECT_ob'
+                        text="Deselect All").action = 'DESELECT_L1'
         layout.operator("tb.mass_select",
                         icon='SCENE',
-                        text="Invert").action = 'INVERT_ob'
+                        text="Invert").action = 'INVERT_L1'
 
 
-class MassIsRenderedOverlays(Menu):
-    bl_idname = "tb.mass_is_rendered_overlays"
+class MassIsRenderedL2(Menu):
+    bl_idname = "tb.mass_is_rendered_L2"
     bl_label = "Vertex Group Specials"
     bl_description = "Menu for group selection of rendering option"
     bl_options = {"REGISTER"}
@@ -1128,13 +1128,32 @@ class MassIsRenderedOverlays(Menu):
         layout = self.layout
         layout.operator("tb.mass_select",
                         icon='SCENE',
-                        text="Select All").action = 'SELECT_ov'
+                        text="Select All").action = 'SELECT_L2'
         layout.operator("tb.mass_select",
                         icon='SCENE',
-                        text="Deselect All").action = 'DESELECT_ov'
+                        text="Deselect All").action = 'DESELECT_L2'
         layout.operator("tb.mass_select",
                         icon='SCENE',
-                        text="Invert").action = 'INVERT_ov'
+                        text="Invert").action = 'INVERT_L2'
+
+
+class MassIsRenderedL3(Menu):
+    bl_idname = "tb.mass_is_rendered_L3"
+    bl_label = "Vertex Group Specials"
+    bl_description = "Menu for group selection of rendering option"
+    bl_options = {"REGISTER"}
+
+    def draw(self, context):
+        layout = self.layout
+        layout.operator("tb.mass_select",
+                        icon='SCENE',
+                        text="Select All").action = 'SELECT_L3'
+        layout.operator("tb.mass_select",
+                        icon='SCENE',
+                        text="Deselect All").action = 'DESELECT_L3'
+        layout.operator("tb.mass_select",
+                        icon='SCENE',
+                        text="Invert").action = 'INVERT_L3'
 
 
 class MassSelect(Operator):
@@ -1144,23 +1163,30 @@ class MassSelect(Operator):
     bl_options = {"REGISTER"}
 
     action = bpy.props.EnumProperty(
-        items=(('SELECT_ob', "Select_ob", ""),
-               ('DESELECT_ob', "Deselect_ob", ""),
-               ('INVERT_ob', "Invert_ob", ""),
-               ('SELECT_ov', "Select_ov", ""),
-               ('DESELECT_ov', "Deselect_ov", ""),
-               ('INVERT_ov', "Invert_ov", "")))
+        items=(('SELECT_L1', "Select_L1", ""),
+               ('DESELECT_L1', "Deselect_L1", ""),
+               ('INVERT_L1', "Invert_L1", ""),
+               ('SELECT_L2', "Select_L2", ""),
+               ('DESELECT_L2', "Deselect_L2", ""),
+               ('INVERT_L2', "Invert_L2", ""),
+               ('SELECT_L3', "Select_L3", ""),
+               ('DESELECT_L3', "Deselect_L3", ""),
+               ('INVERT_L3', "Invert_L3", "")))
 
     def execute(self, context):
 
         scn = bpy.context.scene
         tb = scn.tb
 
-        if self.action.endswith("_ob"):
+        if self.action.endswith("_L1"):
             items = eval("tb.%s" % tb.objecttype)
-        elif self.action.endswith("_ov"):
+        elif self.action.endswith("_L2"):
             tb_ob = tb_utils.active_tb_object()[0]
             items = eval("tb_ob.%s" % tb.overlaytype)
+        elif self.action.endswith("_L3"):
+            tb_ov = tb_utils.active_tb_overlay()[0]
+            type = tb.overlaytype.replace("groups", "s")
+            items = eval("tb_ov.%s" % type)
 
         for item in items:
             if self.action.startswith('SELECT'):
