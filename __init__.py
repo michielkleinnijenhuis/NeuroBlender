@@ -214,18 +214,18 @@ class TractBlenderImportPanel(Panel):
 
     def drawunit_basic_cycles(self, layout, tb_ob):
 
-        row = layout.row()
-        row.label(text="Convenience access to material:")
-
         mat = bpy.data.materials[tb_ob.name]
         colour = mat.node_tree.nodes["Diffuse BSDF"].inputs[0]
         trans = mat.node_tree.nodes["Mix Shader.001"].inputs[0]
         row = layout.row()
-        row.prop(colour, "default_value", text="Colour")
+        row.prop(colour, "default_value")
         row.prop(trans, "default_value", text="Transparency")
         # TODO: copy transparency from colourpicker (via driver?)
-    #             nt.nodes["Diffuse BSDF"].inputs[0].default_value[4]
-        row.operator("tb.revert_label", icon='BACK', text="")
+    #             nt.nodes["Diffuse BSDF"].inputs[0].default_value[3]
+        lgp = bpy.types.LabelProperties
+        bgp = bpy.types.BorderProperties
+        if isinstance(tb_ob, (lgp, bgp)):
+            row.operator("tb.revert_label", icon='BACK', text="")
 
         nt = mat.node_tree
         row = layout.row()
@@ -399,17 +399,12 @@ class TractBlenderOverlayPanel(Panel):
 
     def drawunit_borders(self, layout, tb, tb_ov):
 
+        self.drawunit_basic_cycles(layout, tb_ov)
+
+        row = layout.row()
+        row.separator()
+
         ob = bpy.data.objects[tb_ov.name]
-
-        row = layout.row()
-        row.label(text="Convenience access to border properties:")
-
-        mat = bpy.data.materials[tb_ov.name]
-        colour = mat.node_tree.nodes["Diffuse BSDF"].inputs[0]
-        trans = mat.node_tree.nodes["Mix Shader.001"].inputs[0]
-        row = layout.row()
-        row.prop(colour, "default_value", text="Colour")
-        row.prop(trans, "default_value", text="Transparency")
 
         row = layout.row()
         row.label(text="Smoothing:")

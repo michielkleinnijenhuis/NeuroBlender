@@ -491,30 +491,40 @@ def set_materials_to_vertexgroups(ob, vgs, mats):
 
     if vgs is None:
         set_materials(ob.data, mats[0])
-        return
+    else:
+        mat_idxs = []
+        for mat in mats:
+            ob.data.materials.append(mat)
+            mat_idxs.append(len(ob.data.materials) - 1)
 
-    mat_idxs = []
-    for mat in mats:
-        ob.data.materials.append(mat)
-        mat_idxs.append(len(ob.data.materials) - 1)
-
-    assign_materialslots_to_faces(ob, vgs, mat_idxs)
+        assign_materialslots_to_faces(ob, vgs, mat_idxs)
 
 
 def assign_materialslots_to_faces(ob, vgs=None, mat_idxs=[]):
     """Assign a material slot to faces in associated with a vertexgroup."""
 
     vgs_idxs = [g.index for g in vgs]
-    if vgs is not None:
-        group_lookup = {g.index: g.name for g in vgs}
-        me = ob.data
-        for poly in me.polygons:
-            for vi in poly.vertices:
-                for g in me.vertices[vi].groups:
-                    if g.group in list(group_lookup.keys()):
-                        mat_idx = mat_idxs[vgs_idxs.index(g.group)]
-                        poly.material_index = mat_idx
-        me.update()
+    me = ob.data
+    for poly in me.polygons:
+        for vi in poly.vertices:
+            allgroups = []
+            for g in me.vertices[vi].groups:
+                allgroups.append(g.group)
+            for vgs_idx, mat_idx in zip(reversed(vgs_idxs), reversed(mat_idxs)):
+                if vgs_idx in allgroups:
+                    poly.material_index = mat_idx
+    me.update()
+
+    return ob
+
+
+def reset_materialslots(ob, slot=0):
+    """Reset material slots for every polygon to the first."""
+
+    me = ob.data
+    for poly in me.polygons:
+        poly.material_index = slot
+    me.update()
 
     return ob
 
@@ -772,20 +782,56 @@ def make_material_basic_cycles(name, diff_col, mix=0.04,
     diff.inputs[1].default_value = diffuse['roughness']
     diff.location = 0, 0
 
+    rgb = nodes.new("ShaderNodeRGB")
+    rgb.label = "RGB"
+    rgb.name = prefix + "RGB"
+    rgb.outputs[0].default_value = diffuse['colour']
+    rgb.location = -200, 200
+
     links.new(mix1.outputs["Shader"], out.inputs["Surface"])
     links.new(mix2.outputs["Shader"], mix1.inputs[1])
     links.new(glos.outputs["BSDF"], mix1.inputs[2])
+#     links.new(rgb.outputs[0], mix2.inputs[0])
     links.new(trans.outputs["BSDF"], mix2.inputs[1])
     links.new(diff.outputs["BSDF"], mix2.inputs[2])
+#     links.new(rgb.outputs["Color"], diff.inputs["Color"])
 
     if diff_ingroup is not None:
         in_node = nodes.new("ShaderNodeGroup")
-        in_node.location = -200, 0
+        in_node.location = -200, -100
         in_node.name = "diff_ingroup"
         in_node.label = "diff_ingroup"
         in_node.node_tree = diff_ingroup
 
     return mat
+
+
+def make_nodegroup_rgba(name="RGBAGroup", colour=[1, 1, 1, 1]):
+    """Create a nodegroup encapsulating an RGB(A)."""
+
+    group = bpy.data.node_groups.new(name, "ShaderNodeTree")
+    group.outputs.new("NodeSocketShader", "Color")
+    group.outputs.new("NodeSocketShader", "Color")
+
+    nodes = group.nodes
+    links = group.links
+
+    nodes.clear()
+    prefix = ""
+
+    output_node = nodes.new("NodeGroupOutput")
+    output_node.location = (-200, 0)
+
+    rgb = nodes.new("ShaderNodeRGB")
+    rgb.label = "RGB"
+    rgb.name = prefix + "RGB"
+    rgb.outputs[0].default_value = colour
+    rgb.location = 0, 0
+
+    links.new(rgba.outputs["Color"], output_node.inputs[0])
+    links.new(rgba.outputs["Color"].default_value[3], output_node.inputs[1])
+
+    return group
 
 
 def make_material_emit_cycles(name, emission):
