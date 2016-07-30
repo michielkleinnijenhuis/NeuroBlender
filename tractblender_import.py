@@ -253,11 +253,13 @@ def import_voxelvolume(directory, files, specname,
     bpy.context.scene.objects.link(ob)
 
     if (fpath.endswith('.nii') | fpath.endswith('.nii.gz')):
+        # TODO: reload nifti's on opening saved file
         file_format = "RAW_8BIT"
-        if file_format == "IMAGE_SEQUENCE":
-            tmppath = tempfile.mkdtemp(prefix=name, dir=bpy.app.tempdir)
-        elif file_format == "RAW_8BIT":
-            tmppath = tempfile.mkstemp(prefix=name, dir=bpy.app.tempdir)[1]
+#         tempdir = os.path.dirname(fpath)
+        tempdir = bpy.app.tempdir
+        tmppath = tempfile.mkstemp(prefix=name, dir=tempdir)
+        if file_format == "RAW_8BIT":
+            tmppath = tmppath[1]
         dims, datarange, labels, img = prep_nifti(fpath, tmppath,
                                                   is_label, file_format)
         if not is_overlay:

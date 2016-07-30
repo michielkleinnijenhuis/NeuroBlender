@@ -372,7 +372,7 @@ def create_polygon_layer_int(ob, borderlist):
         pi = [loopsets.index(set(tri)) for tri in border['verts']]
         for poly in me.polygons:
             if poly.index in pi:
-                # note that this overwrites double entriesZ
+                # note that this overwrites double entries
                 pl.data[poly.index].value = bi
 
 
@@ -398,12 +398,11 @@ def create_vg_overlay(ob, fpath, name="", is_label=False, trans=1):
 
         tb_imp.add_scalar_to_collection(name, scalarrange)
 
-        # TODO: only set this material to vertexgroup
         map_to_vertexcolours(ob, name, [vg], is_label)
 
     else:
         tb_ob = tb_utils.active_tb_object()[0]
-        ca = [tb_ob.labelgroups]  # TODO: all other labelgroups
+        ca = [tb_ob.labelgroups]  # TODO: checkagainst all other labelgroups
         groupname = tb_utils.check_name(name, fpath, ca)
         labelgroup = tb_imp.add_labelgroup_to_collection(groupname)
 
@@ -798,7 +797,7 @@ def make_material_basic_cycles(name, diff_col, mix=0.04,
 
     if diff_ingroup is not None:
         in_node = nodes.new("ShaderNodeGroup")
-        in_node.location = -200, -100
+        in_node.location = -200, 0
         in_node.name = "diff_ingroup"
         in_node.label = "diff_ingroup"
         in_node.node_tree = diff_ingroup

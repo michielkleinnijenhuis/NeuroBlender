@@ -73,10 +73,10 @@ bl_info = {
 # =========================================================================== #
 
 
-class TractBlenderImportPanel(Panel):
-    """Host the TractBlender geometry import"""
+class TractBlenderBasePanel(Panel):
+    """Host the TractBlender base geometry"""
     bl_idname = "OBJECT_PT_tb_geometry"
-    bl_label = "TractBlender - Geometry"
+    bl_label = "TractBlender - Base"
     bl_space_type = "PROPERTIES"
     bl_region_type = "WINDOW"
     bl_context = "scene"
@@ -89,7 +89,7 @@ class TractBlenderImportPanel(Panel):
         if tb.is_enabled:
             self.draw_tb_panel(self.layout, tb)
         else:
-            switch_to_main_scene(self.layout, tb)
+            self.switch_to_main(self.layout, tb)
 
     def draw_tb_panel(self, layout, tb):
 
@@ -109,6 +109,15 @@ class TractBlenderImportPanel(Panel):
             self.drawunit_tri(layout, "transform", tb, tb_ob)
             self.drawunit_tri(layout, "material", tb, tb_ob)
             self.drawunit_tri(layout, "info", tb, tb_ob)
+
+    def drawunit_switch_to_main(layout, tb):
+
+        row = layout.row()
+        row.label(text="Please use the main scene for TractBlender.")
+        row = layout.row()
+        row.operator("tb.switch_to_main",
+                     text="Switch to main",
+                     icon="FORWARD")
 
     def drawunit_UIList(self, layout, uilistlevel, data, type, addopt=True):
 
@@ -300,13 +309,13 @@ class TractBlenderOverlayPanel(Panel):
     bl_context = "scene"
 
     # delegate some methods
-    draw = TractBlenderImportPanel.draw
-    drawunit_UIList = TractBlenderImportPanel.drawunit_UIList
-    drawunit_tri = TractBlenderImportPanel.drawunit_tri
-    drawunit_basic_cycles = TractBlenderImportPanel.drawunit_basic_cycles
-    drawunit_texture = TractBlenderImportPanel.drawunit_texture
-    drawunit_colourramp = TractBlenderImportPanel.drawunit_colourramp
-    calc_nn_elpos = TractBlenderImportPanel.calc_nn_elpos
+    draw = TractBlenderBasePanel.draw
+    drawunit_UIList = TractBlenderBasePanel.drawunit_UIList
+    drawunit_tri = TractBlenderBasePanel.drawunit_tri
+    drawunit_basic_cycles = TractBlenderBasePanel.drawunit_basic_cycles
+    drawunit_texture = TractBlenderBasePanel.drawunit_texture
+    drawunit_colourramp = TractBlenderBasePanel.drawunit_colourramp
+    calc_nn_elpos = TractBlenderBasePanel.calc_nn_elpos
 
     def draw_tb_panel(self, layout, tb):
 
@@ -451,7 +460,7 @@ class ObjectListL1(UIList):
     def draw_item(self, context, layout, data, item, icon,
                   active_data, active_propname, index):
 
-        if item.isvalid:
+        if item.is_valid:
             item_icon = item.icon
         else:
             item_icon = "CANCEL"
@@ -481,7 +490,7 @@ class ObjectListL2(UIList):
     def draw_item(self, context, layout, data, item, icon,
                   active_data, active_propname, index):
 
-        if item.isvalid:
+        if item.is_valid:
             item_icon = item.icon
         else:
             item_icon = "CANCEL"
@@ -511,7 +520,7 @@ class ObjectListL3(UIList):
     def draw_item(self, context, layout, data, item, icon,
                   active_data, active_propname, index):
 
-        if item.isvalid:
+        if item.is_valid:
             item_icon = item.icon
         else:
             item_icon = "CANCEL"
@@ -584,7 +593,7 @@ class ObjectListOperations(Operator):
         tb_ob, ob_idx = tb_utils.active_tb_object()
 
         collection = eval("%s.%s" % ("tb", tb.objecttype))
-        validate_tb_objects([collection])
+        tb_utils.validate_tb_objects([collection])
 
         if self.action.endswith('_L1'):
             data = "tb"
@@ -638,7 +647,7 @@ class ObjectListOperations(Operator):
             bpy.data.objects.remove(ob, do_unlink=True)
 
         else:
-            if tb_ob.isvalid:
+            if tb_ob.is_valid:
                 tb_ov, ov_idx = tb_utils.active_tb_overlay()
                 ob = bpy.data.objects[tb_ob.name]
                 exec("self.remove_%s_%s(collection[idx], ob)"
@@ -1227,7 +1236,7 @@ class TractBlenderScenePanel(Panel):
     bl_region_type = "WINDOW"
     bl_context = "scene"
 
-    draw = TractBlenderImportPanel.draw
+    draw = TractBlenderBasePanel.draw
 
     def draw_tb_panel(self, layout, tb):
 
@@ -1288,7 +1297,7 @@ class TractBlenderSettingsPanel(Panel):
     bl_region_type = "WINDOW"
     bl_context = "scene"
 
-    draw = TractBlenderImportPanel.draw
+    draw = TractBlenderBasePanel.draw
 
     def draw_tb_panel(self, layout, tb):
 
@@ -1349,66 +1358,6 @@ class SwitchToMainScene(Operator):
         return {"FINISHED"}
 
 
-def switch_to_main_scene(layout, tb):
-
-    row = layout.row()
-    row.label(text="Please use the main scene for TractBlender.")
-    row = layout.row()
-    row.operator("tb.switch_to_main",
-                 text="Switch to main",
-                 icon="FORWARD")
-
-
-def vgs2vc_enum_callback(self, context):
-    """Populate the enum with vertex groups."""
-    # FIXME: TypeError: EnumProperty(...):
-    # maximum 32 members for a ENUM_FLAG type property
-
-    items = []
-    ob = context.selected_objects[0]
-    for i, vg in enumerate(ob.vertex_groups):
-        items.append((vg.name, vg.name, vg.name, i))
-
-    return items
-
-
-def validate_tb_objects(collections):
-    """Validate that TractBlender objects can be found in Blender."""
-
-    itemtype = "object"
-    for collection in collections:
-        for item in collection:
-            try:
-                ob = bpy.data.objects[item.name]
-            except KeyError:
-                print("The " + itemtype + " '" + item.name +
-                      "' seems to have been removed or renamed " +
-                      "outside of TractBlender")
-                item.isvalid = False
-            else:
-                item.isvalid = True
-                # descend into the object's vertexgroups
-                validate_tb_overlays(ob, [item.scalars] +
-                                     [lg.labels for lg in item.labelgroups])
-
-
-def validate_tb_overlays(ob, collections):
-    """Validate that a TractBlender vertexgroup can be found in Blender."""
-
-    itemtype = "vertexgroup"
-    for collection in collections:
-        for item in collection:
-            try:
-                vg = ob.vertex_groups[item.name]
-            except KeyError:
-                print("The " + itemtype + " '" + item.name +
-                      "' seems to have been removed or renamed " +
-                      "outside of TractBlender")
-                item.isvalid = False
-            else:
-                item.isvalid = True
-
-
 def nibabel_path_update(self, context):
     """Check whether nibabel can be imported."""
 
@@ -1450,11 +1399,6 @@ def material_enum_update(self, context):
 
     mat = bpy.data.materials[tb_ob.name]
     tb_mat.link_innode(mat, tb_ob.colourtype)
-
-def material_enum_set(self, value):
-    """Set the value of the enum."""
-
-    pass
 
 
 def cam_view_enum_update(self, context):
@@ -1510,7 +1454,7 @@ class ScalarProperties(PropertyGroup):
         name="Icon",
         description="Icon for scalar overlays",
         default="FORCE_CHARGE")
-    isvalid = BoolProperty(
+    is_valid = BoolProperty(
         name="Is Valid",
         description="Indicates if the object passed validity checks",
         default=True)
@@ -1549,7 +1493,7 @@ class LabelProperties(PropertyGroup):
         name="Icon",
         description="Icon for label overlays",
         default="BRUSH_VERTEXDRAW")
-    isvalid = BoolProperty(
+    is_valid = BoolProperty(
         name="Is Valid",
         description="Indicates if the object passed validity checks",
         default=True)
@@ -1583,7 +1527,7 @@ class BorderProperties(PropertyGroup):
         name="Icon",
         description="Icon for border overlays",
         default="CURVE_BEZCIRCLE")
-    isvalid = BoolProperty(
+    is_valid = BoolProperty(
         name="Is Valid",
         description="Indicates if the object passed validity checks",
         default=True)
@@ -1620,7 +1564,7 @@ class LabelGroupProperties(PropertyGroup):
         name="Icon",
         description="Icon for label overlays",
         default="BRUSH_VERTEXDRAW")
-    isvalid = BoolProperty(
+    is_valid = BoolProperty(
         name="Is Valid",
         description="Indicates if the object passed validity checks",
         default=True)
@@ -1652,7 +1596,7 @@ class BorderGroupProperties(PropertyGroup):
         name="Icon",
         description="Icon for border overlays",
         default="CURVE_BEZCIRCLE")
-    isvalid = BoolProperty(
+    is_valid = BoolProperty(
         name="Is Valid",
         description="Indicates if the object passed validity checks",
         default=True)
@@ -1685,7 +1629,7 @@ class TractProperties(PropertyGroup):
         name="Icon",
         description="Icon for tract objects",
         default="CURVE_BEZCURVE")
-    isvalid = BoolProperty(
+    is_valid = BoolProperty(
         name="Is Valid",
         description="Indicates if the object passed validity checks",
         default=True)
@@ -1795,7 +1739,7 @@ class SurfaceProperties(PropertyGroup):
         name="Icon",
         description="Icon for surface objects",
         default="MESH_MONKEY")
-    isvalid = BoolProperty(
+    is_valid = BoolProperty(
         name="Is Valid",
         description="Indicates if the object passed validity checks",
         default=True)
@@ -1895,7 +1839,7 @@ class VoxelvolumeProperties(PropertyGroup):
         name="Icon",
         description="Icon for surface objects",
         default="MESH_GRID")
-    isvalid = BoolProperty(
+    is_valid = BoolProperty(
         name="Is Valid",
         description="Indicates if the object passed validity checks",
         default=True)
@@ -2097,27 +2041,6 @@ class TractBlenderProperties(PropertyGroup):
         name="overlay type",
         description="switch between overlay types",
         items=overlay_enum_callback)
-
-#     colourtype = EnumProperty(
-#         name="material_presets",
-#         description="Choose a material preset",
-#         items=material_enum_callback,
-#         update=material_enum_update)  # FIXME: set=material_enum_set
-#     colourpicker = FloatVectorProperty(
-#         name="",
-#         description="Pick a colour for the brain structure",
-#         default=[1.0, 1.0, 1.0],
-#         subtype="COLOR")
-
-#     vgs2vc = EnumProperty(
-#         name="vgs2vc",
-#         description="Select vertexgroups to turn into a vertexcolour",
-#         options={"ENUM_FLAG"},
-#         items=vgs2vc_enum_callback)
-#     vginfo = CollectionProperty(
-#         type=TractBlenderVertexGroupInfo,
-#         name="VertexgroupInfo",
-#         description="Keep track of info about vertexgroups")
 
     cam_view = FloatVectorProperty(
         name="Numeric input",

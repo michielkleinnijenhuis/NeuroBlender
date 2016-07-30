@@ -173,3 +173,41 @@ def add_path(aux_path):
     check_result = [s for s in sys_paths if aux_path in s]
     if (check_result == []):
         sys.path.append(aux_path)
+
+
+def validate_tb_objects(collections):
+    """Validate that TractBlender objects can be found in Blender."""
+
+    itemtype = "object"
+    for collection in collections:
+        for item in collection:
+            try:
+                ob = bpy.data.objects[item.name]
+            except KeyError:
+                print("The " + itemtype + " '" + item.name +
+                      "' seems to have been removed or renamed " +
+                      "outside of TractBlender")
+                item.is_valid = False
+            else:
+                item.is_valid = True
+                # descend into the object's vertexgroups
+                validate_tb_overlays(ob, [item.scalars] +
+                                     [lg.labels for lg in item.labelgroups])
+
+
+def validate_tb_overlays(ob, collections):
+    """Validate that a TractBlender vertexgroup can be found in Blender."""
+
+    itemtype = "vertexgroup"
+    for collection in collections:
+        for item in collection:
+            try:
+                vg = ob.vertex_groups[item.name]
+            except KeyError:
+                print("The " + itemtype + " '" + item.name +
+                      "' seems to have been removed or renamed " +
+                      "outside of TractBlender")
+                item.is_valid = False
+            else:
+                item.is_valid = True
+
