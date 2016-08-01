@@ -108,6 +108,27 @@ def active_tb_overlay():
     return tb_ov, ov_idx
 
 
+def get_tb_objectinfo(objectname):
+    """"""
+
+    obtypes = ["tracts", "surfaces", "voxelvolumes"]
+    idxs = [tb.tracts.find(parent),
+            tb.surfaces.find(parent),
+            tb.voxelvolumes.find(parent)]
+    obinfo['name'] = parent
+    obinfo['type'] = obtypes[[i>-1 for i in idxs].index(True)]
+    obinfo['idx'] = idxs[[i>-1 for i in idxs].index(True)]
+
+    return obinfo
+
+def validate_texture_path(voxelvolume):
+    """"""
+
+    tex = bpy.data.textures[voxelvolume.name]
+
+    return os.path.isfile(tex.voxel_data.filepath)
+
+
 # ========================================================================== #
 # nibabel-related functions
 # ========================================================================== #

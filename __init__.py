@@ -1037,9 +1037,15 @@ class ImportScalars(Operator, ImportHelper):
         description="Specify a name for the object (default: filename)",
         default="")
 
+    parent = StringProperty(
+        name="Parent",
+        description="The parent of the object",
+        default="")
+
     def execute(self, context):
         filenames = [file.name for file in self.files]
-        tb_imp.import_scalars(self.directory, filenames, self.name)
+        tb_imp.import_overlays(self.directory, filenames,
+                               self.name, self.parent, "scalars")
 
         return {"FINISHED"}
 
@@ -1064,9 +1070,15 @@ class ImportLabelGroups(Operator, ImportHelper):
         description="Specify a name for the object (default: filename)",
         default="")
 
+    parent = StringProperty(
+        name="Parent",
+        description="The parent of the object",
+        default="")
+
     def execute(self, context):
         filenames = [file.name for file in self.files]
-        tb_imp.import_labels(self.directory, filenames, self.name)
+        tb_imp.import_overlays(self.directory, filenames,
+                               self.name, self.parent, "labelgroups")
 
         return {"FINISHED"}
 
@@ -1091,9 +1103,15 @@ class ImportBorderGroups(Operator, ImportHelper):
         description="Specify a name for the object (default: filename)",
         default="")
 
+    parent = StringProperty(
+        name="Parent",
+        description="The parent of the object",
+        default="")
+
     def execute(self, context):
         filenames = [file.name for file in self.files]
-        tb_imp.import_borders(self.directory, filenames, self.name)
+        tb_imp.import_overlays(self.directory, filenames,
+                               self.name, self.parent, "bordergroups")
 
         return {"FINISHED"}
 
@@ -1462,6 +1480,9 @@ class ScalarProperties(PropertyGroup):
         name="Is Rendered",
         description="Indicates if the overlay is rendered",
         default=True)
+    parent = StringProperty(
+        name="Parent",
+        description="The name of the parent object")
     range = FloatVectorProperty(
         name="Range",
         description="The original min-max of scalars mapped in vertexweights",
@@ -1501,6 +1522,9 @@ class LabelProperties(PropertyGroup):
         name="Is Rendered",
         description="Indicates if the label is rendered",
         default=True)
+    parent = StringProperty(
+        name="Parent",
+        description="The name of the parent object")
     group = StringProperty(
         name="Group",
         description="The group the border overlay belongs to")
@@ -1535,6 +1559,9 @@ class BorderProperties(PropertyGroup):
         name="Is Rendered",
         description="Indicates if the border is rendered",
         default=True)
+    parent = StringProperty(
+        name="Parent",
+        description="The name of the parent object")
     group = StringProperty(
         name="Group",
         description="The group the border overlay belongs to")
@@ -1572,6 +1599,9 @@ class LabelGroupProperties(PropertyGroup):
         name="Is Rendered",
         description="Indicates if the label is rendered",
         default=True)
+    parent = StringProperty(
+        name="Parent",
+        description="The name of the parent object")
     labels = CollectionProperty(
         type=LabelProperties,
         name="labels",
@@ -1604,6 +1634,9 @@ class BorderGroupProperties(PropertyGroup):
         name="Is Rendered",
         description="Indicates if the border is rendered",
         default=True)
+    parent = StringProperty(
+        name="Parent",
+        description="The name of the parent object")
     borders = CollectionProperty(
         type=BorderProperties,
         name="borders",

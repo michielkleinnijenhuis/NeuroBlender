@@ -183,7 +183,7 @@ def create_vc_overlay_tract(ob, fpath, name="", is_label=False):
     ca = [tb_ob.scalars]
     name = tb_utils.check_name(name, fpath, ca)
 
-    tb_imp.add_scalar_to_collection(name, scalarrange)
+    tb_imp.add_scalar_to_collection(name, fpath, scalarrange)
 
     ob.data.use_uv_as_generated = True
     diffcol = [0.0, 0.0, 0.0, 1.0]
@@ -238,7 +238,7 @@ def create_vc_overlay(ob, fpath, name="", is_label=False):
 
     vg = set_vertex_group(ob, name, label=None, scalars=scalars)
 
-    tb_imp.add_scalar_to_collection(name, scalarrange)
+    tb_imp.add_scalar_to_collection(name, fpath, scalarrange)
 
     map_to_vertexcolours(ob, name, [vg])
 
@@ -396,7 +396,7 @@ def create_vg_overlay(ob, fpath, name="", is_label=False, trans=1):
 
         vg = set_vertex_group(ob, name, label, scalars)
 
-        tb_imp.add_scalar_to_collection(name, scalarrange)
+        tb_imp.add_scalar_to_collection(name, fpath, scalarrange)
 
         map_to_vertexcolours(ob, name, [vg], is_label)
 

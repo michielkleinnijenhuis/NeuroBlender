@@ -71,6 +71,7 @@ def import_objects(directory, files, importfun,
 
     for f in files:
         fpath = os.path.join(directory, f)
+
         ca = [bpy.data.objects,
               bpy.data.materials]
         name = tb_utils.check_name(specname, fpath, ca)
@@ -79,8 +80,8 @@ def import_objects(directory, files, importfun,
 
         tb_mat.materialise(ob, colourtype, colourpicker, transparency)
 
-        if beautify:
-            tb_beau.beautify_brain(ob, importtype)
+        beautify_fun = eval("tb_beau.beautify_%s" % importtype)
+        if beautify: beautify_fun(ob)
 
         ob.select = True
         bpy.context.scene.objects.active = ob
@@ -253,15 +254,8 @@ def import_voxelvolume(directory, files, specname,
     bpy.context.scene.objects.link(ob)
 
     if (fpath.endswith('.nii') | fpath.endswith('.nii.gz')):
-        # TODO: reload nifti's on opening saved file
         file_format = "RAW_8BIT"
-#         tempdir = os.path.dirname(fpath)
-        tempdir = bpy.app.tempdir
-        tmppath = tempfile.mkstemp(prefix=name, dir=tempdir)
-        if file_format == "RAW_8BIT":
-            tmppath = tmppath[1]
-        dims, datarange, labels, img = prep_nifti(fpath, tmppath,
-                                                  is_label, file_format)
+        img, dims, datarange, labels = prep_nifti(fpath, name, is_label)
         if not is_overlay:
             sformfile = fpath
     elif (fpath.endswith('.png') |
@@ -273,7 +267,6 @@ def import_voxelvolume(directory, files, specname,
         dims = [s for s in img.size] + [image_sequence_length(fpath)]
         # TODO: figure out labels and datarange
         labels = None
-
     else:
         print('file format not understood; please use default extensions')
         return
@@ -294,7 +287,7 @@ def import_voxelvolume(directory, files, specname,
             add_label_to_collection(labelgroup, name, label, colour)
         matname = labelgroup.name
     elif is_overlay:
-        add_scalar_to_collection(name, datarange)
+        add_scalar_to_collection(name, fpath, datarange)
         labelgroup = None
         matname = name
     else:
@@ -320,177 +313,20 @@ def import_voxelvolume(directory, files, specname,
     return ob
 
 
-def voxelvolume_box(me, dims=[256, 256, 256]):
-    """Create a box with the dimensions of the voxelvolume."""
-
-    width = dims[0]
-    height = dims[1]
-    depth = dims[2]
-
-    v = [(    0,      0,     0),
-         (width,      0,     0),
-         (width, height,     0),
-         (    0, height,     0),
-         (    0,      0, depth),
-         (width,      0, depth),
-         (width, height, depth),
-         (    0, height, depth)]
-
-    faces = [(0, 1, 2, 3), (0, 1, 5, 4), (1, 2, 6, 5),
-             (2, 3, 7, 6), (3, 0, 4, 7), (4, 5, 6, 7)]
-
-    me.from_pydata(v, [], faces)
-    me.update(calc_edges=True)
-
-
-def image_sequence_length(filepath):
-    """Figure out the number of images in a directory.
-
-    from http://blender.stackexchange.com/questions/21092
-    """
-
-    basedir, filename = os.path.split(filepath)
-    filename_noext, ext = os.path.splitext(filename)
-
-    from string import digits
-    if isinstance(filepath, bytes):
-        digits = digits.encode()
-    filename_nodigits = filename_noext.rstrip(digits)
-
-    if len(filename_nodigits) == len(filename_noext):
-        # input isn't from a sequence
-        return []
-
-    files = os.listdir(basedir)
-    image_list = [os.path.join(basedir, f)
-                  for f in files
-                  if f.startswith(filename_nodigits) and
-                  f.endswith(ext) and
-                  f[len(filename_nodigits):-len(ext) if ext else -1].isdigit()]
-    n_images = len(image_list)
-
-    return n_images
-
-
-def normalize_data(data):
-    """Normalize data between 0 and 1."""
-
-    data = data.astype('float64')
-    datamin = np.amin(data)
-    datamax = np.amax(data)
-    data -= datamin
-    data *= 1/(datamax-datamin)
-
-    return data, [datamin, datamax]
-
-
-def prep_nifti(fpath, tmppath, is_label=False, file_format="RAW_8BIT"):
-    """Write data in a nifti file to a temp directory.
-
-    The nifti is read with nibabel with [z,y,x] layout, and is either
-    written as an [x,y] PNG image sequence (datarange=[0,1]) or
-    as an 8bit raw binary volume with [x,y,z] layout (datarange=[0,255]).
-    Labelvolumes: negative labels are ignored (i.e. set to 0)
-    Only 3D volumes are handled.
-    TODO: check which colorspace is expected of the data
-    ...and convert here accordingly
-    """
+def import_overlays(directory, files, name="", parent="", ovtype=""):
+    """"""
 
     scn = bpy.context.scene
     tb = scn.tb
 
-    nib = tb_utils.validate_nibabel('nifti')
-    if tb.nibabel_valid:
+    if not parent:
+        parent = tb_utils.active_tb_object()[0].name
+    else:
+        obinfo = tb_utils.get_tb_objectinfo(parent)
+        tb.objecttype = obinfo['type']
+        exec("tb.index_%s = %s" % (obinfo['type'], obinfo['index']))
 
-        nii = nib.load(fpath)
-        dims = np.array(nii.shape)[::-1]
-        if len(dims) != 3:  # TODO: extend to 4D?
-            print("Please supply a 3D nifti volume.")
-            return
-
-#         data = np.transpose(nii.get_data())
-        data = nii.get_data()
-
-        if is_label:
-            mask = data < 0
-            if mask.any():
-                print("setting negative labels to 0")
-            data[mask] = 0
-            labels = np.unique(data)
-            labels = labels[labels > 0]
-        else:
-            labels = None
-
-        data, datarange = normalize_data(data)
-
-        if file_format == "IMAGE_SEQUENCE":
-            data = np.reshape(data, [dims[2], -1])
-            img = bpy.data.images.new("img", width=dims[0], height=dims[1])
-            for slcnr, slc in enumerate(data):
-                pixels = []
-                for pix in slc:
-                    pixval = pix
-                    pixels.append([pixval, pixval, pixval, 1.0])
-                pixels = [chan for px in pixels for chan in px]
-                img.pixels = pixels
-                img.filepath_raw = os.path.join(tmppath,
-                                                str(slcnr).zfill(4) + ".png")
-                img.file_format = 'PNG'
-                img.save()
-        elif file_format == "RAW_8BIT":
-            data *= 255
-            with open(tmppath, "wb") as f:
-                f.write(bytes(data.astype('uint8')))
-            img = tmppath
-
-    return dims, datarange, labels, img
-
-
-def import_scalars(directory, filenames, name=""):
-    """Import overlay as continuous scalars."""
-
-    scn = bpy.context.scene
-    tb = scn.tb
-
-    if tb.objecttype == "tracts":
-        import_tractscalars(directory, filenames, name=name)
-    elif tb.objecttype == "surfaces":
-        import_surfscalars(directory, filenames, name=name)
-    elif tb.objecttype == "voxelvolumes":
-        import_voxoverlay(directory, filenames, name=name)
-
-
-def import_labels(directory, filenames, name=""):
-    """Import overlay as discrete labels."""
-
-    scn = bpy.context.scene
-    tb = scn.tb
-
-    if tb.objecttype == "tracts":
-        pass
-#         import_tractlabels(directory, filenames)  # TODO
-    elif tb.objecttype == "surfaces":
-        import_surflabels(directory, filenames, name=name)
-    elif tb.objecttype == "voxelvolumes":
-        import_voxoverlay(directory, filenames, name=name, is_label=True)
-
-
-def import_borders(directory, filenames, name=""):
-    """Import overlay as curves."""
-
-    scn = bpy.context.scene
-    tb = scn.tb
-
-    if tb.objecttype == "tracts":
-        pass
-    elif tb.objecttype == "surfaces":
-        import_surfborders(directory, filenames, name=name)
-    elif tb.objecttype == "voxelvolumes":
-        pass
-
-
-def import_tractscalars(directory, files, name=""):
-    """Import scalar overlay on tract object."""
+    parent_ob = bpy.data.objects[parent]
 
     if not files:
         files = os.listdir(directory)
@@ -498,10 +334,85 @@ def import_tractscalars(directory, files, name=""):
     for f in files:
         fpath = os.path.join(directory, f)
 
-        tb_ob = tb_utils.active_tb_object()[0]
-        ob = bpy.data.objects[tb_ob.name]
+        importfun = eval("import_%s_%s" % (tb.objecttype, ovtype))
 
-        tb_mat.create_vc_overlay_tract(ob, fpath, name=name)
+        importfun(fpath, parent_ob, name=name)
+
+
+def import_tracts_scalars(fpath, parent_ob, name=""):
+    """Import scalar overlay on tract object."""
+
+    tb_mat.create_vc_overlay_tract(parent_ob, fpath, name=name)
+
+
+def import_surfaces_scalars(fpath, parent_ob, name=""):
+    """Import scalar overlay on surface object.
+
+    TODO: handle timeseries
+    """
+
+    if fpath.endswith('.label'):  # but not treated as a label
+        tb_mat.create_vg_overlay(parent_ob, fpath, name=name, is_label=False)
+    else:  # assumed scalar overlay
+        tb_mat.create_vc_overlay(parent_ob, fpath, name=name)
+
+
+def import_surfaces_labelgroups(fpath, parent_ob, name=""):
+    """Import label overlay on surface object.
+
+    TODO: consider using ob.data.vertex_layers_int.new()
+    """
+
+    if fpath.endswith('.label'):
+        tb_mat.create_vg_overlay(parent_ob, fpath, name=name, is_label=True)
+    elif (fpath.endswith('.annot') |
+          fpath.endswith('.gii') |
+          fpath.endswith('.border')):
+        tb_mat.create_vg_annot(parent_ob, fpath, name=name)
+        # TODO: figure out from gifti if it is annot or label
+    else:  # assumed scalar overlay type with integer labels??
+        tb_mat.create_vc_overlay(parent_ob, fpath, name=name)
+
+
+def import_surfaces_bordergroups(fpath, parent_ob, name=""):
+    """Import label overlay on surface object."""
+
+    if fpath.endswith('.border'):
+        tb_mat.create_border_curves(parent_ob, fpath, name=name)
+    else:
+        print("Only Connectome Workbench .border files supported.")
+
+
+def import_voxelvolumes_scalars(fpath, parent_ob, name=""):
+    """Import a scalar overlay on a voxelvolume."""
+
+    scn = bpy.context.scene
+    tb = scn.tb
+
+    # TODO: handle invalid selections
+    sformfile = ""
+    tb_ob = tb_utils.active_tb_object()[0]
+    directory = os.path.dirname(fpath)  # TODO
+    filenames = [os.path.basename(fpath)]
+    ob = import_voxelvolume(directory, filenames, name,
+                            sformfile, tb_ob, is_label=False)
+    ob.parent = parent_ob
+
+
+def import_voxelvolumes_labelgroups(fpath, parent_ob, name=""):
+    """Import a labelgroup overlay on a voxelvolume."""
+
+    scn = bpy.context.scene
+    tb = scn.tb
+
+    # TODO: handle invalid selections
+    sformfile = ""
+    tb_ob, _ = tb_utils.active_tb_object()
+    directory = os.path.dirname(fpath)  # TODO
+    filenames = [os.path.basename(fpath)]
+    ob = import_voxelvolume(directory, filenames, name,
+                            sformfile, tb_ob, is_label=True)
+    ob.parent = parent_ob
 
 
 def read_tractscalar(fpath):
@@ -526,73 +437,6 @@ def read_tractscalar(fpath):
                 scalars.append(points)
 
     return scalars
-
-
-def import_tractlabels(directory, files, name=""):
-    """Import label overlay on tract object."""
-
-    pass  # TODO
-
-
-def import_surfscalars(directory, files, name=""):
-    """Import scalar overlay on surface object."""
-
-    # TODO: handle timeseries
-    if not files:
-        files = os.listdir(directory)
-
-    for f in files:
-        fpath = os.path.join(directory, f)
-
-        tb_ob = tb_utils.active_tb_object()[0]
-        ob = bpy.data.objects[tb_ob.name]
-
-        if fpath.endswith('.label'):  # but not treated as a label
-            tb_mat.create_vg_overlay(ob, fpath, name=name, is_label=False)
-        else:  # assumed scalar overlay
-            tb_mat.create_vc_overlay(ob, fpath, name=name)
-
-
-def import_surflabels(directory, files, name=""):
-    """Import label overlay on surface object."""
-
-    if not files:
-        files = os.listdir(directory)
-
-    for f in files:
-        fpath = os.path.join(directory, f)
-
-        tb_ob = tb_utils.active_tb_object()[0]
-        ob = bpy.data.objects[tb_ob.name]
-
-        if fpath.endswith('.label'):
-            tb_mat.create_vg_overlay(ob, fpath, name=name, is_label=True)
-        elif (fpath.endswith('.annot') |
-              fpath.endswith('.gii') |
-              fpath.endswith('.border')):
-            tb_mat.create_vg_annot(ob, fpath, name=name)
-            # TODO: figure out from gifti if it is annot or label
-        else:  # assumed scalar overlay type with integer labels??
-            tb_mat.create_vc_overlay(ob, fpath, name=name)
-#         TODO: consider using ob.data.vertex_layers_int.new()??
-
-
-def import_surfborders(directory, files, name=""):
-    """Import label overlay on surface object."""
-
-    if not files:
-        files = os.listdir(directory)
-
-    for f in files:
-        fpath = os.path.join(directory, f)
-
-        tb_ob = tb_utils.active_tb_object()[0]
-        ob = bpy.data.objects[tb_ob.name]
-
-        if fpath.endswith('.border'):
-            tb_mat.create_border_curves(ob, fpath, name=name)
-        else:
-            print("Only Connectome Workbench .border files supported")
 
 
 def read_surfscalar(fpath):
@@ -768,19 +612,133 @@ def read_borders(fpath):
     return borderlist
 
 
-def import_voxoverlay(directory, filenames, name="", is_label=False):
-    """Import an overlay on a voxelvolume."""
+def voxelvolume_box(me, dims=[256, 256, 256]):
+    """Create a box with the dimensions of the voxelvolume."""
+
+    width = dims[0]
+    height = dims[1]
+    depth = dims[2]
+
+    v = [(    0,      0,     0),
+         (width,      0,     0),
+         (width, height,     0),
+         (    0, height,     0),
+         (    0,      0, depth),
+         (width,      0, depth),
+         (width, height, depth),
+         (    0, height, depth)]
+
+    faces = [(0, 1, 2, 3), (0, 1, 5, 4), (1, 2, 6, 5),
+             (2, 3, 7, 6), (3, 0, 4, 7), (4, 5, 6, 7)]
+
+    me.from_pydata(v, [], faces)
+    me.update(calc_edges=True)
+
+
+def image_sequence_length(filepath):
+    """Figure out the number of images in a directory.
+
+    from http://blender.stackexchange.com/questions/21092
+    """
+
+    basedir, filename = os.path.split(filepath)
+    filename_noext, ext = os.path.splitext(filename)
+
+    from string import digits
+    if isinstance(filepath, bytes):
+        digits = digits.encode()
+    filename_nodigits = filename_noext.rstrip(digits)
+
+    if len(filename_nodigits) == len(filename_noext):
+        # input isn't from a sequence
+        return []
+
+    files = os.listdir(basedir)
+    image_list = [os.path.join(basedir, f)
+                  for f in files
+                  if f.startswith(filename_nodigits) and
+                  f.endswith(ext) and
+                  f[len(filename_nodigits):-len(ext) if ext else -1].isdigit()]
+    n_images = len(image_list)
+
+    return n_images
+
+
+def normalize_data(data):
+    """Normalize data between 0 and 1."""
+
+    data = data.astype('float64')
+    datamin = np.amin(data)
+    datamax = np.amax(data)
+    data -= datamin
+    data *= 1/(datamax-datamin)
+
+    return data, [datamin, datamax]
+
+
+def prep_nifti(fpath, name, is_label=False, file_format="RAW_8BIT"):
+    """Write data in a nifti file to a temp directory.
+
+    The nifti is read with nibabel with [z,y,x] layout, and is either
+    written as an [x,y] PNG image sequence (datarange=[0,1]) or
+    as an 8bit raw binary volume with [x,y,z] layout (datarange=[0,255]).
+    Labelvolumes: negative labels are ignored (i.e. set to 0)
+    Only 3D volumes are handled.
+    TODO: check which colorspace is expected of the data
+    ...and convert here accordingly
+    """
 
     scn = bpy.context.scene
     tb = scn.tb
 
-    # TODO: handle invalid selections
-    sformfile = ""
-    tb_ob, _ = tb_utils.active_tb_object()
-    ob = import_voxelvolume(directory, filenames, name,
-                            sformfile, tb_ob, is_label)
-    parentvolume = bpy.data.objects[tb_ob.name]
-    ob.parent = parentvolume
+    nib = tb_utils.validate_nibabel('nifti')
+    if tb.nibabel_valid:
+
+        nii = nib.load(fpath)
+        dims = np.array(nii.shape)[::-1]
+        if len(dims) != 3:  # TODO: extend to 4D?
+            print("Please supply a 3D nifti volume.")
+            return
+
+#         data = np.transpose(nii.get_data())  # TODO: check
+        data = nii.get_data()
+
+        if is_label:
+            mask = data < 0
+            if mask.any():
+                print("setting negative labels to 0")
+            data[mask] = 0
+            labels = np.unique(data)
+            labels = labels[labels > 0]
+        else:
+            labels = None
+
+        data, datarange = normalize_data(data)
+
+        tempdir = bpy.app.tempdir  # os.path.dirname(fpath)
+        tmppath = tempfile.mkstemp(prefix=name, dir=tempdir)
+
+        if file_format == "IMAGE_SEQUENCE":
+            data = np.reshape(data, [dims[2], -1])
+            img = bpy.data.images.new("img", width=dims[0], height=dims[1])
+            for slcnr, slc in enumerate(data):
+                pixels = []
+                for pix in slc:
+                    pixval = pix
+                    pixels.append([pixval, pixval, pixval, 1.0])
+                pixels = [chan for px in pixels for chan in px]
+                img.pixels = pixels
+                img.filepath_raw = os.path.join(tmppath,
+                                                str(slcnr).zfill(4) + ".png")
+                img.file_format = 'PNG'
+                img.save()
+        elif file_format == "RAW_8BIT":
+            data *= 255
+            with open(tmppath[1], "wb") as f:
+                f.write(bytes(data.astype('uint8')))
+            img = tmppath[1]
+
+    return img, dims, datarange, labels
 
 
 def add_tract_to_collection(name, fpath, sformfile,
@@ -833,7 +791,7 @@ def add_voxelvolume_to_collection(name, fpath, sformfile, datarange):
     vvol.sformfile = sformfile
 
 
-def add_scalar_to_collection(name, scalarrange):
+def add_scalar_to_collection(name, fpath, scalarrange):
     """Add scalar to the TractBlender collection."""
 
     tb_ob = tb_utils.active_tb_object()[0]
@@ -846,6 +804,7 @@ def add_scalar_to_collection(name, scalarrange):
     tb_ob.index_scalars = (len(tb_ob.scalars)-1)
 
     scalar.name = name
+    scalar.filepath = fpath
     scalar.range = scalarrange
 
 
