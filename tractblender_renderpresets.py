@@ -22,11 +22,14 @@
 
 import bpy
 
+import os
 import numpy as np
 from mathutils import Vector
 
+from . import tractblender_import as tb_imp
 from . import tractblender_materials as tb_mat
 from . import tractblender_utils as tb_utils
+
 
 # ========================================================================== #
 # function to prepare a suitable setup for rendering the scene
@@ -48,8 +51,7 @@ def scene_preset(name="Brain", layer=10):
     scn = bpy.context.scene
     tb = scn.tb
 
-    delete_preset(name)
-
+    # check if there are objects to render
     obs = [ob for ob in bpy.data.objects
            if ((ob.type not in ['CAMERA', 'LAMP', 'EMPTY']) and
                (not ob.name.startswith('BrainDissectionTable')) and
@@ -58,58 +60,69 @@ def scene_preset(name="Brain", layer=10):
         print('no objects selected for render')
         return {'CANCELLED'}
 
+    ### create the preset
+    # remove the preset if it exists
+    delete_preset(name)
+    # create objects in the preset
     preset = bpy.data.objects.new(name=name, object_data=None)
     bpy.context.scene.objects.link(preset)
-
     centre, bbox, dims = get_brainbounds(name+"Centre", obs)
     table = create_table(name+"DissectionTable", centre, bbox, dims)
     cam = create_camera(name+"Cam", centre, bbox, dims, Vector(tb.cam_view))
     lights = create_lighting(name+"Lights", centre, bbox, dims, cam)
-
-    add_colourbars(cam)
-
+    # organize the preset
     lights.parent = cam
     obs = [centre] + [table] + [cam]
     for ob in obs:
         if ob is not None:
             ob.parent = preset
-
     obs = [preset] + obs + [lights] + list(lights.children)
     for ob in obs:
         if ob is not None:
             tb_utils.move_to_layer(ob, layer)
     scn.layers[layer] = True
 
-    scn.cycles.caustics_refractive = False
-    scn.cycles.caustics_reflective = False
+    ### add_colourbars  # TODO
+#     add_colourbars(cam)
 
-    # select the right material(s) for each polygon
-    # TODO? clear all rendering materials first?
+    # get object lists
+    obs = bpy.data.objects
+    tracts     = [obs[t.name] for t in tb.tracts]
+    surfaces   = [obs[s.name] for s in tb.surfaces]
+    borders    = [obs[b.name] for s in tb.surfaces 
+                  for bg in s.bordergroups 
+                  for b in bg.borders]
+    voxelvolumes = [obs[v.name] for v in tb.voxelvolumes]
+    vv_children  = [vc for v in voxelvolumes for vc in v.children]
+    cbars = []  # this list should also include the labels ...
+
+    ### select the right material(s) for each polygon
     renderselections_tracts(tb.tracts)
     renderselections_surfaces(tb.surfaces)
-#     renderselections_objects(tb.voxelvolumes)  # TODO
-    # handle double vertexgroups
+    renderselections_voxelvolumes(tb.voxelvolumes)
 
-    # TODO: add colourbars
+    validate_voxelvolume_textures(tb)
+
+    ### split into scenes to render surfaces (cycles) and volume (bi)
+    # Cycles Render
     preset_obs = [preset] + [centre] + [table] + \
-        [cam] + [lights] + list(lights.children)
-    tracts = [bpy.data.objects[tb_ob.name] for tb_ob in tb.tracts]
-    surfaces = [bpy.data.objects[tb_ob.name] for tb_ob in tb.surfaces]
-    borders = [bpy.data.objects[tb_ov.name]
-               for tb_ob in tb.surfaces for tb_ov in tb_ob.borders]
-    cycles_obs = preset_obs + tracts + surfaces + borders
-    prep_scenes('cycles', 'CYCLES', 'GPU', [0, 1, 10], True, cycles_obs)
-
-    preset_obs = [preset] + [centre] + [cam]
-    voxelvolumes = [bpy.data.objects[tb_ob.name] for tb_ob in tb.voxelvolumes]
-    vv_children = [vvchild for vv in voxelvolumes for vvchild in vv.children]
+                 [cam] + [lights] + list(lights.children)
+    cycles_obs = preset_obs + tracts + surfaces + borders + cbars
+    prep_scenes(name + '_cycles', 'CYCLES', 'GPU', [0, 1, 10], True, cycles_obs)
+    # Blender Render
+    preset_obs   = [preset] + [centre] + [cam]
     internal_obs = preset_obs + voxelvolumes + vv_children
-    prep_scenes('internal', 'BLENDER_RENDER', 'CPU', [2], False, internal_obs)
+    prep_scenes(name + '_internal', 'BLENDER_RENDER', 'CPU', [2], False, internal_obs)
+    # Composited
+    prep_scene_composite(scn, name, 'BLENDER_RENDER')
 
-    prep_scene_composite(scn, 'BLENDER_RENDER')
-
+    ### go to the appropriate window views
     bpy.ops.tb.switch_to_main()
     to_camera_view()
+
+    ### any additional settings for render
+    scn.cycles.caustics_refractive = False
+    scn.cycles.caustics_reflective = False
 
     return {'FINISHED'}
 
@@ -120,14 +133,14 @@ def renderselections_tracts(tb_obs):
     for tb_ob in tb_obs:
         ob = bpy.data.objects[tb_ob.name]
         ob.hide_render = not tb_ob.is_rendered
-        # TODO: tract labels
         for tb_ov in tb_ob.scalars:
             if tb_ov.is_rendered:
-                prefix = ob.name + '_' + tb_ov.name + '_spline'
+                prefix = tb_ov.name + '_spl'
                 for i, spline in enumerate(ob.data.splines):
                     ms = ob.material_slots
                     splname = prefix + str(i).zfill(8)
                     spline.material_index = ms.find(splname)
+        # TODO: tract labels
 
 
 def renderselections_surfaces(tb_obs):
@@ -137,24 +150,49 @@ def renderselections_surfaces(tb_obs):
         ob = bpy.data.objects[tb_ob.name]
         ob.hide_render = not tb_ob.is_rendered
 
-        vgs_s, mat_idxs_s = renderselections_overlays(ob, tb_ob.scalars,
-                                                      matprefix="")
-        vgs_l, mat_idxs_l = renderselections_overlays(ob, tb_ob.labels)
-        tb_mat.assign_materialslots_to_faces(ob,
-                                             vgs_s + vgs_l,
-                                             mat_idxs_s + mat_idxs_l)
+        vgs = []
+        mat_idxs = []
+        for lg in tb_ob.labelgroups:
+            if lg.is_rendered:
+                vgs, mat_idxs = renderselections_overlays(ob, lg.labels, vgs, mat_idxs)
+        vgs, mat_idxs = renderselections_overlays(ob, tb_ob.scalars, vgs, mat_idxs)
+
+        vgs_idxs = [g.index for g in vgs]
+        print(vgs_idxs, mat_idxs)
+        tb_mat.reset_materialslots(ob)  # TODO: also for tracts?
+        if vgs is not None:
+            tb_mat.assign_materialslots_to_faces(ob, vgs, mat_idxs)
+
+        for bg in tb_ob.bordergroups:
+            for b in bg.borders:
+                ob = bpy.data.objects[b.name]
+                ob.hide_render =  not (bg.is_rendered & b.is_rendered)
 
 
-def renderselections_overlays(ob, tb_ovs, vgs=[], mat_idxs=[], matprefix=""):
+def renderselections_voxelvolumes(tb_obs):
     """"""
 
-    vgs = []
-    mat_idxs = []
+    for tb_ob in tb_obs:
+        ob = bpy.data.objects[tb_ob.name]
+        ob.hide_render = not tb_ob.is_rendered
+        for tb_ov in tb_ob.scalars:
+            overlay = bpy.data.objects[tb_ov.name]
+            overlay.hide_render = not tb_ov.is_rendered
+        for lg in tb_ob.labelgroups:
+            overlay = bpy.data.objects[tb_ov.name]
+            overlay.hide_render = not tb_ov.is_rendered
+            tex = bpy.data.textures[lg.name]
+            for idx, l in enumerate(lg.labels):
+                tex.color_ramp.elements[idx + 1].color[3] = l.is_rendered
+
+
+def renderselections_overlays(ob, tb_ovs, vgs=[], mat_idxs=[]):
+    """"""
+
     for tb_ov in tb_ovs:
         if tb_ov.is_rendered:
-            name = matprefix + tb_ov.name
             vgs.append(ob.vertex_groups[tb_ov.name])
-            mat_idxs.append(ob.material_slots.find(name))
+            mat_idxs.append(ob.material_slots.find(tb_ov.name))
 
     return vgs, mat_idxs
 
@@ -165,6 +203,23 @@ def to_camera_view():
     for area in bpy.context.screen.areas:
         if area.type == 'VIEW_3D':
             area.spaces[0].region_3d.view_perspective = 'CAMERA'
+
+
+def validate_voxelvolume_textures(tb):
+    """"Validate or update the texture files for voxelvolumes."""
+
+    for vv in tb.voxelvolumes:
+        fp = bpy.data.textures[vv.name].voxel_data.filepath
+        if not os.path.isfile(fp):
+            fp = tb_imp.prep_nifti(vv.filepath, vv.name, False)[0]
+        for vs in vv.scalars:
+            fp = bpy.data.textures[vs.name].voxel_data.filepath
+            if not os.path.isfile(fp):
+                fp = tb_imp.prep_nifti(vs.filepath, vs.name, False)[0]
+        for vl in vv.labelgroups:
+            fp = bpy.data.textures[vl.name].voxel_data.filepath
+            if not os.path.isfile(fp):
+                fp = tb_imp.prep_nifti(vl.filepath, vl.name, True)[0]
 
 
 def get_brainbounds(name, obs):
@@ -181,7 +236,7 @@ def get_brainbounds(name, obs):
     return empty, bbox, dims
 
 
-def delete_preset(prefix):
+def delete_preset(name):
     """"""
     # TODO: more flexibility in keeping and naming
 #     for ob in scn.objects:
@@ -190,6 +245,17 @@ def delete_preset(prefix):
 #                 scn.objects.unlink(ob)
 #     deltypes = ['CAMERA', 'LAMP', 'EMPTY']
 
+    # unlink all objects from the rendering scenes
+    for s in ['_cycles', '_internal']:
+        try:
+            scn = bpy.data.scenes[name + s]
+        except KeyError:
+            pass
+        else:
+            for ob in scn.objects:
+                scn.objects.unlink(ob)
+
+    # 
     try:
         cbars = bpy.data.objects.get("Colourbars")
     except KeyError:
@@ -201,7 +267,7 @@ def delete_preset(prefix):
 
     bpy.ops.object.mode_set(mode='OBJECT')
     for ob in bpy.data.objects:
-        ob.select = ob.name.startswith(prefix)  # and ob.type in deltypes
+        ob.select = ob.name.startswith(name)  # and ob.type in deltypes
     bpy.context.scene.objects.active = ob
     bpy.ops.object.delete()
 
@@ -246,10 +312,12 @@ def prep_scenes(name, engine, device, layers, use_sky, obs):
         if ob is not None:
             scn.objects.link(ob)
 
+#     scn.update()
+
     return scn
 
 
-def prep_scene_composite(scn, engine):
+def prep_scene_composite(scn, name, engine):
     """"""
 
 #     scns = bpy.data.scenes
@@ -277,11 +345,11 @@ def prep_scene_composite(scn, engine):
     mix.location = 600, 0
 
     rlayer1 = nodes.new("CompositorNodeRLayers")
-    rlayer1.scene = bpy.data.scenes['cycles']
+    rlayer1.scene = bpy.data.scenes[name + '_cycles']
     rlayer1.location = 400, 200
 
     rlayer2 = nodes.new("CompositorNodeRLayers")
-    rlayer2.scene = bpy.data.scenes['internal']
+    rlayer2.scene = bpy.data.scenes[name + '_internal']
     rlayer2.location = 400, -200
 
     links.new(mix.outputs["Image"], comp.inputs["Image"])
