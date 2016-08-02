@@ -224,10 +224,10 @@ class TractBlenderBasePanel(Panel):
     def drawunit_basic_cycles(self, layout, tb_ob):
 
         mat = bpy.data.materials[tb_ob.name]
-        colour = mat.node_tree.nodes["Diffuse BSDF"].inputs[0]
-        trans = mat.node_tree.nodes["Mix Shader.001"].inputs[0]
+        colour = mat.node_tree.nodes["RGB"].outputs[0]
+        trans = mat.node_tree.nodes["Transparency"].outputs[0]
         row = layout.row()
-        row.prop(colour, "default_value")
+        row.prop(colour, "default_value", text="Colour")
         row.prop(trans, "default_value", text="Transparency")
         # TODO: copy transparency from colourpicker (via driver?)
     #             nt.nodes["Diffuse BSDF"].inputs[0].default_value[3]
@@ -242,7 +242,7 @@ class TractBlenderBasePanel(Panel):
                  "default_value", text="diffuse")
         row.prop(nt.nodes["Glossy BSDF"].inputs[1],
                  "default_value", text="glossy")
-        row.prop(nt.nodes["Mix Shader"].inputs[0],
+        row.prop(nt.nodes["MixDiffGlos"].inputs[0],
                  "default_value", text="mix")
 
     def drawunit_texture(self, layout, tex, tb_coll=None, text=""):
@@ -436,7 +436,7 @@ class TractBlenderOverlayPanel(Panel):
                  "default_value", text="diffuse")
         row.prop(nt.nodes["Glossy BSDF"].inputs[1],
                  "default_value", text="glossy")
-        row.prop(nt.nodes["Mix Shader"].inputs[0],
+        row.prop(nt.nodes["MixDiffGlos"].inputs[0],
                  "default_value", text="mix")
 
         ramp = nt.nodes["ColorRamp"]
@@ -1319,6 +1319,8 @@ class TractBlenderSettingsPanel(Panel):
 
     def draw_tb_panel(self, layout, tb):
 
+        row = layout.row()
+        row.prop(tb, "mode")
         self.draw_nibabel(layout, tb)
         # TODO: etc
 
@@ -1390,6 +1392,24 @@ def sformfile_update(self, context):
 
     affine = tb_imp.read_affine_matrix(tb_ob.sformfile)
     ob.matrix_world = affine
+
+
+def mode_enum_update(self, context):
+    """Perform actions for updating mode."""
+
+    scn = context.scene
+    tb = scn.tb
+
+    newmode = tb.mode
+    for mat in bpy.data.materials:
+        tb_mat.switch_mode_mat(mat, newmode)
+
+    obnames = [tb.presetname + "DissectionTable",
+               tb.presetname + "LightsBack",
+               tb.presetname + "LightsFill",
+               tb.presetname + "LightsKey"]
+    obs = [bpy.data.objects[obname] for obname in obnames]
+    tb_rp.switch_mode_preset(obs, tb.mode)
 
 
 def overlay_enum_callback(self, context):
@@ -1977,6 +1997,14 @@ class TractBlenderProperties(PropertyGroup):
         description="Show/hide the tractblender panel contents",
         default=True)
 
+    mode = EnumProperty(
+        name="mode",
+        description="switch between tractblender modes",
+        items=[("artistic", "artistic", "artistic", 1),
+               ("scientific", "scientific", "scientific", 2)],
+        default="artistic",
+        update=mode_enum_update)
+
     nibabel_use = BoolProperty(
         name="use nibabel",
         description="Use nibabel to import nifti and gifti",
@@ -2075,6 +2103,7 @@ class TractBlenderProperties(PropertyGroup):
         description="switch between overlay types",
         items=overlay_enum_callback)
 
+
     cam_view = FloatVectorProperty(
         name="Numeric input",
         description="Setting of the LR-AP-IS viewpoint of the camera",
@@ -2116,6 +2145,11 @@ class TractBlenderProperties(PropertyGroup):
         default=4,
         min=1,
         update=cam_view_enum_update)
+
+    presetname = StringProperty(
+        name="presetname",
+        description="Identifier of the loaded preset",
+        default="Brain")
 
 
 # =========================================================================== #

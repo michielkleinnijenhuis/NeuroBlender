@@ -48,12 +48,6 @@ def materialise(ob, colourtype='primary6', colourpicker=(1, 1, 1), trans=1):
 
     matname = ob.name
 
-    if ob.type == "CURVE":
-        ob.data.use_uv_as_generated = True
-        group = make_nodegroup_dirtracts()
-    elif ob.type == "MESH":
-        group = make_nodegroup_dirsurfaces()
-
     diffcol = [1, 1, 1]
     mix = 0.05
     diff_rn = 0.1
@@ -73,6 +67,12 @@ def materialise(ob, colourtype='primary6', colourpicker=(1, 1, 1), trans=1):
         diffcol = [random.random() for _ in range(3)]
 
     diffcol.append(trans)
+
+    if ob.type == "CURVE":
+        ob.data.use_uv_as_generated = True
+        group = make_nodegroup_dirtracts()
+    elif ob.type == "MESH":
+        group = make_nodegroup_dirsurfaces()
 
     mat = make_material_basic_cycles(matname, diffcol, mix, diff_rn, group)
 
@@ -99,6 +99,30 @@ def link_innode(mat, colourtype):
         else:
             links.remove(link)
 
+
+def switch_mode_mat(mat, newmode):
+    """Connect either emitter (scientific) or shader (artistic)."""
+
+    nodes = mat.node_tree.nodes
+    links = mat.node_tree.links
+
+    out = nodes["Material Output"]
+
+    # TODO: better handle materials that do not have Emission and MixDiffGlos
+    if newmode == "scientific":
+        try:
+            output = nodes["Emission"].outputs["Emission"]
+        except:
+            pass
+        else:
+            links.new(output, out.inputs["Surface"])
+    elif newmode == "artistic":
+        try:
+            output = nodes["MixDiffGlos"].outputs["Shader"]
+        except:
+            pass
+        else:
+            links.new(output, out.inputs["Surface"])
 
 def set_materials(me, mat):
     """Attach a material to a mesh.
@@ -731,6 +755,7 @@ def make_material_basic_cycles(name, diff_col, mix=0.04,
     glossy = {'colour': (1.0, 1.0, 1.0, 1.0), 'roughness': 0.1}
 
     scn = bpy.context.scene
+    tb = scn.tb
     if not scn.render.engine == "CYCLES":
         scn.render.engine = "CYCLES"
 
@@ -750,8 +775,8 @@ def make_material_basic_cycles(name, diff_col, mix=0.04,
     out.location = 600, 0
 
     mix1 = nodes.new("ShaderNodeMixShader")
-    mix1.label = "Mix Shader"
-    mix1.name = prefix + "Mix Shader"
+    mix1.label = "MixDiffGlos"
+    mix1.name = prefix + "MixDiffGlos"
     mix1.inputs[0].default_value = mix
     mix1.location = 400, 0
 
@@ -763,37 +788,56 @@ def make_material_basic_cycles(name, diff_col, mix=0.04,
     glos.distribution = "BECKMANN"
     glos.location = 200, -100
 
+    emit = nodes.new("ShaderNodeEmission")
+    emit.label = "Emission"
+    emit.name = prefix + "Emission"
+    emit.location = 400, 200
+
     mix2 = nodes.new("ShaderNodeMixShader")
-    mix2.label = "Mix Shader"
-    mix2.name = prefix + "Mix Shader"
+    mix2.label = "MixDiffTrans"
+    mix2.name = prefix + "MixDiffTrans"
     mix2.inputs[0].default_value = diffuse['colour'][3]
     mix2.location = 200, 100
 
     trans = nodes.new("ShaderNodeBsdfTransparent")
     trans.label = "Transparent BSDF"
     trans.name = prefix + "Transparent BSDF"
-    trans.location = 0, 200
+    trans.location = 0, 00
 
     diff = nodes.new("ShaderNodeBsdfDiffuse")
     diff.label = "Diffuse BSDF"
     diff.name = prefix + "Diffuse BSDF"
     diff.inputs[0].default_value = diffuse['colour']
     diff.inputs[1].default_value = diffuse['roughness']
-    diff.location = 0, 0
+    diff.location = 0, -100
 
     rgb = nodes.new("ShaderNodeRGB")
     rgb.label = "RGB"
     rgb.name = prefix + "RGB"
     rgb.outputs[0].default_value = diffuse['colour']
-    rgb.location = -200, 200
+    rgb.location = -200, 300
 
-    links.new(mix1.outputs["Shader"], out.inputs["Surface"])
+    tval = nodes.new("ShaderNodeValue")
+    tval.label = "Transparency"
+    tval.name = prefix + "Transparency"
+    tval.outputs[0].default_value = 1.0
+    tval.location = -200, 100
+    # TODO: set min/max to 0/1
+
+    if tb.mode == "scientific":
+        links.new(emit.outputs["Emission"], out.inputs["Surface"])
+    elif tb.mode == "artistic":
+        links.new(mix1.outputs["Shader"], out.inputs["Surface"])
     links.new(mix2.outputs["Shader"], mix1.inputs[1])
+    links.new(mix2.outputs["Shader"], emit.inputs["Color"])
     links.new(glos.outputs["BSDF"], mix1.inputs[2])
 #     links.new(rgb.outputs[0], mix2.inputs[0])
     links.new(trans.outputs["BSDF"], mix2.inputs[1])
     links.new(diff.outputs["BSDF"], mix2.inputs[2])
-#     links.new(rgb.outputs["Color"], diff.inputs["Color"])
+    links.new(tval.outputs["Value"], mix2.inputs["Fac"])
+    links.new(tval.outputs["Value"], emit.inputs["Strength"])
+    links.new(rgb.outputs["Color"], emit.inputs["Color"])
+    links.new(rgb.outputs["Color"], diff.inputs["Color"])
 
     if diff_ingroup is not None:
         in_node = nodes.new("ShaderNodeGroup")
@@ -1008,8 +1052,10 @@ def make_nodegroup_dirsurfaces(name="DirSurfacesGroup"):
 
 def make_material_overlay_cycles(name, vcname, ob=None):
     """Create a Cycles material for colourramped vertexcolour rendering."""
+    # TODO: transparency?
 
     scn = bpy.context.scene
+    tb = scn.tb
     if not scn.render.engine == "CYCLES":
         scn.render.engine = "CYCLES"
 
@@ -1031,8 +1077,8 @@ def make_material_overlay_cycles(name, vcname, ob=None):
     out.location = 800, 0
 
     mix1 = nodes.new("ShaderNodeMixShader")
-    mix1.label = "Mix Shader"
-    mix1.name = prefix + "Mix Shader"
+    mix1.label = "MixDiffGlos"
+    mix1.name = prefix + "MixDiffGlos"
     mix1.inputs[0].default_value = 0.04
     mix1.location = 600, 0
 
@@ -1042,6 +1088,11 @@ def make_material_overlay_cycles(name, vcname, ob=None):
     glos.inputs[1].default_value = 0.15
     glos.distribution = "BECKMANN"
     glos.location = 400, -100
+
+    emit = nodes.new("ShaderNodeEmission")
+    emit.label = "Emission"
+    emit.name = prefix + "Emission"
+    emit.location = 600, 200
 
     diff = nodes.new("ShaderNodeBsdfDiffuse")
     diff.label = "Diffuse BSDF"
@@ -1065,6 +1116,13 @@ def make_material_overlay_cycles(name, vcname, ob=None):
     attr.name = prefix + "Attribute"
     attr.attribute_name = vcname
     attr.label = "Attribute"
+
+    tval = nodes.new("ShaderNodeValue")
+    tval.label = "Value"
+    tval.name = prefix + "Value"
+    tval.outputs[0].default_value = 1.0
+    tval.location = 400, 300
+    # TODO: link this with colorramp through driver?
 
 #     if ob is not None:
 #         nnel = nodes.new("ShaderNodeValue")
@@ -1096,12 +1154,17 @@ def make_material_overlay_cycles(name, vcname, ob=None):
 #     # remove driver
 #     diffuse.inputs[1].driver_remove("default_value")
 
-    links.new(mix1.outputs["Shader"], out.inputs["Surface"])
+    if tb.mode == "scientific":
+        links.new(emit.outputs["Emission"], out.inputs["Surface"])
+    elif tb.mode == "artistic":
+        links.new(mix1.outputs["Shader"], out.inputs["Surface"])
     links.new(glos.outputs["BSDF"], mix1.inputs[2])
     links.new(diff.outputs["BSDF"], mix1.inputs[1])
+    links.new(vrgb.outputs["Color"], emit.inputs["Color"])
     links.new(vrgb.outputs["Color"], diff.inputs["Color"])
     links.new(srgb.outputs["R"], vrgb.inputs["Fac"])
     links.new(attr.outputs["Color"], srgb.inputs["Image"])
+    links.new(tval.outputs["Value"], emit.inputs["Strength"])
 
     return mat
 
@@ -1250,8 +1313,8 @@ def make_material_overlaytract_cycles_group(diffcol, mix=0.04):
     output_node.location = (800, 0)
 
     mix1 = nodes.new("ShaderNodeMixShader")
-    mix1.label = "Mix Shader"
-    mix1.name = "Mix Shader"
+    mix1.label = "MixDiffGlos"
+    mix1.name = "MixDiffGlos"
     mix1.inputs[0].default_value = mix
     mix1.location = 600, 0
 
@@ -1264,8 +1327,8 @@ def make_material_overlaytract_cycles_group(diffcol, mix=0.04):
     glos.location = 400, -100
 
     mix2 = nodes.new("ShaderNodeMixShader")
-    mix2.label = "Mix Shader"
-    mix2.name = "Mix Shader"
+    mix2.label = "MixDiffTrans"
+    mix2.name = "MixDiffTrans"
     mix2.inputs[0].default_value = diffuse['colour'][3]
     mix2.location = 400, 100
 

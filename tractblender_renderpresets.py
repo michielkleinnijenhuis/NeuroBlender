@@ -66,24 +66,33 @@ def scene_preset(name="Brain", layer=10):
     # create objects in the preset
     preset = bpy.data.objects.new(name=name, object_data=None)
     bpy.context.scene.objects.link(preset)
+    preset_obs = [preset]
+
     centre, bbox, dims = get_brainbounds(name+"Centre", obs)
-    table = create_table(name+"DissectionTable", centre, bbox, dims)
+    centre.parent = preset
+    preset_obs = preset_obs + [centre]
+
     cam = create_camera(name+"Cam", centre, bbox, dims, Vector(tb.cam_view))
+    cam.parent = preset
+    preset_obs = preset_obs + [cam]
+
+    table = create_table(name+"DissectionTable", centre, bbox, dims)
+    table.parent = preset
+    preset_obs = preset_obs + [table]
+
     lights = create_lighting(name+"Lights", centre, bbox, dims, cam)
-    # organize the preset
     lights.parent = cam
-    obs = [centre] + [table] + [cam]
-    for ob in obs:
-        if ob is not None:
-            ob.parent = preset
-    obs = [preset] + obs + [lights] + list(lights.children)
-    for ob in obs:
-        if ob is not None:
-            tb_utils.move_to_layer(ob, layer)
+    preset_obs = preset_obs + [lights]
+    preset_obs = preset_obs + list(lights.children)
+
+    for ob in preset_obs:
+        tb_utils.move_to_layer(ob, layer)
     scn.layers[layer] = True
 
     ### add_colourbars  # TODO
 #     add_colourbars(cam)
+
+    switch_mode_preset(list(lights.children) + [table], tb.mode)
 
     # get object lists
     obs = bpy.data.objects
@@ -105,13 +114,10 @@ def scene_preset(name="Brain", layer=10):
 
     ### split into scenes to render surfaces (cycles) and volume (bi)
     # Cycles Render
-    preset_obs = [preset] + [centre] + [table] + \
-                 [cam] + [lights] + list(lights.children)
     cycles_obs = preset_obs + tracts + surfaces + borders + cbars
     prep_scenes(name + '_cycles', 'CYCLES', 'GPU', [0, 1, 10], True, cycles_obs)
     # Blender Render
-    preset_obs   = [preset] + [centre] + [cam]
-    internal_obs = preset_obs + voxelvolumes + vv_children
+    internal_obs = [preset] + [centre] + [cam] + voxelvolumes + vv_children
     prep_scenes(name + '_internal', 'BLENDER_RENDER', 'CPU', [2], False, internal_obs)
     # Composited
     prep_scene_composite(scn, name, 'BLENDER_RENDER')
@@ -195,6 +201,13 @@ def renderselections_overlays(ob, tb_ovs, vgs=[], mat_idxs=[]):
             mat_idxs.append(ob.material_slots.find(tb_ov.name))
 
     return vgs, mat_idxs
+
+
+def switch_mode_preset(obs, newmode):
+    """Toggle rendering of lights and table."""
+
+    for ob in obs:
+        ob.hide_render = newmode == "scientific"
 
 
 def to_camera_view():
