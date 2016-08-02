@@ -307,8 +307,9 @@ def import_voxelvolume(directory, files, specname,
     tb_utils.move_to_layer(ob, 2)
     scn.layers[2] = True
 
-    bpy.context.scene.objects.active = ob
-    ob.select = True
+    if not is_overlay:
+        bpy.context.scene.objects.active = ob
+        ob.select = True
 
     return ob
 
@@ -337,6 +338,9 @@ def import_overlays(directory, files, name="", parent="", ovtype=""):
         importfun = eval("import_%s_%s" % (tb.objecttype, ovtype))
 
         importfun(fpath, parent_ob, name=name)
+
+    bpy.context.scene.objects.active = parent_ob
+    parent_ob.select = True
 
 
 def import_tracts_scalars(fpath, parent_ob, name=""):
