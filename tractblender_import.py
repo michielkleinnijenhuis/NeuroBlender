@@ -763,6 +763,7 @@ def add_tract_to_collection(name, fpath, sformfile,
     tract.tract_weeded = weed_tract
     tract.streamlines_interpolated = interpolate_streamlines
 
+    return tract
 
 def add_surface_to_collection(name, fpath, sformfile):
     """Add surface to the TractBlender collection."""
@@ -778,6 +779,7 @@ def add_surface_to_collection(name, fpath, sformfile):
     surface.filepath = fpath
     surface.sformfile = sformfile
 
+    return surface
 
 def add_voxelvolume_to_collection(name, fpath, sformfile, datarange):
     """Add voxelvolume to the TractBlender collection."""
@@ -794,6 +796,7 @@ def add_voxelvolume_to_collection(name, fpath, sformfile, datarange):
     vvol.range = datarange
     vvol.sformfile = sformfile
 
+    return vvol
 
 def add_scalar_to_collection(name, fpath, scalarrange):
     """Add scalar to the TractBlender collection."""
@@ -811,6 +814,7 @@ def add_scalar_to_collection(name, fpath, scalarrange):
     scalar.filepath = fpath
     scalar.range = scalarrange
 
+    return scalar
 
 def add_labelgroup_to_collection(name, fpath):
     """Add labelgroup to the TractBlender collection."""
@@ -844,6 +848,7 @@ def add_label_to_collection(labelgroup, name, value, colour):
     label.value = value
     label.colour = colour
 
+    return label
 
 def add_bordergroup_to_collection(name, fpath):
     """Add bordergroup to the TractBlender collection."""
@@ -876,6 +881,8 @@ def add_border_to_collection(name, bordergroup, colour):
     border.name = name
     border.group = bordergroup.name
     border.colour = colour
+
+    return border
 
 
 # ========================================================================== #

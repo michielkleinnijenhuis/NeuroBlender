@@ -89,7 +89,7 @@ class TractBlenderBasePanel(Panel):
         if tb.is_enabled:
             self.draw_tb_panel(self.layout, tb)
         else:
-            self.switch_to_main(self.layout, tb)
+            self.drawunit_switch_to_main(self.layout, tb)
 
     def draw_tb_panel(self, layout, tb):
 
@@ -110,7 +110,7 @@ class TractBlenderBasePanel(Panel):
             self.drawunit_tri(layout, "material", tb, tb_ob)
             self.drawunit_tri(layout, "info", tb, tb_ob)
 
-    def drawunit_switch_to_main(layout, tb):
+    def drawunit_switch_to_main(self, layout, tb):
 
         row = layout.row()
         row.label(text="Please use the main scene for TractBlender.")
@@ -310,6 +310,7 @@ class TractBlenderOverlayPanel(Panel):
 
     # delegate some methods
     draw = TractBlenderBasePanel.draw
+    drawunit_switch_to_main = TractBlenderBasePanel.drawunit_switch_to_main
     drawunit_UIList = TractBlenderBasePanel.drawunit_UIList
     drawunit_tri = TractBlenderBasePanel.drawunit_tri
     drawunit_basic_cycles = TractBlenderBasePanel.drawunit_basic_cycles
@@ -1255,6 +1256,7 @@ class TractBlenderScenePanel(Panel):
     bl_context = "scene"
 
     draw = TractBlenderBasePanel.draw
+    drawunit_switch_to_main = TractBlenderBasePanel.drawunit_switch_to_main
 
     def draw_tb_panel(self, layout, tb):
 
@@ -1316,6 +1318,7 @@ class TractBlenderSettingsPanel(Panel):
     bl_context = "scene"
 
     draw = TractBlenderBasePanel.draw
+    drawunit_switch_to_main = TractBlenderBasePanel.drawunit_switch_to_main
 
     def draw_tb_panel(self, layout, tb):
 
@@ -1404,12 +1407,14 @@ def mode_enum_update(self, context):
     for mat in bpy.data.materials:
         tb_mat.switch_mode_mat(mat, newmode)
 
-    obnames = [tb.presetname + "DissectionTable",
-               tb.presetname + "LightsBack",
-               tb.presetname + "LightsFill",
-               tb.presetname + "LightsKey"]
-    obs = [bpy.data.objects[obname] for obname in obnames]
-    tb_rp.switch_mode_preset(obs, tb.mode)
+    lights = [tb.presetname + "LightsBack",
+              tb.presetname + "LightsFill",
+              tb.presetname + "LightsKey"]
+    light_obs = [bpy.data.objects[light] for light in lights]
+    table_obs = [bpy.data.objects[tb.presetname + "DissectionTable"]]
+    tb_rp.switch_mode_preset(light_obs, table_obs, tb.mode, tb.cam_view)
+
+    # TODO: switch colourbars
 
 
 def overlay_enum_callback(self, context):

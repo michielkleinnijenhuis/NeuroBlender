@@ -41,8 +41,9 @@ def scene_preset(name="Brain", layer=10):
 
     # TODO: manage presets: e.g. put each preset in an empty, etc
     # TODO: option to save presets
-    # TODO: copy colourbars to cam instead of moving them around
     # TODO: set presets up as scenes?
+    # TODO: check against all names before preset name is accepted 
+    #       and check all import names against preset names 
 #     name = 'Preset'
 #     new_scene = bpy.data.scenes.new(name)
 #     preset = bpy.data.objects.new(name=name, object_data=None)
@@ -51,11 +52,13 @@ def scene_preset(name="Brain", layer=10):
     scn = bpy.context.scene
     tb = scn.tb
 
+    tb.presetname = name
+
     # check if there are objects to render
     obs = [ob for ob in bpy.data.objects
            if ((ob.type not in ['CAMERA', 'LAMP', 'EMPTY']) and
-               (not ob.name.startswith('BrainDissectionTable')) and
-               (not ob.name.startswith('BrainLights')))]
+               (not ob.name.startswith(name)) and 
+               (not ob.name.endswith('_colourbar')))]
     if not obs:
         print('no objects selected for render')
         return {'CANCELLED'}
@@ -63,6 +66,7 @@ def scene_preset(name="Brain", layer=10):
     ### create the preset
     # remove the preset if it exists
     delete_preset(name)
+
     # create objects in the preset
     preset = bpy.data.objects.new(name=name, object_data=None)
     bpy.context.scene.objects.link(preset)
@@ -89,10 +93,10 @@ def scene_preset(name="Brain", layer=10):
         tb_utils.move_to_layer(ob, layer)
     scn.layers[layer] = True
 
-    ### add_colourbars  # TODO
-#     add_colourbars(cam)
+    cbars = add_colourbars(cam)
+    cbarlabels = [l for cbar in cbars for l in list(cbar.children)]
 
-    switch_mode_preset(list(lights.children) + [table], tb.mode)
+    switch_mode_preset(list(lights.children), [table], tb.mode, tb.cam_view)
 
     # get object lists
     obs = bpy.data.objects
@@ -101,9 +105,10 @@ def scene_preset(name="Brain", layer=10):
     borders    = [obs[b.name] for s in tb.surfaces 
                   for bg in s.bordergroups 
                   for b in bg.borders]
+    bordergroups = [obs[bg.name] for s in tb.surfaces 
+                    for bg in s.bordergroups] 
     voxelvolumes = [obs[v.name] for v in tb.voxelvolumes]
     vv_children  = [vc for v in voxelvolumes for vc in v.children]
-    cbars = []  # this list should also include the labels ...
 
     ### select the right material(s) for each polygon
     renderselections_tracts(tb.tracts)
@@ -114,7 +119,7 @@ def scene_preset(name="Brain", layer=10):
 
     ### split into scenes to render surfaces (cycles) and volume (bi)
     # Cycles Render
-    cycles_obs = preset_obs + tracts + surfaces + borders + cbars
+    cycles_obs = preset_obs + tracts + surfaces + bordergroups + borders + cbars + cbarlabels
     prep_scenes(name + '_cycles', 'CYCLES', 'GPU', [0, 1, 10], True, cycles_obs)
     # Blender Render
     internal_obs = [preset] + [centre] + [cam] + voxelvolumes + vv_children
@@ -131,6 +136,35 @@ def scene_preset(name="Brain", layer=10):
     scn.cycles.caustics_reflective = False
 
     return {'FINISHED'}
+
+
+def delete_preset(name):
+    """"""
+    # TODO: more flexibility in keeping and naming
+#     for ob in scn.objects:
+#         if ob.type == 'CAMERA' or ob.type == 'LAMP' or ob.type == 'EMPTY':
+# #             if ob.name.startswith('Brain'):
+#                 scn.objects.unlink(ob)
+#     deltypes = ['CAMERA', 'LAMP', 'EMPTY']
+
+    # unlink all objects from the rendering scenes
+    for s in ['_cycles', '_internal']:
+        try:
+            scn = bpy.data.scenes[name + s]
+        except KeyError:
+            pass
+        else:
+            for ob in scn.objects:
+                scn.objects.unlink(ob)
+
+    # TODO: delete cameras and lamps
+    bpy.ops.object.mode_set(mode='OBJECT')
+    for ob in bpy.data.objects:
+        ob.select = ob.name.startswith(name)
+    for ob in bpy.data.cameras:
+        ob.select = ob.name.startswith(name)
+    bpy.context.scene.objects.active = ob
+    bpy.ops.object.delete()
 
 
 def renderselections_tracts(tb_obs):
@@ -164,7 +198,6 @@ def renderselections_surfaces(tb_obs):
         vgs, mat_idxs = renderselections_overlays(ob, tb_ob.scalars, vgs, mat_idxs)
 
         vgs_idxs = [g.index for g in vgs]
-        print(vgs_idxs, mat_idxs)
         tb_mat.reset_materialslots(ob)  # TODO: also for tracts?
         if vgs is not None:
             tb_mat.assign_materialslots_to_faces(ob, vgs, mat_idxs)
@@ -201,102 +234,6 @@ def renderselections_overlays(ob, tb_ovs, vgs=[], mat_idxs=[]):
             mat_idxs.append(ob.material_slots.find(tb_ov.name))
 
     return vgs, mat_idxs
-
-
-def switch_mode_preset(obs, newmode):
-    """Toggle rendering of lights and table."""
-
-    for ob in obs:
-        ob.hide_render = newmode == "scientific"
-
-
-def to_camera_view():
-    """Set 3D viewports to camera perspective."""
-
-    for area in bpy.context.screen.areas:
-        if area.type == 'VIEW_3D':
-            area.spaces[0].region_3d.view_perspective = 'CAMERA'
-
-
-def validate_voxelvolume_textures(tb):
-    """"Validate or update the texture files for voxelvolumes."""
-
-    for vv in tb.voxelvolumes:
-        fp = bpy.data.textures[vv.name].voxel_data.filepath
-        if not os.path.isfile(fp):
-            fp = tb_imp.prep_nifti(vv.filepath, vv.name, False)[0]
-        for vs in vv.scalars:
-            fp = bpy.data.textures[vs.name].voxel_data.filepath
-            if not os.path.isfile(fp):
-                fp = tb_imp.prep_nifti(vs.filepath, vs.name, False)[0]
-        for vl in vv.labelgroups:
-            fp = bpy.data.textures[vl.name].voxel_data.filepath
-            if not os.path.isfile(fp):
-                fp = tb_imp.prep_nifti(vl.filepath, vl.name, True)[0]
-
-
-def get_brainbounds(name, obs):
-    """Find the boundingbox, dimensions and centre of the objects."""
-
-    bbox = np.array(find_bbox_coordinates(obs))
-    dims = np.subtract(bbox[:, 1], bbox[:, 0])
-    centre = bbox[:, 0] + dims / 2
-
-    empty = bpy.data.objects.new(name=name, object_data=None)
-    empty.location = centre
-    bpy.context.scene.objects.link(empty)
-
-    return empty, bbox, dims
-
-
-def delete_preset(name):
-    """"""
-    # TODO: more flexibility in keeping and naming
-#     for ob in scn.objects:
-#         if ob.type == 'CAMERA' or ob.type == 'LAMP' or ob.type == 'EMPTY':
-# #             if ob.name.startswith('Brain'):
-#                 scn.objects.unlink(ob)
-#     deltypes = ['CAMERA', 'LAMP', 'EMPTY']
-
-    # unlink all objects from the rendering scenes
-    for s in ['_cycles', '_internal']:
-        try:
-            scn = bpy.data.scenes[name + s]
-        except KeyError:
-            pass
-        else:
-            for ob in scn.objects:
-                scn.objects.unlink(ob)
-
-    # 
-    try:
-        cbars = bpy.data.objects.get("Colourbars")
-    except KeyError:
-        pass
-    else:
-        for ob in bpy.data.objects:
-            if ob.name.endswith("_colourbar"):
-                ob.parent = cbars
-
-    bpy.ops.object.mode_set(mode='OBJECT')
-    for ob in bpy.data.objects:
-        ob.select = ob.name.startswith(name)  # and ob.type in deltypes
-    bpy.context.scene.objects.active = ob
-    bpy.ops.object.delete()
-
-
-def find_bbox_coordinates(obs):
-    """Find the extreme dimensions in the geometry."""
-    xyz = []
-    for dim in range(3):
-        xco = []
-        for ob in obs:
-            for b in ob.bound_box:
-                xco.append(b[dim] * ob.scale[dim] + ob.location[dim])
-        co_min = min(xco)
-        co_max = max(xco)
-        xyz.append([co_min, co_max])
-    return xyz
 
 
 def prep_scenes(name, engine, device, layers, use_sky, obs):
@@ -370,6 +307,73 @@ def prep_scene_composite(scn, name, engine):
     links.new(rlayer2.outputs["Image"], mix.inputs[2])
 
 
+def switch_mode_preset(lights, tables, newmode, cam_view):
+    """Toggle rendering of lights and table."""
+
+    for light in lights:
+        light.hide = newmode == "scientific"
+        light.hide_render = newmode == "scientific"
+    for table in tables:
+        state = (cam_view[2] < 0) | (newmode == "scientific")
+        table.hide = state
+        table.hide_render = state
+
+
+def to_camera_view():
+    """Set 3D viewports to camera perspective."""
+
+    for area in bpy.context.screen.areas:
+        if area.type == 'VIEW_3D':
+            area.spaces[0].region_3d.view_perspective = 'CAMERA'
+
+
+def validate_voxelvolume_textures(tb):
+    """"Validate or update the texture files for voxelvolumes."""
+
+    for vv in tb.voxelvolumes:
+        fp = bpy.data.textures[vv.name].voxel_data.filepath
+        if not os.path.isfile(fp):
+            fp = tb_imp.prep_nifti(vv.filepath, vv.name, False)[0]
+        for vs in vv.scalars:
+            fp = bpy.data.textures[vs.name].voxel_data.filepath
+            if not os.path.isfile(fp):
+                fp = tb_imp.prep_nifti(vs.filepath, vs.name, False)[0]
+        for vl in vv.labelgroups:
+            fp = bpy.data.textures[vl.name].voxel_data.filepath
+            if not os.path.isfile(fp):
+                fp = tb_imp.prep_nifti(vl.filepath, vl.name, True)[0]
+
+
+def get_brainbounds(name, obs):
+    """Find the boundingbox, dimensions and centre of the objects."""
+
+    bbox = np.array(find_bbox_coordinates(obs))
+    dims = np.subtract(bbox[:, 1], bbox[:, 0])
+    centre_co = bbox[:, 0] + dims / 2
+
+    centre = bpy.data.objects.new(name=name, object_data=None)
+    centre.location = centre_co
+    bpy.context.scene.objects.link(centre)
+
+    return centre, bbox, dims
+
+
+def find_bbox_coordinates(obs):
+    """Find the extreme dimensions in the geometry."""
+    xyz = []
+    for dim in range(3):
+        xco = []
+        for ob in obs:
+            print(ob)
+            for b in ob.bound_box:
+                xco.append(b[dim] * ob.scale[dim] + ob.location[dim])
+        co_min = min(xco)
+        co_max = max(xco)
+        xyz.append([co_min, co_max])
+    print(xyz)
+    return xyz
+
+
 # ========================================================================== #
 # camera
 # ========================================================================== #
@@ -396,9 +400,9 @@ def create_camera(name, centre, bbox, dims, camview=Vector((1, 1, 1))):
 
     add_constraint(ob, "TRACK_TO", "TrackToCentre", centre)
     add_constraint(ob, "LIMIT_DISTANCE",
-                   "LimitDistInClipBox", centre, cam.clip_end)
+                   "LimitDistInClipSphere", centre, cam.clip_end)
     add_constraint(ob, "LIMIT_DISTANCE",
-                   "LimitDistOutBrainBox", centre, max(dims))
+                   "LimitDistOutBrainSphere", centre, max(dims))
 
     dist = max(dims) * camview
     ob.location = (centre.location[0] + dist[0],
@@ -406,9 +410,9 @@ def create_camera(name, centre, bbox, dims, camview=Vector((1, 1, 1))):
                    centre.location[2] + dist[2])
 
     # depth-of-field
-    empty = bpy.data.objects.new('DofEmpty', None)
-    empty.location = centre.location
-    cam.dof_object = empty
+#     empty = bpy.data.objects.new('DofEmpty', None)
+#     empty.location = centre.location
+#     cam.dof_object = empty
 #     scn.objects.link(empty)
     # TODO: let the empty follow the brain outline
 #     cycles = cam.cycles
@@ -523,8 +527,6 @@ def create_table(name, centre, bbox, dims):
     """Create a table under the objects."""
 
     tb = bpy.context.scene.tb
-    if tb.cam_view[2] < 0:
-        return None
 
     ob = create_plane(name)
     ob.scale = (dims[0]*4, dims[1]*4, 1)
@@ -562,6 +564,67 @@ def create_world():
 # (reuse of code from http://blender.stackexchange.com/questions/6625)
 
 
+def add_colourbars(cam):
+    """Add colourbars of objects to the scene setup."""
+
+    scn = bpy.context.scene
+    tb = scn.tb
+
+    i = 0
+    ps_cbars = []
+    for surf in tb.surfaces:  # TODO cbars for other tracts and vvols, borders and labels?
+        for scalar in surf.scalars:
+            if scalar.showcolourbar:
+
+                cbar = bpy.data.objects.get(scalar.name + "_colourbar")
+                y_offset = i * 0.2
+                ps_cbar = add_colourbar_to_cam(tb.presetname, cam, cbar, 
+                                          location=[1, 1-y_offset])
+
+                # add labels
+                nt = bpy.data.materials[scalar.name].node_tree
+                ramp = nt.nodes["ColorRamp"]
+                els = ramp.color_ramp.elements
+                nnels = scalar.nn_elements
+                height = 0.1
+                width = 0.5
+                labels = []
+                for el, nnel in zip(els, nnels):
+                    nnelpos = nnel.nn_position
+                    elpos = el.position
+                    labels.append({'label': "%4.2f" % nnelpos, 'loc': [elpos*width, 0.015]})
+                    # TODO: adaptive formatting
+                add_colourbar_labels(tb.presetname, ps_cbar, labels, height)
+
+                ps_cbars.append(ps_cbar)
+                i += 1
+
+    return ps_cbars
+
+
+def add_colourbar_to_cam(presetname, camera, colourbar, location=[0, 1]):
+    """Copy the colourbar in front of the camera."""
+
+    # copy colourbar
+    pscbar_name = presetname + '_' + colourbar.name
+    me = bpy.data.meshes.new(pscbar_name)
+    preset_cbar = bpy.data.objects.new(pscbar_name, me)
+    preset_cbar.data = colourbar.data.copy()
+    preset_cbar.data.name = pscbar_name
+    preset_cbar.scale = colourbar.scale
+    bpy.context.scene.objects.link(preset_cbar)
+    preset_cbar.select = True
+
+    # place colourbar
+    preset_cbar.parent = camera
+    preset_cbar.location = (0, 0, -10)
+    SetupDriversForImagePlane(preset_cbar, scaling=[1.0, 1.0])
+    preset_cbar.location[0] = location[0]
+    preset_cbar.location[1] = location[1]
+
+    return preset_cbar
+
+
 def SetupDriverVariables(driver, imageplane):
     camAngle = driver.variables.new()
     camAngle.name = 'camAngle'
@@ -592,39 +655,21 @@ def SetupDriversForImagePlane(imageplane, scaling=[1.0, 1.0]):
     driver.expression = str(scaling[1]) + " * -depth * tan(camAngle / 2)"
 
 
-def place_colourbar(camera, colourbar, location=[0, 1]):
-    """Place the colourbar in front of the camera."""
+def add_colourbar_labels(presetname, colourbar, labels, height=0.1):
+    """Add labels to colourbar."""
 
-    colourbar.location = (0, 0, -10)
-    colourbar.parent = camera
-    SetupDriversForImagePlane(colourbar, scaling=[1.0, 1.0])
-    colourbar.location[0] = location[0]
-    colourbar.location[1] = location[1]
+    emission = {'colour': (1.0, 1.0, 1.0, 1.0), 'strength': 1}
+    mat = tb_mat.make_material_emit_cycles("cbartext", emission)
 
+    for label in labels:
+        bpy.ops.object.text_add()
+        text = bpy.context.scene.objects.active
+        text.parent = colourbar
+        text.scale[0] = height
+        text.scale[1] = height
+        text.location[0] = label['loc'][0]
+        text.location[1] = label['loc'][1]
+        text.data.body = label['label']
+        text.name = presetname + "_label:" + label['label']
+        tb_mat.set_materials(text.data, mat)
 
-def add_colourbars(cam):
-    """Add colourbars of objects to the scene setup."""
-
-    scn = bpy.context.scene
-    tb = scn.tb
-
-    try:
-        cbars = bpy.data.objects.get("Colourbars")
-    except KeyError:
-        pass
-    else:
-        # TODO: limit number of cbars (5)
-        # FIXME: hacky non-general approach
-        # (left like this for now because preset
-        # handling will be changed anyway)
-        cbars_render = []
-        for surf in tb.surfaces:
-            for scalar in surf.scalars:
-                if scalar.showcolourbar:
-                    cbar = bpy.data.objects.get(scalar.name + "_colourbar")
-                    cbars_render.append(cbar)
-#         for cbar in cbars.children:
-#             cbars_render.append(cbar)
-        for i, cbar in enumerate(cbars_render):
-            y_offset = i * 0.2
-            place_colourbar(cam, cbar, location=[0, 1-y_offset])
