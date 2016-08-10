@@ -280,6 +280,22 @@ class TractBlenderBasePanel(Panel):
                               tb_coll, "index_nn_elements",
                               rows=2)
 
+            row = layout.row()
+            row.separator()
+            row = layout.row()
+            row.prop(tb_coll, "showcolourbar")
+            if tb_coll.showcolourbar:
+                row = layout.row()
+                row.prop(tb_coll, "colourbar_size", text="size")
+                row.prop(tb_coll, "colourbar_position", text="position")
+                row = layout.row()
+#                 nt = bpy.data.materials[tb_coll.name + "cbartext"].node_tree
+#                 emit_in = nt.nodes["Emission"].inputs[0]
+#                 row.prop(emit_in, "default_value", text="Textlabels")
+                row.prop(tb_coll, "textlabel_colour", text="Textlabels")
+                row.prop(tb_coll, "textlabel_placement", text="")
+                row.prop(tb_coll, "textlabel_size", text="size")
+
     def calc_nn_elpos(self, tb_ov, ramp):
         # TODO: solve with drivers
         els = ramp.color_ramp.elements
@@ -357,7 +373,8 @@ class TractBlenderOverlayPanel(Panel):
         if tb.objecttype == "tracts":
             ng = bpy.data.node_groups.get("TractOvGroup")
             ramp = ng.nodes["ColorRamp"]
-            self.drawunit_colourramp(layout, ramp, tb_ov)
+            box = layout.box()
+            self.drawunit_colourramp(box, ramp, tb_ov)
 
         elif tb.objecttype == "surfaces":
             nt = bpy.data.materials[tb_ov.name].node_tree
@@ -558,7 +575,7 @@ class ObjectListCR(UIList):
     def draw_item(self, context, layout, data, item, icon,
                   active_data, active_propname, index):
 
-        item_icon = "ARROW_LEFTRIGHT"
+        item_icon = "FULLSCREEN_ENTER"
 
         if self.layout_type in {'DEFAULT', 'COMPACT'}:
             col = layout.column()
@@ -1410,8 +1427,11 @@ def mode_enum_update(self, context):
     lights = [tb.presetname + "LightsBack",
               tb.presetname + "LightsFill",
               tb.presetname + "LightsKey"]
-    light_obs = [bpy.data.objects[light] for light in lights]
-    table_obs = [bpy.data.objects[tb.presetname + "DissectionTable"]]
+    tables = [tb.presetname + "DissectionTable"]
+    light_obs = [bpy.data.objects.get(light) for light in lights]
+    light_obs = [light for light in light_obs if light is not None]
+    table_obs = [bpy.data.objects.get(table) for table in tables]
+    table_obs = [table for table in table_obs if table is not None]
     tb_rp.switch_mode_preset(light_obs, table_obs, tb.mode, tb.cam_view)
 
     # TODO: switch colourbars
@@ -1426,7 +1446,8 @@ def overlay_enum_callback(self, context):
     items = []
     items.append(("scalars", "scalars",
                   "List the scalar overlays", 1))
-    items.append(("labelgroups", "labelgroups",
+    if tb.objecttype != 'tracts':
+        items.append(("labelgroups", "labelgroups",
                   "List the label overlays", 2))
     if tb.objecttype == 'surfaces':
         items.append(("bordergroups", "bordergroups",
@@ -1514,10 +1535,6 @@ class ScalarProperties(PropertyGroup):
         default=(0, 0),
         size=2,
         precision=4)
-    showcolourbar = BoolProperty(
-        name="Render colourbar",
-        description="Show/hide colourbar in rendered image",
-        default=False)
     nn_elements = CollectionProperty(
         type=ColorRampProperties,
         name="nn_elements",
@@ -1527,6 +1544,49 @@ class ScalarProperties(PropertyGroup):
         description="Index of the non-normalized color stops",
         default=0,
         min=0)
+    showcolourbar = BoolProperty(
+        name="Render colourbar",
+        description="Show/hide colourbar in rendered image",
+        default=False)
+    colourbar_placement = EnumProperty(
+        name="Colourbar placement",
+        description="Choose where to show the colourbar",
+        default="top-right",
+        items=[("top-right", "top-right", 
+                "Place colourbar top-right"),
+               ("top-left", "top-left", 
+                "Place colourbar top-left"),
+               ("bottom-right", "bottom-right", 
+                "Place colourbar bottom-right"),
+               ("bottom-left", "bottom-left", 
+                "Place colourbar bottom-left")])  # update=colourbar_update
+    colourbar_size = FloatVectorProperty(
+        name="size",
+        description="Set the size of the colourbar",
+        default=[0.25, 0.05],
+        size=2, min=0., max=1.)
+    colourbar_position = FloatVectorProperty(
+        name="position",
+        description="Set the position of the colourbar",
+        default=[1., 1.],
+        size=2, min=-1., max=1.)
+    textlabel_colour = FloatVectorProperty(
+        name="Textlabel colour",
+        description="Pick a colour",
+        default=[1.0, 1.0, 1.0],
+        subtype="COLOR")
+    textlabel_placement = EnumProperty(
+        name="Textlabel placement",
+        description="Choose where to show the label",
+        default="out",
+        items=[("out", "out", "Place labels outside"),
+               ("in", "in", "Place labels inside")])  # update=textlabel_update
+    textlabel_size = FloatProperty(
+        name="Textlabel size",
+        description="Set the size of the textlabel (relative to colourbar)",
+        default=0.5,
+        min=0.,
+        max=1.)
 
 
 class LabelProperties(PropertyGroup):
@@ -1984,6 +2044,49 @@ class VoxelvolumeProperties(PropertyGroup):
         description="Index of the non-normalized color stops",
         default=0,
         min=0)
+    showcolourbar = BoolProperty(
+        name="Render colourbar",
+        description="Show/hide colourbar in rendered image",
+        default=False)
+    colourbar_placement = EnumProperty(
+        name="Colourbar placement",
+        description="Choose where to show the colourbar",
+        default="top-right",
+        items=[("top-right", "top-right", 
+                "Place colourbar top-right"),
+               ("top-left", "top-left", 
+                "Place colourbar top-left"),
+               ("bottom-right", "bottom-right", 
+                "Place colourbar bottom-right"),
+               ("bottom-left", "bottom-left", 
+                "Place colourbar bottom-left")])  # update=colourbar_update
+    colourbar_size = FloatVectorProperty(
+        name="size",
+        description="Set the size of the colourbar",
+        default=[0.25, 0.05],
+        size=2, min=0., max=1.)
+    colourbar_position = FloatVectorProperty(
+        name="position",
+        description="Set the position of the colourbar",
+        default=[1., 1.],
+        size=2, min=-1., max=1.)
+    textlabel_colour = FloatVectorProperty(
+        name="Textlabel colour",
+        description="Pick a colour",
+        default=[1.0, 1.0, 1.0],
+        subtype="COLOR")
+    textlabel_placement = EnumProperty(
+        name="Textlabel placement",
+        description="Choose where to show the label",
+        default="out",
+        items=[("out", "out", "Place labels outside"),
+               ("in", "in", "Place labels inside")])  # update=textlabel_update
+    textlabel_size = FloatProperty(
+        name="Textlabel size",
+        description="Set the size of the textlabel (relative to colourbar)",
+        default=0.5,
+        min=0.,
+        max=1.)
 
 
 class TractBlenderProperties(PropertyGroup):

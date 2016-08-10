@@ -89,12 +89,19 @@ def scene_preset(name="Brain", layer=10):
     preset_obs = preset_obs + [lights]
     preset_obs = preset_obs + list(lights.children)
 
+    cbars = create_colourbars(name+"Colourbars", cam)
+#     cbars.parent = cam  # already made it parent
+    preset_obs = preset_obs + [cbars]
+    preset_obs = preset_obs + list(cbars.children)
+    preset_obs = preset_obs + [label for cbar in list(cbars.children) 
+                               for label in list(cbar.children)]
+#     cbarlabels = [l for cbar in cbars for l in list(cbar.children)]
+#     preset_obs = preset_obs + [cbars]
+#     preset_obs = preset_obs + list(cbars.children)
+
     for ob in preset_obs:
         tb_utils.move_to_layer(ob, layer)
     scn.layers[layer] = True
-
-    cbars = add_colourbars(cam)
-    cbarlabels = [l for cbar in cbars for l in list(cbar.children)]
 
     switch_mode_preset(list(lights.children), [table], tb.mode, tb.cam_view)
 
@@ -119,7 +126,7 @@ def scene_preset(name="Brain", layer=10):
 
     ### split into scenes to render surfaces (cycles) and volume (bi)
     # Cycles Render
-    cycles_obs = preset_obs + tracts + surfaces + bordergroups + borders + cbars + cbarlabels
+    cycles_obs = preset_obs + tracts + surfaces + bordergroups + borders
     prep_scenes(name + '_cycles', 'CYCLES', 'GPU', [0, 1, 10], True, cycles_obs)
     # Blender Render
     internal_obs = [preset] + [centre] + [cam] + voxelvolumes + vv_children
@@ -160,8 +167,6 @@ def delete_preset(name):
     # TODO: delete cameras and lamps
     bpy.ops.object.mode_set(mode='OBJECT')
     for ob in bpy.data.objects:
-        ob.select = ob.name.startswith(name)
-    for ob in bpy.data.cameras:
         ob.select = ob.name.startswith(name)
     bpy.context.scene.objects.active = ob
     bpy.ops.object.delete()
@@ -360,17 +365,17 @@ def get_brainbounds(name, obs):
 
 def find_bbox_coordinates(obs):
     """Find the extreme dimensions in the geometry."""
+
     xyz = []
     for dim in range(3):
         xco = []
         for ob in obs:
-            print(ob)
             for b in ob.bound_box:
                 xco.append(b[dim] * ob.scale[dim] + ob.location[dim])
         co_min = min(xco)
         co_max = max(xco)
         xyz.append([co_min, co_max])
-    print(xyz)
+
     return xyz
 
 
@@ -564,73 +569,146 @@ def create_world():
 # (reuse of code from http://blender.stackexchange.com/questions/6625)
 
 
-def add_colourbars(cam):
+def create_colourbars(name, cam):
     """Add colourbars of objects to the scene setup."""
 
     scn = bpy.context.scene
     tb = scn.tb
 
-    i = 0
-    ps_cbars = []
-    for surf in tb.surfaces:  # TODO cbars for other tracts and vvols, borders and labels?
+    cbars = bpy.data.objects.new(name, None)
+    cbars.parent = cam
+    bpy.context.scene.objects.link(cbars)
+
+    for tract in tb.tracts:
+        for scalar in tract.scalars:
+            if scalar.showcolourbar:
+                create_colourbar(cbars, scalar, 'tracts_scalars')
+    for surf in tb.surfaces:
         for scalar in surf.scalars:
             if scalar.showcolourbar:
+                create_colourbar(cbars, scalar, 'surfaces_scalars')
 
-                cbar = bpy.data.objects.get(scalar.name + "_colourbar")
-                y_offset = i * 0.2
-                ps_cbar = add_colourbar_to_cam(tb.presetname, cam, cbar, 
-                                          location=[1, 1-y_offset])
+    for vvol in tb.voxelvolumes:
+        if vvol.showcolourbar:
+            create_colourbar(cbars, vvol, 'voxelvolumes')
+        for scalar in vvol.scalars:
+            if scalar.showcolourbar:
+                create_colourbar(cbars, scalar, 'voxelvolumes_scalars')
 
-                # add labels
-                nt = bpy.data.materials[scalar.name].node_tree
-                ramp = nt.nodes["ColorRamp"]
-                els = ramp.color_ramp.elements
-                nnels = scalar.nn_elements
-                height = 0.1
-                width = 0.5
-                labels = []
-                for el, nnel in zip(els, nnels):
-                    nnelpos = nnel.nn_position
-                    elpos = el.position
-                    labels.append({'label': "%4.2f" % nnelpos, 'loc': [elpos*width, 0.015]})
-                    # TODO: adaptive formatting
-                add_colourbar_labels(tb.presetname, ps_cbar, labels, height)
-
-                ps_cbars.append(ps_cbar)
-                i += 1
-
-    return ps_cbars
+    return cbars
 
 
-def add_colourbar_to_cam(presetname, camera, colourbar, location=[0, 1]):
-    """Copy the colourbar in front of the camera."""
+def create_colourbar(cbars, cr_ob, type):
 
-    # copy colourbar
-    pscbar_name = presetname + '_' + colourbar.name
-    me = bpy.data.meshes.new(pscbar_name)
-    preset_cbar = bpy.data.objects.new(pscbar_name, me)
-    preset_cbar.data = colourbar.data.copy()
-    preset_cbar.data.name = pscbar_name
-    preset_cbar.scale = colourbar.scale
-    bpy.context.scene.objects.link(preset_cbar)
-    preset_cbar.select = True
+    scn = bpy.context.scene
+    tb = scn.tb
 
-    # place colourbar
-    preset_cbar.parent = camera
-    preset_cbar.location = (0, 0, -10)
-    SetupDriversForImagePlane(preset_cbar, scaling=[1.0, 1.0])
-    preset_cbar.location[0] = location[0]
-    preset_cbar.location[1] = location[1]
+    cbar_name = tb.presetname + '_' + cr_ob.name + "_colourbar"
 
-    return preset_cbar
+    cbar_empty = bpy.data.objects.new(cbar_name, None)
+    bpy.context.scene.objects.link(cbar_empty)
+    cbar_empty.parent = cbars
+
+    cbar, vg = create_imageplane(cbar_name+"_bar")
+    cbar.parent = cbar_empty
+
+    cbar.location = [0, 0, -10]
+    SetupDriversForImagePlane(cbar, cr_ob)
+
+    if type.startswith('tracts_scalars'):
+        pass
+#         mat = make_material_overlay_cycles(cbar_name, cbar_name, cbar, cr_ob)
+#                 bpy.data.node_groups["TractOvGroup"].nodes["ColorRamp"].color_ramp.elements[0].position = 0.2
+    elif type.startswith('surfaces_scalars'):
+        mat = bpy.data.materials[cr_ob.name]
+        vcs = cbar.data.vertex_colors
+        vc = vcs.new(cr_ob.name)
+        cbar.data.vertex_colors.active = vc
+        cbar = tb_mat.assign_vc(cbar, vc, [vg])
+    elif type.startswith('voxelvolumes'):
+        mat = bpy.data.materials[cr_ob.name].copy()
+        tex = bpy.data.textures[cr_ob.name].copy()
+        mat.name = tex.name = cr_ob.name + '_colourbar'
+        tex.type = 'BLEND'
+        mat.texture_slots[0].texture = tex
+        # this does not show the original colorramp
+
+    tb_mat.set_materials(cbar.data, mat)
+
+#     colour = list(cr_ob.textlabel_colour) + [1.]
+#     emission = {'colour': colour, 'strength': 1}
+#     labmat = tb_mat.make_material_emit_cycles(cr_ob.name + "cbartext", emission)
+#     add_colourbar_labels(cbar_name+"_label", cr_ob, cbar, labmat)  # FIXME
 
 
-def SetupDriverVariables(driver, imageplane):
-    camAngle = driver.variables.new()
-    camAngle.name = 'camAngle'
-    camAngle.type = 'SINGLE_PROP'
-    camAngle.targets[0].id = imageplane.parent
-    camAngle.targets[0].data_path = "data.angle"
+def create_imageplane(name="Colourbar"):
+
+    bpy.ops.mesh.primitive_plane_add()
+    imageplane = bpy.context.active_object
+    imageplane.name = name
+    bpy.ops.object.parent_set(type='OBJECT', keep_transform=False)
+    bpy.ops.object.editmode_toggle()
+    bpy.ops.mesh.select_all(action='TOGGLE')
+    bpy.ops.transform.resize( value=(0.5,0.5,0.5))
+    bpy.ops.uv.smart_project(angle_limit=66,island_margin=0, user_area_weight=0)
+    bpy.ops.uv.select_all(action='TOGGLE')
+    bpy.ops.transform.rotate(value=1.5708, axis=(0,0,1) )
+    bpy.ops.object.editmode_toggle()
+
+    bpy.ops.object.mode_set(mode='EDIT')
+    bpy.ops.mesh.subdivide(number_cuts=100)
+    bpy.ops.object.mode_set(mode='OBJECT')
+
+    # TODO: vertical option
+    vg = imageplane.vertex_groups.new(name)
+    for i, v in enumerate(imageplane.data.vertices):
+        vg.add([i], v.co.x, "REPLACE")
+    vg.lock_weight = True
+
+    return imageplane, vg
+
+
+def SetupDriversForImagePlane(imageplane, cr_ob):
+    """"""
+
+    driver = imageplane.driver_add('scale', 1).driver
+    driver.type = 'SCRIPTED'
+    SetupDriverVariables(driver, imageplane, cr_ob)
+    driver.expression = "rel_height"  + \
+        " * (-depth * tan(camAngle/2)" + \
+        " * res_y * pa_y / (res_x * pa_x))"
+
+    driver = imageplane.driver_add('scale', 0).driver
+    driver.type = 'SCRIPTED'
+    SetupDriverVariables(driver, imageplane, cr_ob)
+    driver.expression = "rel_width * -depth * tan(camAngle / 2)"
+
+    driver = imageplane.driver_add('location', 1).driver
+    driver.type = 'SCRIPTED'
+    SetupDriverVariables(driver, imageplane, cr_ob)
+    driver.expression = "rel_pos1"  + \
+        " * ( (-depth * tan(camAngle / 2)" + \
+        " * res_y * pa_y / (res_x * pa_x))" + \
+        " - rel_height * ( -depth * tan(camAngle / 2)" + \
+        " * res_y * pa_y / (res_x * pa_x) ) )"
+
+    driver = imageplane.driver_add('location', 0).driver
+    driver.type = 'SCRIPTED'
+    SetupDriverVariables(driver, imageplane, cr_ob)
+    driver.expression = "rel_pos0 * ( -depth * tan(camAngle / 2)" + \
+                        " - rel_width * -depth * tan(camAngle / 2) )"
+
+
+def SetupDriverVariables(driver, imageplane, cr_ob):
+    """"""
+
+    scn = bpy.context.scene
+
+    create_var(driver, 'camAngle', 'SINGLE_PROP', 'OBJECT', 
+               imageplane.parent.parent.parent, "data.angle")
+
+#     create_var(driver, 'depth', 'TRANSFORMS', 'OBJECT', 
+#                imageplane, 'location', 'LOC_Z', 'LOCAL_SPACE')
     depth = driver.variables.new()
     depth.name = 'depth'
     depth.type = 'TRANSFORMS'
@@ -639,37 +717,96 @@ def SetupDriverVariables(driver, imageplane):
     depth.targets[0].transform_type = 'LOC_Z'
     depth.targets[0].transform_space = 'LOCAL_SPACE'
 
+    create_var(driver, 'res_x', 'SINGLE_PROP', 'SCENE', 
+               scn, "render.resolution_x")
+    create_var(driver, 'res_y', 'SINGLE_PROP', 'SCENE', 
+               scn, "render.resolution_y")
+    create_var(driver, 'pa_x', 'SINGLE_PROP', 'SCENE', 
+               scn, "render.pixel_aspect_x")
+    create_var(driver, 'pa_y', 'SINGLE_PROP', 'SCENE', 
+               scn, "render.pixel_aspect_y")
 
-def SetupDriversForImagePlane(imageplane, scaling=[1.0, 1.0]):
-    driver = imageplane.driver_add('scale', 1).driver
-    driver.type = 'SCRIPTED'
-    SetupDriverVariables(driver, imageplane)
-    driver.expression = str(scaling[0]) + \
-        " * (-depth*tan(camAngle/2)*bpy.context.scene.render.resolution_y" + \
-        " * bpy.context.scene.render.pixel_aspect_y" + \
-        " / (bpy.context.scene.render.resolution_x" + \
-        " * bpy.context.scene.render.pixel_aspect_x))"
-    driver = imageplane.driver_add('scale', 0).driver
-    driver.type = 'SCRIPTED'
-    SetupDriverVariables(driver, imageplane)
-    driver.expression = str(scaling[1]) + " * -depth * tan(camAngle / 2)"
+    create_var(driver, 'rel_width', 'SINGLE_PROP', 'SCENE', 
+               scn, cr_ob.path_from_id() + ".colourbar_size[0]")
+    create_var(driver, 'rel_height', 'SINGLE_PROP', 'SCENE', 
+               scn, cr_ob.path_from_id() + ".colourbar_size[1]")
+    create_var(driver, 'rel_pos0', 'SINGLE_PROP', 'SCENE', 
+               scn, cr_ob.path_from_id() + ".colourbar_position[0]")
+    create_var(driver, 'rel_pos1', 'SINGLE_PROP', 'SCENE', 
+               scn, cr_ob.path_from_id() + ".colourbar_position[1]")
 
 
-def add_colourbar_labels(presetname, colourbar, labels, height=0.1):
+def create_var(driver, name, type, id_type, id, data_path, 
+               transform_type="", transform_space=""):
+
+    var = driver.variables.new()
+    var.name = name
+    var.type = type
+    tar = var.targets[0]
+    if not transform_type:
+        tar.id_type = id_type
+    tar.id = id
+    tar.data_path = data_path
+    if transform_type:
+        tar.transform_type = transform_type
+    if transform_space:
+        tar.transform_space = transform_space
+
+
+def add_colourbar_labels(presetname, cr_ob, parent_ob, labmat, width=1, height=1):
     """Add labels to colourbar."""
 
-    emission = {'colour': (1.0, 1.0, 1.0, 1.0), 'strength': 1}
-    mat = tb_mat.make_material_emit_cycles("cbartext", emission)
+    nt = bpy.data.materials[cr_ob.name].node_tree
+    ramp = nt.nodes["ColorRamp"]
 
-    for label in labels:
+    els = ramp.color_ramp.elements
+    nnels = cr_ob.nn_elements
+    for el, nnel in zip(els, nnels):
+        nnelpos = nnel.nn_position
+        elpos = el.position
+
+        labtext = "%4.2f" % nnelpos  # TODO: adaptive formatting
+
         bpy.ops.object.text_add()
         text = bpy.context.scene.objects.active
-        text.parent = colourbar
-        text.scale[0] = height
-        text.scale[1] = height
-        text.location[0] = label['loc'][0]
-        text.location[1] = label['loc'][1]
-        text.data.body = label['label']
-        text.name = presetname + "_label:" + label['label']
-        tb_mat.set_materials(text.data, mat)
+        text.name = presetname + ":" + labtext
+        text.parent = parent_ob
+        text.data.body = labtext
+        print(text.dimensions)
+        bpy.context.scene.update()
+        print(text.dimensions)
+
+        text.scale[0] = height * cr_ob.textlabel_size
+        text.scale[1] = height * cr_ob.textlabel_size
+        print(text.dimensions)
+        bpy.context.scene.update()
+        print(text.dimensions)
+        text.location[0] = elpos * width # - text.dimensions[0] / 2  # FIXME
+        if cr_ob.textlabel_placement == "out":
+            text.location[1] = -text.scale[0]
+        tb_mat.set_materials(text.data, labmat)
+
+
+# def create_colourbar_old(name="Colourbar", width=0.5, height=0.1):
+#     """Create a plane of dimension width x height."""
+# 
+#     scn = bpy.context.scene
+# 
+#     me = bpy.data.meshes.new(name)
+#     ob = bpy.data.objects.new(name, me)
+#     scn.objects.link(ob)
+#     scn.objects.active = ob
+#     ob.select = True
+# 
+#     verts = [(0, 0, 0), (0, height, 0), (width, height, 0), (width, 0, 0)]
+#     faces = [(3, 2, 1, 0)]
+#     me.from_pydata(verts, [], faces)
+#     me.update()
+# 
+#     saved_location = scn.cursor_location.copy()
+#     scn.cursor_location = (0.0,0.0,0.0)
+#     bpy.ops.object.origin_set(type='ORIGIN_CURSOR')
+#     scn.cursor_location = saved_location
+# 
+#     return ob
 

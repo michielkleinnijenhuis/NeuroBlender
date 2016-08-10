@@ -598,18 +598,10 @@ def map_to_vertexcolours(ob, tb_ov, vgs=None, is_label=False, colourtype=""):
     vcs = ob.data.vertex_colors
     vc = vcs.new(name=name)
     ob.data.vertex_colors.active = vc
-    ob = assign_vc(ob, vc, vgs, colourtype, is_label)
-
-    if not is_label:  # TODO: label legend?
-        cbar, vg = get_color_bar(ob, name=name + "_colourbar")
-        set_materials(cbar.data, mat)
-        vcs = cbar.data.vertex_colors
-        vc = vcs.new(name=name)
-        cbar.data.vertex_colors.active = vc
-        cbar = assign_vc(cbar, vc, [vg], colourtype, is_label)
+    ob = assign_vc(ob, vc, vgs)
 
 
-def assign_vc(ob, vertexcolours, vgs=None, colourtype="", is_label=False):
+def assign_vc(ob, vertexcolours, vgs=None):
     """Assign RGB values to the vertex_colors attribute.
 
     TODO: find better ways to handle multiple assignments to vertexgroups
@@ -1456,81 +1448,6 @@ def set_colorramp_preset(node, cmapname="r2b", mat=None, prefix=''):
 #     for i in range(len(seq)): setattr(collection[i], attr, seq[i])
 
 
-# ========================================================================== #
-# Colourbar
-# ========================================================================== #
-
-
-def get_color_bar(parent, name="Colourbar", width=0.5, height=0.1):
-    """Create, colour and label a colourbar."""
-
-    cbar = create_colourbar(name, width, height)
-    cbar.parent = parent
-    bpy.ops.object.mode_set(mode='EDIT')
-    bpy.ops.mesh.subdivide(number_cuts=100)
-    bpy.ops.object.mode_set(mode='OBJECT')
-    layer = 10
-    tb_utils.move_to_layer(cbar, layer)
-    bpy.context.scene.layers[layer] = True
-
-    vg = cbar.vertex_groups.new(name)
-    for i, v in enumerate(cbar.data.vertices):
-        vg.add([i], v.co.x/width, "REPLACE")
-    vg.lock_weight = True
-
-    cbar.hide = cbar.hide_select = cbar.hide_render = True
-
-    # FIXME: these only work for bar of default size: [1.0, 0.1]
-    # FIXME: this only works for small scalarrange
-#     tb_ov, ov_idx = tb_utils.active_tb_overlay()
-#     scalarrange = tb_ov.range
-    # ("label:%8.4f" % label['label'])
-#     labels = [{'label': "%4.2f" % scalarrange[0],
-#                'loc': [0.025, 0.015]},
-#               {'label': "%4.2f" % scalarrange[1],
-#                'loc': [0.80, 0.015]}]
-    # NOTE: use loc[1]=-height for placement under the bar
-#     add_labels_to_colourbar(cbar, labels, height)
-
-    return cbar, vg
-
-
-# def add_labels_to_colourbar(colourbar, labels, height):
-#     """Add labels to colourbar."""
-# 
-#     emission = {'colour': (1.0, 1.0, 1.0, 1.0), 'strength': 1}
-#     mat = make_material_emit_cycles("cbartext", emission)
-# 
-#     for label in labels:
-#         bpy.ops.object.text_add()
-#         text = bpy.context.scene.objects.active
-#         text.parent = colourbar
-#         text.scale[0] = height
-#         text.scale[1] = height
-#         text.location[0] = label['loc'][0]
-#         text.location[1] = label['loc'][1]
-#         text.data.body = label['label']
-#         text.name = "label:" + label['label']
-#         set_materials(text.data, mat)
-
-
-def create_colourbar(name="Colourbar", width=1., height=0.1):
-    """Create a plane of dimension width x height."""
-
-    scn = bpy.context.scene
-
-    me = bpy.data.meshes.new(name)
-    ob = bpy.data.objects.new(name, me)
-    scn.objects.link(ob)
-    scn.objects.active = ob
-    ob.select = True
-
-    verts = [(0, 0, 0), (0, height, 0), (width, height, 0), (width, 0, 0)]
-    faces = [(3, 2, 1, 0)]
-    me.from_pydata(verts, [], faces)
-    me.update()
-
-    return ob
 
 
 # ========================================================================== #
@@ -1704,6 +1621,5 @@ def make_material_labels_cycles(name, vcname):
               nodes[prefix + "Mix Shader"].inputs[1])
     links.new(nodes[prefix + "Attribute"].outputs["Color"],
               nodes[prefix + "Diffuse BSDF"].inputs["Color"])
-    # FIXME: node names will truncate if too long; this will error
 
     return mat
