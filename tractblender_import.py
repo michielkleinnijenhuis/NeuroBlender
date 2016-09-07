@@ -24,7 +24,7 @@ import bpy
 
 import os
 import numpy as np
-import mathutils
+from mathutils import Vector, Matrix
 from random import sample
 import tempfile
 import random
@@ -197,7 +197,7 @@ def import_surface(fpath, name, sformfile="", info=None):
                 xform = img.darrays[0].coordsys.xform
                 if len(xform) == 16:
                     xform = np.reshape(xform, [4, 4])
-                affine = mathutils.Matrix(xform)
+                affine = Matrix(xform)
                 sformfile = fpath
             elif (fpath.endswith('.white') |
                   fpath.endswith('.pial') |
@@ -207,7 +207,7 @@ def import_surface(fpath, name, sformfile="", info=None):
                 verts, faces = fsio.read_geometry(fpath)
                 verts = [tuple(vert) for vert in verts]
                 faces = [tuple(face) for face in faces]
-                affine = mathutils.Matrix()
+                affine = Matrix()
             me = bpy.data.meshes.new(name)
             me.from_pydata(verts, [], faces)
             ob = bpy.data.objects.new(name, me)
@@ -248,10 +248,6 @@ def import_voxelvolume(directory, files, specname,
           bpy.data.materials,
           bpy.data.textures]
     name = tb_utils.check_name(specname, fpath, ca)
-
-    me = bpy.data.meshes.new(name)
-    ob = bpy.data.objects.new(name, me)
-    bpy.context.scene.objects.link(ob)
 
     if (fpath.endswith('.nii') | fpath.endswith('.nii.gz')):
         file_format = "RAW_8BIT"
@@ -295,14 +291,73 @@ def import_voxelvolume(directory, files, specname,
         labelgroup = None
         matname = name
 
+    me = bpy.data.meshes.new(name)
+    ob = bpy.data.objects.new(name, me)
+    bpy.context.scene.objects.link(ob)
+    ob1 = voxelvolume_box_ob(dims, "bounds")
+    ob2 = voxelvolume_box_ob(dims, "box")
+    ob3 = voxelvolume_box_ob(dims, "sagittal")
+    ob4 = voxelvolume_box_ob(dims, "coronal")
+    ob5 = voxelvolume_box_ob(dims, "axial")
+    obs = [ob, ob1, ob2, ob3, ob4, ob5]
+    ctx = bpy.context.copy()
+    ctx['active_object'] = ob
+    ctx['selected_objects'] = obs
+    ctx['selected_editable_bases'] = [scn.object_bases[ob.name] for ob in obs]
+    bpy.ops.object.join(ctx)
+
+    scn.objects.active = ob
+    ob.select = True
+
+    for slice in ["sagittal", "coronal", "axial"]:
+        empty = bpy.data.objects.new(slice, None)
+        empty.parent = ob
+        bpy.context.scene.objects.link(empty)
+        scn.objects.active = empty
+        bpy.ops.object.constraint_add(type='LIMIT_LOCATION')
+        con = empty.constraints["Limit Location"]
+        con.use_min_x = True
+        con.use_max_x = True
+        con.use_max_y = True
+        con.use_min_y = True
+        con.use_min_z = True
+        con.use_max_z = True
+        if slice == "sagittal":
+            con.min_x = 0
+            con.max_x = dims[0]
+            con.min_y = 0
+            con.max_y = 0
+            con.min_z = 0
+            con.max_z = 0
+        elif slice == "coronal":
+            con.min_x = 0
+            con.max_x = 0
+            con.min_y = 0
+            con.max_y = dims[1]
+            con.min_z = 0
+            con.max_z = 0
+        elif slice == "axial":
+            con.min_x = 0
+            con.max_x = 0
+            con.min_y = 0
+            con.max_y = 0
+            con.min_z = 0
+            con.max_z = dims[2]
+
+        scn.objects.active = ob
+        bpy.ops.object.modifier_add(type='HOOK')
+        hook = ob.modifiers["Hook"]
+        hook.name = slice
+        hook.object = empty
+        hook.vertex_group = slice
+        hook.falloff_type = 'NONE'
+
     affine = read_affine_matrix(sformfile)
     ob.matrix_world = affine
 
     mat = tb_mat.get_voxmat(matname, img, dims, file_format,
                             is_overlay, is_label, labelgroup)
     tb_mat.set_materials(me, mat)
-
-    voxelvolume_box(me, dims)
 
     tb_utils.move_to_layer(ob, 2)
     scn.layers[2] = True
@@ -616,8 +671,69 @@ def read_borders(fpath):
     return borderlist
 
 
-def voxelvolume_box(me, dims=[256, 256, 256]):
+def voxelvolume_box_ob(dims=[256, 256, 256], type="verts"):
+    """"""
+
+    me = bpy.data.meshes.new(type)
+    ob = bpy.data.objects.new(type, me)
+    bpy.context.scene.objects.link(ob)
+
+    nverts = 0
+
+    width = dims[0]
+    height = dims[1]
+    depth = dims[2]
+
+    v = [(    0,      0,     0),
+         (width,      0,     0),
+         (width, height,     0),
+         (    0, height,     0),
+         (    0,      0, depth),
+         (width,      0, depth),
+         (width, height, depth),
+         (    0, height, depth)]
+
+#     vidxs = range(nverts, nverts + 8)
+#     faces = [(0, 1, 2, 3), (0, 1, 5, 4), (1, 2, 6, 5),
+#              (2, 3, 7, 6), (3, 0, 4, 7), (4, 5, 6, 7)]
+    if type=="box":
+        vidxs = range(nverts, nverts + 8)
+        faces = [(0, 1, 2, 3), (0, 1, 5, 4), (1, 2, 6, 5),
+                 (2, 3, 7, 6), (3, 0, 4, 7), (4, 5, 6, 7)]
+    elif type == "bounds":
+        vidxs = range(nverts, nverts + 8)
+        faces = []
+    elif type == "sagittal":
+        vidxs = range(nverts, nverts + 4)
+        v = [v[0], v[3], v[7], v[4]]
+        faces = [(0, 1, 2, 3)]
+    elif type == "coronal":
+        vidxs = range(nverts, nverts + 4)
+        v = [v[0], v[1], v[5], v[4]]
+        faces = [(0, 1, 2, 3)]
+    elif type == "axial":
+        vidxs = range(nverts, nverts + 4)
+        v = [v[0], v[1], v[2], v[3]]
+        faces = [(0, 1, 2, 3)]
+
+    me.from_pydata(v, [], faces)
+    me.update(calc_edges=True)
+
+    vg = ob.vertex_groups.new(type)
+    vg.add(vidxs, 1.0, "REPLACE")
+
+    return ob
+
+
+def voxelvolume_box(ob=None, dims=[256, 256, 256], type="verts"):
     """Create a box with the dimensions of the voxelvolume."""
+
+    if ob is None:
+        me = bpy.data.meshes.new(type)
+    else:
+        me = ob.data
+
+    nverts = len(me.vertices)
 
     width = dims[0]
     height = dims[1]
@@ -635,9 +751,45 @@ def voxelvolume_box(me, dims=[256, 256, 256]):
     faces = [(0, 1, 2, 3), (0, 1, 5, 4), (1, 2, 6, 5),
              (2, 3, 7, 6), (3, 0, 4, 7), (4, 5, 6, 7)]
 
-    me.from_pydata(v, [], faces)
-    me.update(calc_edges=True)
+    if type=="box":
+        vidxs = range(nverts, nverts + 8)
+        me.from_pydata(v, [], faces)
+        me.update(calc_edges=True)
+    elif type == "bounds":
+        vidxs = range(nverts, nverts + 8)
+        for vco in v:
+            me.vertices.add(1)
+            me.vertices[-1].co = vco
+    elif type == "sagittal":
+        vidxs = range(nverts, nverts + 4)
+        me.vertices.add(4)
+        me.vertices[-4].co = v[0]
+        me.vertices[-3].co = v[1]
+        me.vertices[-2].co = v[2]
+        me.vertices[-1].co = v[3]
+        me.edges.add(4)
+        me.edges[-4].vertices[0] = nverts
+        me.edges[-4].vertices[1] = nverts + 1
+        me.edges[-3].vertices[0] = nverts + 1
+        me.edges[-3].vertices[1] = nverts + 2
+        me.edges[-2].vertices[0] = nverts + 2
+        me.edges[-2].vertices[1] = nverts + 3
+        me.edges[-1].vertices[0] = nverts + 3
+        me.edges[-1].vertices[1] = nverts
+        me.polygons.add(1)
+        me.polygons[-1].vertices[0] = nverts
+        me.polygons[-1].vertices[1] = nverts + 1
+        me.polygons[-1].vertices[2] = nverts + 2
+        me.polygons[-1].vertices[3] = nverts + 3
+    elif type == "coronal":
+        pass
+    elif type == "axial":
+        pass
 
+    vg = ob.vertex_groups.new(type)
+    vg.add(vidxs, 1.0, "REPLACE")
+
+    return me
 
 def image_sequence_length(filepath):
     """Figure out the number of images in a directory.
@@ -699,13 +851,13 @@ def prep_nifti(fpath, name, is_label=False, file_format="RAW_8BIT"):
     if tb.nibabel_valid:
 
         nii = nib.load(fpath)
-        dims = np.array(nii.shape)[::-1]
+        dims = np.array(nii.shape)  #[::-1]
         if len(dims) != 3:  # TODO: extend to 4D?
             print("Please supply a 3D nifti volume.")
             return
 
-#         data = np.transpose(nii.get_data())  # TODO: check
-        data = nii.get_data()
+        data = np.transpose(nii.get_data())  # TODO: check
+#         data = nii.get_data()
 
         if is_label:
             mask = data < 0
@@ -1232,7 +1384,7 @@ def read_affine_matrix(filepath):
     tb = scn.tb
 
     if not filepath:
-        affine = mathutils.Matrix()
+        affine = Matrix()
     elif (filepath.endswith('.nii') | filepath.endswith('.nii.gz')):
         nib = tb_utils.validate_nibabel('nifti')
         if tb.nibabel_valid:
@@ -1245,7 +1397,7 @@ def read_affine_matrix(filepath):
             xform = img.darrays[0].coordsys.xform
             if len(xform) == 16:
                 xform = np.reshape(xform, [4, 4])
-            affine = mathutils.Matrix(xform)
+            affine = Matrix(xform)
     else:
         affine = np.loadtxt(filepath)
         # TODO: check if matrix if valid
@@ -1253,4 +1405,4 @@ def read_affine_matrix(filepath):
 #             return {'cannot calculate transform: \
 #                     invalid affine transformation matrix'}
 
-    return mathutils.Matrix(affine)
+    return Matrix(affine)

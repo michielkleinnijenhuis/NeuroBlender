@@ -103,12 +103,15 @@ def link_innode(mat, colourtype):
 def switch_mode_mat(mat, newmode):
     """Connect either emitter (scientific) or shader (artistic)."""
 
+    # TODO: better handle materials that do not have Emission and MixDiffGlos
+    if mat.node_tree is None:
+        return
+
     nodes = mat.node_tree.nodes
     links = mat.node_tree.links
 
     out = nodes["Material Output"]
 
-    # TODO: better handle materials that do not have Emission and MixDiffGlos
     if newmode == "scientific":
         try:
             output = nodes["Emission"].outputs["Emission"]
