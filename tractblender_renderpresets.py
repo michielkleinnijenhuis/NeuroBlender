@@ -72,19 +72,19 @@ def scene_preset(name="Brain", layer=10):
     bpy.context.scene.objects.link(preset)
     preset_obs = [preset]
 
-    centre, bbox, dims = get_brainbounds(name+"Centre", obs)
+    centre, dims = get_brainbounds(name+"Centre", obs)
     centre.parent = preset
     preset_obs = preset_obs + [centre]
 
-    cam = create_camera(name+"Cam", centre, bbox, dims, Vector(tb.cam_view))
+    cam = create_camera(name+"Cam", centre, dims, Vector(tb.cam_view))
     cam.parent = preset
     preset_obs = preset_obs + [cam]
 
-    table = create_table(name+"DissectionTable", centre, bbox, dims)
+    table = create_table(name+"DissectionTable", centre, dims)
     table.parent = preset
     preset_obs = preset_obs + [table]
 
-    lights = create_lighting(name+"Lights", centre, bbox, dims, cam)
+    lights = create_lighting(name+"Lights", centre, dims, cam)
     lights.parent = cam
     preset_obs = preset_obs + [lights]
     preset_obs = preset_obs + list(lights.children)
@@ -222,11 +222,11 @@ def renderselections_voxelvolumes(tb_obs):
         for tb_ov in tb_ob.scalars:
             overlay = bpy.data.objects[tb_ov.name]
             overlay.hide_render = not tb_ov.is_rendered
-        for lg in tb_ob.labelgroups:
+        for tb_ov in tb_ob.labelgroups:
             overlay = bpy.data.objects[tb_ov.name]
             overlay.hide_render = not tb_ov.is_rendered
-            tex = bpy.data.textures[lg.name]
-            for idx, l in enumerate(lg.labels):
+            tex = bpy.data.textures[tb_ov.name]
+            for idx, l in enumerate(tb_ov.labels):
                 tex.color_ramp.elements[idx + 1].color[3] = l.is_rendered
 
 
@@ -352,31 +352,26 @@ def validate_voxelvolume_textures(tb):
 def get_brainbounds(name, obs):
     """Find the boundingbox, dimensions and centre of the objects."""
 
-    bbox = np.array(find_bbox_coordinates(obs))
-    dims = np.subtract(bbox[:, 1], bbox[:, 0])
-    centre_co = bbox[:, 0] + dims / 2
+    bb_min, bb_max = np.array(find_bbox_coordinates(obs))
+    dims = np.subtract(bb_max, bb_min)
+    centre_co = bb_min + dims / 2
 
     centre = bpy.data.objects.new(name=name, object_data=None)
     centre.location = centre_co
     bpy.context.scene.objects.link(centre)
 
-    return centre, bbox, dims
+    return centre, dims
 
 
 def find_bbox_coordinates(obs):
     """Find the extreme dimensions in the geometry."""
 
-    xyz = []
-    for dim in range(3):
-        xco = []
-        for ob in obs:
-            for b in ob.bound_box:
-                xco.append(b[dim] * ob.scale[dim] + ob.location[dim])
-        co_min = min(xco)
-        co_max = max(xco)
-        xyz.append([co_min, co_max])
+    bb_world = [ob.matrix_world * Vector(bbco) 
+                for ob in obs for bbco in ob.bound_box]
+    bb_min = np.amin(np.array(bb_world), 0)
+    bb_max = np.amax(np.array(bb_world), 0)
 
-    return xyz
+    return bb_min, bb_max
 
 
 # ========================================================================== #
@@ -384,7 +379,7 @@ def find_bbox_coordinates(obs):
 # ========================================================================== #
 
 
-def create_camera(name, centre, bbox, dims, camview=Vector((1, 1, 1))):
+def create_camera(name, centre, dims, camview=Vector((1, 1, 1))):
     """"""
 
     scn = bpy.context.scene
@@ -452,7 +447,7 @@ def add_constraint(ob, type, name, target, val=None):
 # ========================================================================== #
 
 
-def create_lighting(name, braincentre, bbox, dims, cam, camview=(1, 1, 1)):
+def create_lighting(name, braincentre, dims, cam, camview=(1, 1, 1)):
     """"""
 
     # TODO: constraints to have the light follow cam?
@@ -467,7 +462,7 @@ def create_lighting(name, braincentre, bbox, dims, cam, camview=(1, 1, 1)):
 #     dimlocation = [5*camview[0], 2*camview[1], 3*camview[2]]
     dimlocation = (3, 2, 1)
     emission = {'colour': (1.0, 1.0, 1.0, 1.0), 'strength': 50}
-    main = create_light(lname, braincentre, bbox, dims,
+    main = create_light(lname, braincentre, dims,
                         dimscale, dimlocation, emission)
     main.parent = lights
 
@@ -476,7 +471,7 @@ def create_lighting(name, braincentre, bbox, dims, cam, camview=(1, 1, 1)):
 #     dimlocation = [-2*camview[0], 2*camview[1], 1*camview[2]]
     dimlocation = (2, 4, -10)
     emission = {'colour': (1.0, 1.0, 1.0, 1.0), 'strength': 30}
-    aux = create_light(lname, braincentre, bbox, dims,
+    aux = create_light(lname, braincentre, dims,
                        dimscale, dimlocation, emission)
     aux.parent = lights
 
@@ -484,14 +479,14 @@ def create_lighting(name, braincentre, bbox, dims, cam, camview=(1, 1, 1)):
     scale = (0.1, 0.1)
     dimlocation = (0, 0, 0)
     emission = {'colour': (1.0, 1.0, 1.0, 1.0), 'strength': 100}
-    high = create_light(lname, braincentre, bbox, dims,
+    high = create_light(lname, braincentre, dims,
                         scale, dimlocation, emission)
     high.parent = lights
 
     return lights
 
 
-def create_light(name, braincentre, bbox, dims, scale, loc, emission):
+def create_light(name, braincentre, dims, scale, loc, emission):
     """"""
 
     ob = create_plane(name)
@@ -528,7 +523,7 @@ def create_plane(name):
     return ob
 
 
-def create_table(name, centre, bbox, dims):
+def create_table(name, centre, dims):
     """Create a table under the objects."""
 
     tb = bpy.context.scene.tb
@@ -537,7 +532,7 @@ def create_table(name, centre, bbox, dims):
     ob.scale = (dims[0]*4, dims[1]*4, 1)
     ob.location = (centre.location[0],
                    centre.location[1],
-                   bbox[2, 0])
+                   centre.location[2] - dims[2] / 2)
 
     diffcol = [0.5, 0.5, 0.5, 1.0]
     mat = tb_mat.make_material_basic_cycles(name, diffcol, mix=0.8)
