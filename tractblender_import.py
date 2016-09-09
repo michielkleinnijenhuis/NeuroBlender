@@ -1037,6 +1037,79 @@ def add_border_to_collection(name, bordergroup, colour):
     return border
 
 
+def add_preset_to_collection(name="Preset"):
+    """Add border to the TractBlender collection."""
+
+    scn = bpy.context.scene
+    tb = scn.tb
+
+    preset = tb.presets.add()
+    tb.index_presets = (len(tb.presets)-1)
+
+    preset.name = name
+
+    return preset
+
+
+def add_camera_to_collection(name, preset,
+                             cam_view=[2.31, 2.31, 2.31], 
+                             cam_view_enum="RightAntSup",
+                             cam_distance=4):
+    """Add camera to the TractBlender collection."""
+
+    scn = bpy.context.scene
+    tb = scn.tb
+
+    camera = preset.cameras.add()
+    preset.index_cameras = (len(preset.cameras)-1)
+
+    camera.name = name
+    camera.cam_view = cam_view
+    camera.cam_view_enum = cam_view_enum
+    camera.cam_distance = cam_distance
+
+    return camera
+
+
+def add_light_to_collection(name, preset=None, type="PLANE", 
+                            colour=(1.0,1.0,1.0), strength=1.0, size=[1.0, 1.0], 
+                            distance=5, azimuth=5, elevation=5):
+    """Add light to the TractBlender collection."""
+
+    scn = bpy.context.scene
+    tb = scn.tb
+    if preset is None:
+        preset = tb.presets[tb.index_presets]
+
+    light = preset.lights.add()
+    preset.index_lights = (len(preset.lights)-1)
+
+    light.name = name
+    light.type = type
+    light.colour = colour
+    light.strength = strength
+    light.size = size
+    light.distance = distance
+    light.azimuth = azimuth
+    light.elevation = elevation
+
+    return light
+
+
+def add_table_to_collection(name, preset):
+    """Add table to the TractBlender collection."""
+
+    scn = bpy.context.scene
+    tb = scn.tb
+
+    table = preset.tables.add()
+    preset.index_tables = (len(preset.tables)-1)
+
+    table.name = name
+
+    return table
+
+
 # ========================================================================== #
 # reading tract files
 # ========================================================================== #

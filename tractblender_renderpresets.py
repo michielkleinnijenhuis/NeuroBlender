@@ -52,15 +52,19 @@ def scene_preset(name="Brain", layer=10):
     scn = bpy.context.scene
     tb = scn.tb
 
-    tb.presetname = name
+    tb_preset = tb.presets[tb.index_presets]
+    tb_cam = tb_preset.cameras[0]
+    tb_lights = tb_preset.lights
+    tb_tab = tb_preset.tables[0]
+
+    name = tb_preset.name
 
     # check if there are objects to render
-    obs = [ob for ob in bpy.data.objects
-           if ((ob.type not in ['CAMERA', 'LAMP', 'EMPTY']) and
-               (not ob.name.startswith(name)) and 
-               (not ob.name.endswith('_colourbar')))]
+    obnames = [[tb_ob.name for tb_ob in tb_coll if tb_ob.is_rendered] 
+               for tb_coll in [tb.tracts, tb.surfaces, tb.voxelvolumes]]
+    obs = [bpy.data.objects[item] for sublist in obnames for item in sublist]
     if not obs:
-        print('no objects selected for render')
+        print('no TractBlender objects selected for render')
         return {'CANCELLED'}
 
     ### create the preset
@@ -76,7 +80,7 @@ def scene_preset(name="Brain", layer=10):
     centre.parent = preset
     preset_obs = preset_obs + [centre]
 
-    cam = create_camera(name+"Cam", centre, dims, Vector(tb.cam_view))
+    cam = create_camera(name+"Cam", centre, dims, Vector(tb_cam.cam_view))
     cam.parent = preset
     preset_obs = preset_obs + [cam]
 
@@ -103,7 +107,7 @@ def scene_preset(name="Brain", layer=10):
         tb_utils.move_to_layer(ob, layer)
     scn.layers[layer] = True
 
-    switch_mode_preset(list(lights.children), [table], tb.mode, tb.cam_view)
+    switch_mode_preset(list(lights.children), [table], tb.mode, tb_cam.cam_view)
 
     # get object lists
     obs = bpy.data.objects
@@ -178,6 +182,7 @@ def renderselections_tracts(tb_obs):
     for tb_ob in tb_obs:
         ob = bpy.data.objects[tb_ob.name]
         ob.hide_render = not tb_ob.is_rendered
+
         for tb_ov in tb_ob.scalars:
             if tb_ov.is_rendered:
                 prefix = tb_ov.name + '_spl'
@@ -219,6 +224,7 @@ def renderselections_voxelvolumes(tb_obs):
     for tb_ob in tb_obs:
         ob = bpy.data.objects[tb_ob.name]
         ob.hide_render = not tb_ob.is_rendered
+
         for tb_ov in tb_ob.scalars:
             overlay = bpy.data.objects[tb_ov.name]
             overlay.hide_render = not tb_ov.is_rendered
@@ -379,7 +385,7 @@ def find_bbox_coordinates(obs):
 # ========================================================================== #
 
 
-def create_camera(name, centre, dims, camview=Vector((1, 1, 1))):
+def create_camera(name, centre=np.array([0,0,0]), dims=np.array([100,100,100]), camview=Vector((1, 1, 1))):
     """"""
 
     scn = bpy.context.scene
@@ -447,7 +453,7 @@ def add_constraint(ob, type, name, target, val=None):
 # ========================================================================== #
 
 
-def create_lighting(name, braincentre, dims, cam, camview=(1, 1, 1)):
+def create_lighting_old(name, braincentre, dims, cam, camview=(1, 1, 1)):
     """"""
 
     # TODO: constraints to have the light follow cam?
@@ -486,7 +492,72 @@ def create_lighting(name, braincentre, dims, cam, camview=(1, 1, 1)):
     return lights
 
 
-def create_light(name, braincentre, dims, scale, loc, emission):
+def create_lighting(name, braincentre, dims, cam, camview=(1, 1, 1)):
+    """"""
+
+    scn = bpy.context.scene
+    tb = scn.tb
+    preset = tb.presets[tb.index_presets]
+    tb_lights = preset.lights
+
+    lights = bpy.data.objects.new(name=name, object_data=None)
+    lights.location = braincentre.location
+    bpy.context.scene.objects.link(lights)
+
+    if preset.lights_enum.startswith("Key"):  # only first
+        tb_light = tb_lights[0]
+        dimlocation = (3, 2, 1)
+        light = create_light(tb_light, braincentre, dims, dimlocation)
+        light.parent = lights
+
+    if preset.lights_enum.startswith("Key-"):
+        tb_light = tb_lights[1]
+        dimlocation = (2, 4, -10)
+        light = create_light(tb_light, braincentre, dims, dimlocation)
+        light.parent = lights
+
+        tb_light = tb_lights[2]
+        dimlocation = (0, 0, 0)
+        light = create_light(tb_light, braincentre, dims, dimlocation)
+        light.parent = lights
+
+    return lights
+
+
+def create_light(tb_light, braincentre, dims, loc):
+    """"""
+
+    scn = bpy.context.scene
+
+    name = tb_light.name
+    type = tb_light.type
+    scale = tb_light.size
+    colour = tuple(list(tb_light.colour) + [1.0])
+    strength = tb_light.strength
+
+    if type == "PLANE":
+        light = create_plane(name)
+        light.scale = [dims[0]*scale[0], dims[1]*scale[1], 1]
+        emission = {'colour': colour, 'strength': strength}
+        mat = tb_mat.make_material_emit_cycles(name, emission)
+        tb_mat.set_materials(light.data, mat)
+    else:
+        lamp = bpy.data.lamps.new(name, type)
+        light = bpy.data.objects.new(name, object_data=lamp)
+        scn.objects.link(light)
+        scn.objects.active = light
+        light.select = True
+
+    light.location = (dims[0] * loc[0], dims[1] * loc[1], dims[2] * loc[2])
+    add_constraint(light, "TRACK_TO", "TrackToBrainCentre", braincentre)
+
+#     bpy.ops.object.constraint_add(type='LIMIT_DISTANCE')
+#     bpy.context.object.constraints["Limit Distance"].target = bpy.data.objects["PresetCentre"]
+
+    return light
+
+
+def create_light_old(name, braincentre, dims, scale, loc, emission):
     """"""
 
     ob = create_plane(name)
@@ -523,7 +594,7 @@ def create_plane(name):
     return ob
 
 
-def create_table(name, centre, dims):
+def create_table(name, centre=np.array([0,0,0]), dims=np.array([100,100,100])):
     """Create a table under the objects."""
 
     tb = bpy.context.scene.tb
@@ -598,7 +669,7 @@ def create_colourbar(cbars, cr_ob, type):
     scn = bpy.context.scene
     tb = scn.tb
 
-    cbar_name = tb.presetname + '_' + cr_ob.name + "_colourbar"
+    cbar_name = tb.presetname + '_' + cr_ob.name + "_colourbar"  # TODO
 
     cbar_empty = bpy.data.objects.new(cbar_name, None)
     bpy.context.scene.objects.link(cbar_empty)

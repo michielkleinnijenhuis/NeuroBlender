@@ -588,6 +588,33 @@ class ObjectListCR(UIList):
             layout.prop(text="", icon=item_icon)
 
 
+class ObjectListPL(UIList):
+
+    def draw_item(self, context, layout, data, item, icon,
+                  active_data, active_propname, index):
+
+        if item.is_valid:
+            item_icon = item.icon
+        else:
+            item_icon = "CANCEL"
+
+        if self.layout_type in {'DEFAULT', 'COMPACT'}:
+
+            col = layout.column()
+            col.prop(item, "name", text="", emboss=False,
+                     translate=False, icon=item_icon)
+
+            col = layout.column()
+            col.alignment = "RIGHT"
+            col.active = item.is_rendered
+            col.prop(item, "is_rendered", text="", emboss=False,
+                     translate=False, icon='SCENE')
+
+        elif self.layout_type in {'GRID'}:
+            layout.alignment = 'CENTER'
+            layout.prop(text="", icon=item_icon)
+
+
 class ObjectListOperations(Operator):
     bl_idname = "tb.oblist_ops"
     bl_label = "Objectlist operations"
@@ -601,7 +628,10 @@ class ObjectListOperations(Operator):
                ('REMOVE_L2', "RemoveL2", ""),
                ('UP_L3', "UpL3", ""),
                ('DOWN_L3', "DownL3", ""),
-               ('REMOVE_L3', "RemoveL3", "")))
+               ('REMOVE_L3', "RemoveL3", ""),
+               ('UP_PL', "UpPL", ""),
+               ('DOWN_PL', "DownPL", ""),
+               ('REMOVE_PL', "RemovePL", "")))
 
     def invoke(self, context, event):
 
@@ -623,6 +653,9 @@ class ObjectListOperations(Operator):
             tb_ov, ov_idx = tb_utils.active_tb_overlay()
             data = "tb_ov"
             type = tb.overlaytype.replace("groups", "s")
+        elif self.action.endswith('_PL'):
+            data = "tb.presets"
+            type = "lights"
 
         collection = eval("%s.%s" % (data, type))
         idx = eval("%s.index_%s" % (data, type))
@@ -1139,6 +1172,88 @@ class ImportBorderGroups(Operator, ImportHelper):
         return {"RUNNING_MODAL"}
 
 
+class AddPreset(Operator):
+    bl_idname = "tb.add_preset"
+    bl_label = "New preset"
+    bl_description = "Create a new preset"
+    bl_options = {"REGISTER", "UNDO", "PRESET"}
+
+    name = StringProperty(
+        name="Name",
+        description="Specify a name for the preset",
+        default="Preset")
+
+    def execute(self, context):
+
+        scn = context.scene
+        tb = scn.tb
+
+        ca = [tb.presets]
+        name = tb_utils.check_name(self.name, "", ca)
+
+        preset = tb_imp.add_preset_to_collection(name)
+        tb_imp.add_camera_to_collection(name+"Cam", preset)
+        tb_imp.add_light_to_collection(name+"Key", preset, type="SPOT", 
+                                       colour=(1.0,1.0,1.0), strength=1000000,
+                                       size=[0.5, 0.5], 
+                                       distance=5, azimuth=5, elevation=5)
+        tb_imp.add_light_to_collection(name+"Back", preset, type="POINT", 
+                                       colour=(1.0,1.0,1.0), strength=1000000,
+                                       size=[0.1, 0.1], 
+                                       distance=5, azimuth=5, elevation=5)
+        tb_imp.add_light_to_collection(name+"Fill", preset, type="POINT", 
+                                       colour=(1.0,1.0,1.0), strength=1000000,
+                                       size=[0.1, 0.1], 
+                                       distance=5, azimuth=5, elevation=5)
+        tb_imp.add_table_to_collection(name+"Table", preset)
+
+        tb.presets_enum = name
+
+        return {"FINISHED"}
+
+
+class DelPreset(Operator):
+    bl_idname = "tb.del_preset"
+    bl_label = "Delete preset"
+    bl_description = "Delete a preset"
+    bl_options = {"REGISTER", "UNDO", "PRESET"}
+
+    def execute(self, context):
+
+        scn = context.scene
+        tb = scn.tb
+
+        tb.presets.remove(tb.index_presets)
+        tb.index_presets -= 1
+
+        try:
+            name = tb.presets[tb.index_presets].name
+        except IndexError:
+            pass
+        else:
+            tb.presets_enum = name
+
+        return {"FINISHED"}
+
+
+class AddLight(Operator):
+    bl_idname = "tb.import_lights"
+    bl_label = "New light"
+    bl_description = "Create a new light"
+    bl_options = {"REGISTER", "UNDO", "PRESET"}
+
+    name = StringProperty(
+        name="Name",
+        description="Specify a name for the light",
+        default="New light")
+
+    def execute(self, context):
+
+        tb_imp.add_light_to_collection(self.name)
+
+        return {"FINISHED"}
+
+
 class MassIsRenderedL1(Menu):
     bl_idname = "tb.mass_is_rendered_L1"
     bl_label = "Vertex Group Specials"
@@ -1194,6 +1309,25 @@ class MassIsRenderedL3(Menu):
         layout.operator("tb.mass_select",
                         icon='SCENE',
                         text="Invert").action = 'INVERT_L3'
+
+
+class MassIsRenderedPL(Menu):
+    bl_idname = "tb.mass_is_rendered_PL"
+    bl_label = "Vertex Group Specials"
+    bl_description = "Menu for group selection of rendering option"
+    bl_options = {"REGISTER"}
+
+    def draw(self, context):
+        layout = self.layout
+        layout.operator("tb.mass_select",
+                        icon='SCENE',
+                        text="Select All").action = 'SELECT_PL'
+        layout.operator("tb.mass_select",
+                        icon='SCENE',
+                        text="Deselect All").action = 'DESELECT_PL'
+        layout.operator("tb.mass_select",
+                        icon='SCENE',
+                        text="Invert").action = 'INVERT_PL'
 
 
 class MassSelect(Operator):
@@ -1274,32 +1408,133 @@ class TractBlenderScenePanel(Panel):
 
     draw = TractBlenderBasePanel.draw
     drawunit_switch_to_main = TractBlenderBasePanel.drawunit_switch_to_main
+    drawunit_UIList = TractBlenderBasePanel.drawunit_UIList
+    drawunit_tri = TractBlenderBasePanel.drawunit_tri
 
     def draw_tb_panel(self, layout, tb):
 
+        self.drawunit_presets(layout, tb)
+
+        try:
+            idx = tb.index_presets
+            preset = tb.presets[idx]
+        except IndexError:
+            pass
+        else:
+            row = layout.row()
+            row.prop(preset, "name")
+
+            row = layout.row()
+            row.separator()
+
+            self.drawunit_tri(layout, "cameras", tb, preset)
+            self.drawunit_tri(layout, "lights", tb, preset)
+            self.drawunit_tri(layout, "tables", tb, preset)
+
+        row = layout.row()
+        row.separator()
         obs = [ob for ob in bpy.data.objects
                if ob.type not in ["CAMERA", "LAMP", "EMPTY"]]
         sobs = bpy.context.selected_objects
-
         if obs:
-            row = self.layout.row()
-            col = row.column()
-            col.prop(tb, "cam_view_enum")
-            col = row.column()
-            col.enabled = not tb.cam_view_enum == "Numeric"
-            col.prop(tb, "cam_distance")
-            row = self.layout.row()
-            row.prop(tb, "cam_view")
-            row.enabled = tb.cam_view_enum == "Numeric"
-            row = self.layout.row()
-            row.separator()
-            row = self.layout.row()
+            row = layout.row()
             row.operator("tb.scene_preset",
                          text="Load scene preset",
                          icon="WORLD")
         else:
-            row = self.layout.row()
+            row = layout.row()
             row.label(text="No geometry loaded ...")
+
+    def drawunit_presets(self, layout, tb):
+
+        row = layout.row()
+        row.operator("tb.add_preset", icon='ZOOMIN', text="")
+        row.prop(tb, "presets_enum", expand=False, text="")
+        row.operator("tb.del_preset", icon='ZOOMOUT', text="")
+
+    def drawunit_tri_cameras(self, layout, tb, preset):
+
+        try:
+            cam = preset.cameras[0]
+        except IndexError:
+            cam = preset.cameras.add()
+            preset.index_cameras = (len(preset.cameras)-1)
+        else:
+            row = layout.row()
+            col = row.column()
+            col.prop(cam, "cam_view_enum")
+            col = row.column()
+            col.enabled = not cam.cam_view_enum == "Numeric"
+            col.prop(cam, "cam_distance")
+            row = layout.row()
+            row.prop(cam, "cam_view")
+            row.enabled = cam.cam_view_enum == "Numeric"
+
+    def drawunit_tri_lights(self, layout, tb, preset):
+
+        row = layout.row()
+        row.prop(preset, "lights_enum", expand=True)
+        row = layout.row()
+        row.separator()
+
+        if preset.lights_enum == "Key-Back-Fill":
+            try:
+                light = preset.lights[2]
+            except IndexError:
+                pass
+            else:
+                box = layout.box()
+                self.drawunit_tri(box, "key", tb, preset.lights[0])
+                self.drawunit_tri(box, "back", tb, preset.lights[1])
+                self.drawunit_tri(box, "fill", tb, preset.lights[2])
+        elif preset.lights_enum == "Key":
+            try:
+                light = preset.lights[0]
+            except IndexError:
+                pass
+            else:
+                self.drawunit_lightprops(layout, preset.lights[0])
+        elif preset.lights_enum == "Free":
+            self.drawunit_UIList(layout, "PL", preset, "lights", addopt=True)
+            self.drawunit_lightprops(layout, preset.lights[preset.index_lights])
+
+    def drawunit_tri_key(self, layout, tb, light):
+        self.drawunit_lightprops(layout, light)
+
+    def drawunit_tri_back(self, layout, tb, light):
+        self.drawunit_lightprops(layout, light)
+
+    def drawunit_tri_fill(self, layout, tb, light):
+        self.drawunit_lightprops(layout, light)
+
+    def drawunit_lightprops(self, layout, light):
+
+        row = layout.row()
+        row.prop(light, "name")
+        row = layout.row()
+        row.prop(light, "type")
+        if light.type == "PLANE":
+            row = layout.row()
+            row.prop(light, "size")
+        row = layout.row()
+        row.prop(light, "colour", text="")
+        row.prop(light, "strength")
+        row = layout.row()
+        row.prop(light, "distance")
+        row.prop(light, "azimuth")
+        row.prop(light, "elevation")
+
+    def drawunit_tri_tables(self, layout, tb, preset):
+
+        try:
+            tab = preset.tables[0]
+        except IndexError:
+#             tab = tb_rp.create_table(preset.name+"DissectionTable")
+            tab = preset.tables.add()
+            preset.index_tables = (len(preset.tables)-1)
+        else:
+            row = layout.row()
+            row.prop(tab, "is_rendered")
 
 
 class ScenePreset(Operator):
@@ -1419,6 +1654,8 @@ def mode_enum_update(self, context):
 
     scn = context.scene
     tb = scn.tb
+    tb_preset = tb.presets[tb.index_presets]
+    tb_cam = tb_preset.cameras[0]
 
     newmode = tb.mode
     for mat in bpy.data.materials:
@@ -1432,7 +1669,7 @@ def mode_enum_update(self, context):
     light_obs = [light for light in light_obs if light is not None]
     table_obs = [bpy.data.objects.get(table) for table in tables]
     table_obs = [table for table in table_obs if table is not None]
-    tb_rp.switch_mode_preset(light_obs, table_obs, tb.mode, tb.cam_view)
+    tb_rp.switch_mode_preset(light_obs, table_obs, tb.mode, tb_cam.cam_view)
 
     # TODO: switch colourbars
 
@@ -1468,11 +1705,13 @@ def material_enum_update(self, context):
 def cam_view_enum_update(self, context):
     """Set the camview property from enum options."""
 
-    if self.cam_view_enum == "Numeric":
-        return
-
     scn = context.scene
     tb = scn.tb
+    tb_preset = tb.presets[tb.index_presets]
+    tb_cam = tb_preset.cameras[0]
+
+    if tb_cam.cam_view_enum == "Numeric":
+        return
 
     quadrants = {'Right': (1, 0, 0),
                  'Left': (-1, 0, 0),
@@ -1488,8 +1727,29 @@ def cam_view_enum_update(self, context):
                  'LeftAntInf': (-1, 1, -1),
                  'LeftPostSup': (-1, -1, 1),
                  'LeftPostInf':  (-1, -1, -1)}
-    cv_unit = mathutils.Vector(quadrants[self.cam_view_enum]).normalized()
-    tb.cam_view = list(cv_unit * tb.cam_distance)
+    cv_unit = mathutils.Vector(quadrants[tb_cam.cam_view_enum]).normalized()
+    tb_cam.cam_view = list(cv_unit * tb_cam.cam_distance)
+
+
+def presets_enum_callback(self, context):
+    """Populate the enum based on available options."""
+
+    scn = context.scene
+    tb = scn.tb
+
+    items = [(ps.name, ps.name, "List the presets", i) 
+             for i, ps in enumerate(tb.presets)]
+
+    return items
+
+
+def presets_enum_update(self, context):
+    """Populate the enum based on available options."""
+
+    scn = context.scene
+    tb = scn.tb
+
+    tb.index_presets = tb.presets.find(tb.presets_enum)
 
 
 class ColorRampProperties(PropertyGroup):
@@ -2089,6 +2349,230 @@ class VoxelvolumeProperties(PropertyGroup):
         max=1.)
 
 
+class CameraProperties(PropertyGroup):
+    """Properties of cameras."""
+
+    name = StringProperty(
+        name="Name",
+        description="Specify a name for the camera",
+        default="")
+    icon = StringProperty(
+        name="Icon",
+        description="Icon for preset",
+        default="CAMERA_DATA")
+    is_valid = BoolProperty(
+        name="Is Valid",
+        description="Indicates if the object passed validity checks",
+        default=True)
+    is_rendered = BoolProperty(
+        name="Is Rendered",
+        description="Indicates if the camera is used for rendering",
+        default=True)
+
+    cam_view = FloatVectorProperty(
+        name="Numeric input",
+        description="Setting of the LR-AP-IS viewpoint of the camera",
+        default=[2.31, 2.31, 2.31],
+        size=3)
+
+    cam_view_enum = EnumProperty(
+        name="Camera viewpoint",
+        description="Choose a view for the camera",
+        default="RightAntSup",
+        items=[("LeftPostInf", "Left-Post-Inf",
+                "Left-Posterior-Inferior"),
+               ("LeftPostSup", "Left-Post-Sup",
+                "Left-Posterior-Superior"),
+               ("LeftAntInf", "Left-Ant-Inf",
+                "Left-Anterior-Inferior"),
+               ("LeftAntSup", "Left-Ant-Sup",
+                "Left-Anterior-Superior"),
+               ("RightPostInf", "Right-Post-Inf",
+                "Right-Posterior-Inferior"),
+               ("RightPostSup", "Right-Post-Sup",
+                "Right-Posterior-Superior"),
+               ("RightAntInf", "Right-Ant-Inf",
+                "Right-Anterior-Inferior"),
+               ("RightAntSup", "Right-Ant-Sup",
+                "Right-Anterior-Superior"),
+               ("Inf", "Inf", "Inferior"),
+               ("Sup", "Sup", "Superior"),
+               ("Post", "Post", "Posterior"),
+               ("Ant", "Ant", "Anterior"),
+               ("Left", "Left", "Left"),
+               ("Right", "Right", "Right"),
+               ("Numeric", "Numeric", "Numeric")],
+        update=cam_view_enum_update)
+
+    cam_distance = FloatProperty(
+        name="Camera distance",
+        description="Relative distance of the camera (to bounding box)",
+        default=4,
+        min=1,
+        update=cam_view_enum_update)
+
+
+class LightsProperties(PropertyGroup):
+    """Properties of light."""
+
+    name = StringProperty(
+        name="Name",
+        description="Specify a name for the lights",
+        default="")
+    icon = StringProperty(
+        name="Icon",
+        description="Icon for preset",
+        default="OUTLINER_OB_LAMP")
+    is_valid = BoolProperty(
+        name="Is Valid",
+        description="Indicates if the object passed validity checks",
+        default=True)
+    is_rendered = BoolProperty(
+        name="Is Rendered",
+        description="Indicates if the light is rendered",
+        default=True)
+
+    type = EnumProperty(
+        name="Light type",
+        description="type of lighting",
+        items=[("PLANE", "PLANE", "PLANE", 1),
+               ("POINT", "POINT", "POINT", 2),
+               ("SUN", "SUN", "SUN", 3),
+               ("SPOT", "SPOT", "SPOT", 4),
+               ("HEMI", "HEMI", "HEMI", 5),
+               ("AREA", "AREA", "AREA", 6)],
+        default="SPOT")
+    colour = FloatVectorProperty(
+        name="Colour",
+        description="Colour of the light",
+        default=[1.0, 1.0, 1.0],
+        subtype="COLOR")
+    strength = FloatProperty(
+        name="Strength",
+        description="Strength of the light",
+        default=1,
+        min=0)
+    size = FloatVectorProperty(
+        name="Size",
+        description="Relative size of the plane light (to bounding box)",
+        size=2,
+        default=[1.0, 1.0])
+    distance = FloatProperty(
+        name="Distance",
+        description="Relative distance of the light (to bounding box)",
+        default=5,
+        min=1)
+    azimuth = FloatProperty(
+        name="Azimuth",
+        description="Azimuthal angle with camera",
+        default=5,
+        min=1)
+    elevation = FloatProperty(
+        name="Elevation",
+        description="Elevation angle with camera",
+        default=5,
+        min=1)
+
+class TableProperties(PropertyGroup):
+    """Properties of table."""
+
+    name = StringProperty(
+        name="Name",
+        description="Specify a name for the table",
+        default="")
+    icon = StringProperty(
+        name="Icon",
+        description="Icon for preset",
+        default="SURFACE_DATA")
+    is_valid = BoolProperty(
+        name="Is Valid",
+        description="Indicates if the object passed validity checks",
+        default=True)
+    is_rendered = BoolProperty(
+        name="Is Rendered",
+        description="Indicates if the overlay is rendered",
+        default=True)
+    beautified = BoolProperty(
+        name="Beautify",
+        description="",
+        default=True)
+
+    colourtype = EnumProperty(
+        name="colourtype",
+        description="Apply this colour method",
+        items=[("basic", "basic", 
+                "Switch to basic material", 1),
+               ("directional", "directional", 
+                "Switch to directional colour-coding", 2)],
+        update=material_enum_update)
+    colourpicker = FloatVectorProperty(
+        name="",
+        description="Pick a colour",
+        default=[1.0, 0.0, 0.0],
+        subtype="COLOR")
+
+
+class PresetProperties(PropertyGroup):
+    """Properties of a preset."""
+
+    name = StringProperty(
+        name="Name",
+        description="Specify a name for the preset",
+        default="")
+#     filepath = StringProperty(
+#         name="Filepath",
+#         description="The filepath to the preset")
+    icon = StringProperty(
+        name="Icon",
+        description="Icon for preset",
+        default="CAMERA_DATA")
+    is_valid = BoolProperty(
+        name="Is Valid",
+        description="Indicates if the preset passed validity checks",
+        default=True)
+    is_rendered = BoolProperty(
+        name="Is Rendered",
+        description="Indicates if the preset is rendered",
+        default=True)
+
+    cameras = CollectionProperty(
+        type=CameraProperties,
+        name="cameras",
+        description="The collection of loaded cameras")
+    index_cameras = IntProperty(
+        name="camera index",
+        description="index of the cameras collection",
+        default=0,
+        min=0)
+    lights = CollectionProperty(
+        type=LightsProperties,
+        name="lights",
+        description="The collection of loaded lights")
+    index_lights = IntProperty(
+        name="light index",
+        description="index of the lights collection",
+        default=0,
+        min=0)
+    tables = CollectionProperty(
+        type=TableProperties,
+        name="tables",
+        description="The collection of loaded tables")
+    index_tables = IntProperty(
+        name="table index",
+        description="index of the tables collection",
+        default=0,
+        min=0)
+
+    lights_enum = EnumProperty(
+        name="Light switch",
+        description="switch between lighting modes",
+        items=[("Key", "Key", "Use Key lighting only", 1),
+               ("Key-Back-Fill", "Key-Back-Fill", 
+                "Use Key-Back-Fill lighting", 2),
+               ("Free", "Free", "Set up manually", 3)],
+        default="Key-Back-Fill")
+
+
 class TractBlenderProperties(PropertyGroup):
     """Properties for the TractBlender panel."""
 
@@ -2169,14 +2653,30 @@ class TractBlenderProperties(PropertyGroup):
         name="Additional options",
         default=False,
         description="Show/hide the object's additional options")
-
-    objecttype = EnumProperty(
-        name="object type",
-        description="switch between object types",
-        items=[("tracts", "tracts", "List the tracts", 1),
-               ("surfaces", "surfaces", "List the surfaces", 2),
-               ("voxelvolumes", "voxelvolumes", "List the voxelvolumes", 3)],
-        default="tracts")
+    show_cameras = BoolProperty(
+        name="Camera",
+        default=False,
+        description="Show/hide the preset's camera properties")
+    show_lights = BoolProperty(
+        name="Lights",
+        default=False,
+        description="Show/hide the preset's lights properties")
+    show_key = BoolProperty(
+        name="Key",
+        default=False,
+        description="Show/hide the Key light properties")
+    show_back = BoolProperty(
+        name="Back",
+        default=False,
+        description="Show/hide the Back light properties")
+    show_fill = BoolProperty(
+        name="Fill",
+        default=False,
+        description="Show/hide the Fill light properties")
+    show_tables = BoolProperty(
+        name="Table",
+        default=False,
+        description="Show/hide the preset's table properties")
 
     tracts = CollectionProperty(
         type=TractProperties,
@@ -2206,58 +2706,33 @@ class TractBlenderProperties(PropertyGroup):
         default=0,
         min=0)
 
+    presets = CollectionProperty(
+        type=PresetProperties,
+        name="presets",
+        description="The collection of presets")
+    index_presets = IntProperty(
+        name="preset index",
+        description="index of the presets",
+        default=0,
+        min=0)
+
+    presets_enum = EnumProperty(
+        name="presets",
+        description="switch between presets",
+        items=presets_enum_callback,
+        update=presets_enum_update)
+
+    objecttype = EnumProperty(
+        name="object type",
+        description="switch between object types",
+        items=[("tracts", "tracts", "List the tracts", 1),
+               ("surfaces", "surfaces", "List the surfaces", 2),
+               ("voxelvolumes", "voxelvolumes", "List the voxelvolumes", 3)],
+        default="tracts")
     overlaytype = EnumProperty(
         name="overlay type",
         description="switch between overlay types",
         items=overlay_enum_callback)
-
-
-    cam_view = FloatVectorProperty(
-        name="Numeric input",
-        description="Setting of the LR-AP-IS viewpoint of the camera",
-        default=[2.31, 2.31, 2.31],
-        size=3)
-
-    cam_view_enum = EnumProperty(
-        name="Camera viewpoint",
-        description="Choose a view for the camera",
-        default="RightAntSup",
-        items=[("LeftPostInf", "Left-Post-Inf",
-                "Left-Posterior-Inferior"),
-               ("LeftPostSup", "Left-Post-Sup",
-                "Left-Posterior-Superior"),
-               ("LeftAntInf", "Left-Ant-Inf",
-                "Left-Anterior-Inferior"),
-               ("LeftAntSup", "Left-Ant-Sup",
-                "Left-Anterior-Superior"),
-               ("RightPostInf", "Right-Post-Inf",
-                "Right-Posterior-Inferior"),
-               ("RightPostSup", "Right-Post-Sup",
-                "Right-Posterior-Superior"),
-               ("RightAntInf", "Right-Ant-Inf",
-                "Right-Anterior-Inferior"),
-               ("RightAntSup", "Right-Ant-Sup",
-                "Right-Anterior-Superior"),
-               ("Inf", "Inf", "Inferior"),
-               ("Sup", "Sup", "Superior"),
-               ("Post", "Post", "Posterior"),
-               ("Ant", "Ant", "Anterior"),
-               ("Left", "Left", "Left"),
-               ("Right", "Right", "Right"),
-               ("Numeric", "Numeric", "Numeric")],
-        update=cam_view_enum_update)
-
-    cam_distance = FloatProperty(
-        name="Camera distance",
-        description="Relative distance of the camera (to bounding box)",
-        default=4,
-        min=1,
-        update=cam_view_enum_update)
-
-    presetname = StringProperty(
-        name="presetname",
-        description="Identifier of the loaded preset",
-        default="Brain")
 
 
 # =========================================================================== #
