@@ -38,6 +38,10 @@ from . import tractblender_import as tb_imp
 def materialise(ob, colourtype='primary6', colourpicker=(1, 1, 1), trans=1):
     """Attach material to an object."""
 
+    if ob is None:
+        info = "no object to materialise"
+        return info
+
     scn = bpy.context.scene
     tb = scn.tb
 
@@ -79,6 +83,10 @@ def materialise(ob, colourtype='primary6', colourpicker=(1, 1, 1), trans=1):
     link_innode(mat, colourtype)
 
     set_materials(ob.data, mat)
+
+    info = "material: type=%s; colour=%s" % (colourtype, diffcol)
+
+    return info
 
 
 def link_innode(mat, colourtype):

@@ -38,6 +38,7 @@ from bpy.props import (BoolProperty,
                        IntProperty,
                        PointerProperty)
 
+from os import listdir
 from os.path import dirname, join
 from shutil import copy
 import numpy as np
@@ -46,6 +47,7 @@ import mathutils
 from . import tractblender_import as tb_imp
 from . import tractblender_materials as tb_mat
 from . import tractblender_renderpresets as tb_rp
+from . import tractblender_beautify as tb_beau
 from . import tractblender_utils as tb_utils
 from . import external_sitepackages as ext_sp
 
@@ -892,26 +894,51 @@ class ImportTracts(Operator, ImportHelper):
 
     def execute(self, context):
 
-        scn = context.scene
-        tb = scn.tb
+        importtype = "tracts"
+        impdict={"weed_tract": self.weed_tract,
+                 "interpolate_streamlines": self.interpolate_streamlines}
+        beaudict = {"mode": "FULL",
+                    "depth": 0.5,
+                    "res": 10}
 
-        info = {}
-        info['interpolate_streamlines'] = self.interpolate_streamlines
-        info['weed_tract'] = self.weed_tract
-
-        filenames = [file.name for file in self.files]
-        tb_imp.import_objects(self.directory,
-                              filenames,
-                              tb_imp.import_tract,
-                              "tracts",
-                              self.name,
-                              self.colourtype,
-                              self.colourpicker,
-                              self.transparency,
-                              self.beautify,
-                              info)
+        self.import_objects(importtype, impdict, beaudict)
 
         return {"FINISHED"}
+
+    def import_objects(self, importtype, impdict, beaudict):
+
+        scn = bpy.context.scene
+        tb = scn.tb
+
+        importfun = eval("tb_imp.import_%s" % importtype[:-1])
+
+        filenames = [file.name for file in self.files]
+        if not filenames:
+            filenames = listdir(self.directory)
+
+        for f in filenames:
+            fpath = join(self.directory, f)
+
+            ca = [bpy.data.objects,
+                  bpy.data.materials]
+            name = tb_utils.check_name(self.name, fpath, ca)
+
+            ob, info_imp, info_geom = importfun(fpath, name, "", impdict)
+            info_mat = tb_mat.materialise(ob,
+                                          self.colourtype,
+                                          self.colourpicker,
+                                          self.transparency)
+            info_beau = tb_beau.beautify_brain(ob,
+                                               importtype,
+                                               self.beautify,
+                                               beaudict)
+
+            info = info_imp
+            if tb.verbose:
+                info = info + "\nname: '%s'\npath: '%s'\n" % (name, fpath)
+                info = info + "%s\n%s\n%s" % (info_geom, info_mat, info_beau)
+
+            self.report({'INFO'}, info)
 
     def draw(self, context):
         layout = self.layout
@@ -986,21 +1013,19 @@ class ImportSurfaces(Operator, ImportHelper):
         min=0.,
         max=1.)
 
+    import_objects = ImportTracts.import_objects
+
     def execute(self, context):
 
-        scn = context.scene
-        tb = scn.tb
-
-        filenames = [file.name for file in self.files]
-        tb_imp.import_objects(self.directory,
-                              filenames,
-                              tb_imp.import_surface,
-                              "surfaces",
-                              self.name,
-                              self.colourtype,
-                              self.colourpicker,
-                              self.transparency,
-                              self.beautify)
+        importtype = "surfaces"
+        impdict = {}
+        beaudict = {"iterations": 10,
+                    "factor": 0.5,
+                    "use_x": True,
+                    "use_y": True,
+                    "use_z": True}
+        
+        self.import_objects(importtype, impdict, beaudict)
 
         return {"FINISHED"}
 
@@ -1577,6 +1602,8 @@ class TractBlenderSettingsPanel(Panel):
         row = layout.row()
         row.prop(tb, "mode")
         self.draw_nibabel(layout, tb)
+        row = layout.row()
+        row.prop(tb, "verbose")
         # TODO: etc
 
     def draw_nibabel(self, layout, tb):
@@ -2588,6 +2615,10 @@ class TractBlenderProperties(PropertyGroup):
         name="Show/hide Tractblender",
         description="Show/hide the tractblender panel contents",
         default=True)
+    verbose = BoolProperty(
+        name="Verbose",
+        description="Verbose reporting",
+        default=False)
 
     mode = EnumProperty(
         name="mode",

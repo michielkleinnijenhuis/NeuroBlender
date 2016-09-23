@@ -39,14 +39,12 @@ from . import tractblender_utils as tb_utils
 # ========================================================================== #
 
 
-def import_objects(directory, files, importfun,
-                   importtype, specname,
-                   colourtype, colourpicker, transparency,
-                   beautify, info=None):
-    """Import streamlines or surfaces.
+def import_tract(fpath, name, sformfile="", 
+                 argdict={"weed_tract": 1.,
+                          "interpolate_streamlines": 1.}):
+    """Import a tract object.
 
-    Streamlines:
-    This imports the streamlines found in the specified directory/files.
+    This imports the streamlines found in the specified file.
     Valid formats include:
     - .Bfloat (Camino big-endian floats; from 'track' command)
       http://camino.cs.ucl.ac.uk/index.php?n=Main.Fileformats
@@ -62,66 +60,31 @@ def import_objects(directory, files, importfun,
     Tracts are scaled according to the 'scale' box.
     Beautify functions/modifiers are applied to the tract.
 
-    Surfaces: TODO
-
     """
 
-    if not files:
-        files = os.listdir(directory)
-
-    for f in files:
-        fpath = os.path.join(directory, f)
-
-        ca = [bpy.data.objects,
-              bpy.data.materials]
-        name = tb_utils.check_name(specname, fpath, ca)
-
-        ob = importfun(fpath, name, info=info)
-
-        tb_mat.materialise(ob, colourtype, colourpicker, transparency)
-
-        beautify_fun = eval("tb_beau.beautify_%s" % importtype)
-        if beautify: beautify_fun(ob)
-
-        ob.select = True
-        bpy.context.scene.objects.active = ob
-
-    return {"FINISHED"}
-
-
-def import_tract(fpath, name, sformfile="", info=None):
-    """Import a tract object."""
+    weed_tract = argdict["weed_tract"]
+    interpolate_streamlines = argdict["interpolate_streamlines"]
 
     scn = bpy.context.scene
     tb = scn.tb
 
-    weed_tract = info['weed_tract']
-    interpolate_streamlines = info['interpolate_streamlines']
+    outcome = "failed"
 
-    if fpath.endswith('.vtk'):
-        streamlines = read_vtk_streamlines(fpath)
-
-    elif fpath.endswith('.Bfloat'):
-        streamlines = read_camino_streamlines(fpath)
-
-    elif fpath.endswith('.tck'):
-        streamlines = read_mrtrix_streamlines(fpath)
-
-    elif fpath.endswith('.trk'):
-        streamlines = read_trackvis_streamlines(fpath)
-
-    elif fpath.endswith('.npy'):
-        streamlines = read_numpy_streamline(fpath)
-
-    elif fpath.endswith('.npz'):
-        streamlines = read_numpyz_streamlines(fpath)
-
-    elif fpath.endswith('.dpy'):
-        streamlines = read_dipy_streamline(fpath)
-
-    else:
-        print('file format not understood; please use default extensions')
-        return
+    ext = os.path.splitext(fpath)[1]
+    try:
+        streamlines = eval("read_streamlines_%s(fpath)" % ext[1:])
+    except NameError:
+        reason = "file format '%s' not supported" % ext
+        info = "import %s: %s" % (outcome, reason)
+        return None, info, "no geometry loaded"
+    except (IOError, FileNotFoundError):
+        reason = "file '%s' not valid" % fpath
+        info = "import %s: %s" % (outcome, reason)
+        return None, info, "no geometry loaded"
+    except:
+        reason = "unknown import error"
+        info = "import %s: %s" % (outcome, reason)
+        raise
 
     curve = bpy.data.curves.new(name=name, type='CURVE')
     curve.dimensions = '3D'
@@ -153,13 +116,19 @@ def import_tract(fpath, name, sformfile="", info=None):
     tb_utils.move_to_layer(ob, 0)
     scn.layers[0] = True
 
-    bpy.context.scene.objects.active = ob
+    scn.objects.active = ob
     ob.select = True
 
-    return ob
+    outcome = "successful"
+    info = "import %s" % outcome
+    info_geom = "transform: %s\n" % affine
+    info_geom = info_geom + "decimate: weeding=%.3f; interpolation=%.3f" \
+                % (weed_tract, interpolate_streamlines)
+
+    return ob, info, info_geom
 
 
-def import_surface(fpath, name, sformfile="", info=None):
+def import_surface(fpath, name, sformfile="", argdict={}):
     """Import a surface object."""
     # TODO: subsampling? (but has to be compatible with loading overlays)
 
@@ -174,6 +143,7 @@ def import_surface(fpath, name, sformfile="", info=None):
         ob = bpy.context.selected_objects[0]
         ob.name = name
         affine = read_affine_matrix(sformfile)
+        info = "imported " + fpath
 
     elif fpath.endswith('.stl'):
         bpy.ops.import_mesh.stl(filepath=fpath,
@@ -181,6 +151,7 @@ def import_surface(fpath, name, sformfile="", info=None):
         ob = bpy.context.selected_objects[0]
         ob.name = name
         affine = read_affine_matrix(sformfile)
+        info = "imported " + fpath
 
     elif (fpath.endswith('.gii') |
           fpath.endswith('.white') |
@@ -199,6 +170,7 @@ def import_surface(fpath, name, sformfile="", info=None):
                     xform = np.reshape(xform, [4, 4])
                 affine = Matrix(xform)
                 sformfile = fpath
+                info = "imported " + fpath
             elif (fpath.endswith('.white') |
                   fpath.endswith('.pial') |
                   fpath.endswith('.inflated')
@@ -217,7 +189,8 @@ def import_surface(fpath, name, sformfile="", info=None):
 
         else:
             print('file format not understood; please use default extensions')
-            return
+            info = "failed to import " + fpath
+            return None, info
 
     ob.matrix_world = affine
 
@@ -229,7 +202,11 @@ def import_surface(fpath, name, sformfile="", info=None):
     bpy.context.scene.objects.active = ob
     ob.select = True
 
-    return ob
+    outcome = "successful"
+    info = "import %s" % outcome
+    info_geom = "transform: %s\n" % affine
+
+    return ob, info, info_geom
 
 
 def import_voxelvolume(directory, files, specname,
@@ -1115,7 +1092,7 @@ def add_table_to_collection(name, preset):
 # ========================================================================== #
 
 
-def read_dipy_streamlines(dpyfile):
+def read_streamlines_dpy(dpyfile):
     """Return all streamlines in a dipy .dpy tract file (uses dipy)."""
 
     if tb_utils.validate_dipy('.trk'):
@@ -1126,7 +1103,7 @@ def read_dipy_streamlines(dpyfile):
     return streamlines
 
 
-def read_trackvis_streamlines(trkfile):
+def read_streamlines_trk(trkfile):
     """Return all streamlines in a Trackvis .trk tract file (uses nibabel)."""
 
     nib = tb_utils.validate_nibabel('.trk')
@@ -1138,17 +1115,42 @@ def read_trackvis_streamlines(trkfile):
         return streamlines
 
 
-def read_camino_streamlines(bfloatfile):
-    """Return all streamlines in a Camino .bfloat/.Bfloat tract file."""
+def read_streamlines_Bfloat(fpath):
+    """Return all streamlines in a Camino .Bfloat tract file."""
 
-    if bfloatfile.endswith('.Bfloat'):
-        streamlinevec = np.fromfile(bfloatfile, dtype='>f4')
-    elif bfloatfile.endswith('.bfloat'):
-        streamlinevec = np.fromfile(bfloatfile, dtype='<f4')
-    elif bfloatfile.endswith('.Bdouble'):
-        streamlinevec = np.fromfile(bfloatfile, dtype='>f8')
-    elif bfloatfile.endswith('.bdouble'):
-        streamlinevec = np.fromfile(bfloatfile, dtype='<f8')
+    streamlines = read_camino_streamlines(fpath, '>f4')
+
+    return streamlines
+
+
+def read_streamlines_bfloat(fpath):
+    """Return all streamlines in a Camino .bfloat tract file."""
+
+    streamlines = read_camino_streamlines(fpath, '<f4')
+
+    return streamlines
+
+
+def read_streamlines_Bdouble(fpath):
+    """Return all streamlines in a Camino .Bdouble tract file."""
+
+    streamlines = read_camino_streamlines(fpath, '>f8')
+
+    return streamlines
+
+
+def read_streamlines_bdouble(fpath):
+    """Return all streamlines in a Camino .bdouble tract file."""
+
+    streamlines = read_camino_streamlines(fpath, '<f8')
+
+    return streamlines
+
+
+def read_camino_streamlines(fpath, camdtype):
+    """Return all streamlines in a Camino tract file."""
+
+    streamlinevec = np.fromfile(fpath, dtype=camdtype)
 
     streamlines = []
     offset = 0
@@ -1182,7 +1184,7 @@ def unpack_camino_streamline(streamlinevec):
     return streamline, streamlinevec
 
 
-def read_vtk_streamlines(vtkfile):
+def read_streamlines_vtk(vtkfile):
     """Return all streamlines in a (MRtrix) .vtk tract file."""
 
     points, tracts, scalars, cscalars, lut = import_vtk_polylines(vtkfile)
@@ -1299,7 +1301,7 @@ def unpack_vtk_polylines(points, tracts):
     return streamlines
 
 
-def read_mrtrix_streamlines(tckfile):
+def read_streamlines_tck(tckfile):
     """Return all streamlines in a MRtrix .tck tract file."""
 
     datatype, offset = read_mrtrix_header(tckfile)
@@ -1362,7 +1364,7 @@ def unpack_mrtrix_streamlines(streamlinevector):
     return streamlines
 
 
-def read_numpy_streamline(tckfile):
+def read_streamline_npy(tckfile):
     """Read a [Npointsx3] streamline from a *.npy file."""
 
     streamline = np.load(tckfile)
@@ -1370,7 +1372,7 @@ def read_numpy_streamline(tckfile):
     return [streamline]
 
 
-def read_numpyz_streamlines(tckfile):
+def read_streamlines_npz(tckfile):
     """Return all streamlines from a *.npz file.
 
     e.g. from 'np.savez_compressed(outfile, streamlines0=streamlines0, ..=..)'

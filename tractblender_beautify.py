@@ -27,38 +27,58 @@ import bpy
 # ========================================================================== #
 
 
-def beautify_brain(ob, importtype):
+def beautify_brain(ob, importtype, beautify, argdict):
     """Beautify the object."""
 
-    if importtype == 'tracts':
-        beautify_tracts(ob)
-    elif importtype == 'surfaces':
-        beautify_surfaces(ob)
-    elif importtype == 'volumes':
-        beautify_volumes(ob)
+    if beautify:
+        try:
+            info = eval("beautify_%s(ob, argdict)" % importtype)
+        except AttributeError:
+            info = "no %s to beautify" % importtype
+    else:
+        info = "no beautification"
 
+    return info
 
-def beautify_tracts(ob, depth=0.5, res=10):
+def beautify_tracts(ob, argdict={"mode": "FULL",
+                                 "depth": 0.5,
+                                 "res": 10}):
     """Bevel the streamlines."""
 
-    ob.data.fill_mode = 'FULL'
-    ob.data.bevel_depth = depth
-    ob.data.bevel_resolution = res
+    ob.data.fill_mode = argdict["mode"]
+    ob.data.bevel_depth = argdict["depth"]
+    ob.data.bevel_resolution = argdict["res"]
+
+    info = "bevel: mode=%s; depth=%.3f; resolution=%3d" \
+           % (argdict["mode"], argdict["depth"], argdict["res"])
+
+    return info
 
 
-def beautify_surfaces(ob, iterations=10, factor=0.5,
-                      use_x=True, use_y=True, use_z=True):
+def beautify_surfaces(ob, argdict={"iterations": 10,
+                                   "factor": 0.5,
+                                   "use_x": True,
+                                   "use_y": True,
+                                   "use_z": True}):
     """Smooth the surface mesh."""
 
     mod = ob.modifiers.new("smooth", type='SMOOTH')
-    mod.iterations = iterations
-    mod.factor = factor
-    mod.use_x = use_x
-    mod.use_y = use_y
-    mod.use_z = use_z
+    mod.iterations = argdict["iterations"]
+    mod.factor = argdict["factor"]
+    mod.use_x = argdict["use_x"]
+    mod.use_y = argdict["use_y"]
+    mod.use_z = argdict["use_z"]
+
+    info = "smooth: iterations=%3d; factor=%.3f; use_xyz=%s %s %s" \
+           % (argdict["iterations"], argdict["factor"], 
+              argdict["use_x"], argdict["use_y"], argdict["use_z"])
+
+    return info
 
 
-def beautify_volumes():  # TODO
-    """Particlise the volume."""
+def beautify_voxelvolumes(ob, argdict={}):
+    """Particlise the voxelvolume."""
 
-    pass
+    info = ""  # TODO
+
+    return info
