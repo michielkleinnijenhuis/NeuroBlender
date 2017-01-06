@@ -654,7 +654,7 @@ class ObjectListOperations(Operator):
             data = "tb_ov"
             type = tb.overlaytype.replace("groups", "s")
         elif self.action.endswith('_PL'):
-            data = "tb.presets"
+            data = "tb.presets[%d]" % tb.index_presets
             type = "lights"
 
         collection = eval("%s.%s" % (data, type))
