@@ -615,6 +615,33 @@ class ObjectListPL(UIList):
             layout.prop(text="", icon=item_icon)
 
 
+class ObjectListAN(UIList):
+
+    def draw_item(self, context, layout, data, item, icon,
+                  active_data, active_propname, index):
+
+        if item.is_valid:
+            item_icon = item.icon
+        else:
+            item_icon = "CANCEL"
+
+        if self.layout_type in {'DEFAULT', 'COMPACT'}:
+
+            col = layout.column()
+            col.prop(item, "name", text="", emboss=False,
+                     translate=False, icon=item_icon)
+
+            col = layout.column()
+            col.alignment = "RIGHT"
+            col.active = item.is_rendered
+            col.prop(item, "is_rendered", text="", emboss=False,
+                     translate=False, icon='SCENE')
+
+        elif self.layout_type in {'GRID'}:
+            layout.alignment = 'CENTER'
+            layout.prop(text="", icon=item_icon)
+
+
 class ObjectListOperations(Operator):
     bl_idname = "tb.oblist_ops"
     bl_label = "Objectlist operations"
@@ -631,7 +658,10 @@ class ObjectListOperations(Operator):
                ('REMOVE_L3', "RemoveL3", ""),
                ('UP_PL', "UpPL", ""),
                ('DOWN_PL', "DownPL", ""),
-               ('REMOVE_PL', "RemovePL", "")))
+               ('REMOVE_PL', "RemovePL", ""),
+               ('UP_AN', "UpAN", ""),
+               ('DOWN_AN', "DownAN", ""),
+               ('REMOVE_AN', "RemoveAN", "")))
 
     def invoke(self, context, event):
 
@@ -656,6 +686,9 @@ class ObjectListOperations(Operator):
         elif self.action.endswith('_PL'):
             data = "tb.presets[%d]" % tb.index_presets
             type = "lights"
+        elif self.action.endswith('_AN'):
+            data = "tb.presets[%d]" % tb.index_presets
+            type = "animations"
 
         collection = eval("%s.%s" % (data, type))
         idx = eval("%s.index_%s" % (data, type))
@@ -696,7 +729,10 @@ class ObjectListOperations(Operator):
 #             for ms in ob.material_slots:
 #                 self.remove_material(ob, ms.name)  # FIXME: causes crash
             bpy.data.objects.remove(ob, do_unlink=True)
-
+        elif self.action.endswith('_PL'):
+            print("remove PL")  # FIXME: TODO
+        elif self.action.endswith('_AN'):
+            print("remove AN")  # FIXME: TODO
         else:
             if tb_ob.is_valid:
                 tb_ov, ov_idx = tb_utils.active_tb_overlay()
@@ -1277,6 +1313,24 @@ class AddLight(Operator):
         return {"FINISHED"}
 
 
+class AddAnimation(Operator):
+    bl_idname = "tb.import_animations"
+    bl_label = "New animation"
+    bl_description = "Create a new animation"
+    bl_options = {"REGISTER", "UNDO", "PRESET"}
+
+    name = StringProperty(
+        name="Name",
+        description="Specify a name for the animation",
+        default="New animation")
+
+    def execute(self, context):
+
+        tb_imp.add_animation_to_collection(self.name)
+
+        return {"FINISHED"}
+
+
 class MassIsRenderedL1(Menu):
     bl_idname = "tb.mass_is_rendered_L1"
     bl_label = "Vertex Group Specials"
@@ -1353,6 +1407,25 @@ class MassIsRenderedPL(Menu):
                         text="Invert").action = 'INVERT_PL'
 
 
+class MassIsRenderedAN(Menu):
+    bl_idname = "tb.mass_is_rendered_AN"
+    bl_label = "Animation Specials"
+    bl_description = "Menu for group selection of rendering option"
+    bl_options = {"REGISTER"}
+
+    def draw(self, context):
+        layout = self.layout
+        layout.operator("tb.mass_select",
+                        icon='SCENE',
+                        text="Select All").action = 'SELECT_AN'
+        layout.operator("tb.mass_select",
+                        icon='SCENE',
+                        text="Deselect All").action = 'DESELECT_AN'
+        layout.operator("tb.mass_select",
+                        icon='SCENE',
+                        text="Invert").action = 'INVERT_AN'
+
+
 class MassSelect(Operator):
     bl_idname = "tb.mass_select"
     bl_label = "Mass select"
@@ -1368,7 +1441,13 @@ class MassSelect(Operator):
                ('INVERT_L2', "Invert_L2", ""),
                ('SELECT_L3', "Select_L3", ""),
                ('DESELECT_L3', "Deselect_L3", ""),
-               ('INVERT_L3', "Invert_L3", "")))
+               ('INVERT_L3', "Invert_L3", ""),
+               ('SELECT_PL', "Select_PL", ""),
+               ('DESELECT_PL', "Deselect_PL", ""),
+               ('INVERT_PL', "Invert_PL", ""),
+               ('SELECT_AN', "Select_AN", ""),
+               ('DESELECT_AN', "Deselect_AN", ""),
+               ('INVERT_AN', "Invert_AN", "")))
 
     def execute(self, context):
 
@@ -1384,6 +1463,12 @@ class MassSelect(Operator):
             tb_ov = tb_utils.active_tb_overlay()[0]
             type = tb.overlaytype.replace("groups", "s")
             items = eval("tb_ov.%s" % type)
+        elif self.action.endswith("_PL"):
+            preset = tb.presets[tb.index_presets]
+            items = eval("preset.lights")
+        elif self.action.endswith("_AN"):
+            preset = tb.presets[tb.index_presets]
+            items = eval("preset.animations")
 
         for item in items:
             if self.action.startswith('SELECT'):
@@ -1453,6 +1538,7 @@ class TractBlenderScenePanel(Panel):
             self.drawunit_tri(layout, "cameras", tb, preset)
             self.drawunit_tri(layout, "lights", tb, preset)
             self.drawunit_tri(layout, "tables", tb, preset)
+            self.drawunit_tri(layout, "animations", tb, preset)
 
         row = layout.row()
         row.separator()
@@ -1534,8 +1620,7 @@ class TractBlenderScenePanel(Panel):
 
         row = layout.row()
         row.prop(light, "name")
-        row = layout.row()
-        row.prop(light, "type")
+        row.prop(light, "type", text="")
         if light.type == "PLANE":
             row = layout.row()
             row.prop(light, "size")
@@ -1558,6 +1643,50 @@ class TractBlenderScenePanel(Panel):
         else:
             row = layout.row()
             row.prop(tab, "is_rendered")
+
+    def drawunit_tri_animations(self, layout, tb, preset):
+
+        row = layout.row()
+        row.prop(preset, "frame_start")
+        row.prop(preset, "frame_end")
+
+        row = layout.row()
+        self.drawunit_UIList(layout, "AN", preset, "animations")
+
+        if len(preset.animations) > 0:
+
+            row = layout.row()
+            row.separator()
+
+            anim = preset.animations[preset.index_animations]
+
+            row = layout.row()
+            row.prop(anim, "name")
+            row.prop(anim, "animationtype", expand=False, text="")
+
+            row = layout.row()
+            row.separator()
+
+            row = layout.row()
+            row.prop(anim, "frame_start")
+            row.prop(anim, "frame_end")
+            row.prop(anim, "repetitions")
+
+            row = layout.row()
+            row.separator()
+
+            if anim.animationtype == "CameraPath":
+
+                row = layout.row()
+                row.prop(anim, "campath", expand=False)
+                if anim.campath == "New path":
+                    row = layout.row()
+                    row.prop(anim, "axis", expand=True)
+
+            elif anim.animationtype == "TranslateSlice":
+                pass
+            elif anim.animationtype == "TimeSeries":
+                pass
 
 
 class ScenePreset(Operator):
@@ -1769,12 +1898,39 @@ def presets_enum_callback(self, context):
 
 
 def presets_enum_update(self, context):
-    """Populate the enum based on available options."""
+    """Update the preset enum."""
 
     scn = context.scene
     tb = scn.tb
 
     tb.index_presets = tb.presets.find(tb.presets_enum)
+
+
+def campath_enum_callback(self, context):
+    """Populate the enum based on available options."""
+
+    scn = context.scene
+    tb = scn.tb
+
+    items = [(ob.name, ob.name, "List the curves", i+1)
+             for i, ob in enumerate(scn.objects) if ob.type == 'CURVE']
+    items.append(("New path", "New path", "New path", 0))
+
+    return items
+
+
+# def campath_enum_update(self, context):
+#     """Update the campath enum."""
+# 
+#     scn = context.scene
+#     tb = scn.tb
+# 
+#     preset = tb.presets[tb.index_presets]
+#     anim = preset.animations[preset.index_animations]
+# #     anim.campath = anim.campath
+# 
+# def campath_enum_set(self, value):
+#     print("setting value", value)
 
 
 class ColorRampProperties(PropertyGroup):
@@ -2537,6 +2693,67 @@ class TableProperties(PropertyGroup):
         subtype="COLOR")
 
 
+class AnimationProperties(PropertyGroup):
+    """Properties of table."""
+
+    name = StringProperty(
+        name="Name",
+        description="Specify a name for the animation",
+        default="")
+    icon = StringProperty(
+        name="Icon",
+        description="Icon for animation",
+        default="RENDER_ANIMATION")
+    animationtype = EnumProperty(
+        name="Animation type",
+        description="switch between animation types",
+        items=[("CameraPath", "CameraPath", "Camera path", 1),
+               ("TranslateSlice", "TranslateSlice", "Translate slice", 2),
+               ("TimeSeries", "TimeSeries", "Play time series", 3)],
+        default="CameraPath")
+    is_valid = BoolProperty(
+        name="Is Valid",
+        description="Indicates if the object passed validity checks",
+        default=True)
+    is_rendered = BoolProperty(
+        name="Is Rendered",
+        description="Indicates if the animation is rendered",
+        default=True)
+
+    frame_start = IntProperty(
+        name="startframe",
+        description="first frame of the animation",
+        min=0,
+        default=1)
+    frame_end = IntProperty(
+        name="endframe",
+        description="last frame of the animation",
+        min=1,
+        default=100)
+    repetitions = FloatProperty(
+        name="repetitions",
+        description="number of repetitions",
+        default=1)
+
+    campath = EnumProperty(
+        name="Camera path",
+        description="Select or create path for camera",
+        items=campath_enum_callback)
+    axis = EnumProperty(
+        name="Animation axis",
+        description="switch between animation axes",
+        items=[("X", "X", "X", 0),
+               ("Y", "Y", "Y", 1),
+               ("Z", "Z", "Z", 2),
+               ("-X", "-X", "-X", 3),
+               ("-Y", "-Y", "-Y", 4),
+               ("-Z", "-Z", "-Z", 5)],
+        default="Z")
+
+    # TODO: TranslateSlice props
+    # TODO: TimeSeries props
+
+
 class PresetProperties(PropertyGroup):
     """Properties of a preset."""
 
@@ -2587,6 +2804,15 @@ class PresetProperties(PropertyGroup):
         description="index of the tables collection",
         default=0,
         min=0)
+    animations = CollectionProperty(
+        type=AnimationProperties,
+        name="animations",
+        description="The collection of animations")
+    index_animations = IntProperty(
+        name="animation index",
+        description="index of the animations collection",
+        default=0,
+        min=0)
 
     lights_enum = EnumProperty(
         name="Light switch",
@@ -2596,6 +2822,17 @@ class PresetProperties(PropertyGroup):
                 "Use Key-Back-Fill lighting", 2),
                ("Free", "Free", "Set up manually", 3)],
         default="Key-Back-Fill")
+
+    frame_start = IntProperty(
+        name="startframe",
+        description="first frame of the animation",
+        min=0,
+        default=1)
+    frame_end = IntProperty(
+        name="endframe",
+        description="last frame of the animation",
+        min=1,
+        default=100)
 
 
 class TractBlenderProperties(PropertyGroup):
@@ -2706,6 +2943,10 @@ class TractBlenderProperties(PropertyGroup):
         name="Table",
         default=False,
         description="Show/hide the preset's table properties")
+    show_animations = BoolProperty(
+        name="Animation",
+        default=False,
+        description="Show/hide the preset's animations")
 
     tracts = CollectionProperty(
         type=TractProperties,

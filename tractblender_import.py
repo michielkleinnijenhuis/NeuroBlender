@@ -1056,6 +1056,23 @@ def add_table_to_collection(name, preset):
     return table
 
 
+def add_animation_to_collection(name, preset=None, is_rendered=True):
+    """Add animation to the TractBlender collection."""
+
+    scn = bpy.context.scene
+    tb = scn.tb
+    if preset is None:
+        preset = tb.presets[tb.index_presets]
+
+    animation = preset.animations.add()
+    preset.index_animations = (len(preset.animations)-1)
+
+    animation.name = name
+    animation.is_rendered = is_rendered
+
+    return animation
+
+
 # ========================================================================== #
 # reading surface files
 # ========================================================================== #
