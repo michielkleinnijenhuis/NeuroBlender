@@ -547,6 +547,8 @@ def create_light(tb_light, braincentre, dims, loc):
         scn.objects.link(light)
         scn.objects.active = light
         light.select = True
+        light.data.use_nodes = True
+        light.data.node_tree.nodes["Emission"].inputs[1].default_value = 1e+07
 
     light.location = (dims[0] * loc[0], dims[1] * loc[1], dims[2] * loc[2])
     add_constraint(light, "TRACK_TO", "TrackToBrainCentre", braincentre)
