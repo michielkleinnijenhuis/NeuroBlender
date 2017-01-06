@@ -44,21 +44,25 @@ def import_tract(fpath, name, sformfile="",
                           "interpolate_streamlines": 1.}):
     """Import a tract object.
 
-    This imports the streamlines found in the specified file.
+    This imports the streamlines found in the specified file and
+    joins the individual streamlines into one 'Curve' object.
     Valid formats include:
-    - .Bfloat (Camino big-endian floats; from 'track' command)
+    - .bfloat/.Bfloat/.bdouble/.Bdouble (Camino)
       http://camino.cs.ucl.ac.uk/index.php?n=Main.Fileformats
-    - .vtk (vtk polydata (ASCII); e.g. from MRtrix's 'tracks2vtk' command)
-      http://www.vtk.org/wp-content/uploads/2015/04/file-formats.pdf
     - .tck (MRtrix)
       http://jdtournier.github.io/mrtrix-0.2/appendix/mrtrix.html
+    - .vtk (vtk polydata (ASCII); from MRtrix's 'tracks2vtk' command)
+      http://www.vtk.org/wp-content/uploads/2015/04/file-formats.pdf
+    - .trk (TrackVis; via nibabel)
+    - .dpy (dipy; via dipy)
     - .npy (2d numpy arrays [Npointsx3]; single streamline per file)
     - .npz (zipped archive of Nstreamlines .npy files)
       http://docs.scipy.org/doc/numpy-1.10.0/reference/generated/numpy.savez.html
 
-    It joins the individual streamlines into one 'Curve' object.
-    Tracts are scaled according to the 'scale' box.
-    Beautify functions/modifiers are applied to the tract.
+    'weed_tract' thins tracts by randomly selecting streamlines.
+    'interpolate_streamlines' keeps every nth point of the streamlines 
+    (int(1/interpolate_streamlines)).
+    'sformfile' sets matrix_world to affine transformation.
 
     """
 
@@ -69,7 +73,6 @@ def import_tract(fpath, name, sformfile="",
     tb = scn.tb
 
     outcome = "failed"
-
     ext = os.path.splitext(fpath)[1]
     try:
         streamlines = eval("read_streamlines_%s(fpath)" % ext[1:])
@@ -135,62 +138,28 @@ def import_surface(fpath, name, sformfile="", argdict={}):
     scn = bpy.context.scene
     tb = scn.tb
 
-    if fpath.endswith('.obj'):
-        # need split_mode='OFF' for loading scalars onto the correct vertices
-        bpy.ops.import_scene.obj(filepath=fpath,
-                                 axis_forward='Y', axis_up='Z',
-                                 split_mode='OFF')
-        ob = bpy.context.selected_objects[0]
-        ob.name = name
-        affine = read_affine_matrix(sformfile)
-        info = "imported " + fpath
-
-    elif fpath.endswith('.stl'):
-        bpy.ops.import_mesh.stl(filepath=fpath,
-                                axis_forward='Y', axis_up='Z')
-        ob = bpy.context.selected_objects[0]
-        ob.name = name
-        affine = read_affine_matrix(sformfile)
-        info = "imported " + fpath
-
-    elif (fpath.endswith('.gii') |
-          fpath.endswith('.white') |
-          fpath.endswith('.pial') |
-          fpath.endswith('.inflated')
-          ):
-        nib = tb_utils.validate_nibabel('.gifti')
-        if tb.nibabel_valid:
-            if (fpath.endswith('.gii')) | (fpath.endswith('.surf.gii')):
-                gio = nib.gifti.giftiio
-                img = gio.read(fpath)
-                verts = [tuple(vert) for vert in img.darrays[0].data]
-                faces = [tuple(face) for face in img.darrays[1].data]
-                xform = img.darrays[0].coordsys.xform
-                if len(xform) == 16:
-                    xform = np.reshape(xform, [4, 4])
-                affine = Matrix(xform)
-                sformfile = fpath
-                info = "imported " + fpath
-            elif (fpath.endswith('.white') |
-                  fpath.endswith('.pial') |
-                  fpath.endswith('.inflated')
-                  ):
-                fsio = nib.freesurfer.io
-                verts, faces = fsio.read_geometry(fpath)
-                verts = [tuple(vert) for vert in verts]
-                faces = [tuple(face) for face in faces]
-                affine = Matrix()
-            me = bpy.data.meshes.new(name)
-            me.from_pydata(verts, [], faces)
-            ob = bpy.data.objects.new(name, me)
-            bpy.context.scene.objects.link(ob)
-            if (fpath.endswith('.func.gii')) | (fpath.endswith('.shape.gii')):
-                pass  # TODO: create nice overlays for functionals etc
-
-        else:
-            print('file format not understood; please use default extensions')
-            info = "failed to import " + fpath
-            return None, info
+    outcome = "failed"
+    ext = os.path.splitext(fpath)[1]
+    print(ext)
+    try:
+        ob, affine, sformfile = eval("read_surfaces_%s(fpath, name, sformfile)" % ext[1:])
+    except NameError:
+        reason = "file format '%s' not supported" % ext
+        info = "import %s: %s" % (outcome, reason)
+        raise
+        return None, info, "no geometry loaded"
+    except (IOError, FileNotFoundError):
+        reason = "file '%s' not valid" % fpath
+        info = "import %s: %s" % (outcome, reason)
+        return None, info, "no geometry loaded"
+    except ImportError:
+        reason = "nibabel not found"
+        info = "import %s: %s" % (outcome, reason)
+        return None, info, "no geometry loaded"
+    except:
+        reason = "unknown import error"
+        info = "import %s: %s" % (outcome, reason)
+        raise
 
     ob.matrix_world = affine
 
@@ -204,7 +173,7 @@ def import_surface(fpath, name, sformfile="", argdict={}):
 
     outcome = "successful"
     info = "import %s" % outcome
-    info_geom = "transform: %s\n" % affine
+    info_geom = "transform: %s" % affine
 
     return ob, info, info_geom
 
@@ -1088,8 +1057,129 @@ def add_table_to_collection(name, preset):
 
 
 # ========================================================================== #
+# reading surface files
+# ========================================================================== #
+
+
+def read_surfaces_obj(fpath, name, sformfile):
+    """"""
+
+    # need split_mode='OFF' for loading scalars onto the correct vertices
+    bpy.ops.import_scene.obj(filepath=fpath,
+                             axis_forward='Y', axis_up='Z',
+                             split_mode='OFF')
+    ob = bpy.context.selected_objects[0]
+    ob.name = name
+    affine = read_affine_matrix(sformfile)
+
+    return ob, affine, sformfile
+
+
+def read_surfaces_stl(fpath, name, sformfile):
+    """"""
+
+    bpy.ops.import_mesh.stl(filepath=fpath,
+                            axis_forward='Y', axis_up='Z')
+    ob = bpy.context.selected_objects[0]
+    ob.name = name
+    affine = read_affine_matrix(sformfile)
+
+    return ob, affine, sformfile
+
+
+def read_surfaces_gii(fpath, name, sformfile):
+    """"""
+
+    scn = bpy.context.scene
+    tb = scn.tb
+
+    nib = tb_utils.validate_nibabel('.gifti')
+
+    gio = nib.gifti.giftiio
+    img = gio.read(fpath)
+    verts = [tuple(vert) for vert in img.darrays[0].data]
+    faces = [tuple(face) for face in img.darrays[1].data]
+    xform = img.darrays[0].coordsys.xform
+    if len(xform) == 16:
+        xform = np.reshape(xform, [4, 4])
+    affine = Matrix(xform)
+    sformfile = fpath
+
+    me = bpy.data.meshes.new(name)
+    me.from_pydata(verts, [], faces)
+    ob = bpy.data.objects.new(name, me)
+    bpy.context.scene.objects.link(ob)
+
+    return ob, affine, sformfile
+
+
+def read_surfaces_white(fpath, name, sformfile):
+    """"""
+
+    scn = bpy.context.scene
+    tb = scn.tb
+
+    nib = tb_utils.validate_nibabel('.gifti')
+
+    fsio = nib.freesurfer.io
+    verts, faces = fsio.read_geometry(fpath)
+    verts = [tuple(vert) for vert in verts]
+    faces = [tuple(face) for face in faces]
+    affine = Matrix()
+
+    me = bpy.data.meshes.new(name)
+    me.from_pydata(verts, [], faces)
+    ob = bpy.data.objects.new(name, me)
+    bpy.context.scene.objects.link(ob)
+
+    return ob, affine, sformfile
+
+
+read_surfaces_pial = read_surfaces_white
+read_surfaces_inflated = read_surfaces_white
+
+
+# ========================================================================== #
 # reading tract files
 # ========================================================================== #
+
+
+def read_streamlines_npy(tckfile):
+    """Read a [Npointsx3] streamline from a *.npy file."""
+
+    streamline = np.load(tckfile)
+
+    return [streamline]
+
+
+def read_streamlines_npz(tckfile):
+    """Return all streamlines from a *.npz file.
+
+    e.g. from 'np.savez_compressed(outfile, streamlines0=streamlines0, ..=..)'
+    NOTE: This doesn't work for .npz pickled in Python 2.x,!! ==>
+    Unicode unpickling incompatibility
+    """
+
+    # TODO: proper checks and error handling
+    # TODO: multitract npz
+    streamlines = []
+    npzfile = np.load(tckfile)
+    k = npzfile.files[0]
+    if len(npzfile.files) == 0:
+        print('No files in archive.')
+    elif len(npzfile.files) == 1:      # single tract / streamline
+        if len(npzfile[k][0][0]) == 3:    # k contains a list of Nx3 arrays
+            streamlines = npzfile[k]
+        else:                             # k contains a single Nx3 array
+            streamlines.append(npzfile[k])
+    elif len(npzfile.files) > 1:       # multiple tracts / streamlines
+        if len(npzfile[k][0][0]) == 3:    # k contains a list of Nx3 arrays
+            print('multi-tract npz not supported yet.')
+        else:                             # each k contains a single Nx3 array
+            for k in npzfile:
+                streamlines.append(npzfile[k])
+
+    return streamlines
 
 
 def read_streamlines_dpy(dpyfile):
@@ -1113,6 +1203,25 @@ def read_streamlines_trk(trkfile):
         streamlines = [s[0] for s in streams]
 
         return streamlines
+
+
+def read_streamlines_tck(tckfile):
+    """Return all streamlines in a MRtrix .tck tract file."""
+
+    datatype, offset = read_mrtrix_header(tckfile)
+    streamlinevector = read_mrtrix_tracks(tckfile, datatype, offset)
+    streamlines = unpack_mrtrix_streamlines(streamlinevector)
+
+    return streamlines
+
+
+def read_streamlines_vtk(vtkfile):
+    """Return all streamlines in a (MRtrix) .vtk tract file."""
+
+    points, tracts, scalars, cscalars, lut = import_vtk_polylines(vtkfile)
+    streamlines = unpack_vtk_polylines(points, tracts)
+
+    return streamlines
 
 
 def read_streamlines_Bfloat(fpath):
@@ -1182,15 +1291,6 @@ def unpack_camino_streamline(streamlinevec):
     streamlinevec = np.delete(streamlinevec, indices, 0)
 
     return streamline, streamlinevec
-
-
-def read_streamlines_vtk(vtkfile):
-    """Return all streamlines in a (MRtrix) .vtk tract file."""
-
-    points, tracts, scalars, cscalars, lut = import_vtk_polylines(vtkfile)
-    streamlines = unpack_vtk_polylines(points, tracts)
-
-    return streamlines
 
 
 def import_vtk_polylines(vtkfile):
@@ -1301,16 +1401,6 @@ def unpack_vtk_polylines(points, tracts):
     return streamlines
 
 
-def read_streamlines_tck(tckfile):
-    """Return all streamlines in a MRtrix .tck tract file."""
-
-    datatype, offset = read_mrtrix_header(tckfile)
-    streamlinevector = read_mrtrix_tracks(tckfile, datatype, offset)
-    streamlines = unpack_mrtrix_streamlines(streamlinevector)
-
-    return streamlines
-
-
 def read_mrtrix_header(tckfile):
     """Return the datatype and offset for a MRtrix .tck tract file."""
 
@@ -1364,44 +1454,6 @@ def unpack_mrtrix_streamlines(streamlinevector):
     return streamlines
 
 
-def read_streamline_npy(tckfile):
-    """Read a [Npointsx3] streamline from a *.npy file."""
-
-    streamline = np.load(tckfile)
-
-    return [streamline]
-
-
-def read_streamlines_npz(tckfile):
-    """Return all streamlines from a *.npz file.
-
-    e.g. from 'np.savez_compressed(outfile, streamlines0=streamlines0, ..=..)'
-    NOTE: This doesn't work for .npz pickled in Python 2.x,!! ==>
-    Unicode unpickling incompatibility
-    """
-
-    # TODO: proper checks and error handling
-    # TODO: multitract npz
-    streamlines = []
-    npzfile = np.load(tckfile)
-    k = npzfile.files[0]
-    if len(npzfile.files) == 0:
-        print('No files in archive.')
-    elif len(npzfile.files) == 1:      # single tract / streamline
-        if len(npzfile[k][0][0]) == 3:    # k contains a list of Nx3 arrays
-            streamlines = npzfile[k]
-        else:                             # k contains a single Nx3 array
-            streamlines.append(npzfile[k])
-    elif len(npzfile.files) > 1:       # multiple tracts / streamlines
-        if len(npzfile[k][0][0]) == 3:    # k contains a list of Nx3 arrays
-            print('multi-tract npz not supported yet.')
-        else:                             # each k contains a single Nx3 array
-            for k in npzfile:
-                streamlines.append(npzfile[k])
-
-    return streamlines
-
-
 # ========================================================================== #
 # creating streamlines
 # ========================================================================== #
@@ -1409,6 +1461,7 @@ def read_streamlines_npz(tckfile):
 
 def make_polyline(objname, curvename, cList):
     """Create a 3D curve from a list of points."""
+
     curvedata = bpy.data.curves.new(name=curvename, type='CURVE')
     curvedata.dimensions = '3D'
 
@@ -1427,6 +1480,7 @@ def make_polyline(objname, curvename, cList):
 
 def make_polyline_ob(curvedata, cList):
     """Create a 3D curve from a list of points."""
+
     polyline = curvedata.splines.new('POLY')
     polyline.points.add(len(cList)-1)
     for num in range(len(cList)):
@@ -1438,6 +1492,7 @@ def make_polyline_ob(curvedata, cList):
 
 def make_polyline_ob_vi(curvedata, ob, vi_list):
     """Create a 3D curve from a list of vertex indices."""
+
     polyline = curvedata.splines.new('POLY')
     polyline.points.add(len(vi_list)-1)
     for i, vi in enumerate(vi_list):
