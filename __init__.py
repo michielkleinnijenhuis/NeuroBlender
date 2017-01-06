@@ -366,9 +366,9 @@ class TractBlenderOverlayPanel(Panel):
 
     def drawunit_tri_overlay_material(self, layout, tb, tb_ov):
 
-#         TODO: implement colourbar for all and move into UIList
-#         row = layout.row()
-#         row.prop(tb_ov, "showcolourbar")
+        # TODO: implement colourbar for all and move into UIList
+        # row = layout.row()
+        # row.prop(tb_ov, "showcolourbar")
 
         if tb.objecttype == "tracts":
             ng = bpy.data.node_groups.get("TractOvGroup")
@@ -929,8 +929,8 @@ class ImportTracts(Operator, ImportHelper):
     def execute(self, context):
 
         importtype = "tracts"
-        impdict={"weed_tract": self.weed_tract,
-                 "interpolate_streamlines": self.interpolate_streamlines}
+        impdict = {"weed_tract": self.weed_tract,
+                   "interpolate_streamlines": self.interpolate_streamlines}
         beaudict = {"mode": "FULL",
                     "depth": 0.5,
                     "res": 10}
@@ -1058,7 +1058,7 @@ class ImportSurfaces(Operator, ImportHelper):
                     "use_x": True,
                     "use_y": True,
                     "use_z": True}
-        
+
         self.import_objects(importtype, impdict, beaudict)
 
         return {"FINISHED"}
@@ -1252,17 +1252,20 @@ class AddPreset(Operator):
 
         preset = tb_imp.add_preset_to_collection(name)
         tb_imp.add_camera_to_collection(name+"Cam", preset)
-        tb_imp.add_light_to_collection(name+"Key", preset, type="SPOT", 
-                                       colour=(1.0,1.0,1.0), strength=1000000,
-                                       size=[0.5, 0.5], 
+        tb_imp.add_light_to_collection(name+"Key", preset, type="SPOT",
+                                       colour=(1.0, 1.0, 1.0),
+                                       strength=1000000,
+                                       size=[0.5, 0.5],
                                        distance=5, azimuth=5, elevation=5)
-        tb_imp.add_light_to_collection(name+"Back", preset, type="POINT", 
-                                       colour=(1.0,1.0,1.0), strength=1000000,
-                                       size=[0.1, 0.1], 
+        tb_imp.add_light_to_collection(name+"Back", preset, type="POINT",
+                                       colour=(1.0, 1.0, 1.0),
+                                       strength=1000000,
+                                       size=[0.1, 0.1],
                                        distance=5, azimuth=5, elevation=5)
-        tb_imp.add_light_to_collection(name+"Fill", preset, type="POINT", 
-                                       colour=(1.0,1.0,1.0), strength=1000000,
-                                       size=[0.1, 0.1], 
+        tb_imp.add_light_to_collection(name+"Fill", preset, type="POINT",
+                                       colour=(1.0, 1.0, 1.0),
+                                       strength=1000000,
+                                       size=[0.1, 0.1],
                                        distance=5, azimuth=5, elevation=5)
         tb_imp.add_table_to_collection(name+"Table", preset)
 
@@ -1605,7 +1608,8 @@ class TractBlenderScenePanel(Panel):
                 self.drawunit_lightprops(layout, preset.lights[0])
         elif preset.lights_enum == "Free":
             self.drawunit_UIList(layout, "PL", preset, "lights", addopt=True)
-            self.drawunit_lightprops(layout, preset.lights[preset.index_lights])
+            self.drawunit_lightprops(layout,
+                                     preset.lights[preset.index_lights])
 
     def drawunit_tri_key(self, layout, tb, light):
         self.drawunit_lightprops(layout, light)
@@ -1637,7 +1641,7 @@ class TractBlenderScenePanel(Panel):
         try:
             tab = preset.tables[0]
         except IndexError:
-#             tab = tb_rp.create_table(preset.name+"DissectionTable")
+            # tab = tb_rp.create_table(preset.name+"DissectionTable")
             tab = preset.tables.add()
             preset.index_tables = (len(preset.tables)-1)
         else:
@@ -1697,18 +1701,6 @@ class ScenePreset(Operator):
 
     def execute(self, context):
         tb_rp.scene_preset()
-
-        return {"FINISHED"}
-
-
-class VertexColourFromVertexGroups(Operator):
-    bl_idname = "tb.vertexcolour_from_vertexgroups"
-    bl_label = "Make vertex colour"
-    bl_description = "Turn a set of vertex groups into a vertex paint map"
-    bl_options = {"REGISTER", "UNDO", "PRESET"}
-
-    def execute(self, context):
-        tb_mat.vgs2vc()
 
         return {"FINISHED"}
 
@@ -1839,7 +1831,7 @@ def overlay_enum_callback(self, context):
                   "List the scalar overlays", 1))
     if tb.objecttype != 'tracts':
         items.append(("labelgroups", "labelgroups",
-                  "List the label overlays", 2))
+                      "List the label overlays", 2))
     if tb.objecttype == 'surfaces':
         items.append(("bordergroups", "bordergroups",
                       "List the bordergroups", 3))
@@ -1891,7 +1883,7 @@ def presets_enum_callback(self, context):
     scn = context.scene
     tb = scn.tb
 
-    items = [(ps.name, ps.name, "List the presets", i) 
+    items = [(ps.name, ps.name, "List the presets", i)
              for i, ps in enumerate(tb.presets)]
 
     return items
@@ -1921,14 +1913,14 @@ def campath_enum_callback(self, context):
 
 # def campath_enum_update(self, context):
 #     """Update the campath enum."""
-# 
+#
 #     scn = context.scene
 #     tb = scn.tb
-# 
+#
 #     preset = tb.presets[tb.index_presets]
 #     anim = preset.animations[preset.index_animations]
 # #     anim.campath = anim.campath
-# 
+#
 # def campath_enum_set(self, value):
 #     print("setting value", value)
 
@@ -1993,13 +1985,13 @@ class ScalarProperties(PropertyGroup):
         name="Colourbar placement",
         description="Choose where to show the colourbar",
         default="top-right",
-        items=[("top-right", "top-right", 
+        items=[("top-right", "top-right",
                 "Place colourbar top-right"),
-               ("top-left", "top-left", 
+               ("top-left", "top-left",
                 "Place colourbar top-left"),
-               ("bottom-right", "bottom-right", 
+               ("bottom-right", "bottom-right",
                 "Place colourbar bottom-right"),
-               ("bottom-left", "bottom-left", 
+               ("bottom-left", "bottom-left",
                 "Place colourbar bottom-left")])  # update=colourbar_update
     colourbar_size = FloatVectorProperty(
         name="size",
@@ -2249,9 +2241,9 @@ class TractProperties(PropertyGroup):
     colourtype = EnumProperty(
         name="colourtype",
         description="Apply this colour method",
-        items=[("basic", "basic", 
+        items=[("basic", "basic",
                 "Switch to basic material", 1),
-               ("directional", "directional", 
+               ("directional", "directional",
                 "Switch to directional colour-coding", 2)],
         update=material_enum_update)
     colourpicker = FloatVectorProperty(
@@ -2368,9 +2360,9 @@ class SurfaceProperties(PropertyGroup):
     colourtype = EnumProperty(
         name="colourtype",
         description="Apply this colour method",
-        items=[("basic", "basic", 
+        items=[("basic", "basic",
                 "Switch to basic material", 1),
-               ("directional", "directional", 
+               ("directional", "directional",
                 "Switch to directional colour-coding", 2)],
         update=material_enum_update)
     colourpicker = FloatVectorProperty(
@@ -2459,9 +2451,9 @@ class VoxelvolumeProperties(PropertyGroup):
     colourtype = EnumProperty(
         name="colourtype",
         description="Apply this colour method",
-        items=[("basic", "basic", 
+        items=[("basic", "basic",
                 "Switch to basic material", 1),
-               ("directional", "directional", 
+               ("directional", "directional",
                 "Switch to directional colour-coding", 2)],
         update=material_enum_update)
     colourpicker = FloatVectorProperty(
@@ -2493,13 +2485,13 @@ class VoxelvolumeProperties(PropertyGroup):
         name="Colourbar placement",
         description="Choose where to show the colourbar",
         default="top-right",
-        items=[("top-right", "top-right", 
+        items=[("top-right", "top-right",
                 "Place colourbar top-right"),
-               ("top-left", "top-left", 
+               ("top-left", "top-left",
                 "Place colourbar top-left"),
-               ("bottom-right", "bottom-right", 
+               ("bottom-right", "bottom-right",
                 "Place colourbar bottom-right"),
-               ("bottom-left", "bottom-left", 
+               ("bottom-left", "bottom-left",
                 "Place colourbar bottom-left")])  # update=colourbar_update
     colourbar_size = FloatVectorProperty(
         name="size",
@@ -2654,6 +2646,7 @@ class LightsProperties(PropertyGroup):
         default=5,
         min=1)
 
+
 class TableProperties(PropertyGroup):
     """Properties of table."""
 
@@ -2681,9 +2674,9 @@ class TableProperties(PropertyGroup):
     colourtype = EnumProperty(
         name="colourtype",
         description="Apply this colour method",
-        items=[("basic", "basic", 
+        items=[("basic", "basic",
                 "Switch to basic material", 1),
-               ("directional", "directional", 
+               ("directional", "directional",
                 "Switch to directional colour-coding", 2)],
         update=material_enum_update)
     colourpicker = FloatVectorProperty(
@@ -2818,7 +2811,7 @@ class PresetProperties(PropertyGroup):
         name="Light switch",
         description="switch between lighting modes",
         items=[("Key", "Key", "Use Key lighting only", 1),
-               ("Key-Back-Fill", "Key-Back-Fill", 
+               ("Key-Back-Fill", "Key-Back-Fill",
                 "Use Key-Back-Fill lighting", 2),
                ("Free", "Free", "Set up manually", 3)],
         default="Key-Back-Fill")
