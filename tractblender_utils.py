@@ -160,7 +160,8 @@ def validate_texture_path(voxelvolume):
 def validate_nibabel(ext):
     """Try to import nibabel."""
 
-    tb = bpy.context.scene.tb
+    scn = bpy.context.scene
+    tb = scn.tb
 
     add_path(tb.nibabel_path)
     try:
@@ -169,7 +170,8 @@ def validate_nibabel(ext):
         return nib
     except ImportError:
         tb.nibabel_valid = False
-        return {'cannot read ' + ext + ': nibabel not found'}
+        raise
+#         return {'cannot read ' + ext + ': nibabel not found'}
 
 
 def validate_dipy(ext):
