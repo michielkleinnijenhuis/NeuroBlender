@@ -56,15 +56,13 @@ from . import external_sitepackages as ext_sp
 
 
 bl_info = {
-    "name": "TractBlender",
+    "name": "NeuroBlender",
     "author": "Michiel Kleinnijenhuis",
-    "version": (0, 0, 5),
-    "blender": (2, 77, 0),
-    "location": "Properties -> Scene -> TractBlender",
+    "version": (0, 0, 6),
+    "blender": (2, 78, 0),
+    "location": "Properties -> Scene -> NeuroBlender",
     "description": """"
-        This add-on focusses on visualising dMRI tractography results.
-        Brain surfaces can be addded with overlays and labels.
-        Camera, material and lighting presets can be loaded.
+        This add-on focusses on visualising MRI data.
         """,
     "warning": "",
     "wiki_url": "",
@@ -78,7 +76,7 @@ bl_info = {
 class TractBlenderBasePanel(Panel):
     """Host the TractBlender base geometry"""
     bl_idname = "OBJECT_PT_tb_geometry"
-    bl_label = "TractBlender - Base"
+    bl_label = "NeuroBlender - Base"
     bl_space_type = "PROPERTIES"
     bl_region_type = "WINDOW"
     bl_context = "scene"
@@ -321,7 +319,7 @@ class TractBlenderBasePanel(Panel):
 class TractBlenderOverlayPanel(Panel):
     """Host the TractBlender overlay functions"""
     bl_idname = "OBJECT_PT_tb_overlays"
-    bl_label = "TractBlender - Overlays"
+    bl_label = "NeuroBlender - Overlays"
     bl_space_type = "PROPERTIES"
     bl_region_type = "WINDOW"
     bl_context = "scene"
@@ -1426,7 +1424,7 @@ class RevertLabel(Operator):
 class TractBlenderScenePanel(Panel):
     """Host the TractBlender scene setup functionality"""
     bl_idname = "OBJECT_PT_tb_scene"
-    bl_label = "TractBlender - Scene setup"
+    bl_label = "NeuroBlender - Scene setup"
     bl_space_type = "PROPERTIES"
     bl_region_type = "WINDOW"
     bl_context = "scene"
@@ -1589,7 +1587,7 @@ class VertexColourFromVertexGroups(Operator):
 class TractBlenderSettingsPanel(Panel):
     """Host the TractBlender settings"""
     bl_idname = "OBJECT_PT_tb_settings"
-    bl_label = "TractBlender - Settings"
+    bl_label = "NeuroBlender - Settings"
     bl_space_type = "PROPERTIES"
     bl_region_type = "WINDOW"
     bl_context = "scene"
