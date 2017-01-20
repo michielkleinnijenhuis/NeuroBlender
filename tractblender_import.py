@@ -32,6 +32,7 @@ import xml.etree.ElementTree
 
 from . import tractblender_beautify as tb_beau
 from . import tractblender_materials as tb_mat
+from . import tractblender_renderpresets as tb_rp
 from . import tractblender_utils as tb_utils
 
 # ========================================================================== #

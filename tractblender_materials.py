@@ -726,13 +726,7 @@ def get_voxmat(matname, img, dims, file_format="IMAGE_SEQUENCE",
             el = cre.new(pos)
             el.color = label.colour
     elif is_overlay:
-        cr = tex.color_ramp
-        cr.color_mode = 'HSV'
-        cr.hue_interpolation = 'FAR'
-        cre = cr.elements
-        cre[0].color = (0, 0.01, 1, 0)
-        cre[1].color = (0, 0,    1, 1)
-        # TODO: get easily customizable overlay colorramps
+        switch_colourmap(tex, "jet")
 
     mat = bpy.data.materials.new(matname)
     mat.type = "VOLUME"
@@ -746,6 +740,91 @@ def get_voxmat(matname, img, dims, file_format="IMAGE_SEQUENCE",
     texslot.use_map_emission = True
 
     return mat
+
+
+def switch_colourmap(tex, colourmap="greyscale", tb_coll=None):
+    """"""
+
+    if colourmap == "greyscale":
+        cmdict = {"color_mode": "RGB",
+                  "interpolation": "LINEAR",
+                  "hue_interpolation": "FAR",
+                  "elements": [{"position": 0, "color": (0, 0, 0, 0)},
+                               {"position": 1, "color": (1, 1, 1, 1)}]}
+    elif colourmap == "jet":
+        cmdict = {"color_mode": "HSV",
+                  "interpolation": "LINEAR",
+                  "hue_interpolation": "FAR",
+                  "elements": [{"position": 0, "color": (0, 0, 1, 0)},
+                               {"position": 1, "color": (1, 0, 0, 1)}]}
+    elif colourmap == "hsv":
+        cmdict = {"color_mode": "HSV",
+                  "interpolation": "LINEAR",
+                  "hue_interpolation": "FAR",
+                  "elements": [{"position": 0, "color": (1, 0, 0.000, 0)},
+                               {"position": 1, "color": (1, 0, 0.001, 1)}]}
+    elif colourmap == "hot":
+        cmdict = {"color_mode": "RGB",
+                  "interpolation": "LINEAR",
+                  "hue_interpolation": "FAR",
+                  "elements": [{"position": 0.0000, "color": (0, 0, 0, 0.0000)},
+                               {"position": 0.3333, "color": (1, 0, 0, 0.3333)},
+                               {"position": 0.6667, "color": (1, 1, 0, 0.6667)},
+                               {"position": 1.0000, "color": (1, 1, 1, 1.0000)}]}
+    elif colourmap == "cool":
+        cmdict = {"color_mode": "RGB",
+                  "interpolation": "LINEAR",
+                  "hue_interpolation": "FAR",
+                  "elements": [{"position": 0, "color": (0, 1, 1, 0)},
+                               {"position": 1, "color": (1, 0, 1, 1)}]}
+    elif colourmap == "spring":
+        cmdict = {"color_mode": "RGB",
+                  "interpolation": "LINEAR",
+                  "hue_interpolation": "FAR",
+                  "elements": [{"position": 0, "color": (1, 0, 1, 0)},
+                               {"position": 1, "color": (1, 1, 0, 1)}]}
+    elif colourmap == "summer":
+        cmdict = {"color_mode": "RGB",
+                  "interpolation": "LINEAR",
+                  "hue_interpolation": "FAR",
+                  "elements": [{"position": 0, "color": (0, 0.216, 0.133, 0)},
+                               {"position": 1, "color": (1, 1.000, 0.133, 1)}]}
+    elif colourmap == "autumn":
+        cmdict = {"color_mode": "RGB",
+                  "interpolation": "LINEAR",
+                  "hue_interpolation": "FAR",
+                  "elements": [{"position": 0, "color": (1, 0, 0, 0)},
+                               {"position": 1, "color": (1, 1, 0, 1)}]}
+    elif colourmap == "winter":
+        cmdict = {"color_mode": "RGB",
+                  "interpolation": "LINEAR",
+                  "hue_interpolation": "FAR",
+                  "elements": [{"position": 0, "color": (0, 0, 1.000, 0)},
+                               {"position": 1, "color": (0, 1, 0.216, 1)}]}
+    elif colourmap == "parula":
+        cmdict = {"color_mode": "RGB",
+                  "interpolation": "LINEAR",
+                  "hue_interpolation": "FAR",
+                  "elements": [{"position": 0.0, "color": (0.036, 0.023, 0.242, 0.0)},
+                               {"position": 0.2, "color": (0.005, 0.184, 0.708, 0.2)},
+                               {"position": 0.4, "color": (0.002, 0.402, 0.533, 0.4)},
+                               {"position": 0.6, "color": (0.195, 0.521, 0.202, 0.6)},
+                               {"position": 0.8, "color": (0.839, 0.485, 0.072, 0.8)},
+                               {"position": 1.0, "color": (0.947, 0.965, 0.004, 1.0)}]}
+
+    cr = tex.color_ramp
+    cr.color_mode = cmdict["color_mode"]
+    cr.interpolation = cmdict["interpolation"]
+    cr.hue_interpolation = cmdict["hue_interpolation"]
+    cre = cr.elements
+    while len(cre) > 1:
+        cre.remove(cre[0])
+
+    cre[0].position = cmdict["elements"][0]["position"]
+    cre[0].color = cmdict["elements"][0]["color"]
+    for elem in cmdict["elements"][1:]:
+        el = cre.new(elem["position"])
+        el.color = elem["color"]
 
 
 # ========================================================================== #
