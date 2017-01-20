@@ -887,7 +887,7 @@ def add_voxelvolume_to_collection(name, fpath, sformfile, datarange):
     tb.objecttype = 'voxelvolumes'
 
     vvol = tb.voxelvolumes.add()
-    tb.index_voxelvolume = (len(tb.voxelvolumes)-1)
+    tb.index_voxelvolumes = (len(tb.voxelvolumes)-1)
 
     vvol.name = name
     vvol.filepath = fpath
