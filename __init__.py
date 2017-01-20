@@ -73,6 +73,22 @@ bl_info = {
 # =========================================================================== #
 
 
+class Reload(Operator):
+    bl_idname = "tb.reload"
+    bl_label = "Reload"
+    bl_description = "Reload"
+    bl_options = {"REGISTER", "UNDO", "PRESET"}
+
+    def execute(self, context):
+
+        # FIXME: Blender crashes on reload
+        tb_path = "/Users/michielk/workspace/TractBlender/TractBlender.zip"
+        bpy.ops.wm.addon_install(filepath=tb_path)
+        bpy.ops.wm.addon_enable(module="TractBlender")
+
+        return {"FINISHED"}
+
+
 class TractBlenderBasePanel(Panel):
     """Host the TractBlender base geometry"""
     bl_idname = "OBJECT_PT_tb_geometry"
