@@ -36,14 +36,94 @@ from . import tractblender_utils as tb_utils
 # ========================================================================== #
 
 
+def scene_preset_init(name):
+
+    scn = bpy.context.scene
+    tb = scn.tb
+
+    """any additional settings for render"""
+    scn.cycles.caustics_refractive = False
+    scn.cycles.caustics_reflective = False
+
+    obs = get_render_objects(tb)
+    centre_location, dims = get_brainbounds(obs)
+
+    # remove the preset if it exists
+    delete_preset(name)
+
+    # create objects in the preset
+
+    tb_preset = tb_imp.add_preset_to_collection(name)
+    # preset is simply a container with all default blender units (all locked)
+    preset = bpy.data.objects.new(name=tb_preset.name, object_data=None)
+    scn.objects.link(preset)
+    props = [preset.lock_location, preset.lock_rotation, preset.lock_scale]
+    for prop in props:
+        for dim in prop:
+            dim = True
+    # centre is an empty the scene centre location and scene dimensions
+    centre = bpy.data.objects.new(name+"Centre", None)
+    scn.objects.link(centre)
+    centre.parent = preset
+    centre.location = centre_location
+    centre.scale = 0.5 * Vector(dims)
+    tb_preset.centre = centre.name
+    tb_preset.dims = dims
+
+    # box is an empty with location yoked to centre and cuboid dimensions of max(dims)
+    # this is mainly for camera and light scaling in the space of the scene
+    box = bpy.data.objects.new(name+"Box", None)
+    scn.objects.link(box)
+    box.parent = preset
+    box.location = (0, 0, 0)
+    box.scale = 0.5 * Vector([max(dims), max(dims), max(dims)])
+    tb_preset.box = box.name
+    props = {"use_location_x": True,
+             "use_location_y": True,
+             "use_location_z": True,
+             "use_rotation_x": True,
+             "use_rotation_y": True,
+             "use_rotation_z": True,
+             "use_scale_x": False,
+             "use_scale_y": False,
+             "use_scale_z": False}
+    add_constraint(box, "CHILD_OF", "Child Of", centre, props)
+
+    tb_cam = tb_imp.add_camera_to_collection(name+"Cam", tb_preset)
+    create_camera(tb_cam, preset, centre, box)
+
+    lights = bpy.data.objects.new(name+"Lights", None)
+    scn.objects.link(lights)
+    lights.parent = box
+    for idx in [0,1]:
+        driver = lights.driver_add("scale", idx).driver
+        driver.type = 'SCRIPTED'
+        driver.expression = "scale"
+        create_var(driver, "scale", 'SINGLE_PROP', 'OBJECT',
+                   lights, "scale[2]")
+
+    keystrength = 10000000
+    tb_imp.add_light_to_collection(name+"Key", tb_preset, type="SPOT",
+                                   strength=keystrength, location=(1, 4, 6))
+    tb_imp.add_light_to_collection(name+"Fill", tb_preset, type="SPOT",
+                                   strength=0.2*keystrength, location=(4, -1, 1))
+    tb_imp.add_light_to_collection(name+"Back", tb_preset, type="POINT",
+                                   strength=1000000, location=(-4, -4, 3))
+    for tb_light in tb_preset.lights:
+        create_light(tb_light, preset, centre, box, lights)
+
+    tb_table = tb_imp.add_table_to_collection(name+"Table", tb_preset)
+    create_table(tb_table, preset, centre)
+
+    bpy.ops.tb.switch_to_main()
+    to_camera_view()
+
+
 def scene_preset(name="Brain", layer=10):
     """Setup a scene for render."""
 
-    # TODO: manage presets: e.g. put each preset in an empty, etc
     # TODO: option to save presets
     # TODO: set presets up as scenes?
-    # TODO: check against all names before preset name is accepted
-    #       and check all import names against preset names
 #     name = 'Preset'
 #     new_scene = bpy.data.scenes.new(name)
 #     preset = bpy.data.objects.new(name=name, object_data=None)
@@ -54,64 +134,48 @@ def scene_preset(name="Brain", layer=10):
 
     tb_preset = tb.presets[tb.index_presets]
     tb_cam = tb_preset.cameras[0]
-    tb_anims = tb_preset.animations
     tb_lights = tb_preset.lights
     tb_tab = tb_preset.tables[0]
+    tb_anims = tb_preset.animations
 
     name = tb_preset.name
 
-    # check if there are objects to render
-    obnames = [[tb_ob.name for tb_ob in tb_coll if tb_ob.is_rendered]
-               for tb_coll in [tb.tracts, tb.surfaces, tb.voxelvolumes]]
-    obs = [bpy.data.objects[item] for sublist in obnames for item in sublist]
-    if not obs:
-        print('no TractBlender objects selected for render')
-        return {'CANCELLED'}
+    preset = bpy.data.objects[name]
+    centre = bpy.data.objects[name+"Centre"]
+    dims = tb_preset.dims
+    cam = bpy.data.objects[name+"Cam"]
+    table = bpy.data.objects[name+"Table"]
+    lights = bpy.data.objects[name+"Lights"]
 
-    """create the preset"""
-    # remove the preset if it exists
-    delete_preset(name)
+    preset_obs = [preset, centre, cam, table, lights] + list(lights.children)
 
-    # create objects in the preset
-    preset = bpy.data.objects.new(name=name, object_data=None)
-    bpy.context.scene.objects.link(preset)
-    preset_obs = [preset]
+#     # remove the preset if it exists
+#     delete_preset(name)
 
-    centre, dims = get_brainbounds(name+"Centre", obs)
-    centre.parent = preset
-    preset_obs = preset_obs + [centre]
-
-    """animate"""
-    scn.frame_start = tb_preset.frame_start
-    scn.frame_end = tb_preset.frame_end
-
-    # camera paths
+    # camera path animations
     cam_anims = [anim for anim in tb_anims
                  if ((anim.animationtype == "CameraPath") &
                      (anim.is_rendered))]
-    for anim in cam_anims:
-        if anim.campath == "New path":
-            cpname = anim.name + "CamPath"  # TODO: check unique name
-            campath = create_camera_path(cpname, tb_preset, centre, dims,
-                                         Vector(tb_cam.cam_view), anim.axis)
-            anim.campath = cpname  # TODO: update enum to cpname
-        else:
-            campath = bpy.data.objects[anim.campath]
-        campath.hide_render = True
-        campath.parent = preset
-        preset_obs = preset_obs + [campath]
-
-    cam = create_camera(name+"Cam", centre, dims,
-                        Vector(tb_cam.cam_view), cam_anims)
-    cam.parent = preset
-    preset_obs = preset_obs + [cam]
+    clear_camera_path_animations(cam, cam_anims)
+    create_camera_path_animations(cam, cam_anims)
 
     # slice fly-throughs
     slice_anims = [anim for anim in tb_anims
-                   if ((anim.animationtype == "TranslateSlice") &
+                   if ((anim.animationtype == "Slices") &
                        (anim.is_rendered))]
+    # delete previous animation on slicebox
     for anim in slice_anims:
-        pass  # TODO
+#         vvol = tb.voxelvolumes[anim.anim_voxelvolume]
+        vvol = bpy.data.objects[anim.anim_voxelvolume]
+        vvol.animation_data_clear()
+
+    for anim in slice_anims:
+        vvol = tb.voxelvolumes[anim.anim_voxelvolume]
+        animate_slicebox(vvol, anim,
+                         anim.axis,
+                         anim.frame_start,
+                         anim.frame_end,
+                         anim.repetitions)
 
     # time series
     time_anims = [anim for anim in tb_anims
@@ -120,14 +184,12 @@ def scene_preset(name="Brain", layer=10):
     for anim in time_anims:
         pass  # TODO
 
-    table = create_table(name+"DissectionTable", centre, dims)
-    table.parent = preset
-    preset_obs = preset_obs + [table]
 
-    lights = create_lighting(name+"Lights", centre, dims, cam)
-    lights.parent = preset
-    preset_obs = preset_obs + [lights]
-    preset_obs = preset_obs + list(lights.children)
+    for anim in cam_anims:
+        # FIXME: handle case when no campaths exist/selected
+        campath = bpy.data.objects[anim.campaths_enum]
+        if campath not in preset_obs:
+            preset_obs = preset_obs + [campath]
 
     cbars = create_colourbars(name+"Colourbars", cam)
 #     cbars.parent = cam  # already made it parent
@@ -169,21 +231,17 @@ def scene_preset(name="Brain", layer=10):
     # Cycles Render
     cycles_obs = preset_obs + tracts + surfaces + bordergroups + borders
     prep_scenes(name + '_cycles', 'CYCLES', 'GPU',
-                [0, 1, 10], True, cycles_obs)
+                [0, 1, 10], True, cycles_obs, tb_preset)
     # Blender Render
     internal_obs = [preset] + [centre] + [cam] + voxelvolumes + vv_children
     prep_scenes(name + '_internal', 'BLENDER_RENDER', 'CPU',
-                [2], False, internal_obs)
+                [2], False, internal_obs, tb_preset)
     # Composited
     prep_scene_composite(scn, name, 'BLENDER_RENDER')
 
     """go to the appropriate window views"""
     bpy.ops.tb.switch_to_main()
     to_camera_view()
-
-    """any additional settings for render"""
-    scn.cycles.caustics_refractive = False
-    scn.cycles.caustics_reflective = False
 
     return {'FINISHED'}
 
@@ -213,6 +271,8 @@ def delete_preset(name):
         ob.select = ob.name.startswith(name)
     bpy.context.scene.objects.active = ob
     bpy.ops.object.delete()
+
+    # TODO: delete animations
 
 
 def renderselections_tracts(tb_obs):
@@ -288,7 +348,7 @@ def renderselections_overlays(ob, tb_ovs, vgs=[], mat_idxs=[]):
     return vgs, mat_idxs
 
 
-def prep_scenes(name, engine, device, layers, use_sky, obs):
+def prep_scenes(name, engine, device, layers, use_sky, obs, tb_preset):
     """"""
 
     scns = bpy.data.scenes
@@ -298,6 +358,9 @@ def prep_scenes(name, engine, device, layers, use_sky, obs):
         bpy.ops.scene.new(type='NEW')
         scn = scns[-1]
         scn.name = name
+
+    scn.frame_start = tb_preset.frame_start
+    scn.frame_end = tb_preset.frame_end
 
     scn.render.engine = engine
     scn.cycles.device = device
@@ -371,14 +434,6 @@ def switch_mode_preset(lights, tables, newmode, cam_view):
         table.hide_render = state
 
 
-def to_camera_view():
-    """Set 3D viewports to camera perspective."""
-
-    for area in bpy.context.screen.areas:
-        if area.type == 'VIEW_3D':
-            area.spaces[0].region_3d.view_perspective = 'CAMERA'
-
-
 def validate_voxelvolume_textures(tb):
     """"Validate or update the texture files for voxelvolumes."""
 
@@ -396,18 +451,33 @@ def validate_voxelvolume_textures(tb):
                 fp = tb_imp.prep_nifti(vl.filepath, vl.name, True)[0]
 
 
-def get_brainbounds(name, obs):
+def get_render_objects(tb):
+    """Gather all objects listed for render."""
+
+    obnames = [[tb_ob.name for tb_ob in tb_coll if tb_ob.is_rendered]
+               for tb_coll in [tb.tracts, tb.surfaces, tb.voxelvolumes]]
+
+    obs = [bpy.data.objects[item] for sublist in obnames for item in sublist]
+
+    return obs
+
+
+def get_brainbounds(obs):
     """Find the boundingbox, dimensions and centre of the objects."""
 
-    bb_min, bb_max = np.array(find_bbox_coordinates(obs))
-    dims = np.subtract(bb_max, bb_min)
-    centre_co = bb_min + dims / 2
+    if not obs:
+        print("""
+              no objects selected for render: 
+              setting location and dimensions to default.
+              """)
+        centre_location = [0, 0, 0]
+        dims = [100, 100, 100]
+    else:
+        bb_min, bb_max = np.array(find_bbox_coordinates(obs))
+        dims = np.subtract(bb_max, bb_min)
+        centre_location = bb_min + dims / 2
 
-    centre = bpy.data.objects.new(name=name, object_data=None)
-    centre.location = centre_co
-    bpy.context.scene.objects.link(centre)
-
-    return centre, dims
+    return centre_location, dims
 
 
 def find_bbox_coordinates(obs):
@@ -426,96 +496,56 @@ def find_bbox_coordinates(obs):
 # ========================================================================== #
 
 
-def create_camera(name, centre=np.array([0, 0, 0]),
-                  dims=np.array([100, 100, 100]),
-                  camview=Vector((1, 1, 1)), anims=[]):
-    """"""
+def create_camera(tb_cam, preset, centre, box):
+    """Add a camera to the scene."""
 
     scn = bpy.context.scene
 
-    cam = bpy.data.cameras.new(name=name)
-    ob = bpy.data.objects.new(name, cam)
-    scn.objects.link(ob)
-    cam = ob.data
-    cam.show_name = True
+    camdata = bpy.data.cameras.new(name=tb_cam.name)
+    camdata.show_name = True
+    camdata.draw_size = 0.2
+    camdata.type = 'PERSP'
+    camdata.lens = 35
+    camdata.lens_unit = 'MILLIMETERS'
+    camdata.shift_x = 0.0
+    camdata.shift_y = 0.0
+    camdata.clip_start = box.scale[0] / 5
+    camdata.clip_end = box.scale[0] * 10
 
-    cam.type = 'PERSP'
-    cam.lens = 75
-    cam.lens_unit = 'MILLIMETERS'
-    cam.shift_x = 0.0
-    cam.shift_y = 0.0
-    cam.clip_start = min(dims) / 10
-    cam.clip_end = max(dims) * 20
+    cam = bpy.data.objects.new(tb_cam.name, camdata)
+    cam.parent = preset
+    cam.location = tb_cam.cam_view
+    scn.objects.link(cam)
 
-    animframes = set([])
-    if anims:
-        for anim in anims:
-            campath = bpy.data.objects[anim.campath]
-            cns = add_constraint(ob, "FOLLOW_PATH",
-                                 "FollowPath" + anim.campath, campath)
-
-            kfs = {anim.frame_start: 1, anim.frame_end: 1}
-            if anim.frame_start - scn.frame_start > 0:
-                kfs[scn.frame_start] = 0
-            if anim.frame_start - scn.frame_start > 1:
-                kfs[anim.frame_start-1] = 0
-            if scn.frame_end - anim.frame_end > 0:
-                kfs[scn.frame_end] = 0
-            if scn.frame_end - anim.frame_end > 1:
-                kfs[anim.frame_end+1] = 0
-
-            for k, v in kfs.items():
-                scn.frame_set(k)
-                cns.influence = v
-                cns.keyframe_insert(data_path="influence", index=-1)
-
-            animate_camera(ob, campath, anim,
-                           anim.axis,
-                           anim.frame_start,
-                           anim.frame_end,
-                           anim.repetitions)
-            ob.location = (0, 0, 0)
-            animframes = animframes | set(range(anim.frame_start,
-                                                anim.frame_end + 1))
-
-        allframes = set(range(scn.frame_start, scn.frame_end))
-        restframes = allframes - animframes
-        cns = add_constraint(ob, "FOLLOW_PATH", "FollowPath", campath)
-        cns.use_fixed_location = True
-        for fr in allframes:
-            scn.frame_set(fr)
-            cns.influence = (fr in restframes)
-            cns.keyframe_insert(data_path="influence", index=-1)
-
-    else:
-        dist = max(dims) * camview
-        ob.location = (centre.location[0] + dist[0],
-                       centre.location[1] + dist[1],
-                       centre.location[2] + dist[2])
-
-    add_constraint(ob, "TRACK_TO", "TrackToCentre", centre)  # LOCKED_TRACK?
-    add_constraint(ob, "LIMIT_DISTANCE",
-                   "LimitDistInClipSphere", centre, cam.clip_end)
-    add_constraint(ob, "LIMIT_DISTANCE",
-                   "LimitDistOutBrainSphere", centre, max(dims))
+    add_constraint(cam, "CHILD_OF", "Child Of", box)
+    add_constraint(cam, "TRACK_TO", "TrackToCentre", centre)
+#     add_cam_constraints(cam)
 
     # depth-of-field
 #     empty = bpy.data.objects.new('DofEmpty', None)
 #     empty.location = centre.location
-#     cam.dof_object = empty
+#     camdata.dof_object = empty
 #     scn.objects.link(empty)
     # TODO: let the empty follow the brain outline
-#     cycles = cam.cycles
+#     cycles = camdata.cycles
 #     cycles.aperture_type = 'FSTOP'
 #     cycles.aperture_fstop = 5.6
 
-    scn.camera = ob
+    scn.camera = cam
 
-    return ob
+    return cam
+
+
+def to_camera_view():
+    """Set 3D viewports to camera perspective."""
+
+    for area in bpy.context.screen.areas:
+        if area.type == 'VIEW_3D':
+            area.spaces[0].region_3d.view_perspective = 'CAMERA'
 
 
 def add_constraint(ob, type, name, target, val=None):
-    """"""
+    """Add a constraint to the camera."""
 
     cns = ob.constraints.new(type)
     cns.name = name
@@ -538,9 +568,401 @@ def add_constraint(ob, type, name, target, val=None):
         cns.limit_mode = 'LIMITDIST_INSIDE'
         cns.distance = val
     elif name.startswith('FollowPath'):
-        cns.use_curve_follow = True
+        cns.use_curve_follow = val == "TrackPath"
+        if val == 'TrackPath':
+            cns.forward_axis = 'TRACK_NEGATIVE_Z'
+            cns.up_axis = 'UP_Y'
+    elif name.startswith('Child Of'):
+        if val is not None:
+            for k, v in val.items():
+                exec("cns.%s = v" % k)
 
     return cns
+
+
+def add_cam_constraints(cam):
+    """Add defaults constraints to the camera."""
+
+    scn = bpy.context.scene
+    tb = scn.tb
+    tb_preset = tb.presets[tb.index_presets]
+    centre = bpy.data.objects[tb_preset.name+'Centre']
+
+    cnsTT = add_constraint(cam, "TRACK_TO", "TrackToCentre", centre)
+    cnsLDi = add_constraint(cam, "LIMIT_DISTANCE",
+                            "LimitDistInClipSphere", centre, cam.data.clip_end)
+    cnsLDo = add_constraint(cam, "LIMIT_DISTANCE",
+                            "LimitDistOutBrainSphere", centre, max(centre.scale) * 2)
+
+    return cnsTT, cnsLDi, cnsLDo
+
+# bpy.data.actions[24].name
+def clear_camera_path_animations(cam, anims):
+    """Clear a set of camera animations."""
+
+    scn = bpy.context.scene
+
+    # the constraints will still contain the animation data
+    # when adding them again with the same name
+#     cam.animation_data_clear()
+
+    if not cam.animation_data:
+        return
+
+    try:
+        cns = cam.constraints["TrackToCentre"]
+    except:
+        pass
+    else:
+        # find all keyframes
+        for fr in range(0, scn.frame_end):
+            cns.keyframe_delete("influence", frame=fr)
+
+    try:
+        cns = cam.constraints["Child Of"]
+        cns.keyframe_delete("use_location_x", 0)
+    except:
+        pass
+    else:
+        props = {"use_location_x": True,
+                 "use_location_y": True,
+                 "use_location_z": True,
+                 "use_rotation_x": True,
+                 "use_rotation_y": True,
+                 "use_rotation_z": True,
+                 "use_scale_x": False,
+                 "use_scale_y": False,
+                 "use_scale_z": False}
+        for fr in range(0, scn.frame_end):
+            for k, v in props.items():
+                cns.keyframe_delete(k, frame=fr)
+
+    for anim in anims:
+        # FIXME: handle case when no campaths exist/selected
+#         campath = bpy.data.objects[anim.campaths_enum]
+#         campath.animation_data_clear()
+
+        cnsname = "FollowPath" + anim.campaths_enum
+        try:
+            cns = cam.constraints[cnsname]
+        except:
+            pass
+        else:
+            for fr in range(0, scn.frame_end):
+                cns.keyframe_delete("influence", frame=fr)
+                cns.keyframe_delete("use_fixed_location", frame=fr)
+                cns.keyframe_delete("offset_factor", frame=fr)
+
+
+def create_camera_path_animations(cam, anims):
+    """Keyframe a set of camera animations."""
+
+    if not anims:
+        return
+
+    scn = bpy.context.scene
+    tb = scn.tb
+    tb_preset = tb.presets[tb.index_presets]
+    centre = bpy.data.objects[tb_preset.centre]
+    box = bpy.data.objects[tb_preset.box]
+
+    # there is no way to reorder constraints without ops:
+    # remove all constraints and add them again later
+    override = bpy.context.copy()
+    for cns in cam.constraints:
+        override['constraint'] = cns
+        bpy.ops.constraint.delete(override)
+    # alternative: add this in somewhere
+#         override = bpy.context.copy()
+#         override['constraint'] = cns
+#         for _ in range(0,n_cns):
+#             bpy.ops.constraint.move_up(override, constraint=cns.name)
+
+    anim_blocks = separate_anim_blocks(anims)
+    timeline = generate_timeline(scn, anims, anim_blocks)
+
+    for anim in anims:
+        campath = bpy.data.objects[anim.campaths_enum]
+        animate_campath(campath, anim)
+        animate_camera(cam, anim, campath)
+
+    cnsCO = add_constraint(cam, "CHILD_OF", "Child Of", box)
+    restrict_trans_timeline(scn, cnsCO, timeline, group="ChildOf")
+
+    cnsTT = add_constraint(cam, "TRACK_TO", "TrackToCentre", centre)
+    restrict_incluence_timeline(scn, cnsTT, timeline, group="TrackTo")
+
+
+def separate_anim_blocks(anims):
+    """"""
+
+    scn = bpy.context.scene
+
+    # sort animations in order of anim.frame_start
+    fframes = [anim.frame_start for anim in anims]
+    order = np.argsort(fframes)
+    anims = [anims[i] for i in order]
+
+    # define intervals for the animations
+    anim_blocks = [[scn.frame_start, scn.frame_end]]
+    anims[0].anim_block = [int(anim_blocks[0][0]), int(anim_blocks[0][1])]
+    if len(anims) > 1:
+        for i, anim in enumerate(anims[1:]):
+            frame_e = anims[i].frame_end
+            frame_s = anim.frame_start
+            frame_b = frame_e + np.ceil(((frame_s - frame_e) / 2))
+            anim_blocks[i][1] = frame_b - 1
+            anims[i].anim_block = [int(anim_blocks[i][0]), int(anim_blocks[i][1])]
+            newblock = [frame_b, scn.frame_end]
+            anim_blocks.append(newblock)
+
+        anims[-1].anim_block = [int(anim_blocks[-1][0]), int(anim_blocks[-1][1])]
+
+    # TODO: generate warning/error on overlapping animation intervals
+#             lastframe = anim.frame_end
+#             if anim.frame_start < lastframe:
+#                 print('WARNING: overlapping animation intervals detected')
+
+    return anim_blocks
+
+
+def generate_timeline(scn, anims, anim_blocks):
+    """"""
+
+    timeline = np.zeros(scn.frame_end + 1)
+    for anim, anim_block in zip(anims, anim_blocks):
+        for i in range(int(anim_block[0]), int(anim_block[1]) + 1):
+            timeline[i] = anim.tracktype == 'TrackCentre'
+
+    return timeline
+
+
+def animate_campath(campath=None, anim=None):
+    """Set up camera path animation."""
+
+    scn = bpy.context.scene
+
+    campath.data.use_path = True
+    animdata = campath.data.animation_data_create()
+    animdata.action = bpy.data.actions.new("%sAction" % campath.data.name)
+    fcu = animdata.action.fcurves.new("eval_time")
+    mod = fcu.modifiers.new('GENERATOR')
+
+    intercept, slope, _ = calculate_coefficients(campath, anim)
+    mod.coefficients = (intercept, slope)
+
+    if 0:
+        mod.use_restricted_range = True
+        mod.frame_start = anim.frame_start
+        mod.frame_end = anim.frame_end
+
+        mod = fcu.modifiers.new('LIMITS')
+        mod.use_restricted_range = mod.use_min_y = mod.use_max_y = True
+        mod.min_y = mod.max_y = max_val
+        mod.frame_start = anim.frame_end
+        mod.frame_end = scn.frame_end
+
+
+def calculate_coefficients(campath, anim):
+    """"""
+
+    max_val = anim.repetitions * campath.data.path_duration
+    slope = max_val / (anim.frame_end - anim.frame_start)
+    intercept = -(anim.frame_start) * slope
+
+    if anim.reverse:
+        intercept = -intercept
+        slope = -slope
+        max_val = -max_val
+
+    return intercept, slope, max_val
+
+
+def animate_camera(cam, anim, campath):
+    """Set up camera animation."""
+
+    scn = bpy.context.scene
+
+    cnsname = "FollowPath" + anim.campaths_enum
+    cns = add_constraint(cam, "FOLLOW_PATH", cnsname, campath, anim.tracktype)
+    restrict_incluence(cns, [anim.anim_block[0], anim.anim_block[1]])
+
+    cns.offset = anim.offset * -100
+
+    group = "CamPathAnim"
+    interval_head = [scn.frame_start, anim.frame_start - 1]
+    interval_anim = [anim.frame_start, anim.frame_end]
+    interval_tail = [anim.frame_end + 1, scn.frame_end]
+    for fr in interval_head:
+        scn.frame_set(fr)
+        cns.use_fixed_location = 1
+        cns.offset_factor = 0
+        cns.keyframe_insert("use_fixed_location", group=group)
+        cns.keyframe_insert("offset_factor", group=group)
+    for fr in interval_tail:
+        scn.frame_set(fr)
+        cns.use_fixed_location = 1
+        cns.offset_factor = (anim.repetitions + anim.offset) % 1
+        cns.keyframe_insert("use_fixed_location", group=group)
+        cns.keyframe_insert("offset_factor", group=group)
+    for fr in interval_anim:
+        scn.frame_set(fr)
+        cns.use_fixed_location = 0
+        cns.offset_factor = anim.offset
+        cns.keyframe_insert("use_fixed_location", group=group)
+        cns.keyframe_insert("offset_factor", group=group)
+
+
+def setup_animation_rendering(filepath="render/anim",
+                              file_format="AVI_JPEG",
+                              blendpath=""):
+    """Set rendering properties for animations."""
+
+    scn = bpy.context.scene
+
+    scn.render.filepath = filepath
+    scn.render.image_settings.file_format = file_format
+    bpy.ops.render.render(animation=True)
+
+    bpy.ops.wm.save_as_mainfile(filepath=blendpath)
+
+
+def restrict_trans_timeline(scn, cns, timeline, group=""):
+    """"""
+
+    for prop in ["use_location_x", "use_location_y", "use_location_z",
+                 "use_rotation_x", "use_rotation_y", "use_rotation_z"]:
+        scn.frame_set(0)
+        exec("cns.%s = True" % prop)
+        cns.keyframe_insert(prop, group=group)
+        scn.frame_set(scn.frame_end + 1)
+        exec("cns.%s = True" % prop)
+        cns.keyframe_insert(prop, group=group)
+
+        scn.frame_set(scn.frame_start)
+        exec("cns.%s = not timeline[scn.frame_start]" % prop)
+        cns.keyframe_insert(prop, group=group)
+
+        for fr in range(scn.frame_start+1, scn.frame_end):
+            scn.frame_set(fr)
+            exec("cns.%s = not timeline[fr]" % prop)
+            if ((timeline[fr] != timeline[fr-1]) or
+                timeline[fr] != timeline[fr+1]):
+                cns.keyframe_insert(prop, group=group)
+
+        scn.frame_set(scn.frame_end)
+        exec("cns.%s = not timeline[scn.frame_end]" % prop)
+        cns.keyframe_insert(prop, group=group)
+
+
+def restrict_incluence_timeline(scn, cns, timeline, group=""):
+    """"""
+
+    scn.frame_set(scn.frame_start)
+    cns.influence = timeline[scn.frame_start]
+    cns.keyframe_insert("influence", group=group)
+
+    for fr in range(scn.frame_start+1, scn.frame_end):
+        scn.frame_set(fr)
+        cns.influence = timeline[fr]
+        if ((timeline[fr] != timeline[fr-1]) or
+            timeline[fr] != timeline[fr+1]):
+            cns.keyframe_insert("influence", group=group)
+
+    scn.frame_set(scn.frame_end)
+    cns.influence = timeline[scn.frame_end]
+    cns.keyframe_insert("influence", group=group)
+
+
+def restrict_incluence(cns, anim_block):
+    """"""
+
+    scn = bpy.context.scene
+
+    interval_head = [scn.frame_start, anim_block[0]-1]
+    interval_anim = anim_block
+    interval_tail = [anim_block[1] + 1, scn.frame_end]
+    for fr in interval_head:
+        scn.frame_set(fr)
+        cns.influence = 0
+        cns.keyframe_insert(data_path="influence", index=-1)
+    for fr in interval_tail:
+        scn.frame_set(fr)
+        cns.influence = 0
+        cns.keyframe_insert(data_path="influence", index=-1)
+    for fr in interval_anim:
+        scn.frame_set(fr)
+        cns.influence = 1
+        cns.keyframe_insert(data_path="influence", index=-1)
+
+
+def create_camera_path_rotation(name, tb_preset, cam, centre, box, axis='Z'):
+    """Generate a circular trajectory from the camera position."""
+
+    scn = bpy.context.scene
+    tb = scn.tb
+
+    camview = cam.location * box.matrix_world
+
+    if 'X' in axis:
+        idx = 0
+        rotation_offset = np.arctan2(camview[2], camview[1])
+        r = np.sqrt(camview[1]**2 + camview[2]**2)
+        r = max(0.001, r)
+        h = 0.55 * r
+        coords = [((0, 0, r), (0, h, r), (0, -h, r)),
+                  ((0, -r, 0), (0, -r, h), (0, -r, -h)),
+                  ((0, 0, -r), (0, -h, -r), (0, h, -r)),
+                  ((0, r, 0), (0, r, -h), (0, r, h))]
+    elif 'Y' in axis:
+        idx = 1
+        rotation_offset = np.arctan2(camview[0], camview[2])
+        r = np.sqrt(camview[0]**2 + camview[2]**2)
+        r = max(0.001, r)
+        h = 0.55 * r
+        coords = [((0, 0, r), (h, 0, r), (-h, 0, r)),
+                  ((-r, 0, 0), (-r, 0, h), (-r, 0, -h)),
+                  ((0, 0, -r), (-h, 0, -r), (h, 0, -r)),
+                  ((r, 0, 0), (r, 0, -h), (r, 0, h))]
+    elif 'Z' in axis:
+        idx = 2
+        rotation_offset = np.arctan2(camview[1], camview[0])
+        r = np.sqrt(camview[0]**2 + camview[1]**2)
+        r = max(0.001, r)
+        h = 0.55 * r
+        coords = [((0, r, 0), (h, r, 0), (-h, r, 0)),
+                  ((-r, 0, 0), (-r, h, 0), (-r, -h, 0)),
+                  ((0, -r, 0), (-h, -r, 0), (h, -r, 0)),
+                  ((r, 0, 0), (r, -h, 0), (r, h, 0))]
+
+    ob = create_circle(name, coords=coords)
+
+    ob.rotation_euler[idx] = rotation_offset
+    ob.location = centre.location
+    ob.location[idx] = camview[idx] + centre.location[idx]
+
+    return ob
+
+
+def create_camera_path_streamline(name, tb_preset, tb_tract, spline_index=0):
+    """Generate a curvilinear trajectory from a streamline."""
+
+    curve = bpy.data.curves.new(name=name, type='CURVE')
+    curve.dimensions = '3D'
+    ob = bpy.data.objects.new(name, curve)
+    bpy.context.scene.objects.link(ob)
+
+    tb_ob = bpy.data.objects[tb_tract]
+    spline = tb_ob.data.splines[spline_index]
+    streamline = []
+    for point in spline.points:
+        streamline.append(point.co[0:3])
+
+    tb_imp.make_polyline_ob(curve, streamline)
+
+    ob.matrix_world = tb_ob.matrix_world
+
+    return ob
 
 
 # ========================================================================== #
@@ -587,39 +1009,7 @@ def create_lighting_old(name, braincentre, dims, cam, camview=(1, 1, 1)):
     return lights
 
 
-def create_lighting(name, braincentre, dims, cam, camview=(1, 1, 1)):
-    """"""
-
-    scn = bpy.context.scene
-    tb = scn.tb
-    preset = tb.presets[tb.index_presets]
-    tb_lights = preset.lights
-
-    lights = bpy.data.objects.new(name=name, object_data=None)
-    lights.location = braincentre.location
-    bpy.context.scene.objects.link(lights)
-
-    if preset.lights_enum.startswith("Key"):  # only first
-        tb_light = tb_lights[0]
-        dimlocation = (3, 2, 1)
-        light = create_light(tb_light, braincentre, dims, dimlocation)
-        light.parent = lights
-
-    if preset.lights_enum.startswith("Key-"):
-        tb_light = tb_lights[1]
-        dimlocation = (2, 4, -10)
-        light = create_light(tb_light, braincentre, dims, dimlocation)
-        light.parent = lights
-
-        tb_light = tb_lights[2]
-        dimlocation = (0, 0, 0)
-        light = create_light(tb_light, braincentre, dims, dimlocation)
-        light.parent = lights
-
-    return lights
-
-
-def create_light(tb_light, braincentre, dims, loc):
+def create_light(tb_light, preset, centre, box, lights):
     """"""
 
     scn = bpy.context.scene
@@ -632,7 +1022,7 @@ def create_light(tb_light, braincentre, dims, loc):
 
     if type == "PLANE":
         light = create_plane(name)
-        light.scale = [dims[0]*scale[0], dims[1]*scale[1], 1]
+        light.scale = [scale[0]*2, scale[1]*2, 1]
         emission = {'colour': colour, 'strength': strength}
         mat = tb_mat.make_material_emit_cycles(name, emission)
         tb_mat.set_materials(light.data, mat)
@@ -643,10 +1033,15 @@ def create_light(tb_light, braincentre, dims, loc):
         scn.objects.active = light
         light.select = True
         light.data.use_nodes = True
-        light.data.node_tree.nodes["Emission"].inputs[1].default_value = 1e+07
+        light.data.shadow_soft_size = 50
+        node = light.data.node_tree.nodes["Emission"]
+        node.inputs[1].default_value = strength
 
-    light.location = (dims[0] * loc[0], dims[1] * loc[1], dims[2] * loc[2])
-    add_constraint(light, "TRACK_TO", "TrackToBrainCentre", braincentre)
+    light.parent = lights
+    light.location = tb_light.location
+
+#     add_constraint(light, "CHILD_OF", "Child Of", box)
+    add_constraint(light, "TRACK_TO", "TrackToCentre", centre)
 
     return light
 
@@ -712,21 +1107,19 @@ def create_circle(name, coords):
     return ob
 
 
-def create_table(name, centre=np.array([0, 0, 0]),
-                 dims=np.array([100, 100, 100])):
+def create_table(tb_table, preset, centre, scale=(4, 4, 1), location=(0, 0, -1)):
     """Create a table under the objects."""
 
-    tb = bpy.context.scene.tb
-
-    ob = create_plane(name)
-    ob.scale = (dims[0]*4, dims[1]*4, 1)
-    ob.location = (centre.location[0],
-                   centre.location[1],
-                   centre.location[2] - dims[2] / 2)
+    ob = create_plane(tb_table.name)
+    ob.scale = scale
+    ob.location = location
 
     diffcol = [0.5, 0.5, 0.5, 1.0]
-    mat = tb_mat.make_material_basic_cycles(name, diffcol, mix=0.8)
+    mat = tb_mat.make_material_basic_cycles(tb_table.name, diffcol, mix=0.8)
     tb_mat.set_materials(ob.data, mat)
+
+    ob.parent = centre
+#     add_constraint(ob, "CHILD_OF", "Child Of", centre)
 
     return ob
 
@@ -748,131 +1141,83 @@ def create_world():
     nt.nodes["Voronoi Texture"].inputs[1].default_value = 2
 
 
-def create_camera_path(name, tb_preset,
-                       centre=[0, 0, 0],
-                       dims=np.array([100, 100, 100]),
-                       camview=Vector((1, 1, 1)), axis='Z'):
-    """"""
-
-    scn = bpy.context.scene
-    tb = scn.tb
-
-    camdist = tb_preset.cameras[0].cam_distance * max(dims)
-
-    if 'X' in axis:
-        idx = 0
-        rotation_offset = np.arctan2(camview[2], camview[1])
-        r = np.sqrt((camview[1]*dims[1])**2 + (camview[2]*dims[2])**2)
-        h = 0.55 * r
-        coords = [((0, 0, r), (0, h, r), (0, -h, r)),
-                  ((0, -r, 0), (0, -r, h), (0, -r, -h)),
-                  ((0, 0, -r), (0, -h, -r), (0, h, -r)),
-                  ((0, r, 0), (0, r, -h), (0, r, h))]
-    elif 'Y' in axis:
-        idx = 1
-        rotation_offset = np.arctan2(camview[0], camview[2])
-        r = np.sqrt((camview[0]*dims[0])**2 + (camview[2]*dims[2])**2)
-        h = 0.55 * r
-        coords = [((0, 0, r), (h, 0, r), (-h, 0, r)),
-                  ((-r, 0, 0), (-r, 0, h), (-r, 0, -h)),
-                  ((0, 0, -r), (-h, 0, -r), (h, 0, -r)),
-                  ((r, 0, 0), (r, 0, -h), (r, 0, h))]
-    elif 'Z' in axis:
-        idx = 2
-        rotation_offset = np.arctan2(camview[1], camview[0])
-        r = np.sqrt((camview[0]*dims[0])**2 + (camview[1]*dims[1])**2)
-        h = 0.55 * r
-        coords = [((0, r, 0), (h, r, 0), (-h, r, 0)),
-                  ((-r, 0, 0), (-r, h, 0), (-r, -h, 0)),
-                  ((0, -r, 0), (-h, -r, 0), (h, -r, 0)),
-                  ((r, 0, 0), (r, -h, 0), (r, h, 0))]
-
-    ob = create_circle(name, coords=coords)
-
-    ob.rotation_euler[idx] = rotation_offset
-    ob.location = centre.location
-    ob.location[idx] = camview[idx] * dims[idx]
-
-    return ob
-
-
-def animate_camera(cam, campath=None, anim=None, axis="Z",
-                   frame_start=1, frame_end=100, repetitions=1.0):
-    """"""
-
-    scn = bpy.context.scene
-
-    scn.objects.active = cam
-
-    campath.data.use_path = True
-#     campath.data.use_path_follow = True
-    anim = campath.data.animation_data_create()
-    anim.action = bpy.data.actions.new("%sAction" % campath.data.name)
-
-    fcu = anim.action.fcurves.new("eval_time")
-    mod = fcu.modifiers.new('GENERATOR')
-    nframes = frame_end - frame_start
-
-    campath.data.path_duration = 100
-
-    max_val = repetitions * campath.data.path_duration
-    slope = max_val / (nframes + 1)
-    intercept = -(frame_start - 1) * slope
-
-    if '-' in axis:
-        intercept = -intercept
-        slope = -slope
-        max_val = -max_val
-
-    mod.coefficients = (intercept, slope)
-
-    mod.use_restricted_range = True
-    mod.frame_start = frame_start
-    mod.frame_end = frame_end
-#     mod.use_additive = True
-
-    mod = fcu.modifiers.new('LIMITS')
-    mod.use_restricted_range = mod.use_min_y = mod.use_max_y = True
-    mod.min_y = mod.max_y = max_val
-    mod.frame_start = frame_end
-    mod.frame_end = scn.frame_end
-#     mod.use_additive = True
-
-#     scn = bpy.context.scene
-#     scn.render.filepath = "render/anim"
-#     scn.render.image_settings.file_format = "AVI_JPEG"
-#     bpy.ops.wm.save_as_mainfile(filepath="moveAlongPath.blend")
-#     bpy.ops.render.render(animation=True)
-
-
-def animate_slicebox(ob, anim=None, axis="Z", frame_start=1, frame_end=100,
+def animate_slicebox(vvol, anim=None, axis="Z", frame_start=1, frame_end=100,
                      repetitions=1.0, frame_step=10):
     """"""
 
     scn = bpy.context.scene
 
-    nframes = frame_end - frame_start
+    if 'X' in axis:
+        idx = 0
+    elif 'Y' in axis:
+        idx = 1
+    elif 'Z' in axis:
+        idx = 2
 
-    ob.keyframe_insert("scale")
-    action = ob.animation_data.action
+    kf1 = 0
+    kf2 = 1
 
-#     for fcu in action.fcurves:
-    fcu = action.fcurves[anim.axis.index(axis)]
-    if fcu.data_path == "scale":
-        mod = fcu.modifiers.new('GENERATOR')
-        slope = -frame_start / nframes / frame_start * repetitions
-        mod.coefficients = (1, slope)
-        mod.use_restricted_range = True
-        mod.frame_start = frame_start
-        mod.frame_end = frame_end
+    if anim.direction =='-':
+        kfs = {anim.frame_start: kf2, anim.frame_end: kf1}
+    else:
+        kfs = {anim.frame_start: kf1, anim.frame_end: kf2}
 
-# #     scales =
-#     frame_num = frame_start
-#     for scale in scales:
-#         scn.frame_set(frame_num)
-#         ob.scale = scale
-#         ob.keyframe_insert(data_path="scale", index=-1)
-#         frame_num += frame_step
+    if anim.sliceproperty == "Thickness":
+        kfdefault = kf2
+    elif anim.sliceproperty == "Position":
+        kfdefault = kf1
+    elif anim.sliceproperty == "Angle":
+        kfdefault = kf1
+
+    # set all frames to default value // fcu.extrapolation
+    prop = "slice%s" % anim.sliceproperty
+    attr = "%s.%s" % (prop, axis.lower())
+
+#     print(has_keyframe(vvol, attr))
+#     if not has_keyframe(vvol, attr):
+    for k in range(scn.frame_start, scn.frame_end):
+        scn.frame_set(k)
+        exec('vvol.%s[idx] = kfdefault' % prop.lower())
+        vvol.keyframe_insert(data_path=prop.lower(), index=idx)
+
+    # remove all keyframes in animation range
+    for k in range(anim.frame_start, anim.frame_end):
+        scn.frame_set(k)
+        vvol.keyframe_delete(data_path=prop.lower(), index=idx)
+
+    # insert the animation 
+    for k, v in kfs.items():
+        scn.frame_set(k)
+        exec('vvol.%s[idx] = v' % prop.lower())
+        vvol.keyframe_insert(data_path=prop.lower(), index=idx)
+
+
+def has_keyframe(ob, attr):
+    """Check if a property has keyframes set."""
+
+    anim = ob.animation_data
+    if anim is not None and anim.action is not None:
+        for fcu in anim.action.fcurves:
+            fcu.update()
+            if attr.startswith(fcu.data_path):
+                path_has_keyframe = len(fcu.keyframe_points) > 0
+                # FIXME: fcu.array_index is always at the first value (fcurves[0])
+                if attr.endswith('.x'):
+                    print('x', fcu.data_path, path_has_keyframe, fcu.array_index, (fcu.array_index == 0))
+                    return ((path_has_keyframe) & (fcu.array_index == 0))
+                elif attr.endswith('.y'):
+                    print('y', fcu.data_path, path_has_keyframe, fcu.array_index, (fcu.array_index == 1))
+                    return ((path_has_keyframe) & (fcu.array_index == 1))
+                elif attr.endswith('.z'):
+                    print('z', fcu.data_path, path_has_keyframe, fcu.array_index, (fcu.array_index == 2))
+                    return ((path_has_keyframe) & (fcu.array_index == 2))
+                else:
+                    print('else', fcu.data_path, path_has_keyframe, fcu.array_index)
+                    return path_has_keyframe
+
+    print('none')
+
+    return False
 
 
 # ========================================================================== #

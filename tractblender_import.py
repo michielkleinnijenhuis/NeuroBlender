@@ -1116,9 +1116,9 @@ def add_preset_to_collection(name="Preset"):
 
 
 def add_camera_to_collection(name, preset,
-                             cam_view=[2.31, 2.31, 2.31], 
+                             cam_view=[2.88675, 2.88675, 2.88675], 
                              cam_view_enum="RightAntSup",
-                             cam_distance=4):
+                             cam_distance=5):
     """Add camera to the TractBlender collection."""
 
     scn = bpy.context.scene
@@ -1135,9 +1135,9 @@ def add_camera_to_collection(name, preset,
     return camera
 
 
-def add_light_to_collection(name, preset=None, type="PLANE", 
-                            colour=(1.0,1.0,1.0), strength=1.0, size=[1.0, 1.0], 
-                            distance=5, azimuth=5, elevation=5):
+def add_light_to_collection(name, preset=None, type="SPOT", 
+                            colour=(1.0,1.0,1.0), strength=1.0,
+                            size=[1.0, 1.0], location=(1,1,1)):
     """Add light to the TractBlender collection."""
 
     scn = bpy.context.scene
@@ -1153,9 +1153,7 @@ def add_light_to_collection(name, preset=None, type="PLANE",
     light.colour = colour
     light.strength = strength
     light.size = size
-    light.distance = distance
-    light.azimuth = azimuth
-    light.elevation = elevation
+    light.location = location
 
     return light
 
@@ -1189,6 +1187,20 @@ def add_animation_to_collection(name, preset=None, is_rendered=True):
     animation.is_rendered = is_rendered
 
     return animation
+
+
+def add_campath_to_collection(name):
+    """Add animation to the TractBlender collection."""
+
+    scn = bpy.context.scene
+    tb = scn.tb
+
+    campath = tb.campaths.add()
+    tb.index_campaths = (len(tb.campaths)-1)
+
+    campath.name = name
+
+    return campath
 
 
 # ========================================================================== #

@@ -36,6 +36,7 @@ from bpy.props import (BoolProperty,
                        FloatVectorProperty,
                        FloatProperty,
                        IntProperty,
+                       IntVectorProperty,
                        PointerProperty)
 
 from os import listdir
@@ -1308,26 +1309,7 @@ class AddPreset(Operator):
 
         ca = [tb.presets]
         name = tb_utils.check_name(self.name, "", ca)
-
-        preset = tb_imp.add_preset_to_collection(name)
-        tb_imp.add_camera_to_collection(name+"Cam", preset)
-        tb_imp.add_light_to_collection(name+"Key", preset, type="SPOT",
-                                       colour=(1.0, 1.0, 1.0),
-                                       strength=1000000,
-                                       size=[0.5, 0.5],
-                                       distance=5, azimuth=5, elevation=5)
-        tb_imp.add_light_to_collection(name+"Back", preset, type="POINT",
-                                       colour=(1.0, 1.0, 1.0),
-                                       strength=1000000,
-                                       size=[0.1, 0.1],
-                                       distance=5, azimuth=5, elevation=5)
-        tb_imp.add_light_to_collection(name+"Fill", preset, type="POINT",
-                                       colour=(1.0, 1.0, 1.0),
-                                       strength=1000000,
-                                       size=[0.1, 0.1],
-                                       distance=5, azimuth=5, elevation=5)
-        tb_imp.add_table_to_collection(name+"Table", preset)
-
+        tb_rp.scene_preset_init(name)
         tb.presets_enum = name
 
         return {"FINISHED"}
@@ -1366,11 +1348,20 @@ class AddLight(Operator):
     name = StringProperty(
         name="Name",
         description="Specify a name for the light",
-        default="New light")
+        default="Light")
 
     def execute(self, context):
 
-        tb_imp.add_light_to_collection(self.name)
+        scn = bpy.context.scene
+        tb = scn.tb
+        tb_preset = tb.presets[tb.index_presets]
+        preset = bpy.data.objects[tb_preset.name]
+        centre = bpy.data.objects[tb_preset.centre]
+        box = bpy.data.objects[tb_preset.box]
+        lights = bpy.data.objects[tb_preset.lightsempty]
+
+        tb_light = tb_imp.add_light_to_collection(self.name)
+        tb_rp.create_light(tb_light, preset, centre, box, lights)
 
         return {"FINISHED"}
 
@@ -1384,11 +1375,87 @@ class AddAnimation(Operator):
     name = StringProperty(
         name="Name",
         description="Specify a name for the animation",
-        default="New animation")
+        default="Anim")
 
     def execute(self, context):
 
-        tb_imp.add_animation_to_collection(self.name)
+        scn = context.scene
+        tb = scn.tb
+
+        ca = [preset.animations for preset in tb.presets]
+        name = tb_utils.check_name(self.name, "", ca, forcefill=True)
+        tb_imp.add_animation_to_collection(name)
+
+        return {"FINISHED"}
+
+
+class AddCamPath(Operator):
+    bl_idname = "tb.add_campath"
+    bl_label = "New camera path"
+    bl_description = "Create a new path for the camera"
+    bl_options = {"REGISTER", "UNDO", "PRESET"}
+
+    def execute(self, context):
+
+        scn = context.scene
+        tb = scn.tb
+
+        preset = tb.presets[tb.index_presets]
+        anim = preset.animations[preset.index_animations]
+        cam = bpy.data.objects[preset.cameras[0].name]
+        centre = bpy.data.objects[preset.centre]
+        box = bpy.data.objects[preset.name + "Box"]
+
+        ca = [tb.campaths]
+        if anim.pathtype == "Circular":
+            name = "CP_%s" % (anim.axis)
+            name = tb_utils.check_name(name, "", ca)
+            campath = tb_rp.create_camera_path_rotation(name, preset, cam, centre, box, anim.axis)
+        elif anim.pathtype == "Streamline":
+            name = "CP_%s_%05d" % (anim.anim_tract, anim.spline_index)
+            name = tb_utils.check_name(name, "", ca)
+            campath = tb_rp.create_camera_path_streamline(name, preset,
+                                                          anim.anim_tract,
+                                                          anim.spline_index)
+        # TODO: choose between hiding objects' streamline tube from render
+        # or use camera clipping
+        elif anim.pathtype == "Select":
+            name = "CP_%s" % (anim.anim_curve)
+            name = tb_utils.check_name(name, "", ca)
+            cu = bpy.data.objects[anim.anim_curve].data.copy()
+            campath = bpy.data.objects.new(name, cu)
+            scn.objects.link(campath)
+            scn.update()
+
+        campath.hide_render = True
+        campath.parent = bpy.data.objects[preset.name]
+
+        tb_imp.add_campath_to_collection(name)
+
+        anim.campaths_enum = campath.name
+
+        return {"FINISHED"}
+
+
+class DelCamPath(Operator):
+    bl_idname = "tb.del_campath"
+    bl_label = "Delete camera path"
+    bl_description = "Delete a camera path"
+    bl_options = {"REGISTER", "UNDO", "PRESET"}
+
+    def execute(self, context):
+
+        scn = context.scene
+        tb = scn.tb
+
+        preset = tb.presets[tb.index_presets]
+        anim = preset.animations[preset.index_animations]
+        campath = bpy.data.objects[anim.campaths_enum]
+        scn.objects.unlink(campath)
+        # NOTE: this doesn't remove it from the list of objects
+
+        tb.campaths.remove(tb.campaths.find(anim.campaths_enum))
+#         tb.index_campaths -= 1
 
         return {"FINISHED"}
 
@@ -1568,6 +1635,50 @@ class RevertLabel(Operator):
         return {"FINISHED"}
 
 
+class ResetPresetCentre(Operator):
+    bl_idname = "tb.reset_presetcentre"
+    bl_label = "Reset preset centre"
+    bl_description = "Revert changes preset to preset centre"
+    bl_options = {"REGISTER"}
+
+    def execute(self, context):
+
+        scn = bpy.context.scene
+        tb = scn.tb
+
+        obs = tb_rp.get_render_objects(tb)
+        centre_location = tb_rp.get_brainbounds(obs)[0]
+
+        name = tb.presets[tb.index_presets].centre
+        centre = bpy.data.objects[name]
+        centre.location = centre_location
+
+        return {"FINISHED"}
+
+
+class ResetPresetDims(Operator):
+    bl_idname = "tb.reset_presetdims"
+    bl_label = "Recalculate scene dimensions"
+    bl_description = "Recalculate scene dimension"
+    bl_options = {"REGISTER"}
+
+    def execute(self, context):
+
+        scn = bpy.context.scene
+        tb = scn.tb
+
+        obs = tb_rp.get_render_objects(tb)
+        dims = tb_rp.get_brainbounds(obs)[1]
+
+        name = tb.presets[tb.index_presets].centre
+        centre = bpy.data.objects[name]
+        centre.scale = 0.5 * mathutils.Vector(dims)
+
+        tb.presets[tb.index_presets].dims = dims
+
+        return {"FINISHED"}
+
+
 class TractBlenderScenePanel(Panel):
     """Host the TractBlender scene setup functionality"""
     bl_idname = "OBJECT_PT_tb_scene"
@@ -1580,6 +1691,7 @@ class TractBlenderScenePanel(Panel):
     drawunit_switch_to_main = TractBlenderBasePanel.drawunit_switch_to_main
     drawunit_UIList = TractBlenderBasePanel.drawunit_UIList
     drawunit_tri = TractBlenderBasePanel.drawunit_tri
+    drawunit_basic_cycles = TractBlenderBasePanel.drawunit_basic_cycles
 
     def draw_tb_panel(self, layout, tb):
 
@@ -1597,6 +1709,7 @@ class TractBlenderScenePanel(Panel):
             row = layout.row()
             row.separator()
 
+            self.drawunit_tri(layout, "bounds", tb, preset)
             self.drawunit_tri(layout, "cameras", tb, preset)
             self.drawunit_tri(layout, "lights", tb, preset)
             self.drawunit_tri(layout, "tables", tb, preset)
@@ -1623,6 +1736,22 @@ class TractBlenderScenePanel(Panel):
         row.prop(tb, "presets_enum", expand=False, text="")
         row.operator("tb.del_preset", icon='ZOOMOUT', text="")
 
+    def drawunit_tri_bounds(self, layout, tb, preset):
+
+        preset_ob = bpy.data.objects[preset.centre]
+        row = layout.row()
+        col = row.column()
+        col.prop(preset_ob, "location")
+        col = row.column()
+        col.operator("tb.reset_presetcentre", icon='BACK', text="")
+
+        col = row.column()
+        col.prop(preset_ob, "scale")
+#         col.prop(preset, "dims")
+#         col.enabled = False
+        col = row.column()
+        col.operator("tb.reset_presetdims", icon='BACK', text="")
+
     def drawunit_tri_cameras(self, layout, tb, preset):
 
         try:
@@ -1631,69 +1760,65 @@ class TractBlenderScenePanel(Panel):
             cam = preset.cameras.add()
             preset.index_cameras = (len(preset.cameras)-1)
         else:
+            cam_ob = bpy.data.objects[cam.name]
+
             row = layout.row()
+
             col = row.column()
-            col.prop(cam, "cam_view_enum")
+            col.label("Quick camera view:")
+            row1 = col.row()
+            row1.prop(cam, "cam_view_enum_LR", expand=True)
+            row1 = col.row()
+            row1.prop(cam, "cam_view_enum_AP", expand=True)
+            row1 = col.row()
+            row1.prop(cam, "cam_view_enum_IS", expand=True)
+
+            col.prop(cam, "cam_distance", text="distance")
+
             col = row.column()
-            col.enabled = not cam.cam_view_enum == "Numeric"
-            col.prop(cam, "cam_distance")
-            row = layout.row()
-            row.prop(cam, "cam_view")
-            row.enabled = cam.cam_view_enum == "Numeric"
+            col.label("")
+            row1 = col.row()
+            row1.prop(cam_ob, "location", index=0, text="X")
+            row1 = col.row()
+            row1.prop(cam_ob, "location", index=1, text="Y")
+            row1 = col.row()
+            row1.prop(cam_ob, "location", index=2, text="Z")
+
+            # consider more choices of camera properties (lens, clip, trackto)
 
     def drawunit_tri_lights(self, layout, tb, preset):
 
+        lights = bpy.data.objects[preset.name+"Lights"]
         row = layout.row()
-        row.prop(preset, "lights_enum", expand=True)
+        col = row.column()
+        col.prop(lights, "rotation_euler", index=2, text="Rotate rig (Z)")
+        col = row.column()
+        col.prop(lights, "scale", index=2, text="Scale rig (XYZ)")
+
         row = layout.row()
         row.separator()
 
-        if preset.lights_enum == "Key-Back-Fill":
-            try:
-                light = preset.lights[2]
-            except IndexError:
-                pass
-            else:
-                box = layout.box()
-                self.drawunit_tri(box, "key", tb, preset.lights[0])
-                self.drawunit_tri(box, "back", tb, preset.lights[1])
-                self.drawunit_tri(box, "fill", tb, preset.lights[2])
-        elif preset.lights_enum == "Key":
-            try:
-                light = preset.lights[0]
-            except IndexError:
-                pass
-            else:
-                self.drawunit_lightprops(layout, preset.lights[0])
-        elif preset.lights_enum == "Free":
-            self.drawunit_UIList(layout, "PL", preset, "lights", addopt=True)
-            self.drawunit_lightprops(layout,
-                                     preset.lights[preset.index_lights])
-
-    def drawunit_tri_key(self, layout, tb, light):
-        self.drawunit_lightprops(layout, light)
-
-    def drawunit_tri_back(self, layout, tb, light):
-        self.drawunit_lightprops(layout, light)
-
-    def drawunit_tri_fill(self, layout, tb, light):
-        self.drawunit_lightprops(layout, light)
+        self.drawunit_UIList(layout, "PL", preset, "lights", addopt=True)
+        self.drawunit_lightprops(layout, preset.lights[preset.index_lights])
 
     def drawunit_lightprops(self, layout, light):
 
+        light_ob = bpy.data.objects[light.name]
+
         row = layout.row()
-        row.prop(light, "name")
-        row.prop(light, "type", text="")
+        col = row.column()
+        col.label("Quick lighting rig access:")
+        col.prop(light, "name")
+        col.prop(light, "type", text="")
+        col.prop(light, "strength")
+
+        col = row.column()
+        col.prop(light_ob, "location")
+
+        row = layout.row()
         if light.type == "PLANE":
             row = layout.row()
             row.prop(light, "size")
-        row = layout.row()
-        row.prop(light, "colour", text="")
-        row.prop(light, "strength")
-        row = layout.row()
-        row.prop(light, "distance")
-        row.prop(light, "azimuth")
-        row.prop(light, "elevation")
 
     def drawunit_tri_tables(self, layout, tb, preset):
 
@@ -1705,13 +1830,16 @@ class TractBlenderScenePanel(Panel):
             preset.index_tables = (len(preset.tables)-1)
         else:
             row = layout.row()
-            row.prop(tab, "is_rendered")
+            row.prop(tab, "is_rendered", toggle=True)
+            row = layout.row()
+            self.drawunit_basic_cycles(layout, tab)
 
     def drawunit_tri_animations(self, layout, tb, preset):
 
         row = layout.row()
-        row.prop(preset, "frame_start")
-        row.prop(preset, "frame_end")
+        # consider preset.frame_start and frame_end (min frame_start=1)
+        row.prop(bpy.context.scene, "frame_start")
+        row.prop(bpy.context.scene, "frame_end")
 
         row = layout.row()
         self.drawunit_UIList(layout, "AN", preset, "animations")
@@ -1725,7 +1853,12 @@ class TractBlenderScenePanel(Panel):
 
             row = layout.row()
             row.prop(anim, "name")
-            row.prop(anim, "animationtype", expand=False, text="")
+
+            row = layout.row()
+            row.separator()
+
+            row = layout.row()
+            row.prop(anim, "animationtype", expand=True)
 
             row = layout.row()
             row.separator()
@@ -1733,7 +1866,9 @@ class TractBlenderScenePanel(Panel):
             row = layout.row()
             row.prop(anim, "frame_start")
             row.prop(anim, "frame_end")
+            row = layout.row()
             row.prop(anim, "repetitions")
+            row.prop(anim, "offset")
 
             row = layout.row()
             row.separator()
@@ -1741,15 +1876,92 @@ class TractBlenderScenePanel(Panel):
             if anim.animationtype == "CameraPath":
 
                 row = layout.row()
-                row.prop(anim, "campath", expand=False)
-                if anim.campath == "New path":
-                    row = layout.row()
-                    row.prop(anim, "axis", expand=True)
 
-            elif anim.animationtype == "TranslateSlice":
-                pass
+                col = row.column()
+                col.split(percentage=0.7, align=False)
+                row1 = col.row()
+                row1.label("Camera path:")
+
+                row1 = col.row()
+                col1 = row1.column()
+                col1.prop(anim, "reverse", toggle=True, icon="ARROW_LEFTRIGHT", icon_only=True)
+                col1 = row1.column()
+                col1.prop(anim, "campaths_enum", expand=False, text="")
+                col1 = row1.column()
+                col1.operator("tb.del_campath", icon='ZOOMOUT', text="")
+                col1.enabled = True
+                row1 = col.row()
+                box = row1.box()
+                self.drawunit_tri(box, "newpath", tb, anim)
+
+                col = row.column()
+                col.separator()
+
+                col = row.column()
+                row1 = col.row()
+                row1.label("Camera tracking:")
+                row1 = col.row()
+                col1 = row1.column()
+                col1.prop(anim, "tracktype", expand=True)
+                if anim.tracktype == "TrackPath":
+                    tb_cam = preset.cameras[0]
+                    cam = bpy.data.objects[tb_cam.name]
+                    row1 = col.row()
+                    row1.prop(cam, "rotation_euler", index=2, text="tumble")
+
+            elif anim.animationtype == "Slices":
+
+                row = layout.row()
+                col = row.column()
+                col.prop(anim, "anim_voxelvolume", expand=False, text="Voxelvolume")
+                col = row.column()
+                col.operator("tb.del_campath", icon='ZOOMOUT', text="")
+                col.enabled = False
+
+                row = layout.row()
+                row.separator()
+
+                row = layout.row()
+                row.prop(anim, "sliceproperty", expand=True)
+
+                row = layout.row()
+                row.separator()
+
+                row = layout.row()
+                row.prop(anim, "reverse", toggle=True)
+
+                row = layout.row()
+                row.separator()
+
+                row = layout.row()
+                row.prop(anim, "axis", expand=True)
+
+
             elif anim.animationtype == "TimeSeries":
                 pass
+
+    def drawunit_tri_newpath(self, layout, tb, anim):
+
+        row = layout.row()
+        row.prop(anim, "pathtype", expand=True)
+
+        row = layout.row()
+        if anim.pathtype == 'Circular':
+            row = layout.row()
+            row.prop(anim, "axis", expand=True)
+        elif anim.pathtype == 'Streamline':
+            row = layout.row()
+            row.prop(anim, "anim_tract", text="")
+            row.prop(anim, "spline_index")
+        elif anim.pathtype == 'Select':
+            row = layout.row()
+            row.prop(anim, "anim_curve", text="")
+
+        row = layout.row()
+        row.separator()
+
+        row = layout.row()
+        row.operator("tb.add_campath", text="Add trajectory")
 
 
 class ScenePreset(Operator):
@@ -1782,6 +1994,10 @@ class TractBlenderSettingsPanel(Panel):
         self.draw_nibabel(layout, tb)
         row = layout.row()
         row.prop(tb, "verbose")
+        row = layout.row()
+        row.operator("tb.reload",
+                     text="Reload NeuroBlender",
+                     icon="RECOVER_LAST")
         # TODO: etc
 
     def draw_nibabel(self, layout, tb):
@@ -1847,10 +2063,8 @@ def nibabel_path_update(self, context):
 def sformfile_update(self, context):
     """Set the sform transformation matrix for the object."""
 
-    tb_ob = tb_utils.active_tb_object()[0]
-    ob = bpy.data.objects[tb_ob.name]
-
-    affine = tb_imp.read_affine_matrix(tb_ob.sformfile)
+    ob = bpy.data.objects[self.name]
+    affine = tb_imp.read_affine_matrix(self.sformfile)
     ob.matrix_world = affine
 
 
@@ -1864,19 +2078,16 @@ def slices_update(self, context):
 def mode_enum_update(self, context):
     """Perform actions for updating mode."""
 
-    scn = context.scene
-    tb = scn.tb
-    tb_preset = tb.presets[tb.index_presets]
+    tb_preset = tb.presets[self.index_presets]
     tb_cam = tb_preset.cameras[0]
 
-    newmode = tb.mode
     for mat in bpy.data.materials:
-        tb_mat.switch_mode_mat(mat, newmode)
+        tb_mat.switch_mode_mat(mat, self.mode)
 
-    lights = [tb.presetname + "LightsBack",
-              tb.presetname + "LightsFill",
-              tb.presetname + "LightsKey"]
-    tables = [tb.presetname + "DissectionTable"]
+    lights = [tb_preset.name + "LightsBack",
+              tb_preset.name + "LightsFill",
+              tb_preset.name + "LightsKey"]
+    tables = [tb.presetname + "Table"]
     light_obs = [bpy.data.objects.get(light) for light in lights]
     light_obs = [light for light in light_obs if light is not None]
     table_obs = [bpy.data.objects.get(table) for table in tables]
@@ -1889,16 +2100,13 @@ def mode_enum_update(self, context):
 def overlay_enum_callback(self, context):
     """Populate the enum based on available options."""
 
-    scn = context.scene
-    tb = scn.tb
-
     items = []
     items.append(("scalars", "scalars",
                   "List the scalar overlays", 1))
-    if tb.objecttype != 'tracts':
+    if self.objecttype != 'tracts':
         items.append(("labelgroups", "labelgroups",
                       "List the label overlays", 2))
-    if tb.objecttype == 'surfaces':
+    if self.objecttype == 'surfaces':
         items.append(("bordergroups", "bordergroups",
                       "List the bordergroups", 3))
 
@@ -1908,10 +2116,9 @@ def overlay_enum_callback(self, context):
 def material_enum_update(self, context):
     """Assign a new preset material to the object."""
 
-    tb_ob = tb_utils.active_tb_object()[0]
+    mat = bpy.data.materials[self.name]
+    tb_mat.link_innode(mat, self.colourtype)
 
-    mat = bpy.data.materials[tb_ob.name]
-    tb_mat.link_innode(mat, tb_ob.colourtype)
 
 def colourmap_enum_update(self, context):
     """Assign a new colourmap to the object."""
@@ -1927,9 +2134,8 @@ def cam_view_enum_update(self, context):
     scn = context.scene
     tb = scn.tb
     tb_preset = tb.presets[tb.index_presets]
-    tb_cam = tb_preset.cameras[0]
 
-    if tb_cam.cam_view_enum == "Numeric":
+    if self.cam_view_enum == "Numeric":
         return
 
     quadrants = {'Right': (1, 0, 0),
@@ -1946,18 +2152,52 @@ def cam_view_enum_update(self, context):
                  'LeftAntInf': (-1, 1, -1),
                  'LeftPostSup': (-1, -1, 1),
                  'LeftPostInf':  (-1, -1, -1)}
-    cv_unit = mathutils.Vector(quadrants[tb_cam.cam_view_enum]).normalized()
-    tb_cam.cam_view = list(cv_unit * tb_cam.cam_distance)
+    cv_unit = mathutils.Vector(quadrants[self.cam_view_enum]).normalized()
+    self.cam_view = list(cv_unit * self.cam_distance)
+
+    cam = bpy.data.objects[self.name]
+    centre = bpy.data.objects[tb_preset.name+"Centre"]
+
+#     tb_rp.cam_view_update(cam, centre, self.cam_view, tb_preset.dims)
+    cam.location = self.cam_view
+
+    scn.frame_set(0)
+
+
+def cam_view_enum_XX_update(self, context):
+    """Set the camview property from enum options."""
+
+    scn = context.scene
+    tb = scn.tb
+    tb_preset = tb.presets[tb.index_presets]
+
+    lud = {'Centre': 0,
+           'Left': -1, 'Right': 1,
+           'Anterior': 1, 'Posterior': -1,
+           'Superior': 1, 'Inferior': -1}
+
+    LR = lud[self.cam_view_enum_LR]
+    AP = lud[self.cam_view_enum_AP]
+    IS = lud[self.cam_view_enum_IS]
+
+    cv_unit = mathutils.Vector([LR, AP, IS]).normalized()
+
+    self.cam_view = list(cv_unit * self.cam_distance)
+
+    cam = bpy.data.objects[self.name]
+    centre = bpy.data.objects[tb_preset.name+"Centre"]
+
+#     tb_rp.cam_view_update(cam, centre, self.cam_view, tb_preset.dims)
+    cam.location = self.cam_view
+
+    scn.frame_set(0)
 
 
 def presets_enum_callback(self, context):
     """Populate the enum based on available options."""
 
-    scn = context.scene
-    tb = scn.tb
-
     items = [(ps.name, ps.name, "List the presets", i)
-             for i, ps in enumerate(tb.presets)]
+             for i, ps in enumerate(self.presets)]
 
     return items
 
@@ -1965,37 +2205,146 @@ def presets_enum_callback(self, context):
 def presets_enum_update(self, context):
     """Update the preset enum."""
 
-    scn = context.scene
-    tb = scn.tb
-
-    tb.index_presets = tb.presets.find(tb.presets_enum)
+    self.index_presets = self.presets.find(self.presets_enum)
 
 
-def campath_enum_callback(self, context):
+def campaths_enum_callback(self, context):
     """Populate the enum based on available options."""
 
     scn = context.scene
     tb = scn.tb
 
-    items = [(ob.name, ob.name, "List the curves", i+1)
-             for i, ob in enumerate(scn.objects) if ob.type == 'CURVE']
-    items.append(("New path", "New path", "New path", 0))
+    items = [(cp.name, cp.name, "List the camera paths", i)
+             for i, cp in enumerate(tb.campaths)]
 
     return items
 
 
-# def campath_enum_update(self, context):
-#     """Update the campath enum."""
-#
-#     scn = context.scene
-#     tb = scn.tb
-#
-#     preset = tb.presets[tb.index_presets]
-#     anim = preset.animations[preset.index_animations]
-# #     anim.campath = anim.campath
-#
-# def campath_enum_set(self, value):
-#     print("setting value", value)
+def campaths_enum_update(self, context):
+    """Update the camera path."""
+
+    scn = context.scene
+    tb = scn.tb
+    tb_preset = tb.presets[tb.index_presets]
+    cam = bpy.data.objects[tb_preset.cameras[0].name]
+    anim = tb_preset.animations[tb_preset.index_animations]
+
+    # overkill?
+    cam_anims = [anim for anim in tb_preset.animations
+                 if ((anim.animationtype == "CameraPath") &
+                     (anim.is_rendered))]
+    tb_rp.clear_camera_path_animations(cam, cam_anims)
+    tb_rp.create_camera_path_animations(cam, cam_anims)
+
+    # This adds Follow Path on the bottom of the constraint stack
+#     tb_rp.campath_animation(anim, cam)
+
+    scn.frame_set(anim.frame_start)
+
+
+def tracktype_enum_update(self, context):
+    """Update the camera path constraints."""
+
+    scn = context.scene
+    tb = scn.tb
+    tb_preset = tb.presets[tb.index_presets]
+    cam = bpy.data.objects[tb_preset.cameras[0].name]
+    centre = bpy.data.objects[tb_preset.centre]
+    anim = tb_preset.animations[tb_preset.index_animations]
+
+    cam_anims = [anim for anim in tb_preset.animations
+                 if ((anim.animationtype == "CameraPath") &
+                     (anim.is_rendered))]
+
+    anim_blocks = [[anim.anim_block[0], anim.anim_block[1]]
+                   for anim in cam_anims]
+
+    timeline = tb_rp.generate_timeline(scn, cam_anims, anim_blocks)
+    cnsTT = cam.constraints["TrackToCentre"]
+    tb_rp.restrict_incluence_timeline(scn, cnsTT, timeline, group="TrackTo")
+
+    cns = cam.constraints["FollowPath" + anim.campaths_enum]  # TODO: if not yet executed/exists
+    cns.use_curve_follow = anim.tracktype == "TrackPath"
+    if anim.tracktype == 'TrackPath':
+        cns.forward_axis = 'TRACK_NEGATIVE_Z'
+        cns.up_axis = 'UP_Y'
+    else:
+        cns.forward_axis = 'TRACK_NEGATIVE_Y'
+        cns.up_axis = 'UP_Z'
+
+    scn.frame_set(anim.frame_start)
+
+
+def direction_toggle_update(self, context):
+    """Update the direction of animation on a curve."""
+
+    scn = context.scene
+    tb = scn.tb
+    tb_preset = tb.presets[tb.index_presets]
+    anim = tb_preset.animations[tb_preset.index_animations]
+
+    try:
+        campath = bpy.data.objects[anim.campaths_enum]
+    except:
+        pass
+    else:
+        animdata = campath.data.animation_data
+        fcu = animdata.action.fcurves.find("eval_time")
+        mod = fcu.modifiers[0]  # TODO: sloppy
+        intercept, slope, _ = tb_rp.calculate_coefficients(campath, anim)
+        mod.coefficients = (intercept, slope)
+
+
+def tracts_enum_callback(self, context):
+    """Populate the enum based on available options."""
+
+    scn = context.scene
+    tb = scn.tb
+
+    items = [(tract.name, tract.name, "List the tracts", i)
+             for i, tract in enumerate(tb.tracts)]
+
+    return items
+
+
+def surfaces_enum_callback(self, context):
+    """Populate the enum based on available options."""
+
+    scn = context.scene
+    tb = scn.tb
+
+    items = [(surface.name, surface.name, "List the surfaces", i)
+             for i, tract in enumerate(tb.surfaces)]
+
+    return items
+
+
+def voxelvolumes_enum_callback(self, context):
+    """Populate the enum based on available options."""
+
+    scn = context.scene
+    tb = scn.tb
+
+    items = [(vvol.name, vvol.name, "List the voxelvolumes", i)
+             for i, vvol in enumerate(tb.voxelvolumes)]
+
+    return items
+
+
+def curves_enum_callback(self, context):
+    """Populate the enum based on available options."""
+
+    scn = context.scene
+    tb = scn.tb
+
+    campaths = [cp.name for cp in tb.campaths]
+    tracts = [tract.name for tract in tb.tracts]
+    items = [(cu.name, cu.name, "List the curves", i)
+             for i, cu in enumerate(bpy.data.curves)
+             if ((cu.name not in campaths) and
+                 (cu.name not in tracts))]
+
+    return items
 
 
 class ColorRampProperties(PropertyGroup):
@@ -2689,8 +3038,9 @@ class CameraProperties(PropertyGroup):
     cam_view = FloatVectorProperty(
         name="Numeric input",
         description="Setting of the LR-AP-IS viewpoint of the camera",
-        default=[2.31, 2.31, 2.31],
-        size=3)
+        default=[2.88675, 2.88675, 2.88675],
+        size=3,
+        subtype="TRANSLATION")
 
     cam_view_enum = EnumProperty(
         name="Camera viewpoint",
@@ -2717,16 +3067,43 @@ class CameraProperties(PropertyGroup):
                ("Post", "Post", "Posterior"),
                ("Ant", "Ant", "Anterior"),
                ("Left", "Left", "Left"),
-               ("Right", "Right", "Right"),
-               ("Numeric", "Numeric", "Numeric")],
+               ("Right", "Right", "Right")],
+        # ("Numeric", "Numeric", "Numeric")
         update=cam_view_enum_update)
+
+    cam_view_enum_LR = EnumProperty(
+        name="Camera LR viewpoint",
+        description="Choose a LR position for the camera",
+        default="Right",
+        items=[("Left", "L", "Left", 0),
+               ("Centre", "C", "Centre", 1),
+               ("Right", "R", "Right", 2)],
+        update=cam_view_enum_XX_update)
+
+    cam_view_enum_AP = EnumProperty(
+        name="Camera AP viewpoint",
+        description="Choose a AP position for the camera",
+        default="Anterior",
+        items=[("Anterior", "A", "Anterior", 0),
+               ("Centre", "C", "Centre", 1),
+               ("Posterior", "P", "Posterior", 2)],
+        update=cam_view_enum_XX_update)
+
+    cam_view_enum_IS = EnumProperty(
+        name="Camera IS viewpoint",
+        description="Choose a IS position for the camera",
+        default="Superior",
+        items=[("Inferior", "I", "Inferior", 0),
+               ("Centre", "C", "Centre", 1),
+               ("Superior", "S", "Superior", 2)],
+        update=cam_view_enum_XX_update)
 
     cam_distance = FloatProperty(
         name="Camera distance",
         description="Relative distance of the camera (to bounding box)",
-        default=4,
-        min=1,
-        update=cam_view_enum_update)
+        default=5,
+        min=0,
+        update=cam_view_enum_XX_update)
 
 
 class LightsProperties(PropertyGroup):
@@ -2774,21 +3151,12 @@ class LightsProperties(PropertyGroup):
         description="Relative size of the plane light (to bounding box)",
         size=2,
         default=[1.0, 1.0])
-    distance = FloatProperty(
-        name="Distance",
-        description="Relative distance of the light (to bounding box)",
-        default=5,
-        min=1)
-    azimuth = FloatProperty(
-        name="Azimuth",
-        description="Azimuthal angle with camera",
-        default=5,
-        min=1)
-    elevation = FloatProperty(
-        name="Elevation",
-        description="Elevation angle with camera",
-        default=5,
-        min=1)
+    location = FloatVectorProperty(
+        name="Location",
+        description="",
+        default=[3.88675, 2.88675, 2.88675],
+        size=3,
+        subtype="TRANSLATION")
 
 
 class TableProperties(PropertyGroup):
@@ -2829,6 +3197,7 @@ class TableProperties(PropertyGroup):
         default=[1.0, 0.0, 0.0],
         subtype="COLOR")
 
+    # TODO: size, material, shape, ...
 
 class AnimationProperties(PropertyGroup):
     """Properties of table."""
@@ -2841,13 +3210,6 @@ class AnimationProperties(PropertyGroup):
         name="Icon",
         description="Icon for animation",
         default="RENDER_ANIMATION")
-    animationtype = EnumProperty(
-        name="Animation type",
-        description="switch between animation types",
-        items=[("CameraPath", "CameraPath", "Camera path", 1),
-               ("TranslateSlice", "TranslateSlice", "Translate slice", 2),
-               ("TimeSeries", "TimeSeries", "Play time series", 3)],
-        default="CameraPath")
     is_valid = BoolProperty(
         name="Is Valid",
         description="Indicates if the object passed validity checks",
@@ -2857,38 +3219,131 @@ class AnimationProperties(PropertyGroup):
         description="Indicates if the animation is rendered",
         default=True)
 
+    animationtype = EnumProperty(
+        name="Animation type",
+        description="Switch between animation types",
+        items=[("CameraPath", "Trajectory", "Animate a camera trajectory", 1),
+               ("Slices", "Slices", "Animate voxelvolume slices", 2),
+               ("TimeSeries", "Time series", "Play a time series", 3)])
+
     frame_start = IntProperty(
         name="startframe",
         description="first frame of the animation",
         min=0,
-        default=1)
+        default=1,
+        update=campaths_enum_update)
     frame_end = IntProperty(
         name="endframe",
         description="last frame of the animation",
         min=1,
-        default=100)
+        default=100,
+        update=campaths_enum_update)
     repetitions = FloatProperty(
         name="repetitions",
         description="number of repetitions",
-        default=1)
+        default=1,
+        update=campaths_enum_update)
+    offset = FloatProperty(
+        name="offset",
+        description="offset",
+        default=0,
+        update=campaths_enum_update)
 
-    campath = EnumProperty(
-        name="Camera path",
-        description="Select or create path for camera",
-        items=campath_enum_callback)
+    anim_block = IntVectorProperty(
+        name="anim block",
+        description="",
+        size=2,
+        default=[1, 100])
+
+    campaths_enum = EnumProperty(
+        name="Camera trajectory",
+        description="Choose the camera trajectory",
+        items=campaths_enum_callback,
+        update=campaths_enum_update)
+    tracktype = EnumProperty(
+        name="Tracktype",
+        description="Camera rotation options",
+        items=[("TrackNone", "None", "Use the camera rotation property", 0),
+               ("TrackCentre", "Centre", "Track the preset centre", 1),
+               ("TrackPath", "Path", "Orient along the trajectory", 2)],
+        default="TrackCentre",
+        update=tracktype_enum_update)
+    pathtype = EnumProperty(
+        name="Pathtype",
+        description="Trajectory types for the camera animation",
+        items=[("Circular", "Circular",
+                "Circular trajectory from camera position", 0),
+               ("Streamline", "Streamline",
+                "Curvilinear trajectory from a streamline", 1),
+               ("Select", "Select",
+                "Curvilinear trajectory from curve", 2)],
+        default="Circular")
+
     axis = EnumProperty(
         name="Animation axis",
         description="switch between animation axes",
         items=[("X", "X", "X", 0),
                ("Y", "Y", "Y", 1),
-               ("Z", "Z", "Z", 2),
-               ("-X", "-X", "-X", 3),
-               ("-Y", "-Y", "-Y", 4),
-               ("-Z", "-Z", "-Z", 5)],
+               ("Z", "Z", "Z", 2)],
+#                ("-X", "-X", "-X", 3),
+#                ("-Y", "-Y", "-Y", 4),
+#                ("-Z", "-Z", "-Z", 5),
         default="Z")
+    reverse = BoolProperty(
+        name="Reverse",
+        description="Toggle direction of trajectory traversal",
+        default=False,
+        update=direction_toggle_update)
 
-    # TODO: TranslateSlice props
+    anim_tract = EnumProperty(
+        name="Animation streamline",
+        description="Select tract to animate",
+        items=tracts_enum_callback)
+    spline_index = IntProperty(
+        name="streamline index",
+        description="index of the streamline to animate",
+        min=0,
+        default=0)
+
+    anim_voxelvolume = EnumProperty(
+        name="Animation voxelvolume",
+        description="Select voxelvolume to animate",
+        items=voxelvolumes_enum_callback)
+    sliceproperty = EnumProperty(
+        name="Property to animate",
+        description="Select property to animate",
+        items=[("Thickness", "Thickness", "Thickness", 0),
+               ("Position", "Position", "Position", 1),
+               ("Angle", "Angle", "Angle", 2)],
+        default="Position")
+
+    anim_curve = EnumProperty(
+        name="Animation curves",
+        description="Select curve to animate",
+        items=curves_enum_callback)
+
     # TODO: TimeSeries props
+
+
+class CamPathProperties(PropertyGroup):
+    """Properties of a camera path."""
+
+    name = StringProperty(
+        name="Name",
+        description="Specify a name for the camera path",
+        default="")
+    icon = StringProperty(
+        name="Icon",
+        description="Icon for camera path",
+        default="CAMERA_DATA")
+    is_valid = BoolProperty(
+        name="Is Valid",
+        description="Indicates if the camera path passed validity checks",
+        default=True)
+    is_rendered = BoolProperty(
+        name="Is Rendered",
+        description="Indicates if the camera path is rendered",
+        default=True)
 
 
 class PresetProperties(PropertyGroup):
@@ -2913,6 +3368,28 @@ class PresetProperties(PropertyGroup):
         name="Is Rendered",
         description="Indicates if the preset is rendered",
         default=True)
+
+    centre = StringProperty(
+        name="Centre",
+        description="Scene centre",
+        default="PresetCentre")
+    box = StringProperty(
+        name="Box",
+        description="Scene box",
+        default="PresetBox")
+    cam = StringProperty(
+        name="Camera",
+        description="Scene camera",
+        default="PresetCam")
+    lightsempty = StringProperty(
+        name="LightsEmpty",
+        description="Scene lights empty",
+        default="PresetLights")
+    dims = FloatVectorProperty(
+        name="dims",
+        description="Dimension of the scene",
+        default=[100, 100, 100],
+        subtype="TRANSLATION")
 
     cameras = CollectionProperty(
         type=CameraProperties,
@@ -2958,17 +3435,17 @@ class PresetProperties(PropertyGroup):
                ("Key-Back-Fill", "Key-Back-Fill",
                 "Use Key-Back-Fill lighting", 2),
                ("Free", "Free", "Set up manually", 3)],
-        default="Key-Back-Fill")
+        default="Key")
 
     frame_start = IntProperty(
         name="startframe",
         description="first frame of the animation",
-        min=0,
+        min=1,
         default=1)
     frame_end = IntProperty(
         name="endframe",
         description="last frame of the animation",
-        min=1,
+        min=2,
         default=100)
 
 
@@ -3060,6 +3537,10 @@ class TractBlenderProperties(PropertyGroup):
         name="Additional options",
         default=False,
         description="Show/hide the object's additional options")
+    show_bounds = BoolProperty(
+        name="Bounds",
+        default=False,
+        description="Show/hide the preset's centre and dimensions")
     show_cameras = BoolProperty(
         name="Camera",
         default=False,
@@ -3088,6 +3569,10 @@ class TractBlenderProperties(PropertyGroup):
         name="Animation",
         default=False,
         description="Show/hide the preset's animations")
+    show_newpath = BoolProperty(
+        name="New trajectory",
+        default=False,
+        description="Show/hide the camera trajectory generator")
 
     tracts = CollectionProperty(
         type=TractProperties,
@@ -3126,12 +3611,21 @@ class TractBlenderProperties(PropertyGroup):
         description="index of the presets",
         default=0,
         min=0)
-
     presets_enum = EnumProperty(
         name="presets",
         description="switch between presets",
         items=presets_enum_callback,
         update=presets_enum_update)
+
+    campaths = CollectionProperty(
+        type=CamPathProperties,
+        name="camera paths",
+        description="The collection of camera paths")
+    index_campaths = IntProperty(
+        name="camera path index",
+        description="index of the camera paths collection",
+        default=0,
+        min=0)
 
     objecttype = EnumProperty(
         name="object type",
