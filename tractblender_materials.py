@@ -693,10 +693,14 @@ def get_voxmat(matname, img, dims, file_format="IMAGE_SEQUENCE",
                is_overlay=False, is_label=False, labelgroup=None):
     """Return a textured material for voxeldata."""
 
+    scn = bpy.context.scene
+
     tex = bpy.data.textures.new(matname, 'VOXEL_DATA')
     tex.use_preview_alpha = True
     tex.use_color_ramp = True
     tex.voxel_data.file_format = file_format
+    tex.voxel_data.use_still_frame = True
+    tex.voxel_data.still_frame = scn.frame_current
     if file_format == "IMAGE_SEQUENCE":
         tex.image_user.frame_duration = dims[2]
         tex.image_user.frame_start = 1

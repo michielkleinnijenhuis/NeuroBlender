@@ -108,6 +108,10 @@ class TractBlenderBasePanel(Panel):
         else:
             self.drawunit_tri(layout, "transform", tb, tb_ob)
             self.drawunit_tri(layout, "material", tb, tb_ob)
+            if tb.objecttype == "voxelvolumes":
+                self.drawunit_tri(layout, "slices", tb, tb_ob)
+            else:
+                pass
             self.drawunit_tri(layout, "info", tb, tb_ob)
 
     def drawunit_switch_to_main(self, layout, tb):
@@ -184,6 +188,10 @@ class TractBlenderBasePanel(Panel):
             self.drawunit_texture(layout, tex, tb_ob)
         else:
             self.drawunit_material(layout, tb_ob)
+
+    def drawunit_tri_slices(self, layout, tb, tb_ob):
+
+        self.drawunit_slices(layout, tb_ob)
 
     def drawunit_tri_info(self, layout, tb, tb_ob):
 
@@ -314,6 +322,20 @@ class TractBlenderBasePanel(Panel):
         for i, el in enumerate(nnels):
             el.name = "colour stop " + str(i)
             el.nn_position = els[i].position * drange + dmin
+
+    def drawunit_slices(self, layout, tb_ob):
+#         row = layout.row()
+#         ob = bpy.data.objects[tb_ob.name+"SliceBox"]
+#         row.prop(ob, "scale", expand=True)
+#         row = layout.row()
+#         row.prop(ob, "location", expand=True)
+        row = layout.row()
+        col = row.column()
+        col.prop(tb_ob, "slicethickness", expand=True, text="Thickness")
+        col = row.column()
+        col.prop(tb_ob, "sliceposition", expand=True, text="Position")
+        col = row.column()
+        col.prop(tb_ob, "sliceangle", expand=True, text="Angle")
 
 
 class TractBlenderOverlayPanel(Panel):
@@ -711,6 +733,19 @@ class ObjectListOperations(Operator):
 
         scn.update()  # FIXME: update the viewports
 
+        if type == "voxelvolumes":
+            # TODO: update the index to tb.voxelvolumes in all drivers
+            for i, vvol in enumerate(tb.voxelvolumes):
+                slicebox = bpy.data.objects[vvol.name+"SliceBox"]
+                for dr in slicebox.animation_data.drivers:
+                    for var in dr.driver.variables:
+                        for tar in var.targets:
+                            dp = tar.data_path
+                            idx = 16
+                            if dp.index("tb.voxelvolumes[") == 0:
+                                newpath = dp[:idx] + "%d" % i + dp[idx + 1:]
+                                tar.data_path = dp[:idx] + "%d" % i + dp[idx + 1:]
+
         return {"FINISHED"}
 
     def remove_items(self, tb, data, type, collection, idx):
@@ -726,6 +761,8 @@ class ObjectListOperations(Operator):
             # remove the object itself
             if type == 'voxelvolumes':
                 self.remove_material(ob, name)
+                slicebox = bpy.data.objects[name+"SliceBox"]
+                bpy.data.objects.remove(slicebox, do_unlink=True)
 #             for ms in ob.material_slots:
 #                 self.remove_material(ob, ms.name)  # FIXME: causes crash
             bpy.data.objects.remove(ob, do_unlink=True)
@@ -733,6 +770,9 @@ class ObjectListOperations(Operator):
             print("remove PL")  # FIXME: TODO
         elif self.action.endswith('_AN'):
             print("remove AN")  # FIXME: TODO
+            # for CamPath anim:
+            # remove follow path constraint on camera
+            # remove keyframes on TrackTo constraint influence
         else:
             if tb_ob.is_valid:
                 tb_ov, ov_idx = tb_utils.active_tb_overlay()
@@ -1795,6 +1835,13 @@ def sformfile_update(self, context):
     ob.matrix_world = affine
 
 
+def slices_update(self, context):
+    """Set slicethicknesses and positions for the object."""
+
+    ob = bpy.data.objects[self.name+"SliceBox"]
+    ob.scale = self.slicethickness
+
+
 def mode_enum_update(self, context):
     """Perform actions for updating mode."""
 
@@ -2428,6 +2475,12 @@ class VoxelvolumeProperties(PropertyGroup):
         description="",
         default=[0.0, 0.0, 1.0, 0.0],
         size=4)
+    dimensions = FloatVectorProperty(
+        name="dimensions",
+        description="",
+        default=[0.0, 0.0, 0.0],
+        size=3,
+        subtype="TRANSLATION")
 
     scalars = CollectionProperty(
         type=ScalarProperties,
@@ -2520,6 +2573,41 @@ class VoxelvolumeProperties(PropertyGroup):
         default=0.5,
         min=0.,
         max=1.)
+
+    slicebox = StringProperty(
+        name="Slicebox",
+        description="Name of slicebox",
+        default="box")
+    slicethickness = FloatVectorProperty(
+        name="Slice thickness",
+        description="The thickness of the slices",
+        default=(1.0, 1.0, 1.0),
+        size=3,
+        precision=2,
+        min=0,
+        max=1,
+        subtype="TRANSLATION",
+        update=slices_update)
+    sliceposition = FloatVectorProperty(
+        name="Slice position",
+        description="The position of the slices",
+        default=(0.5, 0.5, 0.5),
+        size=3,
+        precision=2,
+        min=0,
+        max=1,
+        subtype="TRANSLATION",
+        update=slices_update)
+    sliceangle = FloatVectorProperty(
+        name="Slice position",  
+        description="The position of the slices",
+        default=(0.0, 0.0, 0.0),
+        size=3,
+        precision=2,
+        min=-1.57,
+        max=1.57,
+        subtype="TRANSLATION",
+        update=slices_update)
 
 
 class CameraProperties(PropertyGroup):
@@ -2888,6 +2976,10 @@ class TractBlenderProperties(PropertyGroup):
         name="Material",
         default=False,
         description="Show/hide the object's materials options")
+    show_slices = BoolProperty(
+        name="Slices",
+        default=False,
+        description="Show/hide the object's slice options")
     show_info = BoolProperty(
         name="Info",
         default=False,

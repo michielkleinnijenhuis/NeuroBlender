@@ -140,7 +140,6 @@ def import_surface(fpath, name, sformfile="", argdict={}):
 
     outcome = "failed"
     ext = os.path.splitext(fpath)[1]
-    print(ext)
     try:
         ob, affine, sformfile = eval("read_surfaces_%s(fpath, name, sformfile)" % ext[1:])
     except NameError:
@@ -233,19 +232,21 @@ def import_voxelvolume(directory, files, specname,
         labelgroup = None
         matname = name
     else:
-        add_voxelvolume_to_collection(name, fpath, sformfile, datarange)
+        add_voxelvolume_to_collection(name, fpath, sformfile, datarange, dims)
         labelgroup = None
         matname = name
 
+    slices = False
     me = bpy.data.meshes.new(name)
     ob = bpy.data.objects.new(name, me)
     bpy.context.scene.objects.link(ob)
-    ob1 = voxelvolume_box_ob(dims, "bounds")
-    ob2 = voxelvolume_box_ob(dims, "box")
-    ob3 = voxelvolume_box_ob(dims, "sagittal")
-    ob4 = voxelvolume_box_ob(dims, "coronal")
-    ob5 = voxelvolume_box_ob(dims, "axial")
-    obs = [ob, ob1, ob2, ob3, ob4, ob5]
+    ob1 = voxelvolume_box_ob(dims, "Bounds")
+    ob2 = voxelvolume_box_ob(dims, "SliceBox")
+#     ob3 = voxelvolume_box_ob(dims, "sagittal")
+#     ob4 = voxelvolume_box_ob(dims, "coronal")
+#     ob5 = voxelvolume_box_ob(dims, "axial")
+#     obs = [ob, ob1, ob2, ob3, ob4, ob5]
+    obs = [ob, ob1, ob2]
     ctx = bpy.context.copy()
     ctx['active_object'] = ob
     ctx['selected_objects'] = obs
@@ -255,51 +256,15 @@ def import_voxelvolume(directory, files, specname,
     scn.objects.active = ob
     ob.select = True
 
-    for slice in ["sagittal", "coronal", "axial"]:
-        empty = bpy.data.objects.new(slice, None)
-        empty.parent = ob
-        bpy.context.scene.objects.link(empty)
-        scn.objects.active = empty
-        bpy.ops.object.constraint_add(type='LIMIT_LOCATION')
-        con = empty.constraints["Limit Location"]
-        con.use_min_x = True
-        con.use_max_x = True
-        con.use_max_y = True
-        con.use_min_y = True
-        con.use_min_z = True
-        con.use_max_z = True
-        if slice == "sagittal":
-            con.min_x = 0
-            con.max_x = dims[0]
-            con.min_y = 0
-            con.max_y = 0
-            con.min_z = 0
-            con.max_z = 0
-        elif slice == "coronal":
-            con.min_x = 0
-            con.max_x = 0
-            con.min_y = 0
-            con.max_y = dims[1]
-            con.min_z = 0
-            con.max_z = 0
-        elif slice == "axial":
-            con.min_x = 0
-            con.max_x = 0
-            con.min_y = 0
-            con.max_y = 0
-            con.min_z = 0
-            con.max_z = dims[2]
-
-        scn.objects.active = ob
-        bpy.ops.object.modifier_add(type='HOOK')
-        hook = ob.modifiers["Hook"]
-        hook.name = slice
-        hook.object = empty
-        hook.vertex_group = slice
-        hook.falloff_type = 'NONE'
-
     affine = read_affine_matrix(sformfile)
     ob.matrix_world = affine
+
+    slicebox = voxelvolume_cutout(ob)
+
+    for idx in range(0,3):
+        voxelvolume_slice_drivers(ob, slicebox, idx, "scale")
+        voxelvolume_slice_drivers(ob, slicebox, idx, "location")
+        voxelvolume_slice_drivers(ob, slicebox, idx, "rotation_euler")
 
     mat = tb_mat.get_voxmat(matname, img, dims, file_format,
                             is_overlay, is_label, labelgroup)
@@ -313,6 +278,157 @@ def import_voxelvolume(directory, files, specname,
         ob.select = True
 
     return ob
+
+
+def voxelvolume_cutout(ob):
+    """"""
+
+    scn = bpy.context.scene
+
+    bb_min, bb_max = find_bbox_coordinates([ob])
+
+    for slice in ["SliceBox"]: # , "sagittal", "coronal", "axial"
+
+        empty = bpy.data.objects.new(ob.name+slice, None)
+        empty.parent = ob
+        empty.location = (0, 0, 0)
+#         empty.location = ob.location
+#         empty.location[0] = bb_min[0] + (bb_max[0] - bb_min[0]) / 2
+#         empty.location[1] = bb_min[1] + (bb_max[1] - bb_min[1]) / 2
+#         empty.location[2] = bb_min[2] + (bb_max[2] - bb_min[2]) / 2
+        bpy.context.scene.objects.link(empty)
+        scn.objects.active = empty
+
+#         saved_location = scn.cursor_location
+#         scn.cursor_location = empty.location
+#         bpy.ops.object.origin_set(type='ORIGIN_CURSOR')
+#         scn.cursor_location = saved_location
+
+        if 0:
+            bpy.ops.object.constraint_add(type='LIMIT_SCALE')
+            con = empty.constraints["Limit Scale"]
+            con.use_transform_limit = True
+            con.owner_space = 'LOCAL'
+            con.use_min_x = con.use_min_y = con.use_min_z = True
+            con.use_max_x = con.use_max_y = con.use_max_z = True
+            con.min_x = con.min_y = con.min_z = 0
+            con.max_x = con.max_y = con.max_z = 1
+
+            bpy.ops.object.constraint_add(type='LIMIT_LOCATION')
+            con = empty.constraints["Limit Location"]
+            con.use_transform_limit = True
+            con.owner_space = 'LOCAL'
+            con.use_min_x = True
+            con.use_max_x = True
+            con.use_min_y = True
+            con.use_max_y = True
+            con.use_min_z = True
+            con.use_max_z = True
+            if slice == "SliceBox":
+                con.min_x = con.min_y = con.min_z = 0
+                con.max_x = bb_max[0] - bb_min[0]
+                con.max_y = bb_max[1] - bb_min[1]
+                con.max_z = bb_max[2] - bb_min[2]
+                # for GLOBAL space?
+    #             con.min_x = bb_min[0]
+    #             con.max_x = bb_max[0]
+    #             con.min_y = bb_min[1]
+    #             con.max_y = bb_max[1]
+    #             con.min_z = bb_min[2]
+    #             con.max_z = bb_max[2]
+            elif slice == "sagittal":
+                con.min_x = 0
+                con.max_x = dims[0]
+                con.min_y = 0
+                con.max_y = 0
+                con.min_z = 0
+                con.max_z = 0
+            elif slice == "coronal":
+                con.min_x = 0
+                con.max_x = 0
+                con.min_y = 0
+                con.max_y = dims[1]
+                con.min_z = 0
+                con.max_z = 0
+            elif slice == "axial":
+                con.min_x = 0
+                con.max_x = 0
+                con.min_y = 0
+                con.max_y = 0
+                con.min_z = 0
+                con.max_z = dims[2]
+
+        scn.objects.active = ob
+        bpy.ops.object.modifier_add(type='HOOK')
+        hook = ob.modifiers["Hook"]
+        hook.name = slice
+        hook.object = empty
+        hook.vertex_group = slice
+        hook.falloff_type = 'NONE'
+
+    return empty
+
+
+def voxelvolume_slice_drivers(vvol, slicebox, index, prop, relative=True):
+
+    scn = bpy.context.scene
+    tb = scn.tb
+
+    driver = slicebox.driver_add(prop, index).driver
+    driver.type = 'SCRIPTED'
+    vv_idx = tb.index_voxelvolumes
+
+    # dimension of the voxelvolume
+    data_path = "tb.voxelvolumes[%d].dimensions[%d]" % (vv_idx, index)
+    tb_rp.create_var(driver, "dim",
+                     'SINGLE_PROP', 'SCENE',
+                     scn, data_path)
+    # relative slicethickness
+    data_path = "tb.voxelvolumes[%d].slicethickness[%d]" % (vv_idx, index)
+    tb_rp.create_var(driver, "slc_th",
+                     'SINGLE_PROP', 'SCENE',
+                     scn, data_path)
+    # relative sliceposition
+    data_path = "tb.voxelvolumes[%d].sliceposition[%d]" % (vv_idx, index)
+    tb_rp.create_var(driver, "slc_pos",
+                     'SINGLE_PROP', 'SCENE',
+                     scn, data_path)
+    # sliceangle
+    data_path = "tb.voxelvolumes[%d].sliceangle[%d]" % (vv_idx, index)
+    tb_rp.create_var(driver, "slc_angle",
+                     'SINGLE_PROP', 'SCENE',
+                     scn, data_path)
+
+    if relative:
+        if prop == "scale":
+            driver.expression = "slc_th"
+        elif prop == "rotation_euler":
+            driver.expression = "slc_angle"
+        elif prop == "location":
+            driver.expression = "slc_pos * (dim - slc_th * dim)"
+    else:
+        if prop == "scale":
+            driver.expression = "slc_th / dim"
+        elif prop == "rotation_euler":
+            driver.expression = "slc_angle"
+        elif prop == "location":
+            pass
+
+    slicebox.lock_location[index] = True
+    slicebox.lock_rotation[index] = True
+    slicebox.lock_scale[index] = True
+
+
+
+def find_bbox_coordinates(obs):
+    """Find the extreme dimensions in the geometry."""
+
+    bb_world = [ob.matrix_world * Vector(bbco) 
+                for ob in obs for bbco in ob.bound_box]
+    bb_min = np.amin(np.array(bb_world), 0)
+    bb_max = np.amax(np.array(bb_world), 0)
+
+    return bb_min, bb_max
 
 
 def import_overlays(directory, files, name="", parent="", ovtype=""):
@@ -642,11 +758,11 @@ def voxelvolume_box_ob(dims=[256, 256, 256], type="verts"):
 #     vidxs = range(nverts, nverts + 8)
 #     faces = [(0, 1, 2, 3), (0, 1, 5, 4), (1, 2, 6, 5),
 #              (2, 3, 7, 6), (3, 0, 4, 7), (4, 5, 6, 7)]
-    if type=="box":
+    if type=="SliceBox":
         vidxs = range(nverts, nverts + 8)
-        faces = [(0, 1, 2, 3), (0, 1, 5, 4), (1, 2, 6, 5),
+        faces = [(3, 2, 1, 0), (0, 1, 5, 4), (1, 2, 6, 5),
                  (2, 3, 7, 6), (3, 0, 4, 7), (4, 5, 6, 7)]
-    elif type == "bounds":
+    elif type == "Bounds":
         vidxs = range(nverts, nverts + 8)
         faces = []
     elif type == "sagittal":
@@ -879,7 +995,7 @@ def add_surface_to_collection(name, fpath, sformfile):
 
     return surface
 
-def add_voxelvolume_to_collection(name, fpath, sformfile, datarange):
+def add_voxelvolume_to_collection(name, fpath, sformfile, datarange, dims):
     """Add voxelvolume to the TractBlender collection."""
 
     scn = bpy.context.scene
@@ -893,6 +1009,7 @@ def add_voxelvolume_to_collection(name, fpath, sformfile, datarange):
     vvol.filepath = fpath
     vvol.range = datarange
     vvol.sformfile = sformfile
+    vvol.dimensions = dims
 
     return vvol
 
