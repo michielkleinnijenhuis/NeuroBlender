@@ -264,6 +264,9 @@ class TractBlenderBasePanel(Panel):
         row.prop(tex, "contrast")
         row.prop(tex, "saturation")
 
+        row = layout.row()
+        row.prop(tb_coll, "colourmap_enum", expand=False)
+
         if tex.use_color_ramp:
             box = layout.box()
             self.drawunit_colourramp(box, tex, tb_coll)
@@ -1894,6 +1897,13 @@ def material_enum_update(self, context):
     mat = bpy.data.materials[tb_ob.name]
     tb_mat.link_innode(mat, tb_ob.colourtype)
 
+def colourmap_enum_update(self, context):
+    """Assign a new colourmap to the object."""
+
+    tex = bpy.data.textures[self.name]
+    colourmap = self.colourmap_enum
+    tb_mat.switch_colourmap(tex, colourmap)
+
 
 def cam_view_enum_update(self, context):
     """Set the camview property from enum options."""
@@ -2015,6 +2025,21 @@ class ScalarProperties(PropertyGroup):
         default=(0, 0),
         size=2,
         precision=4)
+    colourmap_enum = EnumProperty(
+        name="colourmap",
+        description="Apply this colour map",
+        items=[("greyscale", "greyscale", "greyscale", 1),
+               ("jet", "jet", "jet", 2),
+               ("hsv", "hsv", "hsv", 3),
+               ("hot", "hot", "hot", 4),
+               ("cool", "cool", "cool", 5),
+               ("spring", "spring", "spring", 6),
+               ("summer", "summer", "summer", 7),
+               ("autumn", "autumn", "autumn", 8),
+               ("winter", "winter", "winter", 9),
+               ("parula", "parula", "parula", 10)],
+        default="jet",
+        update=colourmap_enum_update)
     nn_elements = CollectionProperty(
         type=ColorRampProperties,
         name="nn_elements",
@@ -2521,6 +2546,21 @@ class VoxelvolumeProperties(PropertyGroup):
         default=(0, 0),
         size=2,
         precision=4)
+    colourmap_enum = EnumProperty(
+        name="colourmap",
+        description="Apply this colour map",
+        items=[("greyscale", "greyscale", "greyscale", 1),
+               ("jet", "jet", "jet", 2),
+               ("hsv", "hsv", "hsv", 3),
+               ("hot", "hot", "hot", 4),
+               ("cool", "cool", "cool", 5),
+               ("spring", "spring", "spring", 6),
+               ("summer", "summer", "summer", 7),
+               ("autumn", "autumn", "autumn", 8),
+               ("winter", "winter", "winter", 9),
+               ("parula", "parula", "parula", 10)],
+        default="greyscale",
+        update=colourmap_enum_update)
     nn_elements = CollectionProperty(
         type=ColorRampProperties,
         name="nn_elements",
