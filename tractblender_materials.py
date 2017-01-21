@@ -218,7 +218,8 @@ def create_vc_overlay_tract(ob, fpath, name="", is_label=False):
     ca = [tb_ob.scalars]
     name = tb_utils.check_name(name, fpath, ca)
 
-    tb_imp.add_scalar_to_collection(name, fpath, scalarrange)
+    scalargroup = []
+    tb_imp.add_scalar_to_collection(scalargroup, name, fpath, scalarrange)
 
     ob.data.use_uv_as_generated = True
     diffcol = [0.0, 0.0, 0.0, 1.0]
@@ -263,19 +264,38 @@ def set_curve_weights(ob, name, label=None, scalars=None):
 def create_vc_overlay(ob, fpath, name="", is_label=False):
     """Create scalar overlay for a surface object."""
 
-    scalars = tb_imp.read_surfscalar(fpath)
-    scalars, scalarrange = tb_imp.normalize_data(scalars)
+    timeseries = tb_imp.read_surfscalar(fpath)
 
-    ca = [ob.vertex_groups,
-          ob.data.vertex_colors,
-          bpy.data.materials]
-    name = tb_utils.check_name(name, fpath, ca)
+    timeseries, timeseriesrange = tb_imp.normalize_data(timeseries)
 
-    vg = set_vertex_group(ob, name, label=None, scalars=scalars)
+    if timeseries.shape[0] > 1:
+        tb_ob = tb_utils.active_tb_object()[0]
+        ca = [tb_ob.scalargroups]  # TODO: all other scalargroups etc
+        name = tb_utils.check_name(name, fpath, ca)
+        scalargroup = tb_imp.add_scalargroup_to_collection(name, fpath, timeseriesrange)
 
-    tb_ov = tb_imp.add_scalar_to_collection(name, fpath, scalarrange)
+        vg = set_vertex_group(ob, name, scalars=np.mean(timeseries, axis=0))
+        map_to_vertexcolours(ob, scalargroup, [vg])
 
-    map_to_vertexcolours(ob, tb_ov, [vg])
+        for i, scalars in enumerate(timeseries):
+            tpname = "%s.tp%03d" % (name, i)
+            vg = set_vertex_group(ob, tpname, scalars=scalars)
+            tb_ov = tb_imp.add_scalar_to_collection(scalargroup, tpname, fpath,
+                                                    timeseriesrange)
+
+    else:
+        scalargroup = []
+        ca = [ob.vertex_groups,
+              ob.data.vertex_colors,
+              bpy.data.materials]
+        name = tb_utils.check_name(name, fpath, ca)
+
+        vg = set_vertex_group(ob, name, scalars=timeseries[0])
+
+        tb_ov = tb_imp.add_scalar_to_collection(scalargroup, name, fpath,
+                                                timeseriesrange)
+
+        map_to_vertexcolours(ob, tb_ov, [vg])
 
     # NOTE: UV is useless without proper flatmaps ...
 #     uvname = 'uv_'+vgname
@@ -431,7 +451,8 @@ def create_vg_overlay(ob, fpath, name="", is_label=False, trans=1):
 
         vg = set_vertex_group(ob, name, label, scalars)
 
-        tb_ov = tb_imp.add_scalar_to_collection(name, fpath, scalarrange)
+        scalargroup = []
+        tb_ov = tb_imp.add_scalar_to_collection(scalargroup, name, fpath, scalarrange)
 
         map_to_vertexcolours(ob, tb_ov, [vg], is_label)
 
@@ -726,7 +747,7 @@ def get_voxmat(matname, img, dims, file_format="IMAGE_SEQUENCE",
             el = cre.new(pos)
             el.color = label.colour
     elif is_overlay:
-        switch_colourmap(tex, "jet")
+        switch_colourmap(tex.color_ramp, "jet")
 
     mat = bpy.data.materials.new(matname)
     mat.type = "VOLUME"
@@ -742,7 +763,7 @@ def get_voxmat(matname, img, dims, file_format="IMAGE_SEQUENCE",
     return mat
 
 
-def switch_colourmap(tex, colourmap="greyscale", tb_coll=None):
+def switch_colourmap(cr, colourmap="greyscale"):
     """"""
 
     if colourmap == "greyscale":
@@ -812,7 +833,6 @@ def switch_colourmap(tex, colourmap="greyscale", tb_coll=None):
                                {"position": 0.8, "color": (0.839, 0.485, 0.072, 0.8)},
                                {"position": 1.0, "color": (0.947, 0.965, 0.004, 1.0)}]}
 
-    cr = tex.color_ramp
     cr.color_mode = cmdict["color_mode"]
     cr.interpolation = cmdict["interpolation"]
     cr.hue_interpolation = cmdict["hue_interpolation"]
@@ -1192,7 +1212,7 @@ def make_material_overlay_cycles(name, vcname, ob=None, tb_ov=None):
     vrgb.name = prefix + "ColorRamp"
     vrgb.location = 100, 100
 
-    set_colorramp_preset(vrgb, mat=mat)
+    switch_colourmap(vrgb.color_ramp, "jet")
     calc_nn_elpos(tb_ov, vrgb)
 
     srgb = nodes.new("ShaderNodeSeparateRGB")
@@ -1438,16 +1458,7 @@ def make_material_overlaytract_cycles_group(diffcol, mix=0.04):
     vrgb.name = "ColorRamp"
     vrgb.location = -100, 100
 
-    elements = vrgb.color_ramp.elements
-    for el in elements[1:]:
-        elements.remove(el)
-    positions = [0.0, 1.0]
-    colors = [(1.0, 0.0, 0.0, 1.0), (0.0, 0.0, 1.0, 1.0)]
-    for p in positions[1:]:
-        elements.new(p)
-    elements.foreach_set("position", positions)
-    for i in range(len(colors)):
-        setattr(elements[i], "color", colors[i])
+    switch_colourmap(vrgb.color_ramp, "jet")
 
     srgb = nodes.new("ShaderNodeSeparateRGB")
     srgb.label = "Separate RGB"

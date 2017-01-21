@@ -229,7 +229,8 @@ def import_voxelvolume(directory, files, specname,
             add_label_to_collection(labelgroup, name, label, colour)
         matname = labelgroup.name
     elif is_overlay:
-        add_scalar_to_collection(name, fpath, datarange)
+        scalargroup = []
+        add_scalar_to_collection(scalargroup, name, fpath, datarange)
         labelgroup = None
         matname = name
     else:
@@ -467,6 +468,12 @@ def import_tracts_scalars(fpath, parent_ob, name=""):
     tb_mat.create_vc_overlay_tract(parent_ob, fpath, name=name)
 
 
+def import_surfaces_scalargroups(fpath, parent_ob, name=""):
+    """Import timeseries overlay on surface object."""
+
+    tb_mat.create_vc_overlay(parent_ob, fpath, name=name)
+
+
 def import_surfaces_scalars(fpath, parent_ob, name=""):
     """Import scalar overlay on surface object.
 
@@ -580,7 +587,10 @@ def read_surfscalar(fpath):
         if tb.nibabel_valid:
             gio = nib.gifti.giftiio
             img = gio.read(fpath)
-            scalars = img.darrays[0].data
+            scalars = []
+            for darray in img.darrays:
+                scalars.append(darray.data)
+            scalars = np.array(scalars)
     elif fpath.endswith('dscalar.nii'):
         # CIFTI not yet working properly: in nibabel?
         nib = tb_utils.validate_nibabel('dscalar.nii')
@@ -598,7 +608,7 @@ def read_surfscalar(fpath):
                 f.seek(15, os.SEEK_SET)
                 scalars = np.fromfile(f, dtype='>f4')
 
-    return scalars
+    return np.atleast_2d(scalars)
 
 
 def read_surflabel(fpath, is_label=False):
@@ -1014,17 +1024,40 @@ def add_voxelvolume_to_collection(name, fpath, sformfile, datarange, dims):
 
     return vvol
 
-def add_scalar_to_collection(name, fpath, scalarrange):
+def add_scalargroup_to_collection(name, fpath, scalarrange=[0, 1]):
+    """Add scalargroup to the TractBlender collection."""
+
+    tb_ob = tb_utils.active_tb_object()[0]
+
+    scn = bpy.context.scene
+    tb = scn.tb
+    tb.overlaytype = 'scalargroups'
+
+    scalargroup = tb_ob.scalargroups.add()
+    tb_ob.index_scalargroups = (len(tb_ob.scalargroups)-1)
+
+    scalargroup.name = name
+    scalargroup.filepath = fpath
+    scalargroup.range = scalarrange
+
+    return scalargroup
+
+def add_scalar_to_collection(scalargroup, name, fpath, scalarrange):
     """Add scalar to the TractBlender collection."""
 
     tb_ob = tb_utils.active_tb_object()[0]
 
     scn = bpy.context.scene
     tb = scn.tb
-    tb.overlaytype = 'scalars'
 
-    scalar = tb_ob.scalars.add()
-    tb_ob.index_scalars = (len(tb_ob.scalars)-1)
+    if scalargroup:
+        tb.overlaytype = 'scalargroups'
+        scalar = scalargroup.scalars.add()
+        scalargroup.index_scalars = (len(scalargroup.scalars)-1)
+    else:
+        tb.overlaytype = 'scalars'
+        scalar = tb_ob.scalars.add()
+        tb_ob.index_scalars = (len(tb_ob.scalars)-1)
 
     scalar.name = name
     scalar.filepath = fpath

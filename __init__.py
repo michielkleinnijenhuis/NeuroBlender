@@ -147,7 +147,6 @@ class TractBlenderBasePanel(Panel):
                           data, type,
                           data, "index_" + type,
                           rows=2)
-
         col = row.column(align=True)
         if addopt:
             col.operator("tb.import_" + type,
@@ -281,9 +280,6 @@ class TractBlenderBasePanel(Panel):
         row.prop(tex, "contrast")
         row.prop(tex, "saturation")
 
-        row = layout.row()
-        row.prop(tb_coll, "colourmap_enum", expand=False)
-
         if tex.use_color_ramp:
             box = layout.box()
             self.drawunit_colourramp(box, tex, tb_coll)
@@ -293,6 +289,9 @@ class TractBlenderBasePanel(Panel):
         if text:
             row = layout.row()
             row.label(text=text)
+
+        row = layout.row()
+        row.prop(tb_coll, "colourmap_enum", expand=False)
 
         row = layout.row()
         layout.template_color_ramp(ramp, "color_ramp", expand=True)
@@ -402,8 +401,31 @@ class TractBlenderOverlayPanel(Panel):
             else:
                 if ovtype == "scalars":
                     self.drawunit_tri(layout, "overlay_material", tb, tb_ov)
+
+                elif ovtype == "scalargroups":
+                    row = layout.row()
+
+                    col = row.column()
+                    col.operator("tb.wp_preview", text="", icon="GROUP_VERTEX")
+                    col.enabled = bpy.context.mode != 'PAINT_WEIGHT'
+
+                    col = row.column()
+                    col.operator("tb.vp_preview", text="", icon="GROUP_VCOL")
+                    ob = bpy.data.objects[tb_ob.name]
+                    tpname = tb_ov.scalars[tb_ov.index_scalars].name
+                    col.enabled = ob.data.vertex_colors.find(tpname) == -1
+
+                    col = row.column()
+                    col.template_list("ObjectListTS", "",
+                                      tb_ov, "scalars",
+                                      tb_ov, "index_scalars",
+                                      rows=2, type="COMPACT")
+
+                    self.drawunit_tri(layout, "overlay_material", tb, tb_ov)
+
                 else:
                     self.drawunit_tri(layout, "items", tb, tb_ov)
+
                 self.drawunit_tri(layout, "overlay_info", tb, tb_ov)
 
     def drawunit_tri_overlay_material(self, layout, tb, tb_ov):
@@ -428,9 +450,8 @@ class TractBlenderOverlayPanel(Panel):
 
     def drawunit_tri_items(self, layout, tb, tb_ov):
 
-        type = tb.overlaytype.replace("groups", "s")
-
-        self.drawunit_UIList(layout, "L3", tb_ov, type, addopt=False)
+        itemtype = tb.overlaytype.replace("groups", "s")
+        self.drawunit_UIList(layout, "L3", tb_ov, itemtype, addopt=False)
         self.drawunit_tri(layout, "itemprops", tb, tb_ov)
 
     def drawunit_tri_itemprops(self, layout, tb, tb_ov):
@@ -679,6 +700,23 @@ class ObjectListAN(UIList):
             col.prop(item, "is_rendered", text="", emboss=False,
                      translate=False, icon='SCENE')
 
+        elif self.layout_type in {'GRID'}:
+            layout.alignment = 'CENTER'
+            layout.prop(text="", icon=item_icon)
+
+
+class ObjectListTS(UIList):
+
+    def draw_item(self, context, layout, data, item, icon,
+                  active_data, active_propname, index):
+
+        if item.is_valid:
+            item_icon = item.icon
+        else:
+            item_icon = "CANCEL"
+
+        if self.layout_type in {'DEFAULT', 'COMPACT'}:
+            layout.label(text="Time index:")
         elif self.layout_type in {'GRID'}:
             layout.alignment = 'CENTER'
             layout.prop(text="", icon=item_icon)
@@ -1225,6 +1263,39 @@ class ImportScalars(Operator, ImportHelper):
         return {"RUNNING_MODAL"}
 
 
+class ImportScalarGroups(Operator, ImportHelper):
+    bl_idname = "tb.import_scalargroups"
+    bl_label = "Import time series overlay"
+    bl_description = "Import time series overlay to vertexweights/colours"
+    bl_options = {"REGISTER", "UNDO", "PRESET"}
+
+    directory = StringProperty(subtype="FILE_PATH")
+    files = CollectionProperty(name="Filepath",
+                               type=OperatorFileListElement)
+
+    name = StringProperty(
+        name="Name",
+        description="Specify a name for the object (default: filename)",
+        default="")
+
+    parent = StringProperty(
+        name="Parent",
+        description="The parent of the object",
+        default="")
+
+    def execute(self, context):
+        filenames = [file.name for file in self.files]
+        tb_imp.import_overlays(self.directory, filenames,
+                               self.name, self.parent, "scalargroups")
+
+        return {"FINISHED"}
+
+    def invoke(self, context, event):
+        context.window_manager.fileselect_add(self)
+
+        return {"RUNNING_MODAL"}
+
+
 class ImportLabelGroups(Operator, ImportHelper):
     bl_idname = "tb.import_labelgroups"
     bl_label = "Import label overlay"
@@ -1496,6 +1567,43 @@ class MassIsRenderedL2(Menu):
         layout.operator("tb.mass_select",
                         icon='SCENE',
                         text="Invert").action = 'INVERT_L2'
+
+
+class WeightPaintMode(Operator):
+    bl_idname = "tb.wp_preview"
+    bl_label = "wp_mode button"
+    bl_description = "Go to weight paint mode for preview"
+    bl_options = {"REGISTER", "UNDO", "PRESET"}
+
+    def execute(self, context):
+
+        bpy.ops.object.mode_set(mode="WEIGHT_PAINT")
+
+        return {"FINISHED"}
+
+
+class VertexPaintMode(Operator):
+    bl_idname = "tb.vp_preview"
+    bl_label = "vp_mode button"
+    bl_description = "Bake timepoint and go to vertex paint mode for preview"
+    bl_options = {"REGISTER", "UNDO", "PRESET"}
+
+    def execute(self, context):
+
+        tb_ob = tb_utils.active_tb_object()[0]
+        scalargroup = tb_utils.active_tb_overlay()[0]
+        ob = bpy.data.objects[tb_ob.name]
+        scalar = scalargroup.scalars[scalargroup.index_scalars]
+        vg = ob.vertex_groups[scalar.name]
+
+        vcs = ob.data.vertex_colors
+        vc = vcs.new(name=scalar.name)
+        ob.data.vertex_colors.active = vc
+        ob = tb_mat.assign_vc(ob, vc, [vg])
+
+        bpy.ops.object.mode_set(mode="VERTEX_PAINT")
+
+        return {"FINISHED"}
 
 
 class MassIsRenderedL3(Menu):
@@ -2103,14 +2211,36 @@ def overlay_enum_callback(self, context):
     items = []
     items.append(("scalars", "scalars",
                   "List the scalar overlays", 1))
+    if self.objecttype == 'surfaces':
+        items.append(("scalargroups", "time series",
+                      "List the time series", 2))
     if self.objecttype != 'tracts':
         items.append(("labelgroups", "labelgroups",
-                      "List the label overlays", 2))
+                      "List the label overlays", 3))
     if self.objecttype == 'surfaces':
         items.append(("bordergroups", "bordergroups",
-                      "List the bordergroups", 3))
+                      "List the bordergroups", 4))
 
     return items
+
+
+def index_scalars_update(self, context):
+    """Assign a new preset material to the object."""
+
+    tb_object = tb_utils.active_tb_object()[0]
+    ob = bpy.data.objects[tb_object.name]
+
+    tpname = self.scalars[self.index_scalars].name
+    vg_idx = ob.vertex_groups.find(tpname)
+    ob.vertex_groups.active_index = vg_idx
+
+    mat = bpy.data.materials[self.name]
+    attr = mat.node_tree.nodes["Attribute"]
+    attr.attribute_name = tpname
+
+    for scalar in self.scalars:
+        scalar_index = self.scalars.find(scalar.name)
+        scalar.is_rendered = scalar_index == self.index_scalars
 
 
 def material_enum_update(self, context):
@@ -2123,9 +2253,21 @@ def material_enum_update(self, context):
 def colourmap_enum_update(self, context):
     """Assign a new colourmap to the object."""
 
-    tex = bpy.data.textures[self.name]
+    tb_ob = tb_utils.active_tb_object()[0]
+
+    if isinstance(self, bpy.types.VoxelvolumeProperties):
+        cr = bpy.data.textures[self.name].color_ramp
+    elif isinstance(self, (bpy.types.ScalarProperties,
+                           bpy.types.ScalarGroupProperties)):
+        if isinstance(tb_ob, bpy.types.TractProperties):
+            ng = bpy.data.node_groups.get("TractOvGroup")
+            cr = ng.nodes["ColorRamp"].color_ramp
+        elif isinstance(tb_ob, bpy.types.SurfaceProperties):
+            nt = bpy.data.materials[self.name].node_tree
+            cr = nt.nodes["ColorRamp"].color_ramp
+
     colourmap = self.colourmap_enum
-    tb_mat.switch_colourmap(tex, colourmap)
+    tb_mat.switch_colourmap(cr, colourmap)
 
 
 def cam_view_enum_update(self, context):
@@ -2557,6 +2699,7 @@ class LabelGroupProperties(PropertyGroup):
     parent = StringProperty(
         name="Parent",
         description="The name of the parent object")
+
     labels = CollectionProperty(
         type=LabelProperties,
         name="labels",
@@ -2592,6 +2735,7 @@ class BorderGroupProperties(PropertyGroup):
     parent = StringProperty(
         name="Parent",
         description="The name of the parent object")
+
     borders = CollectionProperty(
         type=BorderProperties,
         name="borders",
@@ -2601,6 +2745,122 @@ class BorderGroupProperties(PropertyGroup):
         description="index of the borders collection",
         default=0,
         min=0)
+
+
+class ScalarGroupProperties(PropertyGroup):
+    """Properties of time series overlays."""
+
+    name = StringProperty(
+        name="Name",
+        description="The name of the time series overlay")
+    filepath = StringProperty(
+        name="Filepath",
+        description="The filepath to the time series overlay")
+    icon = StringProperty(
+        name="Icon",
+        description="Icon for time series overlays",
+        default="TIME")
+    is_valid = BoolProperty(
+        name="Is Valid",
+        description="Indicates if the object passed validity checks",
+        default=True)
+    is_rendered = BoolProperty(
+        name="Is Rendered",
+        description="Indicates if the overlay is rendered",
+        default=True)
+    parent = StringProperty(
+        name="Parent",
+        description="The name of the parent object")
+
+    scalars = CollectionProperty(
+        type=ScalarProperties,
+        name="scalars",
+        description="The collection of loaded scalars")
+    index_scalars = IntProperty(
+        name="scalar index",
+        description="index of the scalars collection",
+        default=0,
+        min=0,
+        update=index_scalars_update)
+
+    range = FloatVectorProperty(
+        name="Range",
+        description="The original min-max of scalars mapped in vertexweights",
+        default=(0, 0),
+        size=2,
+        precision=4)
+    colourmap_enum = EnumProperty(
+        name="colourmap",
+        description="Apply this colour map",
+        items=[("greyscale", "greyscale", "greyscale", 1),
+               ("jet", "jet", "jet", 2),
+               ("hsv", "hsv", "hsv", 3),
+               ("hot", "hot", "hot", 4),
+               ("cool", "cool", "cool", 5),
+               ("spring", "spring", "spring", 6),
+               ("summer", "summer", "summer", 7),
+               ("autumn", "autumn", "autumn", 8),
+               ("winter", "winter", "winter", 9),
+               ("parula", "parula", "parula", 10)],
+        default="jet",
+        update=colourmap_enum_update)
+    nn_elements = CollectionProperty(
+        type=ColorRampProperties,
+        name="nn_elements",
+        description="The non-normalized color stops")
+    index_nn_elements = IntProperty(
+        name="nn_element index",
+        description="Index of the non-normalized color stops",
+        default=0,
+        min=0)
+    showcolourbar = BoolProperty(
+        name="Render colourbar",
+        description="Show/hide colourbar in rendered image",
+        default=False)
+    colourbar_placement = EnumProperty(
+        name="Colourbar placement",
+        description="Choose where to show the colourbar",
+        default="top-right",
+        items=[("top-right", "top-right",
+                "Place colourbar top-right"),
+               ("top-left", "top-left",
+                "Place colourbar top-left"),
+               ("bottom-right", "bottom-right",
+                "Place colourbar bottom-right"),
+               ("bottom-left", "bottom-left",
+                "Place colourbar bottom-left")])  # update=colourbar_update
+    colourbar_size = FloatVectorProperty(
+        name="size",
+        description="Set the size of the colourbar",
+        default=[0.25, 0.05],
+        size=2, min=0., max=1.)
+    colourbar_position = FloatVectorProperty(
+        name="position",
+        description="Set the position of the colourbar",
+        default=[1., 1.],
+        size=2, min=-1., max=1.)
+    textlabel_colour = FloatVectorProperty(
+        name="Textlabel colour",
+        description="Pick a colour",
+        default=[1.0, 1.0, 1.0],
+        subtype="COLOR")
+    textlabel_placement = EnumProperty(
+        name="Textlabel placement",
+        description="Choose where to show the label",
+        default="out",
+        items=[("out", "out", "Place labels outside"),
+               ("in", "in", "Place labels inside")])  # update=textlabel_update
+    textlabel_size = FloatProperty(
+        name="Textlabel size",
+        description="Set the size of the textlabel (relative to colourbar)",
+        default=0.5,
+        min=0.,
+        max=1.)
+
+    ntimepoints = IntProperty(
+        name="Ntimepoints",
+        description="Number of timepoints in the timeseries",
+        min=1)
 
 
 class TractProperties(PropertyGroup):
@@ -2791,6 +3051,15 @@ class SurfaceProperties(PropertyGroup):
     index_bordergroups = IntProperty(
         name="bordergroup index",
         description="index of the bordergroups collection",
+        default=0,
+        min=0)
+    scalargroups = CollectionProperty(
+        type=ScalarGroupProperties,
+        name="scalargroups",
+        description="The collection of loaded timeseries")
+    index_scalargroups = IntProperty(
+        name="scalargroup index",
+        description="index of the scalargroups collection",
         default=0,
         min=0)
 

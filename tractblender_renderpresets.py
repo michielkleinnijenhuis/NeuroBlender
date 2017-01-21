@@ -305,6 +305,10 @@ def renderselections_surfaces(tb_obs):
             if lg.is_rendered:
                 vgs, mat_idxs = renderselections_overlays(ob, lg.labels,
                                                           vgs, mat_idxs)
+        for sg in tb_ob.scalargroups:
+            if sg.is_rendered:
+                vgs, mat_idxs = renderselections_overlays(ob, sg.scalars,
+                                                          vgs, mat_idxs)
         vgs, mat_idxs = renderselections_overlays(ob, tb_ob.scalars,
                                                   vgs, mat_idxs)
 
