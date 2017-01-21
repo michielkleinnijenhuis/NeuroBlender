@@ -48,11 +48,7 @@ def scene_preset_init(name):
     obs = get_render_objects(tb)
     centre_location, dims = get_brainbounds(obs)
 
-    # remove the preset if it exists
-    delete_preset(name)
-
-    # create objects in the preset
-
+    """create objects in the preset"""
     # preset is simply a container with all default blender units (all locked)
     preset = bpy.data.objects.new(name=name, object_data=None)
     scn.objects.link(preset)
@@ -61,7 +57,7 @@ def scene_preset_init(name):
         for dim in prop:
             dim = True
     # centre is an empty the scene centre location and scene dimensions
-    centre = bpy.data.objects.new(name+"Centre", None)
+    centre = bpy.data.objects.new("Centre", None)
     scn.objects.link(centre)
     centre.parent = preset
     centre.location = centre_location
@@ -69,7 +65,7 @@ def scene_preset_init(name):
 
     # box is an empty with location yoked to centre and cuboid dimensions of max(dims)
     # this is mainly for camera and light scaling in the space of the scene
-    box = bpy.data.objects.new(name+"Box", None)
+    box = bpy.data.objects.new("Box", None)
     scn.objects.link(box)
     box.parent = preset
     box.location = (0, 0, 0)
@@ -85,12 +81,13 @@ def scene_preset_init(name):
              "use_scale_z": False}
     add_constraint(box, "CHILD_OF", "Child Of", centre, props)
 
-    camprops = {"name": name+"Cam",
+    camprops = {"name": "Cam",
                 "cam_view": [2.88675, 2.88675, 2.88675],
                 "cam_distance": 5}
-    create_camera(preset, centre, box, camprops)
+    cam = create_camera(preset, centre, box, camprops)
+    camprops["name"] = cam.name
 
-    lights = bpy.data.objects.new(name+"Lights", None)
+    lights = bpy.data.objects.new("Lights", None)
     scn.objects.link(lights)
     lights.parent = box
     for idx in [0,1]:
@@ -100,33 +97,35 @@ def scene_preset_init(name):
         create_var(driver, "scale", 'SINGLE_PROP', 'OBJECT',
                    lights, "scale[2]")
     keystrength = 10000000
-    lp_key = {'name': name+"Key", 'type': "SPOT",
+    lp_key = {'name': "Key", 'type': "SPOT",
               'size': [1.0, 1.0], 'colour': (1.0, 1.0, 1.0),
               'strength': keystrength, 'location': (1, 4, 6)}
-    lp_fill = {'name': name+"Fill", 'type': "SPOT",
+    lp_fill = {'name': "Fill", 'type': "SPOT",
                'size': [1.0, 1.0], 'colour': (1.0, 1.0, 1.0),
                'strength': 0.2*keystrength, 'location': (4, -1, 1)}
-    lp_back = {'name': name+"Back", 'type': "POINT",
+    lp_back = {'name': "Back", 'type': "POINT",
                'size': [1.0, 1.0], 'colour': (1.0, 1.0, 1.0),
                'strength': 0.1*keystrength, 'location': (-4, -4, 3)}
     for lightprops in [lp_key, lp_fill, lp_back]:
-        create_light(preset, centre, box, lights, lightprops)
+        light = create_light(preset, centre, box, lights, lightprops)
+        lightprops["name"] = light.name
 
-    tableprops = {"name": name+"Table",
+    tableprops = {"name": "Table",
                   "scale": (4, 4, 1),
                   "location": (0, 0, -1)}
-    create_table(preset, centre, tableprops)
+    table = create_table(preset, centre, tableprops)
+    tableprops["name"] = table.name
 
-    # add newly created objects to collections
-
+    """add newly created objects to collections"""
     presetprops = {"name": name, "centre": centre.name,
-                   "dims": dims, "box": box.name}
+                   "dims": dims, "box": box.name, "lightsempty": lights.name}
     tb_preset = add_item(tb, "presets", presetprops)
     add_item(tb_preset, "cameras", camprops)
     for lightprops in [lp_key, lp_fill, lp_back]:
         add_item(tb_preset, "lights", lightprops)
     add_item(tb_preset, "tables", tableprops)
 
+    """switch to view"""
     bpy.ops.tb.switch_to_main()
     to_camera_view()
 
@@ -168,12 +167,12 @@ def scene_preset(name="Brain", layer=10):
 
     name = tb_preset.name
 
-    preset = bpy.data.objects[name]
-    centre = bpy.data.objects[name+"Centre"]
+    preset = bpy.data.objects[tb_preset.name]
+    centre = bpy.data.objects[tb_preset.centre]
     dims = tb_preset.dims
-    cam = bpy.data.objects[name+"Cam"]
-    table = bpy.data.objects[name+"Table"]
-    lights = bpy.data.objects[name+"Lights"]
+    cam = bpy.data.objects[tb_preset.cameras[0].name]
+    table = bpy.data.objects[tb_preset.tables[0].name]
+    lights = bpy.data.objects[tb_preset.lightsempty]
 
     preset_obs = [preset, centre, cam, table, lights] + list(lights.children)
 
@@ -274,33 +273,60 @@ def scene_preset(name="Brain", layer=10):
     return {'FINISHED'}
 
 
-def delete_preset(name):
-    """"""
-    # TODO: more flexibility in keeping and naming
-#     for ob in scn.objects:
-#         if ob.type == 'CAMERA' or ob.type == 'LAMP' or ob.type == 'EMPTY':
-# #             if ob.name.startswith('Brain'):
-#                 scn.objects.unlink(ob)
-#     deltypes = ['CAMERA', 'LAMP', 'EMPTY']
+def delete_preset(tb_preset):
+    """Delete a preset."""
 
     # unlink all objects from the rendering scenes
     for s in ['_cycles', '_internal']:
         try:
-            scn = bpy.data.scenes[name + s]
+            scn = bpy.data.scenes[tb_preset.name + s]
         except KeyError:
             pass
         else:
             for ob in scn.objects:
                 scn.objects.unlink(ob)
+            bpy.data.scenes.remove(scn)
 
-    # TODO: delete cameras and lamps
-    bpy.ops.object.mode_set(mode='OBJECT')
+    # delete all preset objects and data
+    ps_obs = []
+    for tb_coll in [tb_preset.cameras,
+                    tb_preset.lights,
+                    tb_preset.tables]:
+        for tb_ob in tb_coll:
+            ps_obs.append(bpy.data.objects[tb_ob.name])
+    ps_obs.append(bpy.data.objects[tb_preset.lightsempty])
+    ps_obs.append(bpy.data.objects[tb_preset.box])
+    ps_obs.append(bpy.data.objects[tb_preset.centre])
+    ps_obs.append(bpy.data.objects[tb_preset.name])
     for ob in bpy.data.objects:
-        ob.select = ob.name.startswith(name)
-    bpy.context.scene.objects.active = ob
-    bpy.ops.object.delete()
+        if ob in ps_obs:
+            bpy.data.objects.remove(ob)
 
-    # TODO: delete animations
+    ps_cams = []
+    for tb_ob in tb_preset.cameras:
+        ps_cams.append(bpy.data.cameras[tb_ob.name])
+    for cam in bpy.data.cameras:
+        if cam in ps_cams:
+            bpy.data.cameras.remove(cam)
+
+    ps_lamps = []
+    for tb_ob in tb_preset.lights:
+        ps_lamps.append(bpy.data.lamps[tb_ob.name])
+    for lamp in bpy.data.lamps:
+        if lamp in ps_lamps:
+            bpy.data.lamps.remove(lamp)
+
+    ps_meshes = []
+    for tb_ob in tb_preset.tables:
+        ps_meshes.append(bpy.data.meshes[tb_ob.name])
+    for mesh in bpy.data.meshes:
+        if mesh in ps_meshes:
+            bpy.data.meshes.remove(mesh)
+
+    # TODO:
+    # delete animations from objects
+    # delete colourbars
+    # delete campaths
 
 
 def renderselections_tracts(tb_obs):
@@ -1056,11 +1082,11 @@ def create_light(preset, centre, box, lights, lightprops):
         light = create_plane(name)
         light.scale = [scale[0]*2, scale[1]*2, 1]
         emission = {'colour': colour, 'strength': strength}
-        mat = tb_mat.make_material_emit_cycles(name, emission)
+        mat = tb_mat.make_material_emit_cycles(light.name, emission)
         tb_mat.set_materials(light.data, mat)
     else:
         lamp = bpy.data.lamps.new(name, type)
-        light = bpy.data.objects.new(name, object_data=lamp)
+        light = bpy.data.objects.new(lamp.name, object_data=lamp)
         scn.objects.link(light)
         scn.objects.active = light
         light.select = True
@@ -1147,7 +1173,7 @@ def create_table(preset, centre, tableprops):
     ob.location = tableprops["location"]
 
     diffcol = [0.5, 0.5, 0.5, 1.0]
-    mat = tb_mat.make_material_basic_cycles(tableprops["name"], diffcol, mix=0.8)
+    mat = tb_mat.make_material_basic_cycles(ob.name, diffcol, mix=0.8)
     tb_mat.set_materials(ob.data, mat)
 
     ob.parent = centre

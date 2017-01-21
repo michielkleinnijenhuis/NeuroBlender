@@ -31,7 +31,7 @@ import sys
 
 
 def check_name(name, fpath, checkagainst,
-               nzfill=3, forcefill=False, maxlen=40):
+               nzfill=3, forcefill=False, maxlen=40, firstfill=0):
     """Make sure a unique name is given."""
 
     # if unspecified, derive a name from the filename
@@ -45,7 +45,7 @@ def check_name(name, fpath, checkagainst,
 
     # force a numeric postfix on the basename
     if forcefill:
-        firstname = name + "." + str(0).zfill(nzfill)
+        firstname = name + "." + str(firstfill).zfill(nzfill)
     else:
         firstname = name
 
@@ -53,7 +53,7 @@ def check_name(name, fpath, checkagainst,
     # in whatever collection(s) it is checked against
     present = [ca.get(firstname) for ca in checkagainst]
     if any(present):  # the name does exist somewhere
-        i = 0
+        i = firstfill
         while any([ca.get(name + '.' + str(i).zfill(nzfill))
                    for ca in checkagainst]):
             i += 1

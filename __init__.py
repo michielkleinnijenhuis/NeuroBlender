@@ -1379,7 +1379,7 @@ class AddPreset(Operator):
         tb = scn.tb
 
         ca = [tb.presets]
-        name = tb_utils.check_name(self.name, "", ca)
+        name = tb_utils.check_name(self.name, "", ca, firstfill=1)
         tb_rp.scene_preset_init(name)
         tb.presets_enum = name
 
@@ -1396,6 +1396,8 @@ class DelPreset(Operator):
 
         scn = context.scene
         tb = scn.tb
+
+        tb_rp.delete_preset(tb.presets[tb.index_presets])
 
         tb.presets.remove(tb.index_presets)
         tb.index_presets -= 1
@@ -1475,7 +1477,7 @@ class AddCamPath(Operator):
         anim = preset.animations[preset.index_animations]
         cam = bpy.data.objects[preset.cameras[0].name]
         centre = bpy.data.objects[preset.centre]
-        box = bpy.data.objects[preset.name + "Box"]
+        box = bpy.data.objects[preset.box]
 
         ca = [tb.campaths]
         if anim.pathtype == "Circular":
@@ -1840,6 +1842,7 @@ class TractBlenderScenePanel(Panel):
             row.operator("tb.scene_preset",
                          text="Load scene preset",
                          icon="WORLD")
+            row.enabled = len(tb.presets) > 0
         else:
             row = layout.row()
             row.label(text="No geometry loaded ...")
@@ -1903,7 +1906,7 @@ class TractBlenderScenePanel(Panel):
 
     def drawunit_tri_lights(self, layout, tb, preset):
 
-        lights = bpy.data.objects[preset.name+"Lights"]
+        lights = bpy.data.objects[preset.lightsempty]
         row = layout.row()
         col = row.column()
         col.prop(lights, "rotation_euler", index=2, text="Rotate rig (Z)")
@@ -2202,14 +2205,11 @@ def mode_enum_update(self, context):
     for mat in bpy.data.materials:
         tb_mat.switch_mode_mat(mat, self.mode)
 
-    lights = [tb_preset.name + "LightsBack",
-              tb_preset.name + "LightsFill",
-              tb_preset.name + "LightsKey"]
-    tables = [tb_presetname + "Table"]
-    light_obs = [bpy.data.objects.get(light) for light in lights]
-    light_obs = [light for light in light_obs if light is not None]
-    table_obs = [bpy.data.objects.get(table) for table in tables]
-    table_obs = [table for table in table_obs if table is not None]
+    light_obs = [bpy.data.objects.get(light.name)
+                 for light in tb_preset.lights]
+    table_obs = [bpy.data.objects.get(table.name)
+                 for table in tb_preset.tables]
+
     tb_rp.switch_mode_preset(light_obs, table_obs, tb.mode, tb_cam.cam_view)
 
     # TODO: switch colourbars
@@ -2301,7 +2301,7 @@ def cam_view_enum_XX_update(self, context):
     self.cam_view = list(cv_unit * self.cam_distance)
 
     cam = bpy.data.objects[self.name]
-    centre = bpy.data.objects[tb_preset.name+"Centre"]
+    centre = bpy.data.objects[tb_preset.centre]
 
 #     tb_rp.cam_view_update(cam, centre, self.cam_view, tb_preset.dims)
     cam.location = self.cam_view
@@ -2321,7 +2321,14 @@ def presets_enum_callback(self, context):
 def presets_enum_update(self, context):
     """Update the preset enum."""
 
+    scn = context.scene
+    tb = scn.tb
+
     self.index_presets = self.presets.find(self.presets_enum)
+    preset = self.presets[self.index_presets]
+    scn.camera = bpy.data.objects[preset.cameras[0].name]
+    # TODO:
+    # switch cam view etc
 
 
 def campaths_enum_callback(self, context):
