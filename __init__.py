@@ -1569,43 +1569,6 @@ class MassIsRenderedL2(Menu):
                         text="Invert").action = 'INVERT_L2'
 
 
-class WeightPaintMode(Operator):
-    bl_idname = "tb.wp_preview"
-    bl_label = "wp_mode button"
-    bl_description = "Go to weight paint mode for preview"
-    bl_options = {"REGISTER", "UNDO", "PRESET"}
-
-    def execute(self, context):
-
-        bpy.ops.object.mode_set(mode="WEIGHT_PAINT")
-
-        return {"FINISHED"}
-
-
-class VertexPaintMode(Operator):
-    bl_idname = "tb.vp_preview"
-    bl_label = "vp_mode button"
-    bl_description = "Bake timepoint and go to vertex paint mode for preview"
-    bl_options = {"REGISTER", "UNDO", "PRESET"}
-
-    def execute(self, context):
-
-        tb_ob = tb_utils.active_tb_object()[0]
-        scalargroup = tb_utils.active_tb_overlay()[0]
-        ob = bpy.data.objects[tb_ob.name]
-        scalar = scalargroup.scalars[scalargroup.index_scalars]
-        vg = ob.vertex_groups[scalar.name]
-
-        vcs = ob.data.vertex_colors
-        vc = vcs.new(name=scalar.name)
-        ob.data.vertex_colors.active = vc
-        ob = tb_mat.assign_vc(ob, vc, [vg])
-
-        bpy.ops.object.mode_set(mode="VERTEX_PAINT")
-
-        return {"FINISHED"}
-
-
 class MassIsRenderedL3(Menu):
     bl_idname = "tb.mass_is_rendered_L3"
     bl_label = "Vertex Group Specials"
@@ -1739,6 +1702,50 @@ class RevertLabel(Operator):
         diff.inputs[0].default_value = item.colour
         mix2 = mat.node_tree.nodes["Mix Shader.001"]
         mix2.inputs[0].default_value = item.colour[3]
+
+        return {"FINISHED"}
+
+
+class WeightPaintMode(Operator):
+    bl_idname = "tb.wp_preview"
+    bl_label = "wp_mode button"
+    bl_description = "Go to weight paint mode for preview"
+    bl_options = {"REGISTER", "UNDO", "PRESET"}
+
+    def execute(self, context):
+
+        scn = bpy.context.scene
+
+        tb_ob = tb_utils.active_tb_object()[0]
+        scn.objects.active = bpy.data.objects[tb_ob.name]
+
+        bpy.ops.object.mode_set(mode="WEIGHT_PAINT")
+
+        return {"FINISHED"}
+
+
+class VertexPaintMode(Operator):
+    bl_idname = "tb.vp_preview"
+    bl_label = "vp_mode button"
+    bl_description = "Bake timepoint"
+    bl_options = {"REGISTER", "UNDO", "PRESET"}
+
+    def execute(self, context):
+
+        tb_ob = tb_utils.active_tb_object()[0]
+        scalargroup = tb_utils.active_tb_overlay()[0]
+        ob = bpy.data.objects[tb_ob.name]
+        scalar = scalargroup.scalars[scalargroup.index_scalars]
+        vg = ob.vertex_groups[scalar.name]
+
+        vcs = ob.data.vertex_colors
+        vc = vcs.new(name=scalar.name)
+        ob.data.vertex_colors.active = vc
+        ob = tb_mat.assign_vc(ob, vc, [vg])
+
+        # do not switch to VERTEX_PAINT mode:
+        # accidental painting of time series time points
+#         bpy.ops.object.mode_set(mode="VERTEX_PAINT")
 
         return {"FINISHED"}
 
@@ -2186,6 +2193,9 @@ def slices_update(self, context):
 def mode_enum_update(self, context):
     """Perform actions for updating mode."""
 
+    scn = context.scene
+    tb = scn.tb
+
     tb_preset = tb.presets[self.index_presets]
     tb_cam = tb_preset.cameras[0]
 
@@ -2195,7 +2205,7 @@ def mode_enum_update(self, context):
     lights = [tb_preset.name + "LightsBack",
               tb_preset.name + "LightsFill",
               tb_preset.name + "LightsKey"]
-    tables = [tb.presetname + "Table"]
+    tables = [tb_presetname + "Table"]
     light_obs = [bpy.data.objects.get(light) for light in lights]
     light_obs = [light for light in light_obs if light is not None]
     table_obs = [bpy.data.objects.get(table) for table in tables]
