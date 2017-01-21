@@ -2280,42 +2280,6 @@ def colourmap_enum_update(self, context):
     tb_mat.switch_colourmap(cr, colourmap)
 
 
-def cam_view_enum_update(self, context):
-    """Set the camview property from enum options."""
-
-    scn = context.scene
-    tb = scn.tb
-    tb_preset = tb.presets[tb.index_presets]
-
-    if self.cam_view_enum == "Numeric":
-        return
-
-    quadrants = {'Right': (1, 0, 0),
-                 'Left': (-1, 0, 0),
-                 'Ant': (0, 1, 0),
-                 'Post': (0, -1, 0),
-                 'Sup': (0, 0, 1),
-                 'Inf': (0, 0, -1),
-                 'RightAntSup': (1, 1, 1),
-                 'RightAntInf': (1, 1, -1),
-                 'RightPostSup': (1, -1, 1),
-                 'RightPostInf': (1, -1, -1),
-                 'LeftAntSup': (-1, 1, 1),
-                 'LeftAntInf': (-1, 1, -1),
-                 'LeftPostSup': (-1, -1, 1),
-                 'LeftPostInf':  (-1, -1, -1)}
-    cv_unit = mathutils.Vector(quadrants[self.cam_view_enum]).normalized()
-    self.cam_view = list(cv_unit * self.cam_distance)
-
-    cam = bpy.data.objects[self.name]
-    centre = bpy.data.objects[tb_preset.name+"Centre"]
-
-#     tb_rp.cam_view_update(cam, centre, self.cam_view, tb_preset.dims)
-    cam.location = self.cam_view
-
-    scn.frame_set(0)
-
-
 def cam_view_enum_XX_update(self, context):
     """Set the camview property from enum options."""
 
@@ -3320,35 +3284,6 @@ class CameraProperties(PropertyGroup):
         default=[2.88675, 2.88675, 2.88675],
         size=3,
         subtype="TRANSLATION")
-
-    cam_view_enum = EnumProperty(
-        name="Camera viewpoint",
-        description="Choose a view for the camera",
-        default="RightAntSup",
-        items=[("LeftPostInf", "Left-Post-Inf",
-                "Left-Posterior-Inferior"),
-               ("LeftPostSup", "Left-Post-Sup",
-                "Left-Posterior-Superior"),
-               ("LeftAntInf", "Left-Ant-Inf",
-                "Left-Anterior-Inferior"),
-               ("LeftAntSup", "Left-Ant-Sup",
-                "Left-Anterior-Superior"),
-               ("RightPostInf", "Right-Post-Inf",
-                "Right-Posterior-Inferior"),
-               ("RightPostSup", "Right-Post-Sup",
-                "Right-Posterior-Superior"),
-               ("RightAntInf", "Right-Ant-Inf",
-                "Right-Anterior-Inferior"),
-               ("RightAntSup", "Right-Ant-Sup",
-                "Right-Anterior-Superior"),
-               ("Inf", "Inf", "Inferior"),
-               ("Sup", "Sup", "Superior"),
-               ("Post", "Post", "Posterior"),
-               ("Ant", "Ant", "Anterior"),
-               ("Left", "Left", "Left"),
-               ("Right", "Right", "Right")],
-        # ("Numeric", "Numeric", "Numeric")
-        update=cam_view_enum_update)
 
     cam_view_enum_LR = EnumProperty(
         name="Camera LR viewpoint",

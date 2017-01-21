@@ -53,9 +53,8 @@ def scene_preset_init(name):
 
     # create objects in the preset
 
-    tb_preset = tb_imp.add_preset_to_collection(name)
     # preset is simply a container with all default blender units (all locked)
-    preset = bpy.data.objects.new(name=tb_preset.name, object_data=None)
+    preset = bpy.data.objects.new(name=name, object_data=None)
     scn.objects.link(preset)
     props = [preset.lock_location, preset.lock_rotation, preset.lock_scale]
     for prop in props:
@@ -67,8 +66,6 @@ def scene_preset_init(name):
     centre.parent = preset
     centre.location = centre_location
     centre.scale = 0.5 * Vector(dims)
-    tb_preset.centre = centre.name
-    tb_preset.dims = dims
 
     # box is an empty with location yoked to centre and cuboid dimensions of max(dims)
     # this is mainly for camera and light scaling in the space of the scene
@@ -77,7 +74,6 @@ def scene_preset_init(name):
     box.parent = preset
     box.location = (0, 0, 0)
     box.scale = 0.5 * Vector([max(dims), max(dims), max(dims)])
-    tb_preset.box = box.name
     props = {"use_location_x": True,
              "use_location_y": True,
              "use_location_z": True,
@@ -89,8 +85,10 @@ def scene_preset_init(name):
              "use_scale_z": False}
     add_constraint(box, "CHILD_OF", "Child Of", centre, props)
 
-    tb_cam = tb_imp.add_camera_to_collection(name+"Cam", tb_preset)
-    create_camera(tb_cam, preset, centre, box)
+    camprops = {"name": name+"Cam",
+                "cam_view": [2.88675, 2.88675, 2.88675],
+                "cam_distance": 5}
+    create_camera(preset, centre, box, camprops)
 
     lights = bpy.data.objects.new(name+"Lights", None)
     scn.objects.link(lights)
@@ -101,22 +99,52 @@ def scene_preset_init(name):
         driver.expression = "scale"
         create_var(driver, "scale", 'SINGLE_PROP', 'OBJECT',
                    lights, "scale[2]")
-
     keystrength = 10000000
-    tb_imp.add_light_to_collection(name+"Key", tb_preset, type="SPOT",
-                                   strength=keystrength, location=(1, 4, 6))
-    tb_imp.add_light_to_collection(name+"Fill", tb_preset, type="SPOT",
-                                   strength=0.2*keystrength, location=(4, -1, 1))
-    tb_imp.add_light_to_collection(name+"Back", tb_preset, type="POINT",
-                                   strength=1000000, location=(-4, -4, 3))
-    for tb_light in tb_preset.lights:
-        create_light(tb_light, preset, centre, box, lights)
+    lp_key = {'name': name+"Key", 'type': "SPOT",
+              'size': [1.0, 1.0], 'colour': (1.0, 1.0, 1.0),
+              'strength': keystrength, 'location': (1, 4, 6)}
+    lp_fill = {'name': name+"Fill", 'type': "SPOT",
+               'size': [1.0, 1.0], 'colour': (1.0, 1.0, 1.0),
+               'strength': 0.2*keystrength, 'location': (4, -1, 1)}
+    lp_back = {'name': name+"Back", 'type': "POINT",
+               'size': [1.0, 1.0], 'colour': (1.0, 1.0, 1.0),
+               'strength': 0.1*keystrength, 'location': (-4, -4, 3)}
+    for lightprops in [lp_key, lp_fill, lp_back]:
+        create_light(preset, centre, box, lights, lightprops)
 
-    tb_table = tb_imp.add_table_to_collection(name+"Table", tb_preset)
-    create_table(tb_table, preset, centre)
+    tableprops = {"name": name+"Table",
+                  "scale": (4, 4, 1),
+                  "location": (0, 0, -1)}
+    create_table(preset, centre, tableprops)
+
+    # add newly created objects to collections
+
+    presetprops = {"name": name, "centre": centre.name,
+                   "dims": dims, "box": box.name}
+    tb_preset = add_item(tb, "presets", presetprops)
+    add_item(tb_preset, "cameras", camprops)
+    for lightprops in [lp_key, lp_fill, lp_back]:
+        add_item(tb_preset, "lights", lightprops)
+    add_item(tb_preset, "tables", tableprops)
 
     bpy.ops.tb.switch_to_main()
     to_camera_view()
+
+
+def add_item(parent, childpath, props):
+    """Add an item to a collection."""
+
+    scn = bpy.context.scene
+
+    parentpath = parent.path_from_id()
+    coll = eval("scn.%s.%s" % (parentpath, childpath))
+    item = coll.add()
+    exec("scn.%s.index_%s = (len(coll)-1)" % (parentpath, childpath))
+
+    for k, v in props.items():
+        item[k] = v
+
+    return item
 
 
 def scene_preset(name="Brain", layer=10):
@@ -500,12 +528,12 @@ def find_bbox_coordinates(obs):
 # ========================================================================== #
 
 
-def create_camera(tb_cam, preset, centre, box):
+def create_camera(preset, centre, box, camprops):
     """Add a camera to the scene."""
 
     scn = bpy.context.scene
 
-    camdata = bpy.data.cameras.new(name=tb_cam.name)
+    camdata = bpy.data.cameras.new(name=camprops["name"])
     camdata.show_name = True
     camdata.draw_size = 0.2
     camdata.type = 'PERSP'
@@ -516,9 +544,9 @@ def create_camera(tb_cam, preset, centre, box):
     camdata.clip_start = box.scale[0] / 5
     camdata.clip_end = box.scale[0] * 10
 
-    cam = bpy.data.objects.new(tb_cam.name, camdata)
+    cam = bpy.data.objects.new(camprops["name"], camdata)
     cam.parent = preset
-    cam.location = tb_cam.cam_view
+    cam.location = camprops["cam_view"]
     scn.objects.link(cam)
 
     add_constraint(cam, "CHILD_OF", "Child Of", box)
@@ -1013,16 +1041,16 @@ def create_lighting_old(name, braincentre, dims, cam, camview=(1, 1, 1)):
     return lights
 
 
-def create_light(tb_light, preset, centre, box, lights):
+def create_light(preset, centre, box, lights, lightprops):
     """"""
 
     scn = bpy.context.scene
 
-    name = tb_light.name
-    type = tb_light.type
-    scale = tb_light.size
-    colour = tuple(list(tb_light.colour) + [1.0])
-    strength = tb_light.strength
+    name = lightprops['name']
+    type = lightprops['type']
+    scale = lightprops['size']
+    colour = tuple(list(lightprops['colour']) + [1.0])
+    strength = lightprops['strength']
 
     if type == "PLANE":
         light = create_plane(name)
@@ -1042,7 +1070,7 @@ def create_light(tb_light, preset, centre, box, lights):
         node.inputs[1].default_value = strength
 
     light.parent = lights
-    light.location = tb_light.location
+    light.location = lightprops['location']
 
 #     add_constraint(light, "CHILD_OF", "Child Of", box)
     add_constraint(light, "TRACK_TO", "TrackToCentre", centre)
@@ -1111,15 +1139,15 @@ def create_circle(name, coords):
     return ob
 
 
-def create_table(tb_table, preset, centre, scale=(4, 4, 1), location=(0, 0, -1)):
+def create_table(preset, centre, tableprops):
     """Create a table under the objects."""
 
-    ob = create_plane(tb_table.name)
-    ob.scale = scale
-    ob.location = location
+    ob = create_plane(tableprops["name"])
+    ob.scale = tableprops["scale"]
+    ob.location = tableprops["location"]
 
     diffcol = [0.5, 0.5, 0.5, 1.0]
-    mat = tb_mat.make_material_basic_cycles(tb_table.name, diffcol, mix=0.8)
+    mat = tb_mat.make_material_basic_cycles(tableprops["name"], diffcol, mix=0.8)
     tb_mat.set_materials(ob.data, mat)
 
     ob.parent = centre
