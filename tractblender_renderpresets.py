@@ -1203,6 +1203,8 @@ def animate_slicebox(vvol, anim=None, axis="Z", frame_start=1, frame_end=100,
                      repetitions=1.0, frame_step=10):
     """"""
 
+    # TODO: set fcu.interpolation = 'LINEAR'
+
     scn = bpy.context.scene
 
     if 'X' in axis:
@@ -1215,7 +1217,7 @@ def animate_slicebox(vvol, anim=None, axis="Z", frame_start=1, frame_end=100,
     kf1 = 0
     kf2 = 1
 
-    if anim.direction =='-':
+    if anim.reverse:
         kfs = {anim.frame_start: kf2, anim.frame_end: kf1}
     else:
         kfs = {anim.frame_start: kf1, anim.frame_end: kf2}
