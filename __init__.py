@@ -412,8 +412,11 @@ class TractBlenderOverlayPanel(Panel):
                     col = row.column()
                     col.operator("tb.vp_preview", text="", icon="GROUP_VCOL")
                     ob = bpy.data.objects[tb_ob.name]
-                    tpname = tb_ov.scalars[tb_ov.index_scalars].name
-                    col.enabled = ob.data.vertex_colors.find(tpname) == -1
+                    if tb_ov.index_scalars >= len(tb_ov.scalars):
+                        col.enabled = False
+                    else:
+                        tpname = tb_ov.scalars[tb_ov.index_scalars].name
+                        col.enabled = ob.data.vertex_colors.find(tpname) == -1
 
                     col = row.column()
                     col.template_list("ObjectListTS", "",
