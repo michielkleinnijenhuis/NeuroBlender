@@ -2059,7 +2059,16 @@ class TractBlenderScenePanel(Panel):
 
 
             elif anim.animationtype == "TimeSeries":
-                pass
+
+                row = layout.row()
+                col = row.column()
+                col.prop(anim, "anim_surface", expand=False, text="Surface")
+                row = layout.row()
+                col = row.column()
+                col.prop(anim, "anim_timeseries", expand=False, text="Time series")
+                row = layout.row()
+                row.label("%d frames in time series" % 3)  # TODO
+
 
     def drawunit_tri_newpath(self, layout, tb, anim):
 
@@ -2440,7 +2449,23 @@ def surfaces_enum_callback(self, context):
     tb = scn.tb
 
     items = [(surface.name, surface.name, "List the surfaces", i)
-             for i, tract in enumerate(tb.surfaces)]
+             for i, surface in enumerate(tb.surfaces)]
+
+    return items
+
+
+def timeseries_enum_callback(self, context):
+    """Populate the enum based on available options."""
+
+    scn = context.scene
+    tb = scn.tb
+
+    if self.anim_surface:
+        surface = tb.surfaces[self.anim_surface]
+        items = [(scalargroup.name, scalargroup.name, "List the timeseries", i)
+                 for i, scalargroup in enumerate(surface.scalargroups)]
+    else:
+        items = []
 
     return items
 
@@ -3528,6 +3553,15 @@ class AnimationProperties(PropertyGroup):
         description="index of the streamline to animate",
         min=0,
         default=0)
+
+    anim_surface = EnumProperty(
+        name="Animation surface",
+        description="Select surface to animate",
+        items=surfaces_enum_callback)
+    anim_timeseries = EnumProperty(
+        name="Animation timeseries",
+        description="Select timeseries to animate",
+        items=timeseries_enum_callback)
 
     anim_voxelvolume = EnumProperty(
         name="Animation voxelvolume",
