@@ -238,39 +238,58 @@ def import_voxelvolume(directory, files, specname,
         labelgroup = None
         matname = name
 
-    slices = False
-    me = bpy.data.meshes.new(name)
-    ob = bpy.data.objects.new(name, me)
-    bpy.context.scene.objects.link(ob)
-    ob1 = voxelvolume_box_ob(dims, "Bounds")
-    ob2 = voxelvolume_box_ob(dims, "SliceBox")
-#     ob3 = voxelvolume_box_ob(dims, "sagittal")
-#     ob4 = voxelvolume_box_ob(dims, "coronal")
-#     ob5 = voxelvolume_box_ob(dims, "axial")
-#     obs = [ob, ob1, ob2, ob3, ob4, ob5]
-    obs = [ob, ob1, ob2]
-    ctx = bpy.context.copy()
-    ctx['active_object'] = ob
-    ctx['selected_objects'] = obs
-    ctx['selected_editable_bases'] = [scn.object_bases[ob.name] for ob in obs]
-    bpy.ops.object.join(ctx)
+    boolmod = False
+    if boolmod:
+        # the voxelvolumebox
+        ob = voxelvolume_box_ob(dims, "SliceBox")
+        ob.name = name
+        ob.matrix_world = read_affine_matrix(sformfile)
+        # an empty to hold the sliceboxes
+        empty = bpy.data.objects.new(ob.name+"SliceBox", None)
+        empty.parent = ob
+        empty.location = (0, 0, 0)
+        bpy.context.scene.objects.link(empty)
+        # create sliceboxes and modifiers
+        for dir in 'xyz':
+            bool = ob.modifiers.new("bool_%s" % dir, 'BOOLEAN')
+            bool.solver = 'CARVE'
+            bool.operation = 'INTERSECT'
+            sb = voxelvolume_box_ob(dims, "SliceBox")
+            sb.name = dir
+            sb.parent = empty
+            bool.object = sb
+            # TODO: no need for vg
+    else:
+        slices = False
+        me = bpy.data.meshes.new(name)
+        ob = bpy.data.objects.new(name, me)
+        bpy.context.scene.objects.link(ob)
+        ob1 = voxelvolume_box_ob(dims, "Bounds")
+        ob2 = voxelvolume_box_ob(dims, "SliceBox")
 
-    scn.objects.active = ob
-    ob.select = True
+        obs = [ob, ob1, ob2]
+        ctx = bpy.context.copy()
+        ctx['active_object'] = ob
+        ctx['selected_objects'] = obs
+        ctx['selected_editable_bases'] = [scn.object_bases[ob.name] for ob in obs]
+        bpy.ops.object.join(ctx)
 
-    affine = read_affine_matrix(sformfile)
-    ob.matrix_world = affine
+        scn.objects.active = ob
+        ob.select = True
 
-    slicebox = voxelvolume_cutout(ob)
+        affine = read_affine_matrix(sformfile)
+        ob.matrix_world = affine
 
-    for idx in range(0,3):
-        voxelvolume_slice_drivers(ob, slicebox, idx, "scale")
-        voxelvolume_slice_drivers(ob, slicebox, idx, "location")
-        voxelvolume_slice_drivers(ob, slicebox, idx, "rotation_euler")
+        slicebox = voxelvolume_cutout(ob)
+
+        for idx in range(0,3):
+            voxelvolume_slice_drivers(ob, slicebox, idx, "scale")
+            voxelvolume_slice_drivers(ob, slicebox, idx, "location")
+            voxelvolume_slice_drivers(ob, slicebox, idx, "rotation_euler")
 
     mat = tb_mat.get_voxmat(matname, img, dims, file_format,
                             is_overlay, is_label, labelgroup)
-    tb_mat.set_materials(me, mat)
+    tb_mat.set_materials(ob.data, mat)
 
     tb_utils.move_to_layer(ob, 2)
     scn.layers[2] = True
