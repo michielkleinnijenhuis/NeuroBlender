@@ -623,14 +623,19 @@ def assign_vc(ob, vertexcolours, vgs=None):
         group_lookup = {g.index: g.name for g in vgs}
 
     me = ob.data
+
+    # linear to sRGB
+    gindex = vgs[0].index  # FIXME: assuming single vertex group here
+    W = np.array([v.groups[gindex].weight for v in me.vertices])
+    m = W > 0.00313066844250063
+    W[m] = 1.055 * ( np.power(W[m], (1.0 / 2.4) )) - 0.055
+    W[~m] = 12.92 * W[~m]
+
     i = 0
     for poly in me.polygons:
         for idx in poly.loop_indices:
             vi = ob.data.loops[idx].vertex_index
-            w = sum_vertexweights(me.vertices[vi], vgs, group_lookup)
-            w = linear_to_sRGB(w)
-            rgb = (w, w, w)
-            vertexcolours.data[i].color = rgb  # TODO: foreach_set?
+            vertexcolours.data[i].color[0] = W[vi]  # TODO: foreach_set?
             i += 1
     me.update()
 
