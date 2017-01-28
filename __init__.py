@@ -1732,6 +1732,8 @@ class WeightPaintMode(Operator):
 
         bpy.ops.object.mode_set(mode="WEIGHT_PAINT")
 
+        index_scalars_update_func()
+
         return {"FINISHED"}
 
 
@@ -2286,20 +2288,34 @@ def overlay_enum_callback(self, context):
 def index_scalars_update(self, context):
     """Assign a new preset material to the object."""
 
+    if hasattr(self, 'scalargroups'):  # TODO: isinstance
+        sg = self.scalargroups[self.index_scalargroups]
+    else:
+        sg = self
+
+    index_scalars_update_func(sg)
+
+
+def index_scalars_update_func(sg=None):
+
     tb_object = tb_utils.active_tb_object()[0]
     ob = bpy.data.objects[tb_object.name]
+    if sg is None:
+        sg = tb_utils.active_tb_overlay()[0]
 
-    tpname = self.scalars[self.index_scalars].name
+    tpname = sg.scalars[sg.index_scalars].name
     vg_idx = ob.vertex_groups.find(tpname)
     ob.vertex_groups.active_index = vg_idx
 
-    mat = bpy.data.materials[self.name]
+    mat = bpy.data.materials[sg.name]
     attr = mat.node_tree.nodes["Attribute"]
     attr.attribute_name = tpname
 
-    for scalar in self.scalars:
-        scalar_index = self.scalars.find(scalar.name)
-        scalar.is_rendered = scalar_index == self.index_scalars
+    for scalar in sg.scalars:
+        scalar_index = sg.scalars.find(scalar.name)
+        scalar.is_rendered = scalar_index == sg.index_scalars
+
+    # TODO: switch material slots when selecting other scalar??
 
 
 def material_enum_update(self, context):
@@ -3080,7 +3096,8 @@ class SurfaceProperties(PropertyGroup):
         name="scalar index",
         description="index of the scalars collection",
         default=0,
-        min=0)
+        min=0,
+        update=index_scalars_update)
     labelgroups = CollectionProperty(
         type=LabelGroupProperties,
         name="labelgroups",
@@ -3107,7 +3124,8 @@ class SurfaceProperties(PropertyGroup):
         name="scalargroup index",
         description="index of the scalargroups collection",
         default=0,
-        min=0)
+        min=0,
+        update=index_scalars_update)
 
     colourtype = EnumProperty(
         name="colourtype",
