@@ -22,7 +22,7 @@
 
 import bpy
 
-from bpy_extras.io_utils import ImportHelper
+from bpy_extras.io_utils import ImportHelper, ExportHelper
 from bpy.types import (Panel,
                        Operator,
                        OperatorFileListElement,
@@ -415,13 +415,17 @@ class TractBlenderOverlayPanel(Panel):
                     col.enabled = bpy.context.mode != 'PAINT_WEIGHT'
 
                     col = row.column()
-                    col.operator("tb.vp_preview", text="", icon="GROUP_VCOL")
+                    col.operator("tb.vw2vc", text="", icon="GROUP_VCOL")
                     ob = bpy.data.objects[tb_ob.name]
                     if tb_ov.index_scalars >= len(tb_ov.scalars):
                         col.enabled = False
                     else:
                         tpname = tb_ov.scalars[tb_ov.index_scalars].name
                         col.enabled = ob.data.vertex_colors.find(tpname) == -1
+
+                    col = row.column()
+                    col.operator("tb.vw2uv", text="", icon="GROUP_UVS")
+                    ob = bpy.data.objects[tb_ob.name]
 
                     if len(tb_ov.scalars) > 1:
                         col = row.column()
@@ -1371,6 +1375,24 @@ class ImportBorderGroups(Operator, ImportHelper):
         return {"RUNNING_MODAL"}
 
 
+class SaveBlend(Operator, ExportHelper):
+    bl_idname = "tb.save_blend"
+    bl_label = "Save blend file"
+    bl_description = "Prompt to save a blend file"
+    bl_options = {"REGISTER"}
+
+    directory = StringProperty(subtype="FILE_PATH")
+    files = CollectionProperty(name="Filepath",
+                               type=OperatorFileListElement)
+    filename_ext = StringProperty(subtype="NONE")
+
+    def execute(self, context):
+
+        bpy.ops.wm.save_as_mainfile(filepath=self.properties.filepath)
+
+        return {"FINISHED"}
+
+
 class AddPreset(Operator):
     bl_idname = "tb.add_preset"
     bl_label = "New preset"
@@ -1737,10 +1759,10 @@ class WeightPaintMode(Operator):
         return {"FINISHED"}
 
 
-class VertexPaintMode(Operator):
-    bl_idname = "tb.vp_preview"
-    bl_label = "vp_mode button"
-    bl_description = "Bake timepoint"
+class VertexWeight2VertexColors(Operator):
+    bl_idname = "tb.vw2vc"
+    bl_label = "VW to VC"
+    bl_description = "Bake vertex group weights to vertex colours"
     bl_options = {"REGISTER", "UNDO", "PRESET"}
 
     def execute(self, context):
@@ -1761,6 +1783,90 @@ class VertexPaintMode(Operator):
 #         bpy.ops.object.mode_set(mode="VERTEX_PAINT")
 
         return {"FINISHED"}
+
+
+class VertexWeight2UV(Operator):
+    bl_idname = "tb.vw2uv"
+    bl_label = "Bake vertex weights"
+    bl_description = "Bake vertex weights to texture (via vcol)"
+    bl_options = {"REGISTER", "UNDO", "PRESET"}
+
+#     directory = StringProperty(subtype="FILE_PATH")
+#     files = CollectionProperty(name="Filepath", type=OperatorFileListElement)
+
+    def execute(self, context):
+
+        scn = context.scene
+        tb = scn.tb
+
+        samples = context.scene.cycles.samples
+        preview_samples = context.scene.cycles.preview_samples
+        context.scene.cycles.samples = 5
+        context.scene.cycles.preview_samples = 5
+
+        tb_ob = tb_utils.active_tb_object()[0]
+        scalargroup = tb_utils.active_tb_overlay()[0]
+
+        if not bpy.path.abspath("//"):
+            bpy.ops.tb.save_blend('INVOKE_DEFAULT')
+        directory = bpy.path.abspath("//")  # FIXME: first time defaults to /Users/michielk/workspace
+        uvtexdir = join(directory, "uvtex_" + scalargroup.name)
+        tb_utils.mkdir_p(uvtexdir)
+
+        surf = bpy.data.objects[tb_ob.name]
+        for ob in bpy.data.objects:
+            ob.select = False
+        surf.select = True
+        context.scene.objects.active = surf
+
+        matname_bake = 'bake'
+        mat = tb_mat.make_material_bake_cycles(matname_bake)
+
+        ami = surf.active_material_index
+        matnames = [ms.name for ms in surf.material_slots]
+        surf.data.materials.clear()
+        surf.data.materials.append(mat)
+
+        vcname = "bake_vcol"
+        nt = mat.node_tree
+        nt.nodes["Attribute"].attribute_name = vcname
+        nt.nodes['Material Output'].select = True
+        nt.nodes.active = nt.nodes['Material Output']
+
+        vc = surf.data.vertex_colors.new(vcname)
+        surf.data.vertex_colors.active = vc
+        for scalar in scalargroup.scalars:
+            vg = surf.vertex_groups[scalar.name]
+            tb_mat.assign_vc(surf, vc, [vg])
+
+            img = bpy.data.images.new("img_" + scalar.name, width=4096, height=4096)
+            img.filepath_raw = join(uvtexdir, "img_" + scalar.name + ".png")
+            img.file_format = 'PNG'
+            nt.nodes['Image Texture'].image = img
+            bpy.ops.object.bake(type='EMIT')  # FIXME: crash
+            img.save()
+
+        surf.data.vertex_colors.remove(vc)
+
+        # reinstate materials
+        surf.data.materials.pop(0)
+        for matname in matnames:
+            surf.data.materials.append(bpy.data.materials[matname])
+        surf.active_material_index = ami
+
+        context.scene.cycles.samples = samples
+        context.scene.cycles.preview_samples = preview_samples
+
+        return {"FINISHED"}
+# 
+#     def invoke(self, context, event):
+# 
+#         if not bpy.path.abspath("//"):
+#             context.window_manager.fileselect_add(self)
+#         else:
+#             self.directory = bpy.path.abspath("//")
+# 
+#         return {"RUNNING_MODAL"}
 
 
 class UnwrapSurface(Operator):

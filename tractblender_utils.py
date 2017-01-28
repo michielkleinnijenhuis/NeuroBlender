@@ -24,6 +24,7 @@ import bpy
 
 import os
 import sys
+import errno
 
 # ========================================================================== #
 # general utilities
@@ -196,6 +197,16 @@ def add_path(aux_path):
     check_result = [s for s in sys_paths if aux_path in s]
     if (check_result == []):
         sys.path.append(aux_path)
+
+
+def mkdir_p(path):
+    try:
+        os.makedirs(path)
+    except OSError as exc:  # Python >2.5
+        if exc.errno == errno.EEXIST and os.path.isdir(path):
+            pass
+        else:
+            raise
 
 
 def validate_tb_objects(collections):

@@ -1141,7 +1141,7 @@ def make_nodegroup_dirsurfaces(name="DirSurfacesGroup"):
     return group
 
 
-def make_material_overlay_cycles(name, vcname, ob=None, tb_ov=None):
+def make_material_overlay_cycles(name, vcname, ob=None, tb_ov=None, img=None):
     """Create a Cycles material for colourramped vertexcolour rendering."""
     # TODO: transparency?
 
@@ -1208,6 +1208,12 @@ def make_material_overlay_cycles(name, vcname, ob=None, tb_ov=None):
     attr.name = prefix + "Attribute"
     attr.attribute_name = vcname
     attr.label = "Attribute"
+
+    itex = nodes.new("ShaderNodeTexImage")
+    itex.location = -500, -100
+    if img is not None:
+        itex.image = img
+    itex.label = "Image Texture"
 
     tval = nodes.new("ShaderNodeValue")
     tval.label = "Value"
@@ -1459,6 +1465,131 @@ def make_material_overlaytract_cycles_group(diffcol, mix=0.04):
     links.new(vrgb.outputs["Color"], diff.inputs["Color"])
     links.new(srgb.outputs["R"], vrgb.inputs["Fac"])
     links.new(input_node.outputs[0], srgb.inputs["Image"])
+
+    return group
+
+
+def make_material_bake_cycles(name, vcname=None, img=None):
+    """Create a Cycles material to bake vc to texture."""
+
+    scn = bpy.context.scene
+    tb = scn.tb
+    if not scn.render.engine == "CYCLES":
+        scn.render.engine = "CYCLES"
+
+    mat = (bpy.data.materials.get(name) or
+           bpy.data.materials.new(name))
+    mat.use_nodes = True
+    mat.use_vertex_color_paint = True
+    mat.use_vertex_color_light = True
+
+    nodes = mat.node_tree.nodes
+    links = mat.node_tree.links
+
+    nodes.clear()
+
+    out = nodes.new("ShaderNodeOutputMaterial")
+    out.label = "Material Output"
+    out.name = "Material Output"
+    out.location = 800, 0
+
+    emit = nodes.new("ShaderNodeEmission")
+    emit.label = "Emission"
+    emit.name = "Emission"
+    emit.location = 600, 0
+
+    attr = nodes.new("ShaderNodeAttribute")
+    attr.location = 400, 0
+    attr.name = "Attribute"
+    if vcname is not None:
+        attr.attribute_name = vcname
+    attr.label = "Attribute"
+
+    itex = nodes.new("ShaderNodeTexImage")
+    itex.location = 400, -200
+    if img is not None:
+        itex.image = img
+    itex.label = "Image Texture"
+
+    links.new(emit.outputs["Emission"], out.inputs["Surface"])
+    links.new(attr.outputs["Color"], emit.inputs["Color"])
+
+    return mat
+
+
+def make_nodegroup_mapframes(name="MapFramesGroup"):
+    """Create a nodegroup for mapping MR frames.
+
+    http://blender.stackexchange.com/questions/62110
+    """
+
+    group = bpy.data.node_groups.new(name, "ShaderNodeTree")
+    group.outputs.new("NodeSocketColor", "Vector")
+# 
+#     nodes = group.nodes
+#     links = group.links
+# 
+#     nodes.clear()
+#     prefix = ""
+# 
+#     output_node = nodes.new("NodeGroupOutput")
+#     output_node.location = (-200, 0)
+# 
+#     crgb = nodes.new("ShaderNodeCombineRGB")
+#     crgb.label = "Combine RGB"
+#     crgb.name = prefix + "Combine RGB"
+#     crgb.location = -400, 0
+#     crgb.hide = True
+# 
+#     invt = nodes.new("ShaderNodeInvert")
+#     invt.label = "Invert"
+#     invt.name = prefix + "Invert"
+#     invt.location = -600, -150
+#     invt.hide = True
+# 
+#     math1 = nodes.new("ShaderNodeMath")
+#     math1.label = "Add"
+#     math1.name = prefix + "MathAdd"
+#     math1.operation = 'ADD'
+#     math1.location = -800, -150
+#     math1.hide = True
+# 
+#     math2 = nodes.new("ShaderNodeMath")
+#     math2.label = "Absolute"
+#     math2.name = prefix + "MathAbs2"
+#     math2.operation = 'ABSOLUTE'
+#     math2.location = -1000, -50
+#     math2.hide = True
+# 
+#     math3 = nodes.new("ShaderNodeMath")
+#     math3.label = "Absolute"
+#     math3.name = prefix + "MathAbs1"
+#     math3.operation = 'ABSOLUTE'
+#     math3.location = -1000, 0
+#     math3.hide = True
+# 
+#     srgb = nodes.new("ShaderNodeSeparateRGB")
+#     srgb.label = "Separate RGB"
+#     srgb.name = prefix + "Separate RGB"
+#     srgb.location = -1200, 0
+#     srgb.hide = True
+# 
+#     tang = nodes.new("ShaderNodeTangent")
+#     tang.label = "Tangent"
+#     tang.name = prefix + "Tangent"
+#     tang.direction_type = 'UV_MAP'
+#     tang.location = -1400, 0
+# 
+#     links.new(crgb.outputs["Image"], output_node.inputs[0])
+#     links.new(invt.outputs["Color"], crgb.inputs[2])
+#     links.new(math2.outputs["Value"], crgb.inputs[1])
+#     links.new(math3.outputs["Value"], crgb.inputs[0])
+#     links.new(math1.outputs["Value"], invt.inputs["Color"])
+#     links.new(math2.outputs["Value"], math1.inputs[1])
+#     links.new(math3.outputs["Value"], math1.inputs[0])
+#     links.new(srgb.outputs["G"], math2.inputs["Value"])
+#     links.new(srgb.outputs["R"], math3.inputs["Value"])
+#     links.new(tang.outputs["Tangent"], srgb.inputs["Image"])
 
     return group
 
