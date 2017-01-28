@@ -268,47 +268,25 @@ def create_vc_overlay(ob, fpath, name="", is_label=False):
 
     timeseries, timeseriesrange = tb_imp.normalize_data(timeseries)
 
-    if timeseries.shape[0] > 1:
-        tb_ob = tb_utils.active_tb_object()[0]
-        ca = [tb_ob.scalargroups]  # TODO: all other scalargroups etc
-        name = tb_utils.check_name(name, fpath, ca)
-        scalargroup = tb_imp.add_scalargroup_to_collection(name, fpath, timeseriesrange)
+    tb_ob = tb_utils.active_tb_object()[0]
+    ca = [tb_ob.scalargroups]  # TODO: all other scalargroups etc
+    name = tb_utils.check_name(name, fpath, ca)
+    scalargroup = tb_imp.add_scalargroup_to_collection(name, fpath, 
+                                                       timeseriesrange)
 
-        vg = set_vertex_group(ob, name, scalars=np.mean(timeseries, axis=0))
-        map_to_vertexcolours(ob, scalargroup, [vg])
+    vg = set_vertex_group(ob, name, scalars=np.mean(timeseries, axis=0))
+    map_to_vertexcolours(ob, scalargroup, [vg])
 
+    if timeseries.shape[0] == 1:
+        scalargroup.icon = "FORCE_CHARGE"
+        tb_ov = tb_imp.add_scalar_to_collection(scalargroup, name, fpath,
+                                                timeseriesrange)
+    else:
         for i, scalars in enumerate(timeseries):
             tpname = "%s.tp%03d" % (name, i)
             vg = set_vertex_group(ob, tpname, scalars=scalars)
             tb_ov = tb_imp.add_scalar_to_collection(scalargroup, tpname, fpath,
                                                     timeseriesrange)
-
-    else:
-        scalargroup = []
-        ca = [ob.vertex_groups,
-              ob.data.vertex_colors,
-              bpy.data.materials]
-        name = tb_utils.check_name(name, fpath, ca)
-
-        vg = set_vertex_group(ob, name, scalars=timeseries[0])
-
-        tb_ov = tb_imp.add_scalar_to_collection(scalargroup, name, fpath,
-                                                timeseriesrange)
-
-        map_to_vertexcolours(ob, tb_ov, [vg])
-
-    # NOTE: UV is useless without proper flatmaps ...
-#     uvname = 'uv_'+vgname
-#     #img = create_overlay_tract_img(uvname, scalars)
-#     nverts = len(ob.data.vertices)
-#     imsize = np.ceil(np.sqrt(nverts))
-#     img = bpy.data.images.new(uvname, imsize, imsize)
-#     scalars = np.append(scalars, [0] * (imsize**2 - nverts))
-#     vals = [[val, val, val, 1.0] for val in scalars]
-#     pixels = [chan for px in vals for chan in px]
-#     img.pixels = pixels
-#     img.source = 'GENERATED'
-#     map_to_uv(ob, uvname=uvname, img=img)
 
 
 def create_vg_annot(ob, fpath, name=""):

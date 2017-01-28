@@ -406,10 +406,8 @@ class TractBlenderOverlayPanel(Panel):
             except IndexError:
                 pass
             else:
-                if ovtype == "scalars":
-                    self.drawunit_tri(layout, "overlay_material", tb, tb_ov)
+                if ovtype == "scalargroups":
 
-                elif ovtype == "scalargroups":
                     row = layout.row()
 
                     col = row.column()
@@ -425,11 +423,12 @@ class TractBlenderOverlayPanel(Panel):
                         tpname = tb_ov.scalars[tb_ov.index_scalars].name
                         col.enabled = ob.data.vertex_colors.find(tpname) == -1
 
-                    col = row.column()
-                    col.template_list("ObjectListTS", "",
-                                      tb_ov, "scalars",
-                                      tb_ov, "index_scalars",
-                                      rows=2, type="COMPACT")
+                    if len(tb_ov.scalars) > 1:
+                        col = row.column()
+                        col.template_list("ObjectListTS", "",
+                                          tb_ov, "scalars",
+                                          tb_ov, "index_scalars",
+                                          rows=2, type="COMPACT")
 
                     self.drawunit_tri(layout, "overlay_material", tb, tb_ov)
 
@@ -862,8 +861,8 @@ class ObjectListOperations(Operator):
     def remove_surfaces_overlays(self, tb_ob, ob):
         """Remove surface scalars, labels and borders."""
 
-        for scalar in tb_ob.scalars:
-            self.remove_surfaces_scalars(scalar, ob)
+        for scalargroup in tb_ob.scalargroups:
+            self.remove_surfaces_scalargroups(scalar, ob)
         for labelgroup in tb_ob.labelgroups:
             self.remove_surfaces_labelgroups(labelgroup, ob)
         for bordergroup in tb_ob.bordergroups:
@@ -890,7 +889,7 @@ class ObjectListOperations(Operator):
 
         pass  # TODO
 
-    def remove_surfaces_scalars(self, tb_ov, ob):
+    def remove_surfaces_scalargroups(self, tb_ov, ob):
         """Remove scalar overlay from a surface."""
 
         # TODO: remove colourbars
@@ -2272,17 +2271,14 @@ def overlay_enum_callback(self, context):
     """Populate the enum based on available options."""
 
     items = []
-    items.append(("scalars", "scalars",
-                  "List the scalar overlays", 1))
-    if self.objecttype == 'surfaces':
-        items.append(("scalargroups", "time series",
-                      "List the time series", 2))
+    items.append(("scalargroups", "scalars",
+                  "List the scalar overlays", 0))
     if self.objecttype != 'tracts':
-        items.append(("labelgroups", "labelgroups",
-                      "List the label overlays", 3))
+        items.append(("labelgroups", "labels",
+                      "List the label overlays", 1))
     if self.objecttype == 'surfaces':
-        items.append(("bordergroups", "bordergroups",
-                      "List the bordergroups", 4))
+        items.append(("bordergroups", "borders",
+                      "List the border overlays", 2))
 
     return items
 
