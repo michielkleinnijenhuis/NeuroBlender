@@ -202,6 +202,13 @@ class TractBlenderBasePanel(Panel):
         if tb.objecttype == "voxelvolumes":
             tex = bpy.data.textures[tb_ob.name]
             self.drawunit_texture(layout, tex, tb_ob)
+        if tb.objecttype == "surfaces":
+            self.drawunit_material(layout, tb_ob)
+            row = layout.row()
+            row.separator()
+            row = layout.row()
+            row.prop(tb_ob, "sphere")
+            row.operator("tb.unwrap_surface", text="Unwrap")
         else:
             self.drawunit_material(layout, tb_ob)
 
@@ -1755,6 +1762,40 @@ class VertexPaintMode(Operator):
         return {"FINISHED"}
 
 
+class UnwrapSurface(Operator):
+    bl_idname = "tb.unwrap_surface"
+    bl_label = "Unwrap surface"
+    bl_description = "Unwrap a surface with sphere projection"
+    bl_options = {"REGISTER", "UNDO", "PRESET"}
+
+    def execute(self, context):
+
+        scn = context.scene
+        tb = scn.tb
+
+        tb_ob = tb_utils.active_tb_object()[0]
+
+        surf = bpy.data.objects[tb_ob.name]
+        sphere = bpy.data.objects[tb_ob.sphere]
+        for ob in bpy.data.objects:
+            ob.select = False
+
+        # select sphere
+        sphere.select = True
+        bpy.context.scene.objects.active = sphere
+        bpy.ops.object.mode_set(mode='EDIT')
+        bpy.ops.uv.sphere_project()
+        bpy.ops.object.mode_set(mode='OBJECT')
+        # TODO: perhaps do scaling here to keep all vertices within range
+
+        # select surf then sphere
+        surf.select = True
+        bpy.context.scene.objects.active = sphere
+        bpy.ops.object.join_uvs()
+
+        return {"FINISHED"}
+
+
 class ResetPresetCentre(Operator):
     bl_idname = "tb.reset_presetcentre"
     bl_label = "Reset preset centre"
@@ -3089,6 +3130,11 @@ class SurfaceProperties(PropertyGroup):
         name="Transparency",
         description="Set the transparency",
         default=1.0)
+
+    sphere = EnumProperty(
+        name="Unwrapping sphere",
+        description="Select sphere for unwrapping",
+        items=surfaces_enum_callback)
 
 
 class VoxelvolumeProperties(PropertyGroup):
