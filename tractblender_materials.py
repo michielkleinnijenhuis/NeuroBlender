@@ -424,7 +424,7 @@ def create_vg_overlay(ob, fpath, name="", is_label=False, trans=1):
               ob.data.vertex_colors,
               bpy.data.materials]
         name = tb_utils.check_name(name, fpath, ca)
-        
+
         vgscalars, scalarrange = tb_imp.normalize_data(scalars)
 
         vg = set_vertex_group(ob, name, label, scalars)
@@ -438,14 +438,14 @@ def create_vg_overlay(ob, fpath, name="", is_label=False, trans=1):
         tb_ob = tb_utils.active_tb_object()[0]
         ca = [tb_ob.labelgroups]  # TODO: checkagainst all other labelgroups
         groupname = tb_utils.check_name(name, fpath, ca)
-        labelgroup = tb_imp.add_labelgroup_to_collection(groupname)
+        labelgroup = tb_imp.add_labelgroup_to_collection(groupname, fpath)
 
         ca = [ob.vertex_groups,
               bpy.data.materials]
         name = tb_utils.check_name(name, fpath, ca)
         vg = set_vertex_group(ob, name, label, scalars)
 
-        values = [label.value for label in tb_ob.labels] or [0]
+        values = [label.value for label in labelgroup.labels] or [0]
         value = max(values) + 1
         diffcol = [random.random() for _ in range(3)] + [trans]
         mat = make_material_basic_cycles(name, diffcol, mix=0.05)

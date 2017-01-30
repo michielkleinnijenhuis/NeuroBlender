@@ -242,7 +242,8 @@ def validate_tb_objects(collections):
             else:
                 item.is_valid = True
                 # descend into the object's vertexgroups
-                validate_tb_overlays(ob, [item.scalars] +
+                validate_tb_overlays(ob,
+                                     [sg.scalars for sg in item.scalargroups] +
                                      [lg.labels for lg in item.labelgroups])
 
 

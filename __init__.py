@@ -407,26 +407,29 @@ class TractBlenderOverlayPanel(Panel):
             except IndexError:
                 pass
             else:
+
+                row = layout.row()
+
+                col = row.column()
+                col.operator("tb.wp_preview", text="", icon="GROUP_VERTEX")
+#                 col.enabled = bpy.context.mode != 'PAINT_WEIGHT'
+
+                col = row.column()
+                col.operator("tb.vw2vc", text="", icon="GROUP_VCOL")
+                ob = bpy.data.objects[tb_ob.name]
+
+#                 if ovtype == "scalargroups":
+#                     if tb_ov.index_scalars >= len(tb_ov.scalars):
+#                         col.enabled = False
+#                     else:
+#                         tpname = tb_ov.scalars[tb_ov.index_scalars].name
+#                         col.enabled = ob.data.vertex_colors.find(tpname) == -1
+
+                col = row.column()
+                col.operator("tb.vw2uv", text="", icon="GROUP_UVS")
+                ob = bpy.data.objects[tb_ob.name]
+
                 if ovtype == "scalargroups":
-
-                    row = layout.row()
-
-                    col = row.column()
-                    col.operator("tb.wp_preview", text="", icon="GROUP_VERTEX")
-                    col.enabled = bpy.context.mode != 'PAINT_WEIGHT'
-
-                    col = row.column()
-                    col.operator("tb.vw2vc", text="", icon="GROUP_VCOL")
-                    ob = bpy.data.objects[tb_ob.name]
-                    if tb_ov.index_scalars >= len(tb_ov.scalars):
-                        col.enabled = False
-                    else:
-                        tpname = tb_ov.scalars[tb_ov.index_scalars].name
-                        col.enabled = ob.data.vertex_colors.find(tpname) == -1
-
-                    col = row.column()
-                    col.operator("tb.vw2uv", text="", icon="GROUP_UVS")
-                    ob = bpy.data.objects[tb_ob.name]
 
                     if len(tb_ov.scalars) > 1:
                         col = row.column()
@@ -1814,7 +1817,7 @@ class WeightPaintMode(Operator):
 
         bpy.ops.object.mode_set(mode="WEIGHT_PAINT")
 
-        index_scalars_update_func()
+        index_update_func()
 
         return {"FINISHED"}
 
@@ -2444,36 +2447,71 @@ def overlay_enum_callback(self, context):
 
 
 def index_scalars_update(self, context):
-    """Assign a new preset material to the object."""
+    """Switch views on updating scalar index."""
 
     if hasattr(self, 'scalargroups'):  # TODO: isinstance
-        sg = self.scalargroups[self.index_scalargroups]
+        try:
+            sg = self.scalargroups[self.index_scalargroups]
+        except IndexError:
+            pass
+        else:
+            index_update_func(sg)
     else:
         sg = self
+        index_update_func(sg)
 
-    index_scalars_update_func(sg)
+
+def index_labels_update(self, context):
+    """Switch views on updating label index."""
+
+    if hasattr(self, 'labelgroups'):  # TODO: isinstance
+        try:
+            lg = self.labelgroups[self.index_labelgroups]
+        except IndexError:
+            pass
+        else:
+            index_update_func(lg)
+    else:
+        lg = self
+        index_update_func(lg)
 
 
-def index_scalars_update_func(sg=None):
+def index_update_func(group=None):
+    """Switch views on updating overlay index."""
 
     tb_object = tb_utils.active_tb_object()[0]
     ob = bpy.data.objects[tb_object.name]
-    if sg is None:
-        sg = tb_utils.active_tb_overlay()[0]
+    if group is None:
+        group = tb_utils.active_tb_overlay()[0]
 
-    tpname = sg.scalars[sg.index_scalars].name
-    vg_idx = ob.vertex_groups.find(tpname)
+    if hasattr(group, 'scalars'):
+        name = group.scalars[group.index_scalars].name
+    elif hasattr(group, 'labels'):
+        name = group.labels[group.index_labels].name
+
+    vg_idx = ob.vertex_groups.find(name)
     ob.vertex_groups.active_index = vg_idx
 
-    mat = bpy.data.materials[sg.name]
-    attr = mat.node_tree.nodes["Attribute"]
-    attr.attribute_name = tpname
+    if hasattr(group, 'scalars'):
+        vc_idx = ob.data.vertex_colors.find(name)
+        ob.data.vertex_colors.active_index = vc_idx
 
-    for scalar in sg.scalars:
-        scalar_index = sg.scalars.find(scalar.name)
-        scalar.is_rendered = scalar_index == sg.index_scalars
+        mat = bpy.data.materials[group.name]
+        attr = mat.node_tree.nodes["Attribute"]
+        attr.attribute_name = name
 
-    # TODO: switch material slots when selecting other scalar??
+        for scalar in group.scalars:
+            scalar_index = group.scalars.find(scalar.name)
+            scalar.is_rendered = scalar_index == group.index_scalars
+
+        # reorder materials: place active group on top
+        mats = [mat for mat in ob.data.materials]
+        mat_idx = ob.data.materials.find(group.name)
+        mat = mats.pop(mat_idx)
+        mats.insert(0, mat)
+        ob.data.materials.clear()
+        for mat in mats:
+            ob.data.materials.append(mat)
 
 
 def material_enum_update(self, context):
@@ -2895,78 +2933,6 @@ class BorderProperties(PropertyGroup):
         max=1)
 
 
-class LabelGroupProperties(PropertyGroup):
-    """Properties of label groups."""
-
-    name = StringProperty(
-        name="Name",
-        description="The name of the label overlay")
-    filepath = StringProperty(
-        name="Filepath",
-        description="The filepath to the label overlay")
-    icon = StringProperty(
-        name="Icon",
-        description="Icon for label overlays",
-        default="BRUSH_VERTEXDRAW")
-    is_valid = BoolProperty(
-        name="Is Valid",
-        description="Indicates if the object passed validity checks",
-        default=True)
-    is_rendered = BoolProperty(
-        name="Is Rendered",
-        description="Indicates if the label is rendered",
-        default=True)
-    parent = StringProperty(
-        name="Parent",
-        description="The name of the parent object")
-
-    labels = CollectionProperty(
-        type=LabelProperties,
-        name="labels",
-        description="The collection of loaded labels")
-    index_labels = IntProperty(
-        name="label index",
-        description="index of the labels collection",
-        default=0,
-        min=0)
-
-
-class BorderGroupProperties(PropertyGroup):
-    """Properties of border groups."""
-
-    name = StringProperty(
-        name="Name",
-        description="The name of the border overlay")
-    filepath = StringProperty(
-        name="Filepath",
-        description="The filepath to the border overlay")
-    icon = StringProperty(
-        name="Icon",
-        description="Icon for border overlays",
-        default="CURVE_BEZCIRCLE")
-    is_valid = BoolProperty(
-        name="Is Valid",
-        description="Indicates if the object passed validity checks",
-        default=True)
-    is_rendered = BoolProperty(
-        name="Is Rendered",
-        description="Indicates if the border is rendered",
-        default=True)
-    parent = StringProperty(
-        name="Parent",
-        description="The name of the parent object")
-
-    borders = CollectionProperty(
-        type=BorderProperties,
-        name="borders",
-        description="The collection of loaded borders")
-    index_borders = IntProperty(
-        name="border index",
-        description="index of the borders collection",
-        default=0,
-        min=0)
-
-
 class ScalarGroupProperties(PropertyGroup):
     """Properties of time series overlays."""
 
@@ -3077,10 +3043,78 @@ class ScalarGroupProperties(PropertyGroup):
         min=0.,
         max=1.)
 
-    ntimepoints = IntProperty(
-        name="Ntimepoints",
-        description="Number of timepoints in the timeseries",
-        min=1)
+
+class LabelGroupProperties(PropertyGroup):
+    """Properties of label groups."""
+
+    name = StringProperty(
+        name="Name",
+        description="The name of the label overlay")
+    filepath = StringProperty(
+        name="Filepath",
+        description="The filepath to the label overlay")
+    icon = StringProperty(
+        name="Icon",
+        description="Icon for label overlays",
+        default="BRUSH_VERTEXDRAW")
+    is_valid = BoolProperty(
+        name="Is Valid",
+        description="Indicates if the object passed validity checks",
+        default=True)
+    is_rendered = BoolProperty(
+        name="Is Rendered",
+        description="Indicates if the label is rendered",
+        default=True)
+    parent = StringProperty(
+        name="Parent",
+        description="The name of the parent object")
+
+    labels = CollectionProperty(
+        type=LabelProperties,
+        name="labels",
+        description="The collection of loaded labels")
+    index_labels = IntProperty(
+        name="label index",
+        description="index of the labels collection",
+        default=0,
+        min=0,
+        update=index_labels_update)
+
+
+class BorderGroupProperties(PropertyGroup):
+    """Properties of border groups."""
+
+    name = StringProperty(
+        name="Name",
+        description="The name of the border overlay")
+    filepath = StringProperty(
+        name="Filepath",
+        description="The filepath to the border overlay")
+    icon = StringProperty(
+        name="Icon",
+        description="Icon for border overlays",
+        default="CURVE_BEZCIRCLE")
+    is_valid = BoolProperty(
+        name="Is Valid",
+        description="Indicates if the object passed validity checks",
+        default=True)
+    is_rendered = BoolProperty(
+        name="Is Rendered",
+        description="Indicates if the border is rendered",
+        default=True)
+    parent = StringProperty(
+        name="Parent",
+        description="The name of the parent object")
+
+    borders = CollectionProperty(
+        type=BorderProperties,
+        name="borders",
+        description="The collection of loaded borders")
+    index_borders = IntProperty(
+        name="border index",
+        description="index of the borders collection",
+        default=0,
+        min=0)
 
 
 class TractProperties(PropertyGroup):
@@ -3136,13 +3170,13 @@ class TractProperties(PropertyGroup):
         default=[0.0, 0.0, 1.0, 0.0],
         size=4)
 
-    scalars = CollectionProperty(
-        type=ScalarProperties,
-        name="scalars",
-        description="The collection of loaded scalars")
-    index_scalars = IntProperty(
-        name="scalar index",
-        description="index of the scalars collection",
+    scalargroups = CollectionProperty(
+        type=ScalarGroupProperties,
+        name="scalargroups",
+        description="The collection of loaded scalargroups")
+    index_scalargroups = IntProperty(
+        name="scalargroup index",
+        description="index of the scalargroups collection",
         default=0,
         min=0)
     labelgroups = CollectionProperty(
@@ -3246,13 +3280,13 @@ class SurfaceProperties(PropertyGroup):
         default=[0.0, 0.0, 1.0, 0.0],
         size=4)
 
-    scalars = CollectionProperty(
-        type=ScalarProperties,
-        name="scalars",
-        description="The collection of loaded scalars")
-    index_scalars = IntProperty(
-        name="scalar index",
-        description="index of the scalars collection",
+    scalargroups = CollectionProperty(
+        type=ScalarGroupProperties,
+        name="scalargroups",
+        description="The collection of loaded timeseries")
+    index_scalargroups = IntProperty(
+        name="scalargroup index",
+        description="index of the scalargroups collection",
         default=0,
         min=0,
         update=index_scalars_update)
@@ -3264,7 +3298,8 @@ class SurfaceProperties(PropertyGroup):
         name="labelgroup index",
         description="index of the labelgroups collection",
         default=0,
-        min=0)
+        min=0,
+        update=index_labels_update)
     bordergroups = CollectionProperty(
         type=BorderGroupProperties,
         name="bordergroups",
@@ -3274,16 +3309,6 @@ class SurfaceProperties(PropertyGroup):
         description="index of the bordergroups collection",
         default=0,
         min=0)
-    scalargroups = CollectionProperty(
-        type=ScalarGroupProperties,
-        name="scalargroups",
-        description="The collection of loaded timeseries")
-    index_scalargroups = IntProperty(
-        name="scalargroup index",
-        description="index of the scalargroups collection",
-        default=0,
-        min=0,
-        update=index_scalars_update)
 
     colourtype = EnumProperty(
         name="colourtype",
