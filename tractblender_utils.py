@@ -109,6 +109,23 @@ def active_tb_overlay():
     return tb_ov, ov_idx
 
 
+def active_tb_overlayitem():
+    """Identify the active overlay item in the ImportPanel UIList."""
+
+    tb = bpy.context.scene.tb
+    ob_idx = eval("tb.index_%s" % tb.objecttype)
+    tb_ob = eval("tb.%s[%d]" % (tb.objecttype, ob_idx))
+
+    ov_idx = eval("tb_ob.index_%s" % tb.overlaytype)
+    tb_ov = eval("tb_ob.%s[%d]" % (tb.overlaytype, ov_idx))
+
+    it_type = tb.overlaytype.replace("groups", "s")
+    it_idx = eval("tb_ov.index_%s" % it_type)
+    tb_it = eval("tb_ov.%s[%d]" % (it_type, it_idx))
+
+    return tb_it, it_idx
+
+
 def get_tb_objectinfo(objectname):
     """"""
 

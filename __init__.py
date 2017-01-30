@@ -44,6 +44,7 @@ from os.path import dirname, join
 from shutil import copy
 import numpy as np
 import mathutils
+import re
 
 from . import tractblender_import as tb_imp
 from . import tractblender_materials as tb_mat
@@ -756,55 +757,70 @@ class ObjectListOperations(Operator):
                ('DOWN_AN', "DownAN", ""),
                ('REMOVE_AN', "RemoveAN", "")))
 
-    def invoke(self, context, event):
+    data_path = StringProperty(
+        name="data path",
+        description="Specify object data path",
+        default="")
+    type = StringProperty(
+        name="type",
+        description="Specify object type",
+        default="")
+    index = IntProperty(
+        name="index",
+        description="Specify object index",
+        default=-1)
+    name = StringProperty(
+        name="name",
+        description="Specify object name",
+        default="")
+
+    def execute(self, context):
 
         scn = context.scene
         tb = scn.tb
 
-        tb_ob, ob_idx = tb_utils.active_tb_object()
+        try:
+            self.data_path = eval("%s.path_from_id()" % self.data_path)
+        except SyntaxError:
+            self.report({'INFO'}, 'empty data path')
+            return {"CANCELLED"}
+        except NameError:
+            self.report({'INFO'}, 'invalid data path: %s' % self.data_path)
+            return {"CANCELLED"}
 
-        collection = eval("%s.%s" % ("tb", tb.objecttype))
-        tb_utils.validate_tb_objects([collection])
+        dp_split = re.findall(r"[\w']+", self.data_path)
+        dp_indices = re.findall(r"(\[\d+\])", self.data_path)
+        collection = eval(self.data_path.strip(dp_indices[-1]))
+        coll_path = collection.path_from_id()
+        data = '.'.join(coll_path.split('.')[:-1])
 
-        if self.action.endswith('_L1'):
-            data = "tb"
-            type = tb.objecttype
-        elif self.action.endswith('_L2'):
-            data = "tb_ob"
-            type = tb.overlaytype
-        elif self.action.endswith('_L3'):
-            tb_ov, ov_idx = tb_utils.active_tb_overlay()
-            data = "tb_ov"
-            type = tb.overlaytype.replace("groups", "s")
-        elif self.action.endswith('_PL'):
-            data = "tb.presets[%d]" % tb.index_presets
-            type = "lights"
-        elif self.action.endswith('_AN'):
-            data = "tb.presets[%d]" % tb.index_presets
-            type = "animations"
-
-        collection = eval("%s.%s" % (data, type))
-        idx = eval("%s.index_%s" % (data, type))
+        if self.index == -1:
+            self.index = int(dp_split[-1])
+        if not self.type:
+            self.type = dp_split[-2]
+        if not self.name:
+            self.name = collection[self.index].name
 
         try:
-            item = collection[idx]
+            item = collection[self.index]
         except IndexError:
             pass
         else:
-            if self.action.startswith('DOWN') and idx < len(collection) - 1:
-                collection.move(idx, idx+1)
-                exec("%s.index_%s += 1" % (data, type))
-            elif self.action.startswith('UP') and idx >= 1:
-                collection.move(idx, idx-1)
-                exec("%s.index_%s -= 1" % (data, type))
+            if (self.action.startswith('DOWN') and
+                self.index < len(collection) - 1):
+                collection.move(self.index, self.index + 1)
+                exec("%s.index_%s += 1" % (data, self.type))
+            elif self.action.startswith('UP') and self.index >= 1:
+                collection.move(self.index, self.index - 1)
+                exec("%s.index_%s -= 1" % (data, self.type))
             elif self.action.startswith('REMOVE'):
-                info = 'removed %s' % (collection[idx].name)
-                self.remove_items(tb, data, type, collection, idx)
+                info = 'removed %s' % (collection[self.index].name)
+                self.remove_items(tb, data, self.type, collection, self.index)
                 self.report({'INFO'}, info)
 
         scn.update()  # FIXME: update the viewports
 
-        if type == "voxelvolumes":
+        if self.type == "voxelvolumes":
             # TODO: update the index to tb.voxelvolumes in all drivers
             for i, vvol in enumerate(tb.voxelvolumes):
                 slicebox = bpy.data.objects[vvol.name+"SliceBox"]
@@ -818,6 +834,48 @@ class ObjectListOperations(Operator):
                                 tar.data_path = dp[:idx] + "%d" % i + dp[idx + 1:]
 
         return {"FINISHED"}
+
+    def invoke(self, context, event):
+
+        scn = context.scene
+        tb = scn.tb
+
+        tb_ob = tb_utils.active_tb_object()[0]
+
+        if self.action.endswith('_L1'):
+            self.type = tb.objecttype
+            self.name = tb_ob.name
+            self.index = eval("tb.%s.find(self.name)" % self.type)
+            self.data_path = tb_ob.path_from_id()
+        elif self.action.endswith('_L2'):
+            tb_ov = tb_utils.active_tb_overlay()[0]
+            self.type = tb.overlaytype
+            self.name = tb_ov.name
+            self.index = eval("tb_ob.%s.find(self.name)" % self.type)
+            self.data_path = tb_ov.path_from_id()
+        elif self.action.endswith('_L3'):
+            tb_ov = tb_utils.active_tb_overlay()[0]
+            tb_it = tb_utils.active_tb_overlayitem()[0]
+            self.type = tb.overlaytype.replace("groups", "s")
+            self.name = tb_it.name
+            self.index = eval("tb_ov.%s.find(self.name)" % self.type)
+            self.data_path = tb_it.path_from_id()
+        elif self.action.endswith('_PL'):
+            preset = "tb.presets[%d]" % tb.index_presets
+            light = preset.lights[preset.index_lights]
+            self.type = "lights"
+            self.name = light.name
+            self.index = preset.index_lights
+            self.data_path = light.path_from_id()
+        elif self.action.endswith('_AN'):
+            preset = "tb.presets[%d]" % tb.index_presets
+            animation = preset.animations[preset.index_animations]
+            self.type = "animations"
+            self.name = light.name
+            self.index = preset.index_animations
+            self.data_path = animation.path_from_id()
+
+        return self.execute(context)
 
     def remove_items(self, tb, data, type, collection, idx):
         """Remove items from TractBlender."""
@@ -866,7 +924,7 @@ class ObjectListOperations(Operator):
         """Remove surface scalars, labels and borders."""
 
         for scalargroup in tb_ob.scalargroups:
-            self.remove_surfaces_scalargroups(scalar, ob)
+            self.remove_surfaces_scalargroups(scalargroup, ob)
         for labelgroup in tb_ob.labelgroups:
             self.remove_surfaces_labelgroups(labelgroup, ob)
         for bordergroup in tb_ob.bordergroups:
@@ -898,8 +956,10 @@ class ObjectListOperations(Operator):
 
         # TODO: remove colourbars
         self.remove_vertexcoll(ob.vertex_groups, tb_ov.name)
-        self.remove_vertexcoll(ob.data.vertex_colors, tb_ov.name)
+#         self.remove_vertexcoll(ob.data.vertex_colors, tb_ov.name)
         self.remove_material(ob, tb_ov.name)
+#         for scalar in tb_ov.scalars:
+#             self.remove_surfaces_scalars(scalar, ob)
 
     def remove_surfaces_labelgroups(self, tb_ov, ob):
         """Remove label group."""
@@ -1801,8 +1861,9 @@ class VertexWeight2UV(Operator):
 
         samples = context.scene.cycles.samples
         preview_samples = context.scene.cycles.preview_samples
-        context.scene.cycles.samples = 5
-        context.scene.cycles.preview_samples = 5
+        scn.cycles.samples = 5
+        scn.cycles.preview_samples = 5
+        scn.cycles.bake_type = 'EMIT'
 
         tb_ob = tb_utils.active_tb_object()[0]
         scalargroup = tb_utils.active_tb_overlay()[0]
@@ -1833,40 +1894,31 @@ class VertexWeight2UV(Operator):
         nt.nodes['Material Output'].select = True
         nt.nodes.active = nt.nodes['Material Output']
 
-        vc = surf.data.vertex_colors.new(vcname)
+        vcs = surf.data.vertex_colors
+        vc = vcs.new(vcname)
         surf.data.vertex_colors.active = vc
         for scalar in scalargroup.scalars:
             vg = surf.vertex_groups[scalar.name]
             tb_mat.assign_vc(surf, vc, [vg])
-
-            img = bpy.data.images.new("img_" + scalar.name, width=4096, height=4096)
+            img = bpy.data.images.new("img_" + scalar.name, 
+                                      width=4096, height=4096)
             img.filepath_raw = join(uvtexdir, "img_" + scalar.name + ".png")
             img.file_format = 'PNG'
+            img.reload()
             nt.nodes['Image Texture'].image = img
-            bpy.ops.object.bake(type='EMIT')  # FIXME: crash
+            bpy.ops.object.bake()
             img.save()
-
         surf.data.vertex_colors.remove(vc)
 
-        # reinstate materials
+        # reinstate materials and render properties
         surf.data.materials.pop(0)
         for matname in matnames:
             surf.data.materials.append(bpy.data.materials[matname])
         surf.active_material_index = ami
-
-        context.scene.cycles.samples = samples
-        context.scene.cycles.preview_samples = preview_samples
+        scn.cycles.samples = samples
+        scn.cycles.preview_samples = preview_samples
 
         return {"FINISHED"}
-# 
-#     def invoke(self, context, event):
-# 
-#         if not bpy.path.abspath("//"):
-#             context.window_manager.fileselect_add(self)
-#         else:
-#             self.directory = bpy.path.abspath("//")
-# 
-#         return {"RUNNING_MODAL"}
 
 
 class UnwrapSurface(Operator):
