@@ -142,10 +142,11 @@ def set_materials(me, mat):
           does not conflict with per-vertex material assignment
     """
 
-    me.materials.append(mat)
-    for i, mat in enumerate(tuple(me.materials)):
-        new_idx = len(me.materials)-1-i
-        me.materials[new_idx] = mat
+    mats = [mat for mat in me.materials]
+    mats.insert(0, mat)
+    me.materials.clear()
+    for mat in mats:
+        me.materials.append(mat)
 
 
 def make_material(name="Material",
@@ -302,6 +303,17 @@ def create_vg_annot(ob, fpath, name=""):
     ca = [tb_ob.labelgroups]  # TODO: all other labelgroups
     groupname = tb_utils.check_name(name, fpath, ca)
     labelgroup = tb_imp.add_labelgroup_to_collection(groupname, fpath)
+    mat = make_material_overlay_cycles(groupname, groupname,
+                                       ob, labelgroup)
+    set_materials(ob.data, mat)
+    nodes = mat.node_tree.nodes
+    links = mat.node_tree.links
+    attr = nodes["Attribute"]
+    emit = nodes["Emission"]
+    diff = nodes["Diffuse BSDF"]
+    links.new(attr.outputs["Color"], diff.inputs["Color"])
+    links.new(attr.outputs["Color"], emit.inputs["Color"])
+    attr.attribute_name = groupname
 
     if fpath.endswith('.border'):
         borderlist = tb_imp.read_borders(fpath)
@@ -479,6 +491,8 @@ def set_vertex_group(ob, name, label=None, scalars=None):
         vg.add([int(l)], w[i], "REPLACE")
     vg.lock_weight = True
 
+    ob.vertex_groups.active_index = vg.index
+
     return vg
 
 
@@ -540,9 +554,7 @@ def assign_materialslots_to_faces(ob, vgs=None, mat_idxs=[]):
     me = ob.data
     for poly in me.polygons:
         for vi in poly.vertices:
-            allgroups = []
-            for g in me.vertices[vi].groups:
-                allgroups.append(g.group)
+            allgroups = [g.group for g in me.vertices[vi].groups]
             for vgs_idx, mat_idx in zip(reversed(vgs_idxs), reversed(mat_idxs)):
                 if vgs_idx in allgroups:
                     poly.material_index = mat_idx
@@ -600,43 +612,51 @@ def map_to_vertexcolours(ob, tb_ov, vgs=None, is_label=False, colourtype=""):
     """
 
     name = tb_ov.name
-
     mat = make_material_overlay_cycles(name, name, ob, tb_ov)
+    set_materials_to_vertexgroups(ob, vgs=None, mats=[mat])
 
-    set_materials_to_vertexgroups(ob, vgs, [mat])
+#     set_materials_to_vertexgroups(ob, vgs, [mat])
+# 
+#     vcs = ob.data.vertex_colors
+#     vc = vcs.new(name=name)
+#     ob.data.vertex_colors.active = vc
+#     ob = assign_vc(ob, vc, vgs)
 
-    vcs = ob.data.vertex_colors
-    vc = vcs.new(name=name)
-    ob.data.vertex_colors.active = vc
-    ob = assign_vc(ob, vc, vgs)
 
-
-def assign_vc(ob, vertexcolours, vgs=None):
+def assign_vc(ob, vertexcolours, vgs, labelgroup=[], colour=[0, 0, 0]):
     """Assign RGB values to the vertex_colors attribute.
 
     TODO: find better ways to handle multiple assignments to vertexgroups
     """
 
-    tb_ob = tb_utils.active_tb_object()[0]
-
-    if vgs is not None:
-        group_lookup = {g.index: g.name for g in vgs}
-
     me = ob.data
 
-    # linear to sRGB
-    gindex = vgs[0].index  # FIXME: assuming single vertex group here
-    W = np.array([v.groups[gindex].weight for v in me.vertices])
-    m = W > 0.00313066844250063
-    W[m] = 1.055 * ( np.power(W[m], (1.0 / 2.4) )) - 0.055
-    W[~m] = 12.92 * W[~m]
+    if labelgroup:
+        vgs_idxs = set([g.index for g in vgs])
+        C = []
+        for v in me.vertices:
+            vgroups = set([g.group for g in v.groups])
+            lgroup = vgroups & vgs_idxs
+            try:
+                idx = list(lgroup)[0]
+            except IndexError:
+                C.append(colour)
+            else:
+                idx = labelgroup.labels.find(ob.vertex_groups[idx].name)
+                C.append(labelgroup.labels[idx].colour[0:3])
+    else:
+        # linear to sRGB
+        gindex = vgs[0].index  # FIXME: assuming single vertex group here
+        W = np.array([v.groups[gindex].weight for v in me.vertices])
+        m = W > 0.00313066844250063
+        W[m] = 1.055 * ( np.power(W[m], (1.0 / 2.4) )) - 0.055
+        W[~m] = 12.92 * W[~m]
+        C = np.transpose(np.tile(W, [3,1]))
 
-    i = 0
     for poly in me.polygons:
-        for idx in poly.loop_indices:
-            vi = ob.data.loops[idx].vertex_index
-            vertexcolours.data[i].color[0] = W[vi]  # TODO: foreach_set?
-            i += 1
+        for idx, vi in zip(poly.loop_indices, poly.vertices):
+            vertexcolours.data[idx].color = C[vi]
+
     me.update()
 
     return ob
@@ -676,16 +696,6 @@ def linear_to_sRGB(L):
         C = 12.92 * L
 
     return C
-
-
-def vgs2vc():
-    """Create a vertex colour layer from (multiple) vertex groups.
-
-    TODO
-    """
-
-    tb = bpy.context.scene.tb
-    print('use groups: ', tb.vgs2vc)
 
 
 # =========================================================================== #
@@ -1195,8 +1205,9 @@ def make_material_overlay_cycles(name, vcname, ob=None, tb_ov=None, img=None):
     vrgb.name = prefix + "ColorRamp"
     vrgb.location = 100, 100
 
-    switch_colourmap(vrgb.color_ramp, "jet")
-    calc_nn_elpos(tb_ov, vrgb)
+    if hasattr(tb_ov, 'nn_elements'):
+        switch_colourmap(vrgb.color_ramp, "jet")
+        calc_nn_elpos(tb_ov, vrgb)
 
     srgb = nodes.new("ShaderNodeSeparateRGB")
     srgb.label = "Separate RGB"
@@ -1204,7 +1215,7 @@ def make_material_overlay_cycles(name, vcname, ob=None, tb_ov=None, img=None):
     srgb.location = -300, 100
 
     attr = nodes.new("ShaderNodeAttribute")
-    attr.location = -500, 100
+    attr.location = -500, 300
     attr.name = prefix + "Attribute"
     attr.attribute_name = vcname
     attr.label = "Attribute"

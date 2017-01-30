@@ -1826,24 +1826,49 @@ class VertexWeight2VertexColors(Operator):
     bl_idname = "tb.vw2vc"
     bl_label = "VW to VC"
     bl_description = "Bake vertex group weights to vertex colours"
-    bl_options = {"REGISTER", "UNDO", "PRESET"}
+    bl_options = {"REGISTER"}
+
+    name = StringProperty(
+        name="Name",
+        description="Specify a name for the object (default: filename)",
+        default="")
+    idx = IntProperty(
+        name="index",
+        description="index",
+        default=-1)
 
     def execute(self, context):
 
         tb_ob = tb_utils.active_tb_object()[0]
-        scalargroup = tb_utils.active_tb_overlay()[0]
+        group = tb_utils.active_tb_overlay()[0]
         ob = bpy.data.objects[tb_ob.name]
-        scalar = scalargroup.scalars[scalargroup.index_scalars]
-        vg = ob.vertex_groups[scalar.name]
+
+        if not self.name:
+            self.name = group.name
 
         vcs = ob.data.vertex_colors
-        vc = vcs.new(name=scalar.name)
+        vc = vcs.new(name=self.name)
         ob.data.vertex_colors.active = vc
-        ob = tb_mat.assign_vc(ob, vc, [vg])
 
-        # do not switch to VERTEX_PAINT mode:
-        # accidental painting of time series time points
-#         bpy.ops.object.mode_set(mode="VERTEX_PAINT")
+        if hasattr(group, 'scalars'):
+            if self.idx == -1:
+                self.idx = group.index_scalars
+            vgs = [ob.vertex_groups[group.scalars[self.idx].name]]
+            ob = tb_mat.assign_vc(ob, vc, vgs)
+            mat = ob.data.materials[self.name]
+            nodes = mat.node_tree.nodes
+            nodes["Attribute"].attribute_name = self.name
+
+        elif hasattr(group, 'labels'):
+            vgs = [ob.vertex_groups[label.name] for label in group.labels]
+            ob = tb_mat.assign_vc(ob, vc, vgs, group, colour=[0.5, 0.5, 0.5])
+
+        # do not switch to VERTEX_PAINT mode to prevent accidental painting?
+        bpy.ops.object.mode_set(mode="VERTEX_PAINT")
+
+        # FIXME
+        self.name = ""
+        self.idx = -1
 
         return {"FINISHED"}
 
@@ -1854,27 +1879,24 @@ class VertexWeight2UV(Operator):
     bl_description = "Bake vertex weights to texture (via vcol)"
     bl_options = {"REGISTER", "UNDO", "PRESET"}
 
-#     directory = StringProperty(subtype="FILE_PATH")
-#     files = CollectionProperty(name="Filepath", type=OperatorFileListElement)
-
     def execute(self, context):
 
         scn = context.scene
         tb = scn.tb
 
-        samples = context.scene.cycles.samples
-        preview_samples = context.scene.cycles.preview_samples
+        samples = scn.cycles.samples
+        preview_samples = scn.cycles.preview_samples
         scn.cycles.samples = 5
         scn.cycles.preview_samples = 5
         scn.cycles.bake_type = 'EMIT'
 
         tb_ob = tb_utils.active_tb_object()[0]
-        scalargroup = tb_utils.active_tb_overlay()[0]
+        group = tb_utils.active_tb_overlay()[0]
 
         if not bpy.path.abspath("//"):
             bpy.ops.tb.save_blend('INVOKE_DEFAULT')
         directory = bpy.path.abspath("//")  # FIXME: first time defaults to /Users/michielk/workspace
-        uvtexdir = join(directory, "uvtex_" + scalargroup.name)
+        uvtexdir = join(directory, "uvtex_" + group.name)
         tb_utils.mkdir_p(uvtexdir)
 
         surf = bpy.data.objects[tb_ob.name]
@@ -1883,35 +1905,39 @@ class VertexWeight2UV(Operator):
         surf.select = True
         context.scene.objects.active = surf
 
-        matname_bake = 'bake'
-        mat = tb_mat.make_material_bake_cycles(matname_bake)
+        vcname = "bake_vcol"
+        vcs = surf.data.vertex_colors
 
+        img = bpy.data.images.new(vcname, width=4096, height=4096)
+        img.file_format = 'PNG'
+
+        mat = tb_mat.make_material_bake_cycles(vcname)
         ami = surf.active_material_index
         matnames = [ms.name for ms in surf.material_slots]
         surf.data.materials.clear()
         surf.data.materials.append(mat)
 
-        vcname = "bake_vcol"
-        nt = mat.node_tree
-        nt.nodes["Attribute"].attribute_name = vcname
-        nt.nodes['Material Output'].select = True
-        nt.nodes.active = nt.nodes['Material Output']
+        nodes = mat.node_tree.nodes
+        nodes['Image Texture'].image = img
+        nodes["Attribute"].attribute_name = vcname
+        for node in nodes:
+            node.select = False
+        nodes['Material Output'].select = True
+        nodes.active = nodes['Material Output']
 
-        vcs = surf.data.vertex_colors
-        vc = vcs.new(vcname)
-        surf.data.vertex_colors.active = vc
-        for scalar in scalargroup.scalars:
-            vg = surf.vertex_groups[scalar.name]
-            tb_mat.assign_vc(surf, vc, [vg])
-            img = bpy.data.images.new("img_" + scalar.name, 
-                                      width=4096, height=4096)
-            img.filepath_raw = join(uvtexdir, "img_" + scalar.name + ".png")
-            img.file_format = 'PNG'
+        if hasattr(group, 'scalars'):
+            items = group.scalars
+        elif hasattr(group, 'labels'):
+            items = [group]
+
+        for i, item in enumerate(items):
+            bpy.ops.tb.vw2vc(name=vcname, idx=i)
+            img.filepath_raw = join(uvtexdir, "img_" + item.name + ".png")
             img.reload()
-            nt.nodes['Image Texture'].image = img
             bpy.ops.object.bake()
             img.save()
-        surf.data.vertex_colors.remove(vc)
+            vc = vcs[vcs.active_index]
+            vcs.remove(vc)
 
         # reinstate materials and render properties
         surf.data.materials.pop(0)
