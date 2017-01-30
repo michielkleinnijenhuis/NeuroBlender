@@ -948,8 +948,7 @@ def prep_nifti(fpath, name, is_label=False, file_format="RAW_8BIT"):
             print("Please supply a 3D nifti volume.")
             return
 
-        data = np.transpose(nii.get_data())  # TODO: check
-#         data = nii.get_data()
+        data = nii.get_data()
 
         if is_label:
             mask = data < 0
@@ -973,6 +972,7 @@ def prep_nifti(fpath, name, is_label=False, file_format="RAW_8BIT"):
         tmppath = tempfile.mkstemp(prefix=name, dir=voltexdir)
 
         if file_format == "IMAGE_SEQUENCE":
+            data = np.transpose(data)
             data = np.reshape(data, [dims[2], -1])
             img = bpy.data.images.new("img", width=dims[0], height=dims[1])
             for slcnr, slc in enumerate(data):
@@ -986,7 +986,21 @@ def prep_nifti(fpath, name, is_label=False, file_format="RAW_8BIT"):
                                                 str(slcnr).zfill(4) + ".png")
                 img.file_format = 'PNG'
                 img.save()
+        elif file_format == 'STRIP':
+#             data = np.transpose(data)
+            data = np.reshape(data, [-1, 1])
+            img = bpy.data.images.new("img", width=dims[2]*dims[1], height=dims[0])
+            pixels = []
+            for pix in data:
+                pixval = pix
+                pixels.append([pixval, pixval, pixval, 1.0])
+            pixels = [chan for px in pixels for chan in px]
+            img.pixels = pixels
+            img.filepath_raw = tmppath[1]  #os.path.join(tmppath, ".png")
+            img.file_format = 'PNG'
+            img.save()
         elif file_format == "RAW_8BIT":
+            data = np.transpose(data)
             data *= 255
             with open(tmppath[1], "wb") as f:
                 f.write(bytes(data.astype('uint8')))
