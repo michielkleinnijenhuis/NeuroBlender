@@ -3419,13 +3419,13 @@ class VoxelvolumeProperties(PropertyGroup):
         size=3,
         subtype="TRANSLATION")
 
-    scalars = CollectionProperty(
-        type=ScalarProperties,
-        name="scalars",
-        description="The collection of loaded scalars")
-    index_scalars = IntProperty(
-        name="scalar index",
-        description="index of the scalars collection",
+    scalargroups = CollectionProperty(
+        type=ScalarGroupProperties,
+        name="scalargroups",
+        description="The collection of loaded scalargroups")
+    index_scalargroups = IntProperty(
+        name="scalargroup index",
+        description="index of the scalargroups collection",
         default=0,
         min=0)
     labelgroups = CollectionProperty(

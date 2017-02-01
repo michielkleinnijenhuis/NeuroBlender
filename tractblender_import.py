@@ -481,9 +481,10 @@ def import_overlays(directory, files, name="", parent="", ovtype=""):
     parent_ob.select = True
 
 
-def import_tracts_scalars(fpath, parent_ob, name=""):
+def import_tracts_scalargroups(fpath, parent_ob, name=""):
     """Import scalar overlay on tract object."""
 
+    # TODO: handle timeseries
     tb_mat.create_vc_overlay_tract(parent_ob, fpath, name=name)
 
 
@@ -531,13 +532,14 @@ def import_surfaces_bordergroups(fpath, parent_ob, name=""):
         print("Only Connectome Workbench .border files supported.")
 
 
-def import_voxelvolumes_scalars(fpath, parent_ob, name=""):
+def import_voxelvolumes_scalargroups(fpath, parent_ob, name=""):
     """Import a scalar overlay on a voxelvolume."""
 
     scn = bpy.context.scene
     tb = scn.tb
 
     # TODO: handle invalid selections
+    # TODO: handle timeseries / groups
     sformfile = ""
     tb_ob = tb_utils.active_tb_object()[0]
     directory = os.path.dirname(fpath)  # TODO
