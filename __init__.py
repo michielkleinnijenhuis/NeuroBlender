@@ -75,22 +75,6 @@ bl_info = {
 # =========================================================================== #
 
 
-class Reload(Operator):
-    bl_idname = "tb.reload"
-    bl_label = "Reload"
-    bl_description = "Reload"
-    bl_options = {"REGISTER", "UNDO", "PRESET"}
-
-    def execute(self, context):
-
-        # FIXME: Blender crashes on reload
-        tb_path = "/Users/michielk/workspace/TractBlender/TractBlender.zip"
-        bpy.ops.wm.addon_install(filepath=tb_path)
-        bpy.ops.wm.addon_enable(module="TractBlender")
-
-        return {"FINISHED"}
-
-
 class TractBlenderBasePanel(Panel):
     """Host the TractBlender base geometry"""
     bl_idname = "OBJECT_PT_tb_geometry"
@@ -782,27 +766,7 @@ class ObjectListOperations(Operator):
         scn = context.scene
         tb = scn.tb
 
-        try:
-            self.data_path = eval("%s.path_from_id()" % self.data_path)
-        except SyntaxError:
-            self.report({'INFO'}, 'empty data path')
-            return {"CANCELLED"}
-        except NameError:
-            self.report({'INFO'}, 'invalid data path: %s' % self.data_path)
-            return {"CANCELLED"}
-
-        dp_split = re.findall(r"[\w']+", self.data_path)
-        dp_indices = re.findall(r"(\[\d+\])", self.data_path)
-        collection = eval(self.data_path.strip(dp_indices[-1]))
-        coll_path = collection.path_from_id()
-        data = '.'.join(coll_path.split('.')[:-1])
-
-        if self.index == -1:
-            self.index = int(dp_split[-1])
-        if not self.type:
-            self.type = dp_split[-2]
-        if not self.name:
-            self.name = collection[self.index].name
+        collection, data = self.get_collection(context)
 
         try:
             item = collection[self.index]
@@ -879,6 +843,38 @@ class ObjectListOperations(Operator):
             self.data_path = animation.path_from_id()
 
         return self.execute(context)
+
+    def get_collection(self, context):
+
+        scn = context.scene
+        tb = scn.tb
+
+        try:
+            self.data_path = eval("%s.path_from_id()" % self.data_path)
+        except SyntaxError:
+            self.report({'INFO'}, 'empty data path')
+#             # try to construct data_path from type, index, name?
+#             if type in ['tracts', 'surfaces', 'voxelvolumes']:
+#                 self.data_path = ''
+            return {"CANCELLED"}
+        except NameError:
+            self.report({'INFO'}, 'invalid data path: %s' % self.data_path)
+            return {"CANCELLED"}
+
+        dp_split = re.findall(r"[\w']+", self.data_path)
+        dp_indices = re.findall(r"(\[\d+\])", self.data_path)
+        collection = eval(self.data_path.strip(dp_indices[-1]))
+        coll_path = collection.path_from_id()
+        data = '.'.join(coll_path.split('.')[:-1])
+
+        if self.index == -1:
+            self.index = int(dp_split[-1])
+        if not self.type:
+            self.type = dp_split[-2]
+        if not self.name:
+            self.name = collection[self.index].name
+
+        return collection, data
 
     def remove_items(self, tb, data, type, collection, idx):
         """Remove items from TractBlender."""
@@ -1041,6 +1037,159 @@ class ObjectListOperations(Operator):
         item = coll.get(name)
         if item is not None:
             coll.remove(item)
+
+
+class MassIsRenderedL1(Menu):
+    bl_idname = "tb.mass_is_rendered_L1"
+    bl_label = "Vertex Group Specials"
+    bl_description = "Menu for group selection of rendering option"
+    bl_options = {"REGISTER"}
+
+    def draw(self, context):
+        layout = self.layout
+        layout.operator("tb.mass_select",
+                        icon='SCENE',
+                        text="Select All").action = 'SELECT_L1'
+        layout.operator("tb.mass_select",
+                        icon='SCENE',
+                        text="Deselect All").action = 'DESELECT_L1'
+        layout.operator("tb.mass_select",
+                        icon='SCENE',
+                        text="Invert").action = 'INVERT_L1'
+
+
+class MassIsRenderedL2(Menu):
+    bl_idname = "tb.mass_is_rendered_L2"
+    bl_label = "Vertex Group Specials"
+    bl_description = "Menu for group selection of rendering option"
+    bl_options = {"REGISTER"}
+
+    def draw(self, context):
+        layout = self.layout
+        layout.operator("tb.mass_select",
+                        icon='SCENE',
+                        text="Select All").action = 'SELECT_L2'
+        layout.operator("tb.mass_select",
+                        icon='SCENE',
+                        text="Deselect All").action = 'DESELECT_L2'
+        layout.operator("tb.mass_select",
+                        icon='SCENE',
+                        text="Invert").action = 'INVERT_L2'
+
+
+class MassIsRenderedL3(Menu):
+    bl_idname = "tb.mass_is_rendered_L3"
+    bl_label = "Vertex Group Specials"
+    bl_description = "Menu for group selection of rendering option"
+    bl_options = {"REGISTER"}
+
+    def draw(self, context):
+        layout = self.layout
+        layout.operator("tb.mass_select",
+                        icon='SCENE',
+                        text="Select All").action = 'SELECT_L3'
+        layout.operator("tb.mass_select",
+                        icon='SCENE',
+                        text="Deselect All").action = 'DESELECT_L3'
+        layout.operator("tb.mass_select",
+                        icon='SCENE',
+                        text="Invert").action = 'INVERT_L3'
+
+
+class MassIsRenderedPL(Menu):
+    bl_idname = "tb.mass_is_rendered_PL"
+    bl_label = "Vertex Group Specials"
+    bl_description = "Menu for group selection of rendering option"
+    bl_options = {"REGISTER"}
+
+    def draw(self, context):
+        layout = self.layout
+        layout.operator("tb.mass_select",
+                        icon='SCENE',
+                        text="Select All").action = 'SELECT_PL'
+        layout.operator("tb.mass_select",
+                        icon='SCENE',
+                        text="Deselect All").action = 'DESELECT_PL'
+        layout.operator("tb.mass_select",
+                        icon='SCENE',
+                        text="Invert").action = 'INVERT_PL'
+
+
+class MassIsRenderedAN(Menu):
+    bl_idname = "tb.mass_is_rendered_AN"
+    bl_label = "Animation Specials"
+    bl_description = "Menu for group selection of rendering option"
+    bl_options = {"REGISTER"}
+
+    def draw(self, context):
+        layout = self.layout
+        layout.operator("tb.mass_select",
+                        icon='SCENE',
+                        text="Select All").action = 'SELECT_AN'
+        layout.operator("tb.mass_select",
+                        icon='SCENE',
+                        text="Deselect All").action = 'DESELECT_AN'
+        layout.operator("tb.mass_select",
+                        icon='SCENE',
+                        text="Invert").action = 'INVERT_AN'
+
+
+class MassSelect(Operator):
+    bl_idname = "tb.mass_select"
+    bl_label = "Mass select"
+    bl_description = "Select/Deselect/Invert rendered objects/overlays"
+    bl_options = {"REGISTER"}
+
+    action = bpy.props.EnumProperty(
+        items=(('SELECT_L1', "Select_L1", ""),
+               ('DESELECT_L1', "Deselect_L1", ""),
+               ('INVERT_L1', "Invert_L1", ""),
+               ('SELECT_L2', "Select_L2", ""),
+               ('DESELECT_L2', "Deselect_L2", ""),
+               ('INVERT_L2', "Invert_L2", ""),
+               ('SELECT_L3', "Select_L3", ""),
+               ('DESELECT_L3', "Deselect_L3", ""),
+               ('INVERT_L3', "Invert_L3", ""),
+               ('SELECT_PL', "Select_PL", ""),
+               ('DESELECT_PL', "Deselect_PL", ""),
+               ('INVERT_PL', "Invert_PL", ""),
+               ('SELECT_AN', "Select_AN", ""),
+               ('DESELECT_AN', "Deselect_AN", ""),
+               ('INVERT_AN', "Invert_AN", "")))
+
+    data_path = StringProperty(
+        name="data path",
+        description="Specify object data path",
+        default="")
+    type = StringProperty(
+        name="type",
+        description="Specify object type",
+        default="")
+    index = IntProperty(
+        name="index",
+        description="Specify object index",
+        default=-1)
+    name = StringProperty(
+        name="name",
+        description="Specify object name",
+        default="")
+
+    invoke = ObjectListOperations.invoke
+    get_collection = ObjectListOperations.get_collection
+
+    def execute(self, context):
+
+        collection = self.get_collection(context)[0]
+
+        for item in collection:
+            if self.action.startswith('SELECT'):
+                item.is_rendered = True
+            elif self.action.startswith('DESELECT'):
+                item.is_rendered = False
+            elif self.action.startswith('INVERT'):
+                item.is_rendered = not item.is_rendered
+
+        return {"FINISHED"}
 
 
 class ImportTracts(Operator, ImportHelper):
@@ -1438,360 +1587,20 @@ class ImportBorderGroups(Operator, ImportHelper):
         return {"RUNNING_MODAL"}
 
 
-class SaveBlend(Operator, ExportHelper):
-    bl_idname = "tb.save_blend"
-    bl_label = "Save blend file"
-    bl_description = "Prompt to save a blend file"
-    bl_options = {"REGISTER"}
-
-    directory = StringProperty(subtype="FILE_PATH")
-    files = CollectionProperty(name="Filepath",
-                               type=OperatorFileListElement)
-    filename_ext = StringProperty(subtype="NONE")
-
-    def execute(self, context):
-
-        bpy.ops.wm.save_as_mainfile(filepath=self.properties.filepath)
-
-        return {"FINISHED"}
-
-
-class AddPreset(Operator):
-    bl_idname = "tb.add_preset"
-    bl_label = "New preset"
-    bl_description = "Create a new preset"
-    bl_options = {"REGISTER", "UNDO", "PRESET"}
-
-    name = StringProperty(
-        name="Name",
-        description="Specify a name for the preset",
-        default="Preset")
-
-    def execute(self, context):
-
-        scn = context.scene
-        tb = scn.tb
-
-        ca = [tb.presets]
-        name = tb_utils.check_name(self.name, "", ca, firstfill=1)
-        tb_rp.scene_preset_init(name)
-        tb.presets_enum = name
-
-        return {"FINISHED"}
-
-
-class DelPreset(Operator):
-    bl_idname = "tb.del_preset"
-    bl_label = "Delete preset"
-    bl_description = "Delete a preset"
-    bl_options = {"REGISTER", "UNDO", "PRESET"}
-
-    def execute(self, context):
-
-        scn = context.scene
-        tb = scn.tb
-
-        tb_rp.delete_preset(tb.presets[tb.index_presets])
-
-        tb.presets.remove(tb.index_presets)
-        tb.index_presets -= 1
-
-        try:
-            name = tb.presets[tb.index_presets].name
-        except IndexError:
-            pass
-        else:
-            tb.presets_enum = name
-
-        return {"FINISHED"}
-
-
-class AddLight(Operator):
-    bl_idname = "tb.import_lights"
-    bl_label = "New light"
-    bl_description = "Create a new light"
-    bl_options = {"REGISTER", "UNDO", "PRESET"}
-
-    name = StringProperty(
-        name="Name",
-        description="Specify a name for the light",
-        default="Light")
-
-    def execute(self, context):
-
-        scn = bpy.context.scene
-        tb = scn.tb
-        tb_preset = tb.presets[tb.index_presets]
-        preset = bpy.data.objects[tb_preset.name]
-        centre = bpy.data.objects[tb_preset.centre]
-        box = bpy.data.objects[tb_preset.box]
-        lights = bpy.data.objects[tb_preset.lightsempty]
-
-        tb_light = tb_imp.add_light_to_collection(self.name)
-        tb_rp.create_light(tb_light, preset, centre, box, lights)
-
-        return {"FINISHED"}
-
-
-class AddAnimation(Operator):
-    bl_idname = "tb.import_animations"
-    bl_label = "New animation"
-    bl_description = "Create a new animation"
-    bl_options = {"REGISTER", "UNDO", "PRESET"}
-
-    name = StringProperty(
-        name="Name",
-        description="Specify a name for the animation",
-        default="Anim")
-
-    def execute(self, context):
-
-        scn = context.scene
-        tb = scn.tb
-
-        ca = [preset.animations for preset in tb.presets]
-        name = tb_utils.check_name(self.name, "", ca, forcefill=True)
-        tb_imp.add_animation_to_collection(name)
-
-        return {"FINISHED"}
-
-
-class AddCamPath(Operator):
-    bl_idname = "tb.add_campath"
-    bl_label = "New camera path"
-    bl_description = "Create a new path for the camera"
-    bl_options = {"REGISTER", "UNDO", "PRESET"}
-
-    def execute(self, context):
-
-        scn = context.scene
-        tb = scn.tb
-
-        preset = tb.presets[tb.index_presets]
-        anim = preset.animations[preset.index_animations]
-        cam = bpy.data.objects[preset.cameras[0].name]
-        centre = bpy.data.objects[preset.centre]
-        box = bpy.data.objects[preset.box]
-
-        ca = [tb.campaths]
-        if anim.pathtype == "Circular":
-            name = "CP_%s" % (anim.axis)
-            name = tb_utils.check_name(name, "", ca)
-            campath = tb_rp.create_camera_path_rotation(name, preset, cam, centre, box, anim.axis)
-        elif anim.pathtype == "Streamline":
-            name = "CP_%s_%05d" % (anim.anim_tract, anim.spline_index)
-            name = tb_utils.check_name(name, "", ca)
-            campath = tb_rp.create_camera_path_streamline(name, preset,
-                                                          anim.anim_tract,
-                                                          anim.spline_index)
-        # TODO: choose between hiding objects' streamline tube from render
-        # or use camera clipping
-        elif anim.pathtype == "Select":
-            name = "CP_%s" % (anim.anim_curve)
-            name = tb_utils.check_name(name, "", ca)
-            cu = bpy.data.objects[anim.anim_curve].data.copy()
-            campath = bpy.data.objects.new(name, cu)
-            scn.objects.link(campath)
-            scn.update()
-
-        campath.hide_render = True
-        campath.parent = bpy.data.objects[preset.name]
-
-        tb_imp.add_campath_to_collection(name)
-
-        anim.campaths_enum = campath.name
-
-        return {"FINISHED"}
-
-
-class DelCamPath(Operator):
-    bl_idname = "tb.del_campath"
-    bl_label = "Delete camera path"
-    bl_description = "Delete a camera path"
-    bl_options = {"REGISTER", "UNDO", "PRESET"}
-
-    def execute(self, context):
-
-        scn = context.scene
-        tb = scn.tb
-
-        preset = tb.presets[tb.index_presets]
-        anim = preset.animations[preset.index_animations]
-        campath = bpy.data.objects[anim.campaths_enum]
-        scn.objects.unlink(campath)
-        # NOTE: this doesn't remove it from the list of objects
-
-        tb.campaths.remove(tb.campaths.find(anim.campaths_enum))
-#         tb.index_campaths -= 1
-
-        return {"FINISHED"}
-
-
-class MassIsRenderedL1(Menu):
-    bl_idname = "tb.mass_is_rendered_L1"
-    bl_label = "Vertex Group Specials"
-    bl_description = "Menu for group selection of rendering option"
-    bl_options = {"REGISTER"}
-
-    def draw(self, context):
-        layout = self.layout
-        layout.operator("tb.mass_select",
-                        icon='SCENE',
-                        text="Select All").action = 'SELECT_L1'
-        layout.operator("tb.mass_select",
-                        icon='SCENE',
-                        text="Deselect All").action = 'DESELECT_L1'
-        layout.operator("tb.mass_select",
-                        icon='SCENE',
-                        text="Invert").action = 'INVERT_L1'
-
-
-class MassIsRenderedL2(Menu):
-    bl_idname = "tb.mass_is_rendered_L2"
-    bl_label = "Vertex Group Specials"
-    bl_description = "Menu for group selection of rendering option"
-    bl_options = {"REGISTER"}
-
-    def draw(self, context):
-        layout = self.layout
-        layout.operator("tb.mass_select",
-                        icon='SCENE',
-                        text="Select All").action = 'SELECT_L2'
-        layout.operator("tb.mass_select",
-                        icon='SCENE',
-                        text="Deselect All").action = 'DESELECT_L2'
-        layout.operator("tb.mass_select",
-                        icon='SCENE',
-                        text="Invert").action = 'INVERT_L2'
-
-
-class MassIsRenderedL3(Menu):
-    bl_idname = "tb.mass_is_rendered_L3"
-    bl_label = "Vertex Group Specials"
-    bl_description = "Menu for group selection of rendering option"
-    bl_options = {"REGISTER"}
-
-    def draw(self, context):
-        layout = self.layout
-        layout.operator("tb.mass_select",
-                        icon='SCENE',
-                        text="Select All").action = 'SELECT_L3'
-        layout.operator("tb.mass_select",
-                        icon='SCENE',
-                        text="Deselect All").action = 'DESELECT_L3'
-        layout.operator("tb.mass_select",
-                        icon='SCENE',
-                        text="Invert").action = 'INVERT_L3'
-
-
-class MassIsRenderedPL(Menu):
-    bl_idname = "tb.mass_is_rendered_PL"
-    bl_label = "Vertex Group Specials"
-    bl_description = "Menu for group selection of rendering option"
-    bl_options = {"REGISTER"}
-
-    def draw(self, context):
-        layout = self.layout
-        layout.operator("tb.mass_select",
-                        icon='SCENE',
-                        text="Select All").action = 'SELECT_PL'
-        layout.operator("tb.mass_select",
-                        icon='SCENE',
-                        text="Deselect All").action = 'DESELECT_PL'
-        layout.operator("tb.mass_select",
-                        icon='SCENE',
-                        text="Invert").action = 'INVERT_PL'
-
-
-class MassIsRenderedAN(Menu):
-    bl_idname = "tb.mass_is_rendered_AN"
-    bl_label = "Animation Specials"
-    bl_description = "Menu for group selection of rendering option"
-    bl_options = {"REGISTER"}
-
-    def draw(self, context):
-        layout = self.layout
-        layout.operator("tb.mass_select",
-                        icon='SCENE',
-                        text="Select All").action = 'SELECT_AN'
-        layout.operator("tb.mass_select",
-                        icon='SCENE',
-                        text="Deselect All").action = 'DESELECT_AN'
-        layout.operator("tb.mass_select",
-                        icon='SCENE',
-                        text="Invert").action = 'INVERT_AN'
-
-
-class MassSelect(Operator):
-    bl_idname = "tb.mass_select"
-    bl_label = "Mass select"
-    bl_description = "Select/Deselect/Invert rendered objects/overlays"
-    bl_options = {"REGISTER"}
-
-    action = bpy.props.EnumProperty(
-        items=(('SELECT_L1', "Select_L1", ""),
-               ('DESELECT_L1', "Deselect_L1", ""),
-               ('INVERT_L1', "Invert_L1", ""),
-               ('SELECT_L2', "Select_L2", ""),
-               ('DESELECT_L2', "Deselect_L2", ""),
-               ('INVERT_L2', "Invert_L2", ""),
-               ('SELECT_L3', "Select_L3", ""),
-               ('DESELECT_L3', "Deselect_L3", ""),
-               ('INVERT_L3', "Invert_L3", ""),
-               ('SELECT_PL', "Select_PL", ""),
-               ('DESELECT_PL', "Deselect_PL", ""),
-               ('INVERT_PL', "Invert_PL", ""),
-               ('SELECT_AN', "Select_AN", ""),
-               ('DESELECT_AN', "Deselect_AN", ""),
-               ('INVERT_AN', "Invert_AN", "")))
-
-    def execute(self, context):
-
-        scn = bpy.context.scene
-        tb = scn.tb
-
-        if self.action.endswith("_L1"):
-            items = eval("tb.%s" % tb.objecttype)
-        elif self.action.endswith("_L2"):
-            tb_ob = tb_utils.active_tb_object()[0]
-            items = eval("tb_ob.%s" % tb.overlaytype)
-        elif self.action.endswith("_L3"):
-            tb_ov = tb_utils.active_tb_overlay()[0]
-            type = tb.overlaytype.replace("groups", "s")
-            items = eval("tb_ov.%s" % type)
-        elif self.action.endswith("_PL"):
-            preset = tb.presets[tb.index_presets]
-            items = eval("preset.lights")
-        elif self.action.endswith("_AN"):
-            preset = tb.presets[tb.index_presets]
-            items = eval("preset.animations")
-
-        for item in items:
-            if self.action.startswith('SELECT'):
-                item.is_rendered = True
-            elif self.action.startswith('DESELECT'):
-                item.is_rendered = False
-            elif self.action.startswith('INVERT'):
-                item.is_rendered = not item.is_rendered
-
-        return {"FINISHED"}
-
-
 class RevertLabel(Operator):
     bl_idname = "tb.revert_label"
     bl_label = "Revert label"
     bl_description = "Revert changes to imported label colour/transparency"
     bl_options = {"REGISTER"}
 
+    data_path = StringProperty(
+        name="data path",
+        description="Specify object data path",
+        default="")
+
     def execute(self, context):
 
-        scn = bpy.context.scene
-        tb = scn.tb
-
-        tb_ov = tb_utils.active_tb_overlay()[0]
-        type = tb.overlaytype.replace("groups", "s")
-        idx = eval("tb_ov.index_%s" % type)
-        item = eval("tb_ov.%s[%d]" % (type, idx))
+        item = eval(self.datapath)
 
         mat = bpy.data.materials[item.name]
         diff = mat.node_tree.nodes["Diffuse BSDF"]
@@ -1800,6 +1609,13 @@ class RevertLabel(Operator):
         mix2.inputs[0].default_value = item.colour[3]
 
         return {"FINISHED"}
+
+    def invoke(self, context, event):
+
+        tb_it = tb_utils.active_tb_overlayitem()[0]
+        self.data_path = tb_it.path_from_id()
+
+        return self.execute(context)
 
 
 class WeightPaintMode(Operator):
@@ -1984,50 +1800,6 @@ class UnwrapSurface(Operator):
         return {"FINISHED"}
 
 
-class ResetPresetCentre(Operator):
-    bl_idname = "tb.reset_presetcentre"
-    bl_label = "Reset preset centre"
-    bl_description = "Revert changes preset to preset centre"
-    bl_options = {"REGISTER"}
-
-    def execute(self, context):
-
-        scn = bpy.context.scene
-        tb = scn.tb
-
-        obs = tb_rp.get_render_objects(tb)
-        centre_location = tb_rp.get_brainbounds(obs)[0]
-
-        name = tb.presets[tb.index_presets].centre
-        centre = bpy.data.objects[name]
-        centre.location = centre_location
-
-        return {"FINISHED"}
-
-
-class ResetPresetDims(Operator):
-    bl_idname = "tb.reset_presetdims"
-    bl_label = "Recalculate scene dimensions"
-    bl_description = "Recalculate scene dimension"
-    bl_options = {"REGISTER"}
-
-    def execute(self, context):
-
-        scn = bpy.context.scene
-        tb = scn.tb
-
-        obs = tb_rp.get_render_objects(tb)
-        dims = tb_rp.get_brainbounds(obs)[1]
-
-        name = tb.presets[tb.index_presets].centre
-        centre = bpy.data.objects[name]
-        centre.scale = 0.5 * mathutils.Vector(dims)
-
-        tb.presets[tb.index_presets].dims = dims
-
-        return {"FINISHED"}
-
-
 class TractBlenderScenePanel(Panel):
     """Host the TractBlender scene setup functionality"""
     bl_idname = "OBJECT_PT_tb_scene"
@@ -2062,7 +1834,7 @@ class TractBlenderScenePanel(Panel):
             self.drawunit_tri(layout, "cameras", tb, preset)
             self.drawunit_tri(layout, "lights", tb, preset)
             self.drawunit_tri(layout, "tables", tb, preset)
-            self.drawunit_tri(layout, "animations", tb, preset)
+#             self.drawunit_tri(layout, "animations", tb, preset)
 
         row = layout.row()
         row.separator()
@@ -2184,7 +1956,212 @@ class TractBlenderScenePanel(Panel):
             row = layout.row()
             self.drawunit_basic_cycles(layout, tab)
 
-    def drawunit_tri_animations(self, layout, tb, preset):
+
+class ResetPresetCentre(Operator):
+    bl_idname = "tb.reset_presetcentre"
+    bl_label = "Reset preset centre"
+    bl_description = "Revert changes preset to preset centre"
+    bl_options = {"REGISTER"}
+
+    def execute(self, context):
+
+        scn = bpy.context.scene
+        tb = scn.tb
+
+        obs = tb_rp.get_render_objects(tb)
+        centre_location = tb_rp.get_brainbounds(obs)[0]
+
+        name = tb.presets[tb.index_presets].centre
+        centre = bpy.data.objects[name]
+        centre.location = centre_location
+
+        return {"FINISHED"}
+
+
+class ResetPresetDims(Operator):
+    bl_idname = "tb.reset_presetdims"
+    bl_label = "Recalculate scene dimensions"
+    bl_description = "Recalculate scene dimension"
+    bl_options = {"REGISTER"}
+
+    def execute(self, context):
+
+        scn = bpy.context.scene
+        tb = scn.tb
+
+        obs = tb_rp.get_render_objects(tb)
+        dims = tb_rp.get_brainbounds(obs)[1]
+
+        name = tb.presets[tb.index_presets].centre
+        centre = bpy.data.objects[name]
+        centre.scale = 0.5 * mathutils.Vector(dims)
+
+        tb.presets[tb.index_presets].dims = dims
+
+        return {"FINISHED"}
+
+
+class AddPreset(Operator):
+    bl_idname = "tb.add_preset"
+    bl_label = "New preset"
+    bl_description = "Create a new preset"
+    bl_options = {"REGISTER", "UNDO", "PRESET"}
+
+    name = StringProperty(
+        name="Name",
+        description="Specify a name for the preset",
+        default="Preset")
+
+    def execute(self, context):
+
+        scn = context.scene
+        tb = scn.tb
+
+        ca = [tb.presets]
+        name = tb_utils.check_name(self.name, "", ca, firstfill=1)
+
+        tb_rp.scene_preset_init(name)
+        tb.presets_enum = name
+
+        return {"FINISHED"}
+
+
+class DelPreset(Operator):
+    bl_idname = "tb.del_preset"
+    bl_label = "Delete preset"
+    bl_description = "Delete a preset"
+    bl_options = {"REGISTER", "UNDO", "PRESET"}
+
+    name = StringProperty(
+        name="Name",
+        description="Specify a name for the preset",
+        default="")
+    index = IntProperty(
+        name="index",
+        description="Specify preset index",
+        default=-1)
+
+    def execute(self, context):
+
+        scn = context.scene
+        tb = scn.tb
+
+        if self.name:
+            self.index = tb.presets.find(self.name)
+
+        tb_rp.delete_preset(tb.presets[self.index])
+
+        tb.presets.remove(self.index)
+        tb.index_presets -= 1
+
+        try:
+            name = tb.presets[self.index].name
+        except IndexError:
+            pass
+        else:
+            tb.presets_enum = name
+
+        return {"FINISHED"}
+
+    def invoke(self, context, event):
+
+        scn = context.scene
+        tb = scn.tb
+
+        self.index = tb.index_presets
+
+        return self.execute(context)
+
+
+class AddLight(Operator):
+    bl_idname = "tb.import_lights"
+    bl_label = "New light"
+    bl_description = "Create a new light"
+    bl_options = {"REGISTER", "UNDO", "PRESET"}
+
+    name = StringProperty(
+        name="Name",
+        description="Specify a name for the light",
+        default="Light")
+    index = IntProperty(
+        name="index",
+        description="Specify preset index",
+        default=-1)
+
+    invoke = DelPreset.invoke
+
+    def execute(self, context):
+
+        scn = context.scene
+        tb = scn.tb
+
+        tb_preset = tb.presets[self.index]
+        preset = bpy.data.objects[tb_preset.name]
+        centre = bpy.data.objects[tb_preset.centre]
+        box = bpy.data.objects[tb_preset.box]
+        lights = bpy.data.objects[tb_preset.lightsempty]
+
+        ca = [tb_preset.lights]
+        self.name = tb_utils.check_name(self.name, "", ca)
+
+        tb_light = tb_imp.add_light_to_collection(self.name)
+        tb_rp.create_light(tb_light, preset, centre, box, lights)
+
+        return {"FINISHED"}
+
+
+class ScenePreset(Operator):
+    bl_idname = "tb.scene_preset"
+    bl_label = "Load scene preset"
+    bl_description = "Setup up camera and lighting for this brain"
+    bl_options = {"REGISTER", "UNDO", "PRESET"}
+
+    def execute(self, context):
+        tb_rp.scene_preset()
+
+        return {"FINISHED"}
+
+
+class TractBlenderAnimationPanel(Panel):
+    """Host the TractBlender animation functionality"""
+    bl_idname = "OBJECT_PT_tb_animation"
+    bl_label = "NeuroBlender - Animations"
+    bl_space_type = "PROPERTIES"
+    bl_region_type = "WINDOW"
+    bl_context = "scene"
+
+    draw = TractBlenderBasePanel.draw
+    drawunit_switch_to_main = TractBlenderBasePanel.drawunit_switch_to_main
+    drawunit_UIList = TractBlenderBasePanel.drawunit_UIList
+    drawunit_tri = TractBlenderBasePanel.drawunit_tri
+
+    def draw_tb_panel(self, layout, tb):
+
+        try:
+            idx = tb.index_presets
+            preset = tb.presets[idx]
+        except IndexError:
+            row = layout.row()
+            row.label(text="No presets loaded ...")
+        else:
+            self.drawunit_animations(layout, tb, preset)
+
+        row = layout.row()
+        row.separator()
+        obs = [ob for ob in bpy.data.objects
+               if ob.type not in ["CAMERA", "LAMP", "EMPTY"]]
+        sobs = bpy.context.selected_objects
+        if obs:
+            row = layout.row()
+            row.operator("tb.scene_preset",
+                         text="Load scene preset",
+                         icon="WORLD")
+            row.enabled = len(tb.presets) > 0
+        else:
+            row = layout.row()
+            row.label(text="No geometry loaded ...")
+
+    def drawunit_animations(self, layout, tb, preset):
 
         row = layout.row()
         # consider preset.frame_start and frame_end (min frame_start=1)
@@ -2323,14 +2300,139 @@ class TractBlenderScenePanel(Panel):
         row.operator("tb.add_campath", text="Add trajectory")
 
 
-class ScenePreset(Operator):
-    bl_idname = "tb.scene_preset"
-    bl_label = "Load scene preset"
-    bl_description = "Setup up camera and lighting for this brain"
+class AddAnimation(Operator):
+    bl_idname = "tb.import_animations"
+    bl_label = "New animation"
+    bl_description = "Create a new animation"
     bl_options = {"REGISTER", "UNDO", "PRESET"}
 
+    name = StringProperty(
+        name="Name",
+        description="Specify a name for the animation",
+        default="Anim")
+
     def execute(self, context):
-        tb_rp.scene_preset()
+
+        scn = context.scene
+        tb = scn.tb
+
+        ca = [preset.animations for preset in tb.presets]
+        name = tb_utils.check_name(self.name, "", ca, forcefill=True)
+        tb_imp.add_animation_to_collection(name)
+
+        return {"FINISHED"}
+
+
+class AddCamPath(Operator):
+    bl_idname = "tb.add_campath"
+    bl_label = "New camera path"
+    bl_description = "Create a new path for the camera"
+    bl_options = {"REGISTER", "UNDO", "PRESET"}
+
+    name = StringProperty(
+        name="Name",
+        description="Specify a name for the camera path",
+        default="")
+    index_presets = IntProperty(
+        name="index",
+        description="Specify preset index",
+        default=-1)
+    index_animations = IntProperty(
+        name="index animations",
+        description="Specify animation index",
+        default=-1)
+
+    def execute(self, context):
+
+        scn = context.scene
+        tb = scn.tb
+
+        preset = tb.presets[self.index_presets]
+        anim = preset.animations[self.index_animations]
+        cam = bpy.data.objects[preset.cameras[0].name]
+        centre = bpy.data.objects[preset.centre]
+        box = bpy.data.objects[preset.box]
+
+        ca = [tb.campaths]
+        if anim.pathtype == "Circular":
+            name = self.name or "CP_%s" % (anim.axis)
+            name = tb_utils.check_name(name, "", ca)
+            campath = tb_rp.create_camera_path_rotation(name, preset,
+                                                        cam, centre, box,
+                                                        anim.axis)
+        elif anim.pathtype == "Streamline":
+            name = self.name or "CP_%s_%05d" % (anim.anim_tract,
+                                                anim.spline_index)
+            name = tb_utils.check_name(name, "", ca)
+            campath = tb_rp.create_camera_path_streamline(name, preset,
+                                                          anim.anim_tract,
+                                                          anim.spline_index)
+        # TODO: choose between hiding objects' streamline tube from render
+        # or use camera clipping
+        elif anim.pathtype == "Select":
+            name = self.name or "CP_%s" % (anim.anim_curve)
+            name = tb_utils.check_name(name, "", ca)
+            cu = bpy.data.objects[anim.anim_curve].data.copy()
+            campath = bpy.data.objects.new(name, cu)
+            scn.objects.link(campath)
+            scn.update()
+
+        campath.hide_render = True
+        campath.parent = bpy.data.objects[preset.name]
+
+        tb_imp.add_campath_to_collection(name)
+
+        anim.campaths_enum = campath.name
+
+        return {"FINISHED"}
+
+    def invoke(self, context, event):
+
+        scn = context.scene
+        tb = scn.tb
+
+        self.index_presets = tb.index_presets
+        preset = tb.presets[self.index_presets]
+        self.index_animations = preset.index_animations
+
+        return self.execute(context)
+
+
+class DelCamPath(Operator):
+    bl_idname = "tb.del_campath"
+    bl_label = "Delete camera path"
+    bl_description = "Delete a camera path"
+    bl_options = {"REGISTER", "UNDO", "PRESET"}
+
+    name = StringProperty(
+        name="Name",
+        description="Specify a name for the camera path",
+        default="")
+    index_presets = IntProperty(
+        name="index",
+        description="Specify preset index",
+        default=-1)
+    index_animations = IntProperty(
+        name="index animations",
+        description="Specify animation index",
+        default=-1)
+
+    invoke = AddCamPath.invoke
+
+    def execute(self, context):
+
+        scn = context.scene
+        tb = scn.tb
+
+        preset = tb.presets[self.index_presets]
+        anim = preset.animations[self.index_animations]
+
+        campath = bpy.data.objects[anim.campaths_enum]
+        scn.objects.unlink(campath)
+        # NOTE: this doesn't remove it from the list of objects
+
+        tb.campaths.remove(tb.campaths.find(anim.campaths_enum))
+#         tb.index_campaths -= 1
 
         return {"FINISHED"}
 
@@ -2409,6 +2511,46 @@ class SwitchToMainScene(Operator):
     def execute(self, context):
 
         context.window.screen.scene = bpy.data.scenes["Scene"]
+
+        return {"FINISHED"}
+
+
+class SaveBlend(Operator, ExportHelper):
+    bl_idname = "tb.save_blend"
+    bl_label = "Save blend file"
+    bl_description = "Prompt to save a blend file"
+    bl_options = {"REGISTER"}
+
+    directory = StringProperty(subtype="FILE_PATH")
+    files = CollectionProperty(name="Filepath", type=OperatorFileListElement)
+    filename_ext = StringProperty(subtype="NONE")
+
+    def execute(self, context):
+
+        bpy.ops.wm.save_as_mainfile(filepath=self.properties.filepath)
+
+        return {"FINISHED"}
+
+
+class Reload(Operator):
+    bl_idname = "tb.reload"
+    bl_label = "Reload"
+    bl_description = "Reload"
+    bl_options = {"REGISTER", "UNDO", "PRESET"}
+
+    name = StringProperty(
+        name="name",
+        description="The name of the addon",
+        default="TractBlender")
+    path = StringProperty(
+        name="path",
+        description="The path to the NeuroBlender zip file",
+        default="/Users/michielk/workspace/TractBlender/TractBlender.zip")
+
+    def execute(self, context):
+
+        bpy.ops.wm.addon_install(filepath=self.path)
+        bpy.ops.wm.addon_enable(module=self.name)
 
         return {"FINISHED"}
 
