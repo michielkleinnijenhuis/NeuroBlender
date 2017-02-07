@@ -236,62 +236,6 @@ def scene_preset(name="Brain", layer=10):
     return {'FINISHED'}
 
 
-def delete_preset(tb_preset):
-    """Delete a preset."""
-
-    # unlink all objects from the rendering scenes
-    for s in ['_cycles', '_internal']:
-        try:
-            scn = bpy.data.scenes[tb_preset.name + s]
-        except KeyError:
-            pass
-        else:
-            for ob in scn.objects:
-                scn.objects.unlink(ob)
-            bpy.data.scenes.remove(scn)
-
-    # delete all preset objects and data
-    ps_obs = []
-    for tb_coll in [tb_preset.cameras,
-                    tb_preset.lights,
-                    tb_preset.tables]:
-        for tb_ob in tb_coll:
-            ps_obs.append(bpy.data.objects[tb_ob.name])
-    ps_obs.append(bpy.data.objects[tb_preset.lightsempty])
-    ps_obs.append(bpy.data.objects[tb_preset.box])
-    ps_obs.append(bpy.data.objects[tb_preset.centre])
-    ps_obs.append(bpy.data.objects[tb_preset.name])
-    for ob in bpy.data.objects:
-        if ob in ps_obs:
-            bpy.data.objects.remove(ob)
-
-    ps_cams = []
-    for tb_ob in tb_preset.cameras:
-        ps_cams.append(bpy.data.cameras[tb_ob.name])
-    for cam in bpy.data.cameras:
-        if cam in ps_cams:
-            bpy.data.cameras.remove(cam)
-
-    ps_lamps = []
-    for tb_ob in tb_preset.lights:
-        ps_lamps.append(bpy.data.lamps[tb_ob.name])
-    for lamp in bpy.data.lamps:
-        if lamp in ps_lamps:
-            bpy.data.lamps.remove(lamp)
-
-    ps_meshes = []
-    for tb_ob in tb_preset.tables:
-        ps_meshes.append(bpy.data.meshes[tb_ob.name])
-    for mesh in bpy.data.meshes:
-        if mesh in ps_meshes:
-            bpy.data.meshes.remove(mesh)
-
-    # TODO:
-    # delete animations from objects
-    # delete colourbars
-    # delete campaths
-
-
 def renderselections_tracts(tb_obs):
     """"""
 

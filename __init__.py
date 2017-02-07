@@ -2033,6 +2033,9 @@ class AddPreset(Operator):
         tb_rp.scene_preset_init(name)
         tb.presets_enum = name
 
+        info = ['added preset "%s"' % name]
+        self.report({'INFO'}, '; '.join(info))
+
         return {"FINISHED"}
 
 
@@ -2056,20 +2059,34 @@ class DelPreset(Operator):
         scn = context.scene
         tb = scn.tb
 
-        if self.name:
-            self.index = tb.presets.find(self.name)
+        info = []
 
-        tb_rp.delete_preset(tb.presets[self.index])
+        if self.name:  # got here through cli
+            try:
+                tb.presets[self.name]
+            except KeyError:
+                info = ['no preset with name "%s"' % self.name]
+                self.report({'INFO'}, info[0])
+                return {"CANCELLED"}
+            else:
+                self.index = tb.presets.find(self.name)
+        else:  # got here through invoke
+            self.name = tb.presets[self.index].name
 
+        info = self.delete_preset(tb.presets[self.index], info)
         tb.presets.remove(self.index)
         tb.index_presets -= 1
+        info = ['removed preset "%s"' % self.name] + info
 
         try:
-            name = tb.presets[self.index].name
+            name = tb.presets[0].name
         except IndexError:
-            pass
+            info += ['all presets have been removed']
         else:
             tb.presets_enum = name
+            info += ['preset is now "%s"' % name]
+
+        self.report({'INFO'}, '; '.join(info))
 
         return {"FINISHED"}
 
@@ -2079,8 +2096,73 @@ class DelPreset(Operator):
         tb = scn.tb
 
         self.index = tb.index_presets
+        self.name = ""
 
         return self.execute(context)
+
+    def delete_preset(self, tb_preset, info=[]):
+        """Delete a preset."""
+
+        # unlink all objects from the rendering scenes
+        for s in ['_cycles', '_internal']:
+            sname = tb_preset.name + s
+            try:
+                scn = bpy.data.scenes[sname]
+            except KeyError:
+                info += ['scene "%s" not found' % sname]
+            else:
+                for ob in scn.objects:
+                    scn.objects.unlink(ob)
+                bpy.data.scenes.remove(scn)
+
+        # delete all preset objects and data
+        ps_obnames = [tb_ob.name
+                      for tb_coll in [tb_preset.cameras,
+                                      tb_preset.lights,
+                                      tb_preset.tables]
+                      for tb_ob in tb_coll]
+        ps_obnames += [tb_preset.lightsempty,
+                       tb_preset.box,
+                       tb_preset.centre,
+                       tb_preset.name]
+        for ps_obname in ps_obnames:
+            try:
+                ob = bpy.data.objects[ps_obname]
+            except KeyError:
+                info += ['object "%s" not found' % ps_obname]
+            else:
+                bpy.data.objects.remove(ob)
+
+        for ps_cam in tb_preset.cameras:
+            try:
+                cam = bpy.data.cameras[ps_cam.name]
+            except KeyError:
+                info += ['camera "%s" not found' % ps_cam.name]
+            else:
+                bpy.data.cameras.remove(cam)
+
+        for ps_lamp in tb_preset.lights:
+            try:
+                lamp = bpy.data.lamps[ps_lamp.name]
+            except KeyError:
+                info += ['lamp "%s" not found' % ps_lamp.name]
+            else:
+                bpy.data.lamps.remove(lamp)
+
+        for ps_mesh in tb_preset.tables:
+            try:
+                mesh = bpy.data.meshes[ps_mesh.name]
+            except KeyError:
+                info += ['mesh "%s" not found' % ps_mesh.name]
+            else:
+                bpy.data.meshes.remove(mesh)
+
+        # TODO:
+        # delete animations from objects
+        # delete colourbars
+        # delete campaths?
+
+        return info
 
 
 class AddLight(Operator):
