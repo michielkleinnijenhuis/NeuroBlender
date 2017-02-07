@@ -129,7 +129,7 @@ def import_tract(fpath, name, sformfile="",
     info_geom = info_geom + "decimate: weeding=%.3f; interpolation=%.3f" \
                 % (weed_tract, interpolate_streamlines)
 
-    return ob, info, info_geom
+    return [ob], info, info_geom
 
 
 def import_surface(fpath, name, sformfile="", argdict={}):
@@ -142,7 +142,7 @@ def import_surface(fpath, name, sformfile="", argdict={}):
     outcome = "failed"
     ext = os.path.splitext(fpath)[1]
     try:
-        ob, affine, sformfile = eval("read_surfaces_%s(fpath, name, sformfile)" % ext[1:])
+        obs, affines, sformfiles = eval("read_surfaces_%s(fpath, name, sformfile)" % ext[1:])
     except NameError:
         reason = "file format '%s' not supported" % ext
         info = "import %s: %s" % (outcome, reason)
@@ -161,12 +161,13 @@ def import_surface(fpath, name, sformfile="", argdict={}):
         info = "import %s: %s" % (outcome, reason)
         raise
 
-    ob.matrix_world = affine
+    for ob, affine, sformfile in zip(obs, affines, sformfiles):
+        ob.matrix_world = affine
 
-    add_surface_to_collection(name, fpath, sformfile)
+        add_surface_to_collection(ob.name, fpath, sformfile)
 
-    tb_utils.move_to_layer(ob, 1)
-    scn.layers[1] = True
+        tb_utils.move_to_layer(ob, 1)
+        scn.layers[1] = True
 
     bpy.context.scene.objects.active = ob
     ob.select = True
@@ -175,7 +176,7 @@ def import_surface(fpath, name, sformfile="", argdict={}):
     info = "import %s" % outcome
     info_geom = "transform: %s" % affine
 
-    return ob, info, info_geom
+    return obs, info, info_geom
 
 
 def import_voxelvolume(directory, files, specname,
@@ -298,7 +299,7 @@ def import_voxelvolume(directory, files, specname,
         bpy.context.scene.objects.active = ob
         ob.select = True
 
-    return ob
+    return [ob]
 
 
 def voxelvolume_cutout(ob):
@@ -1214,6 +1215,7 @@ def add_campath_to_collection(name):
 def read_surfaces_obj(fpath, name, sformfile):
     """"""
 
+    # TODO: multiple objects import
     # need split_mode='OFF' for loading scalars onto the correct vertices
     bpy.ops.import_scene.obj(filepath=fpath,
                              axis_forward='Y', axis_up='Z',
@@ -1222,11 +1224,13 @@ def read_surfaces_obj(fpath, name, sformfile):
     ob.name = name
     affine = read_affine_matrix(sformfile)
 
-    return ob, affine, sformfile
+    return [ob], [affine], [sformfile]
 
 
 def read_surfaces_stl(fpath, name, sformfile):
     """"""
+
+    # TODO: multiple objects import
 
     bpy.ops.import_mesh.stl(filepath=fpath,
                             axis_forward='Y', axis_up='Z')
@@ -1234,11 +1238,13 @@ def read_surfaces_stl(fpath, name, sformfile):
     ob.name = name
     affine = read_affine_matrix(sformfile)
 
-    return ob, affine, sformfile
+    return [ob], [affine], [sformfile]
 
 
 def read_surfaces_gii(fpath, name, sformfile):
     """"""
+
+    # TODO: multiple objects import
 
     scn = bpy.context.scene
     tb = scn.tb
@@ -1260,7 +1266,7 @@ def read_surfaces_gii(fpath, name, sformfile):
     ob = bpy.data.objects.new(name, me)
     bpy.context.scene.objects.link(ob)
 
-    return ob, affine, sformfile
+    return [ob], [affine], [sformfile]
 
 
 def read_surfaces_white(fpath, name, sformfile):
@@ -1282,11 +1288,32 @@ def read_surfaces_white(fpath, name, sformfile):
     ob = bpy.data.objects.new(name, me)
     bpy.context.scene.objects.link(ob)
 
-    return ob, affine, sformfile
+    return [ob], [affine], [sformfile]
 
 
 read_surfaces_pial = read_surfaces_white
 read_surfaces_inflated = read_surfaces_white
+read_surfaces_sphere = read_surfaces_white
+read_surfaces_orig = read_surfaces_white
+
+
+def read_surfaces_blend(fpath, name, sformfile):
+    """"""
+
+    with bpy.data.libraries.load(fpath) as (data_from, data_to):
+        data_to.objects = data_from.objects
+
+    obs = []
+    affines = []
+    sformfiles = []
+    for ob in data_to.objects:
+        if ob is not None:
+            bpy.context.scene.objects.link(ob)
+            obs.append(ob)
+            affines.append(ob.matrix_world)
+            sformfiles.append('')
+
+    return obs, affines, sformfiles
 
 
 # ========================================================================== #

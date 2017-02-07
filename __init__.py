@@ -1280,15 +1280,17 @@ class ImportTracts(Operator, ImportHelper):
                   bpy.data.materials]
             name = tb_utils.check_name(self.name, fpath, ca)
 
-            ob, info_imp, info_geom = importfun(fpath, name, "", impdict)
-            info_mat = tb_mat.materialise(ob,
-                                          self.colourtype,
-                                          self.colourpicker,
-                                          self.transparency)
-            info_beau = tb_beau.beautify_brain(ob,
-                                               importtype,
-                                               self.beautify,
-                                               beaudict)
+            obs, info_imp, info_geom = importfun(fpath, name, "", impdict)
+
+            for ob in obs:
+                info_mat = tb_mat.materialise(ob,
+                                              self.colourtype,
+                                              self.colourpicker,
+                                              self.transparency)
+                info_beau = tb_beau.beautify_brain(ob,
+                                                   importtype,
+                                                   self.beautify,
+                                                   beaudict)
 
             info = info_imp
             if tb.verbose:
@@ -1338,7 +1340,7 @@ class ImportSurfaces(Operator, ImportHelper):
                                type=OperatorFileListElement)
     filter_glob = StringProperty(
         options={"HIDDEN"},
-        default="*.gii;*.obj;*.stl;*.white;*.pial;*.inflated")
+        default="*.obj;*.stl;*.gii;*.white;*.pial;*.inflated;*.sphere;*.orig;*.blend")
 
     name = StringProperty(
         name="Name",
