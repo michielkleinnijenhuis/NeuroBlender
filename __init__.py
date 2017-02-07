@@ -2122,6 +2122,18 @@ class ScenePreset(Operator):
         return {"FINISHED"}
 
 
+class SetAnimations(Operator):
+    bl_idname = "tb.set_animations"
+    bl_label = "Set animations"
+    bl_description = "(Re)set all animation in the preset"
+    bl_options = {"REGISTER", "UNDO", "PRESET"}
+
+    def execute(self, context):
+        tb_rp.set_animations()
+
+        return {"FINISHED"}
+
+
 class TractBlenderAnimationPanel(Panel):
     """Host the TractBlender animation functionality"""
     bl_idname = "OBJECT_PT_tb_animation"
@@ -2151,15 +2163,10 @@ class TractBlenderAnimationPanel(Panel):
         obs = [ob for ob in bpy.data.objects
                if ob.type not in ["CAMERA", "LAMP", "EMPTY"]]
         sobs = bpy.context.selected_objects
-        if obs:
-            row = layout.row()
-            row.operator("tb.scene_preset",
-                         text="Load scene preset",
-                         icon="WORLD")
-            row.enabled = len(tb.presets) > 0
-        else:
-            row = layout.row()
-            row.label(text="No geometry loaded ...")
+        row = layout.row()
+        row.operator("tb.set_animations",
+                     text="Set animations",
+                     icon="RENDER_ANIMATION")
 
     def drawunit_animations(self, layout, tb, preset):
 

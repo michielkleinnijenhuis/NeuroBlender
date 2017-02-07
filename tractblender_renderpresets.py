@@ -179,44 +179,7 @@ def scene_preset(name="Brain", layer=10):
 #     # remove the preset if it exists
 #     delete_preset(name)
 
-    # camera path animations
-    cam_anims = [anim for anim in tb_anims
-                 if ((anim.animationtype == "CameraPath") &
-                     (anim.is_rendered))]
-    clear_camera_path_animations(cam, cam_anims)
-    create_camera_path_animations(cam, cam_anims)
-
-    # slice fly-throughs
-    slice_anims = [anim for anim in tb_anims
-                   if ((anim.animationtype == "Slices") &
-                       (anim.is_rendered))]
-    # delete previous animation on slicebox
-    for anim in slice_anims:
-#         vvol = tb.voxelvolumes[anim.anim_voxelvolume]
-        vvol = bpy.data.objects[anim.anim_voxelvolume]
-        vvol.animation_data_clear()
-
-    for anim in slice_anims:
-        vvol = tb.voxelvolumes[anim.anim_voxelvolume]
-        animate_slicebox(vvol, anim,
-                         anim.axis,
-                         anim.frame_start,
-                         anim.frame_end,
-                         anim.repetitions)
-
-    # time series
-    time_anims = [anim for anim in tb_anims
-                  if ((anim.animationtype == "TimeSeries") &
-                      (anim.is_rendered))]
-    for anim in time_anims:
-        pass  # TODO
-
-
-    for anim in cam_anims:
-        # FIXME: handle case when no campaths exist/selected
-        campath = bpy.data.objects[anim.campaths_enum]
-        if campath not in preset_obs:
-            preset_obs = preset_obs + [campath]
+    # call animation setup here
 
     cbars = create_colourbars(name+"Colourbars", cam)
 #     cbars.parent = cam  # already made it parent
@@ -653,6 +616,60 @@ def add_cam_constraints(cam):
                             "LimitDistOutBrainSphere", centre, max(centre.scale) * 2)
 
     return cnsTT, cnsLDi, cnsLDo
+
+
+def set_animations():
+    """"""
+
+    scn = bpy.context.scene
+    tb = scn.tb
+
+    tb_preset = tb.presets[tb.index_presets]
+    tb_cam = tb_preset.cameras[0]
+    tb_lights = tb_preset.lights
+    tb_tab = tb_preset.tables[0]
+    tb_anims = tb_preset.animations
+
+    cam = bpy.data.objects[tb_preset.cameras[0].name]
+
+    # camera path animations
+    cam_anims = [anim for anim in tb_anims
+                 if ((anim.animationtype == "CameraPath") &
+                     (anim.is_rendered))]
+    clear_camera_path_animations(cam, cam_anims)
+    create_camera_path_animations(cam, cam_anims)
+
+    # slice fly-throughs
+    slice_anims = [anim for anim in tb_anims
+                   if ((anim.animationtype == "Slices") &
+                       (anim.is_rendered))]
+    # delete previous animation on slicebox
+    for anim in slice_anims:
+#         vvol = tb.voxelvolumes[anim.anim_voxelvolume]
+        vvol = bpy.data.objects[anim.anim_voxelvolume]
+        vvol.animation_data_clear()
+
+    for anim in slice_anims:
+        vvol = tb.voxelvolumes[anim.anim_voxelvolume]
+        animate_slicebox(vvol, anim,
+                         anim.axis,
+                         anim.frame_start,
+                         anim.frame_end,
+                         anim.repetitions)
+
+    # time series
+    time_anims = [anim for anim in tb_anims
+                  if ((anim.animationtype == "TimeSeries") &
+                      (anim.is_rendered))]
+    for anim in time_anims:
+        pass  # TODO
+
+
+    for anim in cam_anims:
+        # FIXME: handle case when no campaths exist/selected
+        campath = bpy.data.objects[anim.campaths_enum]
+        if campath not in preset_obs:
+            preset_obs = preset_obs + [campath]
 
 # bpy.data.actions[24].name
 def clear_camera_path_animations(cam, anims):
