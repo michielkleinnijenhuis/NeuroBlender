@@ -104,7 +104,7 @@ def import_tract(fpath, name, sformfile="",
         if i in streamlines_sample:
             if interpolate_streamlines < 1.:
                 subsample_streamlines = int(1/interpolate_streamlines)
-                streamline = streamline[1::subsample_streamlines, :]
+                streamline = np.array(streamline)[1::subsample_streamlines, :]
 #                 TODO: interpolation
 #                 from scipy import interpolate
 #                 x = interpolate.splprep(list(np.transpose(streamline)))
