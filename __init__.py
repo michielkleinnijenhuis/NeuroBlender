@@ -112,8 +112,6 @@ class TractBlenderBasePanel(Panel):
             self.drawunit_tri(layout, "material", tb, tb_ob)
             if tb.objecttype == "voxelvolumes":
                 self.drawunit_tri(layout, "slices", tb, tb_ob)
-            else:
-                pass
             self.drawunit_tri(layout, "info", tb, tb_ob)
 
     def drawunit_switch_to_main(self, layout, tb):
@@ -247,9 +245,7 @@ class TractBlenderBasePanel(Panel):
         row.prop(trans, "default_value", text="Transparency")
         # TODO: copy transparency from colourpicker (via driver?)
     #             nt.nodes["Diffuse BSDF"].inputs[0].default_value[3]
-        lgp = bpy.types.LabelProperties
-        bgp = bpy.types.BorderProperties
-        if isinstance(tb_ob, (lgp, bgp)):
+        if hasattr(tb_ob, "colour"):
             row.operator("tb.revert_label", icon='BACK', text="")
 
         nt = mat.node_tree
@@ -1611,13 +1607,16 @@ class RevertLabel(Operator):
 
     def execute(self, context):
 
-        item = eval(self.datapath)
+        scn = bpy.context.scene
+        tb = scn.tb
+
+        item = eval(self.data_path)
 
         mat = bpy.data.materials[item.name]
-        diff = mat.node_tree.nodes["Diffuse BSDF"]
-        diff.inputs[0].default_value = item.colour
-        mix2 = mat.node_tree.nodes["Mix Shader.001"]
-        mix2.inputs[0].default_value = item.colour[3]
+        rgb = mat.node_tree.nodes["RGB"]
+        rgb.outputs[0].default_value = item.colour
+        trans = mat.node_tree.nodes["Transparency"]
+        trans.outputs[0].default_value = item.colour[3]
 
         return {"FINISHED"}
 
