@@ -833,17 +833,17 @@ class ObjectListOperations(Operator):
             self.index = eval("tb_ov.%s.find(self.name)" % self.type)
             self.data_path = tb_it.path_from_id()
         elif self.action.endswith('_PL'):
-            preset = "tb.presets[%d]" % tb.index_presets
+            preset = eval("tb.presets[%d]" % tb.index_presets)
             light = preset.lights[preset.index_lights]
             self.type = "lights"
             self.name = light.name
             self.index = preset.index_lights
             self.data_path = light.path_from_id()
         elif self.action.endswith('_AN'):
-            preset = "tb.presets[%d]" % tb.index_presets
+            preset = eval("tb.presets[%d]" % tb.index_presets)
             animation = preset.animations[preset.index_animations]
             self.type = "animations"
-            self.name = light.name
+            self.name = animation.name
             self.index = preset.index_animations
             self.data_path = animation.path_from_id()
 
