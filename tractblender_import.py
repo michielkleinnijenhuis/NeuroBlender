@@ -284,13 +284,14 @@ def import_voxelvolume(directory, files, specname,
         slicebox = voxelvolume_cutout(ob)
 
         for idx in range(0,3):
-            voxelvolume_slice_drivers(ob, slicebox, idx, "scale")
-            voxelvolume_slice_drivers(ob, slicebox, idx, "location")
-            voxelvolume_slice_drivers(ob, slicebox, idx, "rotation_euler")
+            voxelvolume_slice_drivers_volume(ob, slicebox, idx, "scale")
+            voxelvolume_slice_drivers_volume(ob, slicebox, idx, "location")
+            voxelvolume_slice_drivers_volume(ob, slicebox, idx, "rotation_euler")
 
     mat = tb_mat.get_voxmat(matname, img, dims, file_format,
                             is_overlay, is_label, labelgroup)
     tb_mat.set_materials(ob.data, mat)
+    voxelvolume_rendertype_driver(mat)
 
     tb_utils.move_to_layer(ob, 2)
     scn.layers[2] = True
@@ -391,7 +392,7 @@ def voxelvolume_cutout(ob):
     return empty
 
 
-def voxelvolume_slice_drivers(vvol, slicebox, index, prop, relative=True):
+def voxelvolume_slice_drivers_volume(vvol, slicebox, index, prop, relative=True):
 
     scn = bpy.context.scene
     tb = scn.tb
@@ -440,6 +441,46 @@ def voxelvolume_slice_drivers(vvol, slicebox, index, prop, relative=True):
     slicebox.lock_rotation[index] = True
     slicebox.lock_scale[index] = True
 
+
+def voxelvolume_slice_drivers_surface(tex, index, prop):
+
+    scn = bpy.context.scene
+    tb = scn.tb
+
+    driver = tex.driver_add(prop, index).driver
+    driver.type = 'SCRIPTED'
+    vv_idx = tb.index_voxelvolumes
+
+    if prop == "scale":
+    # relative slicethickness
+        data_path = "tb.voxelvolumes[%d].slicethickness[%d]" % (vv_idx, index)
+        tb_rp.create_var(driver, "slc_th",
+                         'SINGLE_PROP', 'SCENE',
+                         scn, data_path)
+        driver.expression = "slc_th"
+    elif prop == "offset":
+        # relative sliceposition
+        data_path = "tb.voxelvolumes[%d].sliceposition[%d]" % (vv_idx, index)
+        tb_rp.create_var(driver, "slc_pos",
+                         'SINGLE_PROP', 'SCENE',
+                         scn, data_path)
+        driver.expression = "slc_pos * 2 - 1"
+
+
+def voxelvolume_rendertype_driver(mat):
+
+    scn = bpy.context.scene
+    tb = scn.tb
+
+    driver = mat.driver_add("type", -1).driver
+    driver.type = 'SCRIPTED'
+    vv_idx = tb.index_voxelvolumes
+
+    data_path = "tb.voxelvolumes[%d].rendertype" % vv_idx
+    tb_rp.create_var(driver, "type",
+                     'SINGLE_PROP', 'SCENE',
+                     scn, data_path)
+    driver.expression = "slc_th"
 
 
 def find_bbox_coordinates(obs):

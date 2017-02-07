@@ -187,7 +187,7 @@ class TractBlenderBasePanel(Panel):
         if tb.objecttype == "voxelvolumes":
             tex = bpy.data.textures[tb_ob.name]
             self.drawunit_texture(layout, tex, tb_ob)
-        if tb.objecttype == "surfaces":
+        elif tb.objecttype == "surfaces":
             self.drawunit_material(layout, tb_ob)
             row = layout.row()
             row.separator()
@@ -268,9 +268,18 @@ class TractBlenderBasePanel(Panel):
             row.label(text=text)
 
         row = layout.row()
+        row.prop(tb_coll, "rendertype", expand=True)
+
+        row = layout.row()
+        row.separator()
+
+        row = layout.row()
         row.prop(tex, "intensity")
         row.prop(tex, "contrast")
         row.prop(tex, "saturation")
+
+        row = layout.row()
+        row.separator()
 
         if tex.use_color_ramp:
             box = layout.box()
@@ -2581,8 +2590,28 @@ def sformfile_update(self, context):
 def slices_update(self, context):
     """Set slicethicknesses and positions for the object."""
 
+    # FIXME: objects lag one update 
     ob = bpy.data.objects[self.name+"SliceBox"]
     ob.scale = self.slicethickness
+
+
+def rendertype_enum_update(self, context):
+    """Set surface or volume rendering for the voxelvolume."""
+
+    mat = bpy.data.materials[self.name]
+    # FIXME: vvol.rendertype ideally needs to switch if mat.type does
+    mat.type = self.rendertype
+    tex = mat.texture_slots[0]
+    if mat.type == 'VOLUME':
+        for idx in range(0,3):
+            tex.driver_remove("scale", idx)
+            tex.driver_remove("offset", idx)
+        tex.scale = [1, 1, 1]
+        tex.offset = [0, 0, 0]
+    elif mat.type == 'SURFACE':
+        for idx in range(0,3):
+            tb_imp.voxelvolume_slice_drivers_surface(tex, idx, "scale")
+            tb_imp.voxelvolume_slice_drivers_surface(tex, idx, "offset")
 
 
 def mode_enum_update(self, context):
@@ -3602,6 +3631,15 @@ class VoxelvolumeProperties(PropertyGroup):
         description="Pick a colour",
         default=[1.0, 0.0, 0.0],
         subtype="COLOR")
+
+    rendertype = EnumProperty(
+        name="rendertype",
+        description="Surface or volume rendering of texture",
+        items=[("SURFACE", "Surface",
+                "Switch to surface rendering", 0),
+               ("VOLUME", "Volume",
+                "Switch to volume rendering", 1)],
+        update=rendertype_enum_update)
 
     range = FloatVectorProperty(
         name="Range",
