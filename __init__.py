@@ -2171,16 +2171,45 @@ class AddLight(Operator):
     bl_description = "Create a new light"
     bl_options = {"REGISTER", "UNDO", "PRESET"}
 
-    name = StringProperty(
-        name="Name",
-        description="Specify a name for the light",
-        default="Light")
     index = IntProperty(
         name="index",
         description="Specify preset index",
         default=-1)
-
-    invoke = DelPreset.invoke
+    name = StringProperty(
+        name="Name",
+        description="Specify a name for the light",
+        default="Light")
+    type = EnumProperty(
+        name="Light type",
+        description="type of lighting",
+        items=[("PLANE", "PLANE", "PLANE", 1),
+               ("POINT", "POINT", "POINT", 2),
+               ("SUN", "SUN", "SUN", 3),
+               ("SPOT", "SPOT", "SPOT", 4),
+               ("HEMI", "HEMI", "HEMI", 5),
+               ("AREA", "AREA", "AREA", 6)],
+        default="SPOT")
+    colour = FloatVectorProperty(
+        name="Colour",
+        description="Colour of the light",
+        default=[1.0, 1.0, 1.0],
+        subtype="COLOR")
+    strength = FloatProperty(
+        name="Strength",
+        description="Strength of the light",
+        default=1,
+        min=0)
+    size = FloatVectorProperty(
+        name="Size",
+        description="Relative size of the plane light (to bounding box)",
+        size=2,
+        default=[1.0, 1.0])
+    location = FloatVectorProperty(
+        name="Location",
+        description="",
+        default=[3.88675, 2.88675, 2.88675],
+        size=3,
+        subtype="TRANSLATION")
 
     def execute(self, context):
 
@@ -2194,13 +2223,30 @@ class AddLight(Operator):
         lights = bpy.data.objects[tb_preset.lightsempty]
 
         ca = [tb_preset.lights]
-        self.name = tb_utils.check_name(self.name, "", ca)
+        name = tb_utils.check_name(self.name, "", ca)
 
-        tb_light = tb_imp.add_light_to_collection(self.name)
-        tb_rp.create_light(tb_light, preset, centre, box, lights)
+        lp = {'name': name,
+              'type': self.type,
+              'size': self.size,
+              'colour': self.colour,
+              'strength': self.strength,
+              'location': self.location}
+        tb_light = tb_rp.add_item(tb_preset, "lights", lp)
+        tb_rp.create_light(preset, centre, box, lights, lp)
+
+        info = ['added light "%s" in preset "%s"' % (name, tb_preset.name)]
+        self.report({'INFO'}, '; '.join(info))
 
         return {"FINISHED"}
 
+    def invoke(self, context, event):
+
+        scn = context.scene
+        tb = scn.tb
+
+        self.index = tb.index_presets
+
+        return self.execute(context)
 
 class ScenePreset(Operator):
     bl_idname = "tb.scene_preset"
