@@ -2731,14 +2731,13 @@ def colourmap_enum_update(self, context):
 
     tb_ob = tb_utils.active_tb_object()[0]
 
-    if isinstance(self, bpy.types.VoxelvolumeProperties):
+    if hasattr(self, 'slicebox'):
         cr = bpy.data.textures[self.name].color_ramp
-    elif isinstance(self, (bpy.types.ScalarProperties,
-                           bpy.types.ScalarGroupProperties)):
-        if isinstance(tb_ob, bpy.types.TractProperties):
+    else:
+        if hasattr(tb_ob, "nstreamlines"):
             ng = bpy.data.node_groups.get("TractOvGroup")
             cr = ng.nodes["ColorRamp"].color_ramp
-        elif isinstance(tb_ob, bpy.types.SurfaceProperties):
+        elif hasattr(tb_ob, "sphere"):
             nt = bpy.data.materials[self.name].node_tree
             cr = nt.nodes["ColorRamp"].color_ramp
 
