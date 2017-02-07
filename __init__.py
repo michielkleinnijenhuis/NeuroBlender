@@ -885,8 +885,8 @@ class ObjectListOperations(Operator):
         """Remove items from TractBlender."""
 
         name = collection[idx].name
+        ob = bpy.data.objects[name]
         tb_ob, ob_idx = tb_utils.active_tb_object()
-        ob = bpy.data.objects[tb_ob.name]
 
         if self.action.endswith('_L1'):
             # remove all children
@@ -900,7 +900,7 @@ class ObjectListOperations(Operator):
 #                 self.remove_material(ob, ms.name)  # FIXME: causes crash
             bpy.data.objects.remove(ob, do_unlink=True)
         elif self.action.endswith('_PL'):
-            print("remove PL")  # FIXME: TODO
+            bpy.data.objects.remove(ob)
         elif self.action.endswith('_AN'):
             print("remove AN")  # FIXME: TODO
             # for CamPath anim:
