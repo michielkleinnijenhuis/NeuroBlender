@@ -402,11 +402,11 @@ class TractBlenderOverlayPanel(Panel):
                 col = row.column()
                 col.operator("tb.wp_preview", text="", icon="GROUP_VERTEX")
 #                 col.enabled = bpy.context.mode != 'PAINT_WEIGHT'
+                col.enabled = obtype == 'surfaces'
 
                 col = row.column()
                 col.operator("tb.vw2vc", text="", icon="GROUP_VCOL")
-                ob = bpy.data.objects[tb_ob.name]
-
+                col.enabled = obtype == 'surfaces'
 #                 if ovtype == "scalargroups":
 #                     if tb_ov.index_scalars >= len(tb_ov.scalars):
 #                         col.enabled = False
@@ -416,6 +416,8 @@ class TractBlenderOverlayPanel(Panel):
 
                 col = row.column()
                 col.operator("tb.vw2uv", text="", icon="GROUP_UVS")
+                col.enabled = obtype == 'surfaces'
+
                 ob = bpy.data.objects[tb_ob.name]
 
                 if ovtype == "scalargroups":
