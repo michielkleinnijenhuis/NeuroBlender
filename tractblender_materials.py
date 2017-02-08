@@ -201,45 +201,64 @@ def get_golden_angle_colour(i):
 
 
 def create_vc_overlay_tract(ob, fpath, name="", is_label=False):
-    """Create scalar overlay for a surface object."""
+    """Create scalar overlay for a tract object."""
 
-    nn_scalars = tb_imp.read_tractscalar(fpath)
-    datamin = float('Inf')
-    datamax = -float('Inf')
-    for s in nn_scalars:
-        datamin = min(datamin, min(s))
-        datamax = max(datamax, max(s))
-    datarange = datamax - datamin
-    scalarrange = datamin, datamax
-    scalars = [(np.array(s) - datamin) / datarange for s in nn_scalars]
-
-#     set_curve_weights(ob, name, label=None, scalars=scalars)
+    # TODO: implement reading of groups
+    nn_scalargroup_data = tb_imp.read_tractscalar(fpath)
+    groupmin = float('Inf')
+    groupmax = -float('Inf')
+    scalarranges = []
+    for scalar_data in nn_scalargroup_data:
+        datamin = float('Inf')
+        datamax = -float('Inf')
+        for streamline in scalar_data:
+            datamin = min(datamin, min(streamline))
+            datamax = max(datamax, max(streamline))
+        scalarranges.append([datamin, datamax])
+        groupmin = min(groupmin, datamin)
+        groupmax = max(groupmax, datamax)
+    grouprange = groupmax - groupmin
+    scalargrouprange = groupmin, groupmax
+    scalargroup_data = [[(np.array(streamline) - groupmin) / grouprange
+                         for streamline in scalar_data]
+                        for scalar_data in nn_scalargroup_data]
 
     tb_ob = tb_utils.active_tb_object()[0]
-    ca = [tb_ob.scalars]
+    ca = [tb_ob.scalargroups]
     name = tb_utils.check_name(name, fpath, ca)
-
-    scalargroup = []
-    tb_imp.add_scalar_to_collection(scalargroup, name, fpath, scalarrange)
+    sgprops = {"name": name,
+               "filepath": fpath,
+               "range": scalargrouprange}
+    scalargroup = tb_utils.add_item(tb_ob, "scalargroups", sgprops)
 
     ob.data.use_uv_as_generated = True
     diffcol = [0.0, 0.0, 0.0, 1.0]
     group = make_material_overlaytract_cycles_group(diffcol, mix=0.04)
-    i = 0
-    for spline, scalar in zip(ob.data.splines, scalars):
 
-        # TODO: implement name check that checks for the prefix 'name'
-        splname = name + '_spl' + str(i).zfill(8)
-        ca = [bpy.data.images,
-              bpy.data.materials]
-        splname = tb_utils.check_name(splname, fpath, ca, maxlen=52)
+    for scalar_data, scalarrange in zip(scalargroup_data, scalarranges):
+        # TODO: check against all other scalargroups etc
+        ca = [sg.scalars for sg in tb_ob.scalargroups]
+        name = tb_utils.check_name(name, fpath, ca)
+        sprops = {"name": name,
+                  "filepath": fpath,
+                  "range": scalarrange}
+        tb_scalar = tb_utils.add_item(scalargroup, "scalars", sprops)
 
-        img = create_overlay_tract_img(splname, scalar)
+        i = 0
+        for spline, streamline in zip(ob.data.splines, scalar_data):
 
-        mat = make_material_overlaytract_cycles_withgroup(splname, img, group)
-        ob.data.materials.append(mat)
-        spline.material_index = len(ob.data.materials) - 1
-        i += 1
+            # TODO: implement name check that checks for the prefix 'name'
+            splname = name + '_spl' + str(i).zfill(8)
+            ca = [bpy.data.images, bpy.data.materials]
+            splname = tb_utils.check_name(splname, fpath, ca, maxlen=52)
+
+            img = create_overlay_tract_img(splname, streamline)
+
+            # it seems crazy to make a material/image per streamline!
+            mat = make_material_overlaytract_cycles_withgroup(splname, img, group)
+            ob.data.materials.append(mat)
+            spline.material_index = len(ob.data.materials) - 1
+            i += 1
 
 
 def create_overlay_tract_img(name, scalar):

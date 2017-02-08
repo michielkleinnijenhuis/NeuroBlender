@@ -263,3 +263,18 @@ def validate_tb_overlays(ob, collections):
             else:
                 item.is_valid = True
 
+
+def add_item(parent, childpath, props):
+    """Add an item to a collection."""
+
+    scn = bpy.context.scene
+
+    parentpath = parent.path_from_id()
+    coll = eval("scn.%s.%s" % (parentpath, childpath))
+    item = coll.add()
+    exec("scn.%s.index_%s = (len(coll)-1)" % (parentpath, childpath))
+
+    for k, v in props.items():
+        item[k] = v
+
+    return item

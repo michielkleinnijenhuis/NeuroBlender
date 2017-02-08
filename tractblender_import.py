@@ -29,6 +29,7 @@ from random import sample
 import tempfile
 import random
 import xml.etree.ElementTree
+import pickle
 
 from . import tractblender_beautify as tb_beau
 from . import tractblender_materials as tb_mat
@@ -611,14 +612,16 @@ def read_tractscalar(fpath):
     """"""
 
     if fpath.endswith('.npy'):
-        scalars = np.load(fpath)
+        scalar = np.load(fpath)
+        scalars = [scalar]
     elif fpath.endswith('.npz'):
         npzfile = np.load(fpath)
         for k in npzfile:
-            scalars.append(npzfile[k])
+            scalar.append(npzfile[k])
+        scalars = [scalar]
     elif fpath.endswith('.asc'):
         # mrtrix convention assumed (1 streamline per line)
-        scalars = []
+        scalar = []
         with open(fpath) as f:
             for line in f:
                 tokens = line.rstrip("\n").split(' ')
@@ -626,7 +629,11 @@ def read_tractscalar(fpath):
                 for token in tokens:
                     if token:
                         points.append(float(token))
-                scalars.append(points)
+                scalar.append(points)
+        scalars = [scalar]
+    if fpath.endswith('.pickle'):
+        with open(fpath, 'rb') as f:
+            scalars = pickle.load(f)
 
     return scalars
 

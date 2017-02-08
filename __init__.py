@@ -2255,7 +2255,7 @@ class AddLight(Operator):
               'colour': self.colour,
               'strength': self.strength,
               'location': self.location}
-        tb_light = tb_rp.add_item(tb_preset, "lights", lp)
+        tb_light = tb_utils.add_item(tb_preset, "lights", lp)
         tb_rp.create_light(preset, centre, box, lights, lp)
 
         infostring = 'added light "%s" in preset "%s"'
