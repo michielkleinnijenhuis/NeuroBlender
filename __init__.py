@@ -1981,9 +1981,15 @@ class ResetPresetCentre(Operator):
         obs = tb_rp.get_render_objects(tb)
         centre_location = tb_rp.get_brainbounds(obs)[0]
 
-        name = tb.presets[tb.index_presets].centre
+        tb_preset = tb.presets[tb.index_presets]
+        name = tb_preset.centre
         centre = bpy.data.objects[name]
         centre.location = centre_location
+
+        info = ['reset location of preset "%s"' % tb_preset.name]
+        info += ['location is now "%s"' %
+                 ' '.join('%.2f' % l for l in centre_location)]
+        self.report({'INFO'}, '; '.join(info))
 
         return {"FINISHED"}
 
@@ -2002,11 +2008,17 @@ class ResetPresetDims(Operator):
         obs = tb_rp.get_render_objects(tb)
         dims = tb_rp.get_brainbounds(obs)[1]
 
-        name = tb.presets[tb.index_presets].centre
+        tb_preset = tb.presets[tb.index_presets]
+        name = tb_preset.centre
         centre = bpy.data.objects[name]
         centre.scale = 0.5 * mathutils.Vector(dims)
 
         tb.presets[tb.index_presets].dims = dims
+
+        info = ['reset dimensions of preset "%s"' % tb_preset.name]
+        info += ['dimensions are now "%s"' %
+                 ' '.join('%.2f' % d for d in dims)]
+        self.report({'INFO'}, '; '.join(info))
 
         return {"FINISHED"}
 
