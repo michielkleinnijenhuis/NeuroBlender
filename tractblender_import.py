@@ -1013,11 +1013,11 @@ def prep_nifti(fpath, name, is_label=False, file_format="RAW_8BIT"):
 
         data, datarange = normalize_data(data)
 
+        # TODO: this forced save is quite annoying
         if not bpy.path.abspath("//"):
             bpy.ops.tb.save_blend('INVOKE_DEFAULT')
         # FIXME: first time defaults to /Users/michielk/workspace
         directory = bpy.path.abspath("//")
-        print(directory)
         voltexdir = os.path.join(directory, "voltex_" + name)
         tb_utils.mkdir_p(voltexdir)
         tmppath = tempfile.mkstemp(prefix=name, dir=voltexdir)

@@ -61,7 +61,7 @@ bl_info = {
     "name": "NeuroBlender",
     "author": "Michiel Kleinnijenhuis",
     "version": (0, 0, 6),
-    "blender": (2, 78, 0),
+    "blender": (2, 78, 4),
     "location": "Properties -> Scene -> NeuroBlender",
     "description": """"
         This add-on focusses on visualising MRI data.
@@ -536,7 +536,7 @@ class TractBlenderOverlayPanel(Panel):
         row.enabled = False
         row.prop(tb_ov, "filepath")
 
-        if tb.overlaytype == "scalars":
+        if tb.overlaytype == "scalargroups":
             row = layout.row()
             row.enabled = False
             row.prop(tb_ov, "range")
@@ -786,11 +786,9 @@ class ObjectListOperations(Operator):
                 collection.move(self.index, self.index - 1)
                 exec("%s.index_%s -= 1" % (data, self.type))
             elif self.action.startswith('REMOVE'):
-                info = 'removed %s' % (collection[self.index].name)
-                self.remove_items(tb, data, self.type, collection, self.index)
-                self.report({'INFO'}, info)
-
-        scn.update()  # FIXME: update the viewports
+                info = ['removed %s' % (collection[self.index].name)]
+                info += self.remove_items(tb, data, collection)
+                self.report({'INFO'}, '; '.join(info))
 
         if self.type == "voxelvolumes":
             # TODO: update the index to tb.voxelvolumes in all drivers
@@ -881,137 +879,153 @@ class ObjectListOperations(Operator):
 
         return collection, data
 
-    def remove_items(self, tb, data, type, collection, idx):
-        """Remove items from TractBlender."""
+    def remove_items(self, tb, data, collection):
+        """Remove items from NeuroBlender."""
 
-        name = collection[idx].name
-        ob = bpy.data.objects[name]
+        info = []
+
+        name = collection[self.index].name
         tb_ob, ob_idx = tb_utils.active_tb_object()
 
         if self.action.endswith('_L1'):
+            try:
+                ob = bpy.data.objects[name]
+            except KeyError:
+                infostring = 'object "%s" not found'
+                info += [infostring % ob]
+            else:
+                # remove the object itself
+                bpy.data.objects.remove(ob)
+                if self.type == 'voxelvolumes':
+                    self.remove_material(ob, name)
+                    try:
+                        slicebox = bpy.data.objects[name+"SliceBox"]
+                    except KeyError:
+                        infostring = 'slicebox "%s" not found'
+                        info += [infostring % ob]
+                    else:
+                        bpy.data.objects.remove(slicebox)
+                        # FIXME: causes crash
+#                         for ms in ob.material_slots:
+#                             self.remove_material(ob, ms.name)
             # remove all children
-            exec("self.remove_%s_overlays(tb_ob, ob)" % type)
-            # remove the object itself
-            if type == 'voxelvolumes':
-                self.remove_material(ob, name)
-                slicebox = bpy.data.objects[name+"SliceBox"]
-                bpy.data.objects.remove(slicebox, do_unlink=True)
-#             for ms in ob.material_slots:
-#                 self.remove_material(ob, ms.name)  # FIXME: causes crash
-            bpy.data.objects.remove(ob, do_unlink=True)
+            fun = eval("self.remove_%s_overlays" % self.type)
+            fun(tb_ob, ob)
         elif self.action.endswith('_PL'):
-            bpy.data.objects.remove(ob)
+            try:
+                ob = bpy.data.objects[name]
+            except KeyError:
+                infostring = 'object "%s" not found'
+                info += [infostring % ob]
+            else:
+                bpy.data.objects.remove(ob)
         elif self.action.endswith('_AN'):
             print("remove AN")  # FIXME: TODO
             # for CamPath anim:
             # remove follow path constraint on camera
             # remove keyframes on TrackTo constraint influence
         else:
-            if tb_ob.is_valid:
-                tb_ov, ov_idx = tb_utils.active_tb_overlay()
-                ob = bpy.data.objects[tb_ob.name]
-                exec("self.remove_%s_%s(collection[idx], ob)"
-                     % (tb.objecttype, type))
+            tb_ov, ov_idx = tb_utils.active_tb_overlay()
+            ob = bpy.data.objects[tb_ob.name]
+            fun = eval("self.remove_%s_%s" % (tb.objecttype, self.type))
+            fun(collection[self.index], ob)
 
-        collection.remove(idx)
-        exec("%s.index_%s -= 1" % (data, type))
+        collection.remove(self.index)
+        exec("%s.index_%s -= 1" % (data, self.type))
 
-    def remove_tracts_overlays(self, tb_ob, ob):
+        return info
+
+    def remove_tracts_overlays(self, tract, ob):
         """Remove tract scalars and labels."""
 
-        for scalar in tb_ob.scalars:
-            self.remove_tracts_scalars(scalar, ob)
-        for labelgroup in tb_ob.labelgroups:
-            pass  # TODO
+        for sg in tract.scalargroups:
+            self.remove_tracts_scalargroups(sg, ob)
 
-    def remove_surfaces_overlays(self, tb_ob, ob):
+    def remove_surfaces_overlays(self, surface, ob):
         """Remove surface scalars, labels and borders."""
 
-        for scalargroup in tb_ob.scalargroups:
-            self.remove_surfaces_scalargroups(scalargroup, ob)
-        for labelgroup in tb_ob.labelgroups:
-            self.remove_surfaces_labelgroups(labelgroup, ob)
-        for bordergroup in tb_ob.bordergroups:
-            self.remove_surfaces_bordergroups(bordergroup, ob)
+        for sg in surface.scalargroups:
+            self.remove_surfaces_scalargroups(sg, ob)
+        for lg in surface.labelgroups:
+            self.remove_surfaces_labelgroups(lg, ob)
+        for bg in surface.bordergroups:
+            self.remove_surfaces_bordergroups(bg, ob)
 
     def remove_voxelvolumes_overlays(self, tb_ob, ob):
         """Remove voxelvolume scalars and labels."""
 
-        for scalar in tb_ob.scalars:
-            self.remove_voxelvolumes_scalars(scalar, ob)
-        for labelgroup in tb_ob.labelgroups:
-            self.remove_voxelvolumes_labelgroups(labelgroup, ob)
+        for sg in tb_ob.scalargroups:
+            self.remove_voxelvolumes_scalargroups(sg, ob)
+        for lg in tb_ob.labelgroups:
+            self.remove_voxelvolumes_labelgroups(lg, ob)
 
-    def remove_tracts_scalars(self, scalar, ob):
+    def remove_tracts_scalargroups(self, scalargroup, ob):
         """Remove scalar overlay from tract."""
 
-        for i, spline in enumerate(ob.data.splines):
-            splname = scalar.name + '_spl' + str(i).zfill(8)
-            self.remove_material(ob, splname)
-            self.remove_image(ob, splname)
+        for scalar in scalargroup.scalars:
+            for i, spline in enumerate(ob.data.splines):
+                splname = scalar.name + '_spl' + str(i).zfill(8)
+                self.remove_material(ob, splname)
+                self.remove_image(ob, splname)
 
-    def remove_tracts_labelgroups(self, label, ob):
-        """Remove scalar overlay from tract."""
-
-        pass  # TODO
-
-    def remove_surfaces_scalargroups(self, tb_ov, ob):
+    def remove_surfaces_scalargroups(self, scalargroup, ob):  # TODO: check
         """Remove scalar overlay from a surface."""
 
+        vgs = ob.vertex_groups
+        vcs = ob.data.vertex_colors
+        self.remove_vertexcoll(vgs, scalargroup.name)
+        self.remove_vertexcoll(vcs, scalargroup.name)
+        self.remove_material(ob, scalargroup.name)
         # TODO: remove colourbars
-        self.remove_vertexcoll(ob.vertex_groups, tb_ov.name)
-#         self.remove_vertexcoll(ob.data.vertex_colors, tb_ov.name)
-        self.remove_material(ob, tb_ov.name)
-#         for scalar in tb_ov.scalars:
-#             self.remove_surfaces_scalars(scalar, ob)
 
-    def remove_surfaces_labelgroups(self, tb_ov, ob):
+    def remove_surfaces_labelgroups(self, labelgroup, ob):
         """Remove label group."""
 
-        for label in tb_ov.labels:
+        for label in labelgroup.labels:
             self.remove_surfaces_labels(label, ob)
 
-    def remove_surfaces_labels(self, tb_ov, ob):
+    def remove_surfaces_labels(self, label, ob):
         """Remove label from a labelgroup."""
 
-        self.remove_vertexcoll(ob.vertex_groups, tb_ov.name)
-        self.remove_material(ob, tb_ov.name)
+        vgs = ob.vertex_groups
+        self.remove_vertexcoll(vgs, label.name)
+        self.remove_material(ob, label.name)
 
-    def remove_surfaces_bordergroups(self, tb_ov, ob):
+    def remove_surfaces_bordergroups(self, bordergroup, ob):
         """Remove a bordergroup overlay from a surface."""
 
-        for border in tb_ov.borders:
+        for border in bordergroup.borders:
             self.remove_surfaces_borders(border, ob)
-        bordergroup_ob = bpy.data.objects.get(tb_ov.name)
-        bpy.data.objects.remove(bordergroup_ob, do_unlink=True)
+        bg_ob = bpy.data.objects.get(bordergroup.name)
+        bpy.data.objects.remove(bg_ob)
 
-    def remove_surfaces_borders(self, tb_ov, ob):
+    def remove_surfaces_borders(self, border, ob):
         """Remove border from a bordergroup."""
 
-        border_ob = bpy.data.objects[tb_ov.name]
-        bpy.data.objects.remove(border_ob, do_unlink=True)
-        self.remove_material(ob, tb_ov.name)
+        self.remove_material(ob, border.name)
+        b_ob = bpy.data.objects[border.name]
+        bpy.data.objects.remove(b_ob)
 
-    def remove_voxelvolumes_scalars(self, tb_ov, ob):
+    def remove_voxelvolumes_scalargroups(self, scalargroup, ob):
         """Remove scalar overlay from a voxelvolume."""
 
-        self.remove_material(ob, tb_ov.name)
-        ob = bpy.data.objects[tb_ov.name]
-        bpy.data.objects.remove(ob, do_unlink=True)
+        self.remove_material(ob, scalargroup.name)
+        sg_ob = bpy.data.objects[scalargroup.name]
+        bpy.data.objects.remove(sg_ob)
 
-    def remove_voxelvolumes_labelgroups(self, tb_ov, ob):
+    def remove_voxelvolumes_labelgroups(self, labelgroup, ob):
         """Remove labelgroup overlay from a voxelvolume."""
 
-        self.remove_material(ob, tb_ov.name)
-        ob = bpy.data.objects[tb_ov.name]
-        bpy.data.objects.remove(ob, do_unlink=True)
+        self.remove_material(ob, labelgroup.name)
+        lg_ob = bpy.data.objects[labelgroup.name]
+        bpy.data.objects.remove(lg_ob)
 
-    def remove_voxelvolumes_labels(self, tb_ov, ob):
+    def remove_voxelvolumes_labels(self, label, ob):
         """Remove label from a labelgroup."""
 
-        self.remove_material(ob, tb_ov.name)
-        ob = bpy.data.objects[tb_ov.name]
-        bpy.data.objects.remove(ob, do_unlink=True)
+        self.remove_material(ob, label.name)
+        l_ob = bpy.data.objects[label.name]
+        bpy.data.objects.remove(l_ob)
 
     def remove_material(self, ob, name):
         """Remove a material."""
@@ -1462,7 +1476,7 @@ class ImportVoxelvolumes(Operator, ImportHelper):
         return {"RUNNING_MODAL"}
 
 
-class ImportScalars(Operator, ImportHelper):
+class ImportScalars(Operator, ImportHelper):  # TODO: this is now obsolete?
     bl_idname = "tb.import_scalars"
     bl_label = "Import scalar overlay"
     bl_description = "Import scalar overlay to vertexweights/colours"
@@ -3050,7 +3064,7 @@ def index_update_func(group=None):
     vg_idx = ob.vertex_groups.find(name)
     ob.vertex_groups.active_index = vg_idx
 
-    if hasattr(group, 'scalars'):
+    if hasattr(group, 'scalars'):  # FIXME: this is for surfaces only
         vc_idx = ob.data.vertex_colors.find(name)
         ob.data.vertex_colors.active_index = vc_idx
 
@@ -3082,11 +3096,10 @@ def material_enum_update(self, context):
 def colourmap_enum_update(self, context):
     """Assign a new colourmap to the object."""
 
-    tb_ob = tb_utils.active_tb_object()[0]
-
     if hasattr(self, 'slicebox'):
         cr = bpy.data.textures[self.name].color_ramp
     else:
+        tb_ob = tb_utils.active_tb_object()[0]
         if hasattr(tb_ob, "nstreamlines"):
             ng = bpy.data.node_groups.get("TractOvGroup")
             cr = ng.nodes["ColorRamp"].color_ramp

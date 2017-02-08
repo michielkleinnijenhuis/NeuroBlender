@@ -1149,20 +1149,20 @@ def create_colourbars(name, cam):
     bpy.context.scene.objects.link(cbars)
 
     for tract in tb.tracts:
-        for scalar in tract.scalars:
-            if scalar.showcolourbar:
-                create_colourbar(cbars, scalar, 'tracts_scalars')
+        for scalargroup in tract.scalargroups:
+            if scalargroup.showcolourbar:
+                create_colourbar(cbars, scalargroup, 'tracts_scalargroups')
     for surf in tb.surfaces:
-        for scalar in surf.scalars:
-            if scalar.showcolourbar:
-                create_colourbar(cbars, scalar, 'surfaces_scalars')
+        for scalargroup in surf.scalargroups:
+            if scalargroup.showcolourbar:
+                create_colourbar(cbars, scalargroup, 'surfaces_scalargroups')
 
     for vvol in tb.voxelvolumes:
         if vvol.showcolourbar:
             create_colourbar(cbars, vvol, 'voxelvolumes')
-        for scalar in vvol.scalars:
-            if scalar.showcolourbar:
-                create_colourbar(cbars, scalar, 'voxelvolumes_scalars')
+        for scalargroup in vvol.scalargroups:
+            if scalargroup.showcolourbar:
+                create_colourbar(cbars, scalargroup, 'voxelvolumes_scalargroups')
 
     return cbars
 
