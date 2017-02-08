@@ -3061,29 +3061,38 @@ def index_update_func(group=None):
     elif hasattr(group, 'labels'):
         name = group.labels[group.index_labels].name
 
-    vg_idx = ob.vertex_groups.find(name)
-    ob.vertex_groups.active_index = vg_idx
+    if "surfaces" in group.path_from_id():
 
-    if hasattr(group, 'scalars'):  # FIXME: this is for surfaces only
-        vc_idx = ob.data.vertex_colors.find(name)
-        ob.data.vertex_colors.active_index = vc_idx
+        vg_idx = ob.vertex_groups.find(name)
+        ob.vertex_groups.active_index = vg_idx
 
-        mat = bpy.data.materials[group.name]
-        attr = mat.node_tree.nodes["Attribute"]
-        attr.attribute_name = name
+        if hasattr(group, 'scalars'):
+            vc_idx = ob.data.vertex_colors.find(name)
+            ob.data.vertex_colors.active_index = vc_idx
 
-        for scalar in group.scalars:
-            scalar_index = group.scalars.find(scalar.name)
-            scalar.is_rendered = scalar_index == group.index_scalars
+            mat = bpy.data.materials[group.name]
+            attr = mat.node_tree.nodes["Attribute"]
+            attr.attribute_name = name
 
-        # reorder materials: place active group on top
-        mats = [mat for mat in ob.data.materials]
-        mat_idx = ob.data.materials.find(group.name)
-        mat = mats.pop(mat_idx)
-        mats.insert(0, mat)
-        ob.data.materials.clear()
-        for mat in mats:
-            ob.data.materials.append(mat)
+            for scalar in group.scalars:
+                scalar_index = group.scalars.find(scalar.name)
+                scalar.is_rendered = scalar_index == group.index_scalars
+
+            # reorder materials: place active group on top
+            mats = [mat for mat in ob.data.materials]
+            mat_idx = ob.data.materials.find(group.name)
+            mat = mats.pop(mat_idx)
+            mats.insert(0, mat)
+            ob.data.materials.clear()
+            for mat in mats:
+                ob.data.materials.append(mat)
+
+    if "tracts" in group.path_from_id():
+        if hasattr(group, 'scalars'):
+            scalarname = group.scalars[group.index_scalars].name
+            for i, spline in enumerate(ob.data.splines):
+                splname = scalarname + '_spl' + str(i).zfill(8)
+                spline.material_index = ob.material_slots.find(splname)
 
 
 def material_enum_update(self, context):

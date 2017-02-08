@@ -235,20 +235,21 @@ def create_vc_overlay_tract(ob, fpath, name="", is_label=False):
     diffcol = [0.0, 0.0, 0.0, 1.0]
     group = make_material_overlaytract_cycles_group(diffcol, mix=0.04)
 
-    for scalar_data, scalarrange in zip(scalargroup_data, scalarranges):
+    for j, (scalar, scalarrange) in enumerate(zip(scalargroup_data,
+                                                  scalarranges)):
         # TODO: check against all other scalargroups etc
         ca = [sg.scalars for sg in tb_ob.scalargroups]
-        name = tb_utils.check_name(name, fpath, ca)
-        sprops = {"name": name,
+        tpname = "%s.tp%03d" % (name, j)
+        scalarname = tb_utils.check_name(tpname, fpath, ca)
+        sprops = {"name": scalarname,
                   "filepath": fpath,
                   "range": scalarrange}
         tb_scalar = tb_utils.add_item(scalargroup, "scalars", sprops)
 
-        i = 0
-        for spline, streamline in zip(ob.data.splines, scalar_data):
+        for i, (spline, streamline) in enumerate(zip(ob.data.splines, scalar)):
 
             # TODO: implement name check that checks for the prefix 'name'
-            splname = name + '_spl' + str(i).zfill(8)
+            splname = tb_scalar.name + '_spl' + str(i).zfill(8)
             ca = [bpy.data.images, bpy.data.materials]
             splname = tb_utils.check_name(splname, fpath, ca, maxlen=52)
 
@@ -258,7 +259,6 @@ def create_vc_overlay_tract(ob, fpath, name="", is_label=False):
             mat = make_material_overlaytract_cycles_withgroup(splname, img, group)
             ob.data.materials.append(mat)
             spline.material_index = len(ob.data.materials) - 1
-            i += 1
 
 
 def create_overlay_tract_img(name, scalar):
