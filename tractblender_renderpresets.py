@@ -915,75 +915,6 @@ def restrict_incluence(cns, anim_block):
         cns.keyframe_insert(data_path="influence", index=-1)
 
 
-def create_camera_path_rotation(name, tb_preset, cam, centre, box, axis='Z'):
-    """Generate a circular trajectory from the camera position."""
-
-    scn = bpy.context.scene
-    tb = scn.tb
-
-    camview = cam.location * box.matrix_world
-
-    if 'X' in axis:
-        idx = 0
-        rotation_offset = np.arctan2(camview[2], camview[1])
-        r = np.sqrt(camview[1]**2 + camview[2]**2)
-        r = max(0.001, r)
-        h = 0.55 * r
-        coords = [((0, 0, r), (0, h, r), (0, -h, r)),
-                  ((0, -r, 0), (0, -r, h), (0, -r, -h)),
-                  ((0, 0, -r), (0, -h, -r), (0, h, -r)),
-                  ((0, r, 0), (0, r, -h), (0, r, h))]
-    elif 'Y' in axis:
-        idx = 1
-        rotation_offset = np.arctan2(camview[0], camview[2])
-        r = np.sqrt(camview[0]**2 + camview[2]**2)
-        r = max(0.001, r)
-        h = 0.55 * r
-        coords = [((0, 0, r), (h, 0, r), (-h, 0, r)),
-                  ((-r, 0, 0), (-r, 0, h), (-r, 0, -h)),
-                  ((0, 0, -r), (-h, 0, -r), (h, 0, -r)),
-                  ((r, 0, 0), (r, 0, -h), (r, 0, h))]
-    elif 'Z' in axis:
-        idx = 2
-        rotation_offset = np.arctan2(camview[1], camview[0])
-        r = np.sqrt(camview[0]**2 + camview[1]**2)
-        r = max(0.001, r)
-        h = 0.55 * r
-        coords = [((0, r, 0), (h, r, 0), (-h, r, 0)),
-                  ((-r, 0, 0), (-r, h, 0), (-r, -h, 0)),
-                  ((0, -r, 0), (-h, -r, 0), (h, -r, 0)),
-                  ((r, 0, 0), (r, -h, 0), (r, h, 0))]
-
-    ob = create_circle(name, coords=coords)
-
-    ob.rotation_euler[idx] = rotation_offset
-    ob.location = centre.location
-    ob.location[idx] = camview[idx] + centre.location[idx]
-
-    return ob
-
-
-def create_camera_path_streamline(name, tb_preset, tb_tract, spline_index=0):
-    """Generate a curvilinear trajectory from a streamline."""
-
-    curve = bpy.data.curves.new(name=name, type='CURVE')
-    curve.dimensions = '3D'
-    ob = bpy.data.objects.new(name, curve)
-    bpy.context.scene.objects.link(ob)
-
-    tb_ob = bpy.data.objects[tb_tract]
-    spline = tb_ob.data.splines[spline_index]
-    streamline = []
-    for point in spline.points:
-        streamline.append(point.co[0:3])
-
-    tb_imp.make_polyline_ob(curve, streamline)
-
-    ob.matrix_world = tb_ob.matrix_world
-
-    return ob
-
-
 # ========================================================================== #
 # lights
 # ========================================================================== #
@@ -1098,30 +1029,6 @@ def create_plane(name):
     faces = [(3, 2, 1, 0)]
     me.from_pydata(verts, [], faces)
     me.update()
-
-    return ob
-
-
-def create_circle(name, coords):
-    """"""
-
-    scn = bpy.context.scene
-
-    cu = bpy.data.curves.new(name, type='CURVE')
-    cu.dimensions = '3D'
-    ob = bpy.data.objects.new(name, cu)
-    scn.objects.link(ob)
-    scn.objects.active = ob
-    ob.select = True
-
-    polyline = cu.splines.new('BEZIER')
-    polyline.bezier_points.add(len(coords) - 1)
-    for i, coord in enumerate(coords):
-        polyline.bezier_points[i].co = coord[0]
-        polyline.bezier_points[i].handle_left = coord[1]
-        polyline.bezier_points[i].handle_right = coord[2]
-
-    polyline.use_cyclic_u = True
 
     return ob
 

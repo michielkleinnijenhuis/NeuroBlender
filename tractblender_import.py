@@ -1217,6 +1217,22 @@ def add_border_to_collection(name, bordergroup, colour):
     return border
 
 
+def add_light_to_collection(name, preset=None):
+    """Add animation to the TractBlender collection."""
+
+    scn = bpy.context.scene
+    tb = scn.tb
+    if preset is None:
+        preset = tb.presets[tb.index_presets]
+
+    light = preset.lights.add()
+    preset.index_lights = (len(preset.lights)-1)
+
+    light.name = name
+
+    return light
+
+
 def add_animation_to_collection(name, preset=None, is_rendered=True):
     """Add animation to the TractBlender collection."""
 

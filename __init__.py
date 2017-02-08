@@ -1986,9 +1986,10 @@ class ResetPresetCentre(Operator):
         centre = bpy.data.objects[name]
         centre.location = centre_location
 
-        info = ['reset location of preset "%s"' % tb_preset.name]
-        info += ['location is now "%s"' %
-                 ' '.join('%.2f' % l for l in centre_location)]
+        infostring = 'reset location of preset "%s"'
+        info = [infostring % tb_preset.name]
+        infostring = 'location is now "%s"'
+        info += [infostring % ' '.join('%.2f' % l for l in centre_location)]
         self.report({'INFO'}, '; '.join(info))
 
         return {"FINISHED"}
@@ -2015,9 +2016,10 @@ class ResetPresetDims(Operator):
 
         tb.presets[tb.index_presets].dims = dims
 
-        info = ['reset dimensions of preset "%s"' % tb_preset.name]
-        info += ['dimensions are now "%s"' %
-                 ' '.join('%.2f' % d for d in dims)]
+        infostring = 'reset dimensions of preset "%s"'
+        info = [infostring % tb_preset.name]
+        infostring = 'dimensions are now "%s"'
+        info += [infostring % ' '.join('%.2f' % d for d in dims)]
         self.report({'INFO'}, '; '.join(info))
 
         return {"FINISHED"}
@@ -2045,7 +2047,8 @@ class AddPreset(Operator):
         tb_rp.scene_preset_init(name)
         tb.presets_enum = name
 
-        info = ['added preset "%s"' % name]
+        infostring = 'added preset "%s"'
+        info = [infostring % name]
         self.report({'INFO'}, '; '.join(info))
 
         return {"FINISHED"}
@@ -2077,7 +2080,8 @@ class DelPreset(Operator):
             try:
                 tb.presets[self.name]
             except KeyError:
-                info = ['no preset with name "%s"' % self.name]
+                infostring = 'no preset with name "%s"'
+                info = [infostring % self.name]
                 self.report({'INFO'}, info[0])
                 return {"CANCELLED"}
             else:
@@ -2088,15 +2092,18 @@ class DelPreset(Operator):
         info = self.delete_preset(tb.presets[self.index], info)
         tb.presets.remove(self.index)
         tb.index_presets -= 1
-        info = ['removed preset "%s"' % self.name] + info
+        infostring = 'removed preset "%s"'
+        info = [infostring % self.name] + info
 
         try:
             name = tb.presets[0].name
         except IndexError:
-            info += ['all presets have been removed']
+            infostring = 'all presets have been removed'
+            info += [infostring]
         else:
             tb.presets_enum = name
-            info += ['preset is now "%s"' % name]
+            infostring = 'preset is now "%s"'
+            info += [infostring % name]
 
         self.report({'INFO'}, '; '.join(info))
 
@@ -2121,7 +2128,8 @@ class DelPreset(Operator):
             try:
                 scn = bpy.data.scenes[sname]
             except KeyError:
-                info += ['scene "%s" not found' % sname]
+                infostring = 'scene "%s" not found'
+                info += [infostring % sname]
             else:
                 for ob in scn.objects:
                     scn.objects.unlink(ob)
@@ -2141,7 +2149,8 @@ class DelPreset(Operator):
             try:
                 ob = bpy.data.objects[ps_obname]
             except KeyError:
-                info += ['object "%s" not found' % ps_obname]
+                infostring = 'object "%s" not found'
+                info += [infostring % ps_obname]
             else:
                 bpy.data.objects.remove(ob)
 
@@ -2149,7 +2158,8 @@ class DelPreset(Operator):
             try:
                 cam = bpy.data.cameras[ps_cam.name]
             except KeyError:
-                info += ['camera "%s" not found' % ps_cam.name]
+                infostring = 'camera "%s" not found'
+                info += [infostring % ps_cam.name]
             else:
                 bpy.data.cameras.remove(cam)
 
@@ -2157,7 +2167,8 @@ class DelPreset(Operator):
             try:
                 lamp = bpy.data.lamps[ps_lamp.name]
             except KeyError:
-                info += ['lamp "%s" not found' % ps_lamp.name]
+                infostring = 'lamp "%s" not found'
+                info += [infostring % ps_lamp.name]
             else:
                 bpy.data.lamps.remove(lamp)
 
@@ -2165,7 +2176,8 @@ class DelPreset(Operator):
             try:
                 mesh = bpy.data.meshes[ps_mesh.name]
             except KeyError:
-                info += ['mesh "%s" not found' % ps_mesh.name]
+                infostring = 'mesh "%s" not found'
+                info += [infostring % ps_mesh.name]
             else:
                 bpy.data.meshes.remove(mesh)
 
@@ -2246,7 +2258,8 @@ class AddLight(Operator):
         tb_light = tb_rp.add_item(tb_preset, "lights", lp)
         tb_rp.create_light(preset, centre, box, lights, lp)
 
-        info = ['added light "%s" in preset "%s"' % (name, tb_preset.name)]
+        infostring = 'added light "%s" in preset "%s"'
+        info = [infostring % (name, tb_preset.name)]
         self.report({'INFO'}, '; '.join(info))
 
         return {"FINISHED"}
@@ -2267,6 +2280,7 @@ class ScenePreset(Operator):
     bl_options = {"REGISTER", "UNDO", "PRESET"}
 
     def execute(self, context):
+
         tb_rp.scene_preset()
 
         return {"FINISHED"}
@@ -2279,6 +2293,7 @@ class SetAnimations(Operator):
     bl_options = {"REGISTER", "UNDO", "PRESET"}
 
     def execute(self, context):
+
         tb_rp.set_animations()
 
         return {"FINISHED"}
@@ -2361,37 +2376,34 @@ class TractBlenderAnimationPanel(Panel):
 
                 row = layout.row()
 
-                col = row.column()
-                col.split(percentage=0.7, align=False)
-                row1 = col.row()
-                row1.label("Camera path:")
+                row.label("Camera path:")
 
-                row1 = col.row()
-                col1 = row1.column()
-                col1.prop(anim, "reverse", toggle=True, icon="ARROW_LEFTRIGHT", icon_only=True)
-                col1 = row1.column()
-                col1.prop(anim, "campaths_enum", expand=False, text="")
-                col1 = row1.column()
-                col1.operator("tb.del_campath", icon='ZOOMOUT', text="")
-                col1.enabled = True
-                row1 = col.row()
-                box = row1.box()
+                row = layout.row()
+                col = row.column()
+                col.prop(anim, "reverse", toggle=True, icon="ARROW_LEFTRIGHT", icon_only=True)
+                col = row.column()
+                col.prop(anim, "campaths_enum", expand=False, text="")
+                col = row.column()
+                col.operator("tb.del_campath", icon='ZOOMOUT', text="")
+                col.enabled = True
+                row = layout.row()
+                box = row.box()
                 self.drawunit_tri(box, "newpath", tb, anim)
 
-                col = row.column()
-                col.separator()
+                row = layout.row()
+                row.separator()
 
-                col = row.column()
-                row1 = col.row()
-                row1.label("Camera tracking:")
-                row1 = col.row()
-                col1 = row1.column()
-                col1.prop(anim, "tracktype", expand=True)
-                if anim.tracktype == "TrackPath":
-                    tb_cam = preset.cameras[0]
-                    cam = bpy.data.objects[tb_cam.name]
-                    row1 = col.row()
-                    row1.prop(cam, "rotation_euler", index=2, text="tumble")
+                row = layout.row()
+                row.label("Camera tracking:")
+                row = layout.row()
+                row.prop(anim, "tracktype", expand=True)
+                tb_cam = preset.cameras[0]
+                cam_ob = bpy.data.objects[tb_cam.name]
+                row = layout.row()
+                row.prop(cam_ob, "rotation_euler", index=2, text="tumble")
+                cam = bpy.data.cameras[tb_cam.name]
+                row.prop(cam, "clip_start")
+                row.prop(cam, "clip_end")
 
             elif anim.animationtype == "Slices":
 
@@ -2463,6 +2475,10 @@ class AddAnimation(Operator):
     bl_description = "Create a new animation"
     bl_options = {"REGISTER", "UNDO", "PRESET"}
 
+    index_presets = IntProperty(
+        name="index presets",
+        description="Specify preset index",
+        default=-1)
     name = StringProperty(
         name="Name",
         description="Specify a name for the animation",
@@ -2477,7 +2493,22 @@ class AddAnimation(Operator):
         name = tb_utils.check_name(self.name, "", ca, forcefill=True)
         tb_imp.add_animation_to_collection(name)
 
+        tb_preset = tb.presets[tb.index_presets]
+        infostring = 'added animation "%s" in preset "%s"'
+        info = [infostring % (name, tb_preset.name)]
+        self.report({'INFO'}, '; '.join(info))
+
         return {"FINISHED"}
+
+    def invoke(self, context, event):
+
+        scn = context.scene
+        tb = scn.tb
+
+        self.index_presets = tb.index_presets
+
+        return self.execute(context)
+
 
 
 class AddCamPath(Operator):
@@ -2498,6 +2529,36 @@ class AddCamPath(Operator):
         name="index animations",
         description="Specify animation index",
         default=-1)
+    pathtype = EnumProperty(
+        name="Pathtype",
+        description="Trajectory types for the camera animation",
+        items=[("Circular", "Circular",
+                "Circular trajectory from camera position", 0),
+               ("Streamline", "Streamline",
+                "Curvilinear trajectory from a streamline", 1),
+               ("Select", "Select",
+                "Curvilinear trajectory from curve", 2)],
+        default="Circular")
+    axis = EnumProperty(
+        name="Animation axis",
+        description="switch between animation axes",
+        items=[("X", "X", "X", 0),
+               ("Y", "Y", "Y", 1),
+               ("Z", "Z", "Z", 2)],
+        default="Z")
+    anim_tract = StringProperty(
+        name="Animation streamline",
+        description="Tract to animate",
+        default="")
+    spline_index = IntProperty(
+        name="streamline index",
+        description="index of the streamline to animate",
+        min=0,
+        default=0)
+    anim_curve = StringProperty(
+        name="Animation curves",
+        description="Curve to animate",
+        default="")
 
     def execute(self, context):
 
@@ -2506,42 +2567,37 @@ class AddCamPath(Operator):
 
         preset = tb.presets[self.index_presets]
         anim = preset.animations[self.index_animations]
-        cam = bpy.data.objects[preset.cameras[0].name]
-        centre = bpy.data.objects[preset.centre]
-        box = bpy.data.objects[preset.box]
+
+        if self.pathtype == "Circular":
+            name = "CP_%s" % (self.axis)
+        elif self.pathtype == "Streamline":
+            name = "CP_%s_%05d" % (self.anim_tract, self.spline_index)
+        elif self.pathtype == "Select":
+            name = "CP_%s" % (anim.anim_curve)
 
         ca = [tb.campaths]
-        if anim.pathtype == "Circular":
-            name = self.name or "CP_%s" % (anim.axis)
-            name = tb_utils.check_name(name, "", ca)
-            campath = tb_rp.create_camera_path_rotation(name, preset,
-                                                        cam, centre, box,
-                                                        anim.axis)
-        elif anim.pathtype == "Streamline":
-            name = self.name or "CP_%s_%05d" % (anim.anim_tract,
-                                                anim.spline_index)
-            name = tb_utils.check_name(name, "", ca)
-            campath = tb_rp.create_camera_path_streamline(name, preset,
-                                                          anim.anim_tract,
-                                                          anim.spline_index)
-        # TODO: choose between hiding objects' streamline tube from render
-        # or use camera clipping
-        elif anim.pathtype == "Select":
-            name = self.name or "CP_%s" % (anim.anim_curve)
-            name = tb_utils.check_name(name, "", ca)
-            cu = bpy.data.objects[anim.anim_curve].data.copy()
-            campath = bpy.data.objects.new(name, cu)
-            scn.objects.link(campath)
-            scn.update()
+        name = self.name or name
+        name = tb_utils.check_name(name, "", ca)
+        fun = eval("self.campath_%s" % self.pathtype.lower())
+        campath, info = fun(name)
 
-        campath.hide_render = True
-        campath.parent = bpy.data.objects[preset.name]
+        if campath is not None:
+            campath.hide_render = True
+            campath.parent = bpy.data.objects[preset.name]
+            tb_imp.add_campath_to_collection(name)
+            infostring = 'added camera path "%s" to preset "%s"'
+            info = [infostring % (name, preset.name)] + info
 
-        tb_imp.add_campath_to_collection(name)
+            infostring = 'switched "%s" camera path to "%s"'
+            info += [infostring % (anim.name, campath.name)]
+            anim.campaths_enum = campath.name
+            status = "FINISHED"
+        else:
+            status = "CANCELLED"
 
-        anim.campaths_enum = campath.name
+        self.report({'INFO'}, '; '.join(info))
 
-        return {"FINISHED"}
+        return {status}
 
     def invoke(self, context, event):
 
@@ -2551,8 +2607,144 @@ class AddCamPath(Operator):
         self.index_presets = tb.index_presets
         preset = tb.presets[self.index_presets]
         self.index_animations = preset.index_animations
+        anim = preset.animations[self.index_animations]
+        self.pathtype = anim.pathtype
+        self.axis = anim.axis
+        self.anim_tract = anim.anim_tract
+        self.spline_index = anim.spline_index
+        self.anim_curve = anim.anim_curve
 
         return self.execute(context)
+
+    def campath_circular(self, name):
+        """Generate a circular trajectory from the camera position."""
+
+        scn = bpy.context.scene
+        tb = scn.tb
+
+        preset = tb.presets[self.index_presets]
+        cam = bpy.data.objects[preset.cameras[0].name]
+        centre = bpy.data.objects[preset.centre]
+        box = bpy.data.objects[preset.box]
+
+        camview = cam.location * box.matrix_world
+
+        if 'X' in self.axis:
+            idx = 0
+            rotation_offset = np.arctan2(camview[2], camview[1])
+            r = np.sqrt(camview[1]**2 + camview[2]**2)
+            r = max(0.001, r)
+            h = 0.55 * r
+            coords = [((0, 0, r), (0, h, r), (0, -h, r)),
+                      ((0, -r, 0), (0, -r, h), (0, -r, -h)),
+                      ((0, 0, -r), (0, -h, -r), (0, h, -r)),
+                      ((0, r, 0), (0, r, -h), (0, r, h))]
+        elif 'Y' in self.axis:
+            idx = 1
+            rotation_offset = np.arctan2(camview[0], camview[2])
+            r = np.sqrt(camview[0]**2 + camview[2]**2)
+            r = max(0.001, r)
+            h = 0.55 * r
+            coords = [((0, 0, r), (h, 0, r), (-h, 0, r)),
+                      ((-r, 0, 0), (-r, 0, h), (-r, 0, -h)),
+                      ((0, 0, -r), (-h, 0, -r), (h, 0, -r)),
+                      ((r, 0, 0), (r, 0, -h), (r, 0, h))]
+        elif 'Z' in self.axis:
+            idx = 2
+            rotation_offset = np.arctan2(camview[1], camview[0])
+            r = np.sqrt(camview[0]**2 + camview[1]**2)
+            r = max(0.001, r)
+            h = 0.55 * r
+            coords = [((0, r, 0), (h, r, 0), (-h, r, 0)),
+                      ((-r, 0, 0), (-r, h, 0), (-r, -h, 0)),
+                      ((0, -r, 0), (-h, -r, 0), (h, -r, 0)),
+                      ((r, 0, 0), (r, -h, 0), (r, h, 0))]
+
+        ob = self.create_circle(name, coords=coords)
+
+        ob.rotation_euler[idx] = rotation_offset
+        ob.location = centre.location
+        ob.location[idx] = camview[idx] + centre.location[idx]
+
+        origin = mathutils.Vector(coords[0][0]) + centre.location
+        o = "%s" % ', '.join('%.2f' % co for co in origin)
+        infostring = 'created path around %s with radius %.2f starting at [%s]'
+        info = [infostring % (self.axis, r, o)]
+
+        return ob, info
+
+    def campath_streamline(self, name):
+        """Generate a curvilinear trajectory from a streamline."""
+
+        scn = bpy.context.scene
+
+        try:
+            tb_ob = bpy.data.objects[self.anim_tract]
+            spline = tb_ob.data.splines[self.spline_index]
+        except KeyError:
+            ob = None
+            infostring = 'tract "%s:spline[%s]" not found'
+        except IndexError:
+            ob = None
+            infostring = 'streamline "%s:spline[%s]" not found'
+        else:
+            curve = bpy.data.curves.new(name=name, type='CURVE')
+            curve.dimensions = '3D'
+            ob = bpy.data.objects.new(name, curve)
+            scn.objects.link(ob)
+
+            streamline = [point.co[0:3] for point in spline.points]
+            tb_imp.make_polyline_ob(curve, streamline)
+            ob.matrix_world = tb_ob.matrix_world
+
+            infostring = 'copied path from tract "%s:spline[%s]"'
+
+        info = [infostring % (self.anim_tract, self.spline_index)]
+
+        return ob, info
+
+    def campath_select(self, name):
+        """Generate a campath by copying it from a curve object."""
+
+        scn = bpy.context.scene
+
+        try:
+            cu = bpy.data.objects[self.anim_curve].data.copy()
+        except KeyError:
+            ob = None
+            infostring = 'curve "%s" not found'
+        else:
+            ob = bpy.data.objects.new(name, cu)
+            scn.objects.link(ob)
+            scn.update()
+            infostring = 'copied camera path from "%s"'
+
+        info = [infostring % self.anim_curve]
+
+        return ob, info
+
+    def create_circle(self, name, coords):
+        """Create a bezier circle from a list of coordinates."""
+
+        scn = bpy.context.scene
+
+        cu = bpy.data.curves.new(name, type='CURVE')
+        cu.dimensions = '3D'
+        ob = bpy.data.objects.new(name, cu)
+        scn.objects.link(ob)
+        scn.objects.active = ob
+        ob.select = True
+
+        polyline = cu.splines.new('BEZIER')
+        polyline.bezier_points.add(len(coords) - 1)
+        for i, coord in enumerate(coords):
+            polyline.bezier_points[i].co = coord[0]
+            polyline.bezier_points[i].handle_left = coord[1]
+            polyline.bezier_points[i].handle_right = coord[2]
+
+        polyline.use_cyclic_u = True
+
+        return ob
 
 
 class DelCamPath(Operator):
@@ -2574,24 +2766,40 @@ class DelCamPath(Operator):
         description="Specify animation index",
         default=-1)
 
-    invoke = AddCamPath.invoke
-
     def execute(self, context):
 
         scn = context.scene
         tb = scn.tb
 
-        preset = tb.presets[self.index_presets]
-        anim = preset.animations[self.index_animations]
+        try:
+            campath = bpy.data.objects[self.name]
+            cu = bpy.data.curves[self.name]
+        except KeyError:
+            infostring = 'camera path curve "%s" not found'
+        else:
+            bpy.data.curves.remove(cu)
+            bpy.data.objects.remove(campath)
+            tb.campaths.remove(tb.campaths.find(self.name))
+            tb.index_campaths = 0
+            # TODO: find and reset all animations that use campath
+            infostring = 'removed camera path curve "%s"'
 
-        campath = bpy.data.objects[anim.campaths_enum]
-        scn.objects.unlink(campath)
-        # NOTE: this doesn't remove it from the list of objects
-
-        tb.campaths.remove(tb.campaths.find(anim.campaths_enum))
-#         tb.index_campaths -= 1
+        info = [infostring % self.name]
 
         return {"FINISHED"}
+
+    def invoke(self, context, event):
+
+        scn = context.scene
+        tb = scn.tb
+
+        self.index_presets = tb.index_presets
+        preset = tb.presets[self.index_presets]
+        self.index_animations = preset.index_animations
+        anim = preset.animations[self.index_animations]
+        self.name = anim.campaths_enum
+
+        return self.execute(context)
 
 
 class TractBlenderSettingsPanel(Panel):
@@ -2652,9 +2860,14 @@ class MakeNibabelPersistent(Operator):
         scripts_dir = dirname(dirname(dirname(bpy.__file__)))
         startup_dir = join(scripts_dir, 'startup')
         basename = 'external_sitepackages'
-        with open(join(startup_dir, basename + '.txt'), 'w') as f:
+        nibdir_txt = join(startup_dir, basename + '.txt')
+        with open(nibdir_txt, 'w') as f:
             f.write(scn.tb.nibabel_path)
-        copy(join(addon_dir, basename + '.py'), startup_dir)
+        es_fpath = join(addon_dir, basename + '.py')
+        copy(es_fpath, startup_dir)
+
+        infostring = 'added nibabel path "%s" to startup "%s"'
+        info = [infostring % (scn.tb.nibabel_path, startup_dir)]
 
         return {"FINISHED"}
 
@@ -4100,6 +4313,12 @@ class AnimationProperties(PropertyGroup):
         size=2,
         default=[1, 100])
 
+    reverse = BoolProperty(
+        name="Reverse",
+        description="Toggle direction of trajectory traversal",
+        default=False,
+        update=direction_toggle_update)
+
     campaths_enum = EnumProperty(
         name="Camera trajectory",
         description="Choose the camera trajectory",
@@ -4130,15 +4349,7 @@ class AnimationProperties(PropertyGroup):
         items=[("X", "X", "X", 0),
                ("Y", "Y", "Y", 1),
                ("Z", "Z", "Z", 2)],
-#                ("-X", "-X", "-X", 3),
-#                ("-Y", "-Y", "-Y", 4),
-#                ("-Z", "-Z", "-Z", 5),
         default="Z")
-    reverse = BoolProperty(
-        name="Reverse",
-        description="Toggle direction of trajectory traversal",
-        default=False,
-        update=direction_toggle_update)
 
     anim_tract = EnumProperty(
         name="Animation streamline",
@@ -4149,6 +4360,11 @@ class AnimationProperties(PropertyGroup):
         description="index of the streamline to animate",
         min=0,
         default=0)
+
+    anim_curve = EnumProperty(
+        name="Animation curves",
+        description="Select curve to animate",
+        items=curves_enum_callback)
 
     anim_surface = EnumProperty(
         name="Animation surface",
@@ -4170,11 +4386,6 @@ class AnimationProperties(PropertyGroup):
                ("Position", "Position", "Position", 1),
                ("Angle", "Angle", "Angle", 2)],
         default="Position")
-
-    anim_curve = EnumProperty(
-        name="Animation curves",
-        description="Select curve to animate",
-        items=curves_enum_callback)
 
     # TODO: TimeSeries props
 
