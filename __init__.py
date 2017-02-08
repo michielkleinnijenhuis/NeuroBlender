@@ -3029,10 +3029,59 @@ def index_scalars_update(self, context):
         except IndexError:
             pass
         else:
-            index_update_func(sg)
+            index_scalars_update_func(sg)
     else:
         sg = self
-        index_update_func(sg)
+        index_scalars_update_func(sg)
+
+
+def index_scalars_update_func(group=None):
+    """Switch views on updating overlay index."""
+
+    tb_ob = tb_utils.active_tb_object()[0]
+    ob = bpy.data.objects[tb_ob.name]
+
+    if group is None:
+        group = tb_utils.active_tb_overlay()[0]
+
+    try:
+        scalar = group.scalars[group.index_scalars]
+    except IndexError:
+        pass
+    else:
+        name = scalar.name
+
+        if "surfaces" in group.path_from_id():
+
+            vg_idx = ob.vertex_groups.find(name)
+            ob.vertex_groups.active_index = vg_idx
+
+            if hasattr(group, 'scalars'):
+                vc_idx = ob.data.vertex_colors.find(name)
+                ob.data.vertex_colors.active_index = vc_idx
+
+                mat = bpy.data.materials[group.name]
+                attr = mat.node_tree.nodes["Attribute"]
+                attr.attribute_name = name
+
+                for scalar in group.scalars:
+                    scalar_index = group.scalars.find(scalar.name)
+                    scalar.is_rendered = scalar_index == group.index_scalars
+
+                # reorder materials: place active group on top
+                mats = [mat for mat in ob.data.materials]
+                mat_idx = ob.data.materials.find(group.name)
+                mat = mats.pop(mat_idx)
+                mats.insert(0, mat)
+                ob.data.materials.clear()
+                for mat in mats:
+                    ob.data.materials.append(mat)
+
+        if "tracts" in group.path_from_id():
+            if hasattr(group, 'scalars'):
+                for i, spline in enumerate(ob.data.splines):
+                    splname = name + '_spl' + str(i).zfill(8)
+                    spline.material_index = ob.material_slots.find(splname)
 
 
 def index_labels_update(self, context):
@@ -3044,57 +3093,31 @@ def index_labels_update(self, context):
         except IndexError:
             pass
         else:
-            index_update_func(lg)
+            index_labels_update_func(lg)
     else:
         lg = self
-        index_update_func(lg)
+        index_labels_update_func(lg)
 
 
-def index_update_func(group=None):
+def index_labels_update_func(group=None):
     """Switch views on updating overlay index."""
 
-    tb_object = tb_utils.active_tb_object()[0]
-    ob = bpy.data.objects[tb_object.name]
+    tb_ob = tb_utils.active_tb_object()[0]
+    ob = bpy.data.objects[tb_ob.name]
+
     if group is None:
         group = tb_utils.active_tb_overlay()[0]
 
-    if hasattr(group, 'scalars'):
-        name = group.scalars[group.index_scalars].name
-    elif hasattr(group, 'labels'):
-        name = group.labels[group.index_labels].name
+    try:
+        label = group.labels[group.index_labels]
+    except IndexError:
+        pass
+    else:
+        name = label.name
 
-    if "surfaces" in group.path_from_id():
-
-        vg_idx = ob.vertex_groups.find(name)
-        ob.vertex_groups.active_index = vg_idx
-
-        if hasattr(group, 'scalars'):
-            vc_idx = ob.data.vertex_colors.find(name)
-            ob.data.vertex_colors.active_index = vc_idx
-
-            mat = bpy.data.materials[group.name]
-            attr = mat.node_tree.nodes["Attribute"]
-            attr.attribute_name = name
-
-            for scalar in group.scalars:
-                scalar_index = group.scalars.find(scalar.name)
-                scalar.is_rendered = scalar_index == group.index_scalars
-
-            # reorder materials: place active group on top
-            mats = [mat for mat in ob.data.materials]
-            mat_idx = ob.data.materials.find(group.name)
-            mat = mats.pop(mat_idx)
-            mats.insert(0, mat)
-            ob.data.materials.clear()
-            for mat in mats:
-                ob.data.materials.append(mat)
-
-    if "tracts" in group.path_from_id():
-        if hasattr(group, 'scalars'):
-            scalarname = group.scalars[group.index_scalars].name
-            for i, spline in enumerate(ob.data.splines):
-                splname = scalarname + '_spl' + str(i).zfill(8)
-                spline.material_index = ob.material_slots.find(splname)
+        if "surfaces" in group.path_from_id():
+            vg_idx = ob.vertex_groups.find(name)
+            ob.vertex_groups.active_index = vg_idx
 
 
 def material_enum_update(self, context):
