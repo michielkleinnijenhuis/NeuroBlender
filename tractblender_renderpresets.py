@@ -119,31 +119,15 @@ def scene_preset_init(name):
     """add newly created objects to collections"""
     presetprops = {"name": name, "centre": centre.name,
                    "dims": dims, "box": box.name, "lightsempty": lights.name}
-    tb_preset = add_item(tb, "presets", presetprops)
-    add_item(tb_preset, "cameras", camprops)
+    tb_preset = tb_utils.add_item(tb, "presets", presetprops)
+    tb_utils.add_item(tb_preset, "cameras", camprops)
     for lightprops in [lp_key, lp_fill, lp_back]:
-        add_item(tb_preset, "lights", lightprops)
-    add_item(tb_preset, "tables", tableprops)
+        tb_utils.add_item(tb_preset, "lights", lightprops)
+    tb_utils.add_item(tb_preset, "tables", tableprops)
 
     """switch to view"""
     bpy.ops.tb.switch_to_main()
     to_camera_view()
-
-
-def add_item(parent, childpath, props):
-    """Add an item to a collection."""
-
-    scn = bpy.context.scene
-
-    parentpath = parent.path_from_id()
-    coll = eval("scn.%s.%s" % (parentpath, childpath))
-    item = coll.add()
-    exec("scn.%s.index_%s = (len(coll)-1)" % (parentpath, childpath))
-
-    for k, v in props.items():
-        item[k] = v
-
-    return item
 
 
 def scene_preset(name="Brain", layer=10):
