@@ -1467,7 +1467,10 @@ class ImportVoxelvolumes(Operator, ImportHelper):
         tb = scn.tb
 
         filenames = [file.name for file in self.files]
-        tb_imp.import_voxelvolume(self.directory, filenames, self.name)
+        item = tb_imp.import_voxelvolume(self.directory, filenames, self.name)[1]
+    #     force updates
+        tb.index_voxelvolumes = tb.index_voxelvolumes
+        item.rendertype = item.rendertype
 
         return {"FINISHED"}
 
@@ -2966,10 +2969,22 @@ def sformfile_update(self, context):
 def slices_update(self, context):
     """Set slicethicknesses and positions for the object."""
 
-    update_viewport()
 #     # FIXME: objects lag one update 
-#     ob = bpy.data.objects[self.name+"SliceBox"]
-#     ob.scale = self.slicethickness
+    ob = bpy.data.objects[self.name]
+    mat = bpy.data.materials[self.name]
+    mat.type = mat.type
+    mat.texture_slots[0].scale[0] = mat.texture_slots[0].scale[0]
+    ob = bpy.data.objects[self.name+"SliceBox"]
+    ob.scale = self.slicethickness
+
+    try:
+        for sg in self.scalargroups:
+            sg_ob = bpy.data.objects[sg.name+"SliceBox"]
+            sg_ob.scale = self.slicethickness
+    except:
+        pass
+
+    update_viewport()
 
 
 def rendertype_enum_update(self, context):
@@ -3108,13 +3123,9 @@ def index_scalars_update_func(group=None):
             if hasattr(group, 'scalars'):
                 img = bpy.data.images[group.name]
                 img.filepath = scalar.filepath
-                img.reload()
-                for area in bpy.context.screen.areas :
-                    if area.type == 'IMAGE_EDITOR' :
-                            area.spaces.active.image = img
-                bpy.ops.image.reload()
-                update_viewport()
-                # TODO: DOESNT WORK
+                # this reloads the sequence/updates the viewport
+                tex = bpy.data.textures[group.name]
+                tex.voxel_data.file_format = 'IMAGE_SEQUENCE'
 
 def index_labels_update(self, context):
     """Switch views on updating label index."""
@@ -3694,7 +3705,8 @@ class ScalarGroupProperties(PropertyGroup):
                 "Switch to surface rendering", 0),
                ("VOLUME", "Volume",
                 "Switch to volume rendering", 1)],
-        update=rendertype_enum_update)
+        update=rendertype_enum_update,
+        default="VOLUME")
 
     slicebox = StringProperty(
         name="Slicebox",
@@ -3786,7 +3798,8 @@ class LabelGroupProperties(PropertyGroup):
                 "Switch to surface rendering", 0),
                ("VOLUME", "Volume",
                 "Switch to volume rendering", 1)],
-        update=rendertype_enum_update)
+        update=rendertype_enum_update,
+        default="VOLUME")
 
     slicebox = StringProperty(
         name="Slicebox",
@@ -4187,7 +4200,8 @@ class VoxelvolumeProperties(PropertyGroup):
                 "Switch to surface rendering", 0),
                ("VOLUME", "Volume",
                 "Switch to volume rendering", 1)],
-        update=rendertype_enum_update)
+        update=rendertype_enum_update,
+        default="VOLUME")
 
     range = FloatVectorProperty(
         name="Range",

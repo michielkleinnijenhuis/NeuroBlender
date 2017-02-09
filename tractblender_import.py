@@ -329,7 +329,7 @@ def import_voxelvolume(directory, files, specname,
         bpy.context.scene.objects.active = ob
         ob.select = True
 
-    return [ob]
+    return [ob], item
 
 
 def voxelvolume_cutout(ob):
@@ -478,12 +478,12 @@ def voxelvolume_slice_drivers_surface(item, tex, index, prop):
     driver = tex.driver_add(prop, index).driver
     driver.type = 'SCRIPTED'
 
+    data_path = "%s.slicethickness[%d]" % (item.path_from_id(), index)
+    tb_rp.create_var(driver, "slc_th",
+                     'SINGLE_PROP', 'SCENE',
+                     scn, data_path)
     if prop == "scale":
         # relative slicethickness
-        data_path = "%s.slicethickness[%d]" % (item.path_from_id(), index)
-        tb_rp.create_var(driver, "slc_th",
-                         'SINGLE_PROP', 'SCENE',
-                         scn, data_path)
         driver.expression = "slc_th"
     elif prop == "offset":
         # relative sliceposition
@@ -491,7 +491,7 @@ def voxelvolume_slice_drivers_surface(item, tex, index, prop):
         tb_rp.create_var(driver, "slc_pos",
                          'SINGLE_PROP', 'SCENE',
                          scn, data_path)
-        driver.expression = "slc_pos * 2 - 1"
+        driver.expression = "2*(1/slc_th-1) * slc_pos - (1/slc_th-1)"
 
 
 def voxelvolume_rendertype_driver(mat, item):
@@ -628,7 +628,7 @@ def import_voxelvolumes_scalargroups(fpath, parent_ob, name=""):
     directory = os.path.dirname(fpath)  # TODO
     filenames = [os.path.basename(fpath)]
     ob = import_voxelvolume(directory, filenames, name,
-                            sformfile, tb_ob, is_label=False)
+                            sformfile, tb_ob, is_label=False)[0]
     ob = ob[0]  # TODO
     ob.parent = parent_ob
 
@@ -645,7 +645,7 @@ def import_voxelvolumes_labelgroups(fpath, parent_ob, name=""):
     directory = os.path.dirname(fpath)  # TODO
     filenames = [os.path.basename(fpath)]
     ob = import_voxelvolume(directory, filenames, name,
-                            sformfile, tb_ob, is_label=True)
+                            sformfile, tb_ob, is_label=True)[0]
     ob.parent = parent_ob
 
 
