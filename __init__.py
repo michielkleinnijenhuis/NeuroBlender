@@ -3993,8 +3993,8 @@ class VoxelvolumeProperties(PropertyGroup):
     dimensions = FloatVectorProperty(
         name="dimensions",
         description="",
-        default=[0.0, 0.0, 0.0],
-        size=3,
+        default=[0.0, 0.0, 0.0, 0.0],
+        size=4,
         subtype="TRANSLATION")
 
     scalargroups = CollectionProperty(

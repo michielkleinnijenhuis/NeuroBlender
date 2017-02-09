@@ -198,8 +198,8 @@ def import_voxelvolume(directory, files, specname,
     name = tb_utils.check_name(specname, fpath, ca)
 
     if (fpath.endswith('.nii') | fpath.endswith('.nii.gz')):
-        file_format = "RAW_8BIT"
-        img, dims, datarange, labels = prep_nifti(fpath, name, is_label)
+        file_format = "IMAGE_SEQUENCE"  #"STRIP"  #  #"RAW_8BIT"
+        img, dims, datarange, labels = prep_nifti(fpath, name, is_label, file_format)
         if not is_overlay:
             sformfile = fpath
     elif (fpath.endswith('.png') |
@@ -994,12 +994,11 @@ def prep_nifti(fpath, name, is_label=False, file_format="RAW_8BIT"):
     if tb.nibabel_valid:
 
         nii = nib.load(fpath)
-        dims = np.array(nii.shape)  #[::-1]
-        if len(dims) != 3:  # TODO: extend to 4D?
-            print("Please supply a 3D nifti volume.")
-            return
 
+#         data = np.array(nii.get_data(), ndmin=4)  # leading
         data = nii.get_data()
+        data.shape += (1,) * (4 - data.ndim)  # trailing
+        dims = np.array(data.shape)
 
         if is_label:
             mask = data < 0
@@ -1013,49 +1012,54 @@ def prep_nifti(fpath, name, is_label=False, file_format="RAW_8BIT"):
 
         data, datarange = normalize_data(data)
 
-        # TODO: this forced save is quite annoying
-        if not bpy.path.abspath("//"):
-            bpy.ops.tb.save_blend('INVOKE_DEFAULT')
-        # FIXME: first time defaults to /Users/michielk/workspace
-        directory = bpy.path.abspath("//")
+        directory = os.path.dirname(fpath)
         voltexdir = os.path.join(directory, "voltex_" + name)
         tb_utils.mkdir_p(voltexdir)
-        tmppath = tempfile.mkstemp(prefix=name, dir=voltexdir)
 
         if file_format == "IMAGE_SEQUENCE":
             data = np.transpose(data)
-            data = np.reshape(data, [dims[2], -1])
-            img = bpy.data.images.new("img", width=dims[0], height=dims[1])
-            for slcnr, slc in enumerate(data):
+            for volnr, vol in enumerate(data):
+                voldir = os.path.join(voltexdir, 'imseq', 'vol%04d' % volnr)
+                tb_utils.mkdir_p(voldir)
+                vol = np.reshape(vol, [dims[2], -1])
+                img = bpy.data.images.new("img", width=dims[0], height=dims[1])
+                for slcnr, slc in enumerate(vol):
+                    pixels = []
+                    for pix in slc:
+                        pixels.append([pix, pix, pix, float(pix != 0)])
+                    pixels = [chan for px in pixels for chan in px]
+                    img.pixels = pixels
+                    slcname = str(slcnr).zfill(4) + ".png"
+                    filepath = os.path.join(voldir, slcname)
+                    img.filepath_raw = bpy.path.abspath(filepath)
+                    img.file_format = 'PNG'
+                    img.save()
+#                     img.save_render(img.filepath_raw)
+        elif file_format == 'STRIP':  # FIXME
+            data = np.transpose(data)
+            img = bpy.data.images.new("img", width=dims[2]*dims[1], height=dims[0])
+            for volnr, vol in enumerate(data):
+                vol = np.reshape(vol, [-1, 1])
+                stripdir = os.path.join(voltexdir, 'strip')
+                tb_utils.mkdir_p(stripdir)
                 pixels = []
-                for pix in slc:
-                    pixval = pix
-                    pixels.append([pixval, pixval, pixval, 1.0])
+                for pix in vol:
+                    pixels.append([pix, pix, pix, float(pix != 0)])
                 pixels = [chan for px in pixels for chan in px]
                 img.pixels = pixels
-                img.filepath_raw = os.path.join(tmppath,
-                                                str(slcnr).zfill(4) + ".png")
+                filepath = os.path.join(stripdir, 'vol%04d.png' % volnr)
+                img.filepath = bpy.path.abspath(filepath)
                 img.file_format = 'PNG'
                 img.save()
-        elif file_format == 'STRIP':
-#             data = np.transpose(data)
-            data = np.reshape(data, [-1, 1])
-            img = bpy.data.images.new("img", width=dims[2]*dims[1], height=dims[0])
-            pixels = []
-            for pix in data:
-                pixval = pix
-                pixels.append([pixval, pixval, pixval, 1.0])
-            pixels = [chan for px in pixels for chan in px]
-            img.pixels = pixels
-            img.filepath_raw = tmppath[1]  #os.path.join(tmppath, ".png")
-            img.file_format = 'PNG'
-            img.save()
         elif file_format == "RAW_8BIT":
             data = np.transpose(data)
             data *= 255
-            with open(tmppath[1], "wb") as f:
-                f.write(bytes(data.astype('uint8')))
-            img = tmppath[1]
+            for volnr, vol in enumerate(data):
+                filepath = os.path.join(voltexdir, 'vol%04d.raw_8bit' % volnr)
+                with open(filepath, "wb") as f:
+                    f.write(bytes(vol.astype('uint8')))
+                img = bpy.data.images.load(filepath)
+                img.filepath = bpy.path.abspath(filepath)
 
     return img, dims, datarange, labels
 

@@ -738,9 +738,10 @@ def get_voxmat(matname, img, dims, file_format="IMAGE_SEQUENCE",
         tex.image_user.frame_duration = dims[2]
         tex.image_user.frame_start = 1
         tex.image_user.frame_offset = 0
+        img.filepath = bpy.path.abspath(img.filepath)
         tex.image = img
     else:
-        tex.voxel_data.filepath = img
+        tex.voxel_data.filepath = bpy.path.abspath(img.filepath)
         tex.voxel_data.resolution = [int(dim) for dim in dims]
 
     if is_label:
