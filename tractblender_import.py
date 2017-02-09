@@ -198,7 +198,7 @@ def import_voxelvolume(directory, files, specname,
     name = tb_utils.check_name(specname, fpath, ca)
 
     if (fpath.endswith('.nii') | fpath.endswith('.nii.gz')):
-        file_format = "IMAGE_SEQUENCE"  #"STRIP"  #  #"RAW_8BIT"
+        file_format = "IMAGE_SEQUENCE"  #"STRIP"  #"RAW_8BIT"
         img, dims, datarange, labels = prep_nifti(fpath, name, is_label, file_format)
         if not is_overlay:
             sformfile = fpath
@@ -208,8 +208,10 @@ def import_voxelvolume(directory, files, specname,
           fpath.endswith('.tiff')):
         file_format = "IMAGE_SEQUENCE"
         img = bpy.data.images.load(fpath)
-        dims = [s for s in img.size] + [image_sequence_length(fpath)]
+        # TODO: read 4D volumes
+        dims = [s for s in img.size] + [image_sequence_length(fpath)] + [1]
         # TODO: figure out labels and datarange
+        datarange = [0, 1]
         labels = None
     else:
         print('file format not understood; please use default extensions')
@@ -224,19 +226,45 @@ def import_voxelvolume(directory, files, specname,
         tb_ob = tb_utils.active_tb_object()[0]
         ca = [tb_ob.labelgroups]  # TODO: all other labelgroups
         groupname = tb_utils.check_name(name, fpath, ca)
-        labelgroup = add_labelgroup_to_collection(groupname, fpath)
+#         lgprops = {"name": groupname,
+#                    "filepath": fpath,
+#                    "dimensions": dims}
+#         item = tb_utils.add_item(tb_ob, "labelgroups", lgprops)
+        item = add_labelgroup_to_collection(groupname, fpath, dims)
+        labelgroup = item
         for label in labels:
             name = "label." + str(label).zfill(2)
             colour = tb_mat.get_golden_angle_colour(label) + [1.]
-            add_label_to_collection(labelgroup, name, label, colour)
+            lprops = {"name": groupname,
+                      "value": label,
+                      "colour": colour}
+            item = tb_utils.add_item(labelgroup, "labels", lprops)
         matname = labelgroup.name
     elif is_overlay:
-        scalargroup = []
-        add_scalar_to_collection(scalargroup, name, fpath, datarange)
+        tb_ob = tb_utils.active_tb_object()[0]
+#         sgprops = {"name": name,
+#                    "filepath": fpath,
+#                    "range": datarange,
+#                    "dimensions": dims}
+#         item = tb_utils.add_item(tb_ob, "scalargroups", sgprops)
+        item = add_scalargroup_to_collection(name, fpath, datarange, dims)
+        directory = os.path.dirname(fpath)
+        voltexdir = os.path.join(directory, "voltex_" + name)
+        for volnr in range(dims[3]):
+            voldir = os.path.join(voltexdir, 'imseq', 'vol%04d' % volnr)
+            scalarpath = os.path.join(voldir, '0000.png')
+            add_scalar_to_collection(item, name, scalarpath, datarange)
+            # TODO: volume-specific datarange
         labelgroup = None
         matname = name
     else:
-        add_voxelvolume_to_collection(name, fpath, sformfile, datarange, dims)
+        item = add_voxelvolume_to_collection(name, fpath, sformfile, datarange, dims)
+#         vvprops = {"name": name,
+#                    "filepath": fpath,
+#                    "range": list(datarange),
+#                    "sformfile": sformfile,
+#                    "dimensions": list(dims)}
+#         item = tb_utils.add_item(tb, "voxelvolumes", vvprops)
         labelgroup = None
         matname = name
 
@@ -285,14 +313,14 @@ def import_voxelvolume(directory, files, specname,
         slicebox = voxelvolume_cutout(ob)
 
         for idx in range(0,3):
-            voxelvolume_slice_drivers_volume(ob, slicebox, idx, "scale")
-            voxelvolume_slice_drivers_volume(ob, slicebox, idx, "location")
-            voxelvolume_slice_drivers_volume(ob, slicebox, idx, "rotation_euler")
+            voxelvolume_slice_drivers_volume(item, slicebox, idx, "scale")
+            voxelvolume_slice_drivers_volume(item, slicebox, idx, "location")
+            voxelvolume_slice_drivers_volume(item, slicebox, idx, "rotation_euler")
 
     mat = tb_mat.get_voxmat(matname, img, dims, file_format,
                             is_overlay, is_label, labelgroup)
     tb_mat.set_materials(ob.data, mat)
-    voxelvolume_rendertype_driver(mat)
+    voxelvolume_rendertype_driver(mat, item)
 
     tb_utils.move_to_layer(ob, 2)
     scn.layers[2] = True
@@ -393,32 +421,31 @@ def voxelvolume_cutout(ob):
     return empty
 
 
-def voxelvolume_slice_drivers_volume(vvol, slicebox, index, prop, relative=True):
+def voxelvolume_slice_drivers_volume(item, slicebox, index, prop, relative=True):
 
     scn = bpy.context.scene
     tb = scn.tb
 
     driver = slicebox.driver_add(prop, index).driver
     driver.type = 'SCRIPTED'
-    vv_idx = tb.index_voxelvolumes
 
     # dimension of the voxelvolume
-    data_path = "tb.voxelvolumes[%d].dimensions[%d]" % (vv_idx, index)
+    data_path = "%s.dimensions[%d]" % (item.path_from_id(), index)
     tb_rp.create_var(driver, "dim",
                      'SINGLE_PROP', 'SCENE',
                      scn, data_path)
     # relative slicethickness
-    data_path = "tb.voxelvolumes[%d].slicethickness[%d]" % (vv_idx, index)
+    data_path = "%s.slicethickness[%d]" % (item.path_from_id(), index)
     tb_rp.create_var(driver, "slc_th",
                      'SINGLE_PROP', 'SCENE',
                      scn, data_path)
     # relative sliceposition
-    data_path = "tb.voxelvolumes[%d].sliceposition[%d]" % (vv_idx, index)
+    data_path = "%s.sliceposition[%d]" % (item.path_from_id(), index)
     tb_rp.create_var(driver, "slc_pos",
                      'SINGLE_PROP', 'SCENE',
                      scn, data_path)
     # sliceangle
-    data_path = "tb.voxelvolumes[%d].sliceangle[%d]" % (vv_idx, index)
+    data_path = "%s.sliceangle[%d]" % (item.path_from_id(), index)
     tb_rp.create_var(driver, "slc_angle",
                      'SINGLE_PROP', 'SCENE',
                      scn, data_path)
@@ -443,32 +470,31 @@ def voxelvolume_slice_drivers_volume(vvol, slicebox, index, prop, relative=True)
     slicebox.lock_scale[index] = True
 
 
-def voxelvolume_slice_drivers_surface(tex, index, prop):
+def voxelvolume_slice_drivers_surface(item, tex, index, prop):
 
     scn = bpy.context.scene
     tb = scn.tb
 
     driver = tex.driver_add(prop, index).driver
     driver.type = 'SCRIPTED'
-    vv_idx = tb.index_voxelvolumes
 
     if prop == "scale":
         # relative slicethickness
-        data_path = "tb.voxelvolumes[%d].slicethickness[%d]" % (vv_idx, index)
+        data_path = "%s.slicethickness[%d]" % (item.path_from_id(), index)
         tb_rp.create_var(driver, "slc_th",
                          'SINGLE_PROP', 'SCENE',
                          scn, data_path)
         driver.expression = "slc_th"
     elif prop == "offset":
         # relative sliceposition
-        data_path = "tb.voxelvolumes[%d].sliceposition[%d]" % (vv_idx, index)
+        data_path = "%s.sliceposition[%d]" % (item.path_from_id(), index)
         tb_rp.create_var(driver, "slc_pos",
                          'SINGLE_PROP', 'SCENE',
                          scn, data_path)
         driver.expression = "slc_pos * 2 - 1"
 
 
-def voxelvolume_rendertype_driver(mat):
+def voxelvolume_rendertype_driver(mat, item):
 
     scn = bpy.context.scene
     tb = scn.tb
@@ -477,11 +503,25 @@ def voxelvolume_rendertype_driver(mat):
     driver.type = 'SCRIPTED'
     vv_idx = tb.index_voxelvolumes
 
-    data_path = "tb.voxelvolumes[%d].rendertype" % vv_idx
+    data_path = "%s.rendertype" % item.path_from_id()
     tb_rp.create_var(driver, "type",
                      'SINGLE_PROP', 'SCENE',
                      scn, data_path)
-    driver.expression = ""
+    driver.expression = "type"
+
+
+def voxelvolume_slice_drivers_yoke(parent, child, prop, index):
+
+    scn = bpy.context.scene
+    tb = scn.tb
+
+    driver = child.driver_add(prop, index).driver
+    driver.type = 'SCRIPTED'
+    data_path = "%s.%s[%d]" % (parent.path_from_id(), prop, index)
+    tb_rp.create_var(driver, "var",
+                     'SINGLE_PROP', 'SCENE',
+                     scn, data_path)
+    driver.expression = "var"
 
 
 def find_bbox_coordinates(obs):
@@ -589,6 +629,7 @@ def import_voxelvolumes_scalargroups(fpath, parent_ob, name=""):
     filenames = [os.path.basename(fpath)]
     ob = import_voxelvolume(directory, filenames, name,
                             sformfile, tb_ob, is_label=False)
+    ob = ob[0]  # TODO
     ob.parent = parent_ob
 
 
@@ -1118,7 +1159,7 @@ def add_voxelvolume_to_collection(name, fpath, sformfile, datarange, dims):
 
     return vvol
 
-def add_scalargroup_to_collection(name, fpath, scalarrange=[0, 1]):
+def add_scalargroup_to_collection(name, fpath, scalarrange=[0, 1], dimensions=[0, 0, 0]):
     """Add scalargroup to the TractBlender collection."""
 
     tb_ob = tb_utils.active_tb_object()[0]
@@ -1133,6 +1174,7 @@ def add_scalargroup_to_collection(name, fpath, scalarrange=[0, 1]):
     scalargroup.name = name
     scalargroup.filepath = fpath
     scalargroup.range = scalarrange
+    scalargroup.dimensions = dimensions
 
     return scalargroup
 
@@ -1159,7 +1201,7 @@ def add_scalar_to_collection(scalargroup, name, fpath, scalarrange):
 
     return scalar
 
-def add_labelgroup_to_collection(name, fpath):
+def add_labelgroup_to_collection(name, fpath, dimensions=[0, 0, 0]):
     """Add labelgroup to the TractBlender collection."""
 
     tb_ob = tb_utils.active_tb_object()[0]
@@ -1173,6 +1215,7 @@ def add_labelgroup_to_collection(name, fpath):
 
     labelgroup.name = name
     labelgroup.filepath = fpath
+    labelgroup.dimensions = dimensions
 
     return labelgroup
 

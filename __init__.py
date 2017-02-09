@@ -339,19 +339,18 @@ class TractBlenderBasePanel(Panel):
             el.name = "colour stop " + str(i)
             el.nn_position = els[i].position * drange + dmin
 
-    def drawunit_slices(self, layout, tb_ob):
-#         row = layout.row()
-#         ob = bpy.data.objects[tb_ob.name+"SliceBox"]
-#         row.prop(ob, "scale", expand=True)
-#         row = layout.row()
-#         row.prop(ob, "location", expand=True)
+    def drawunit_slices(self, layout, tb_ob, is_yoked=False):
+
         row = layout.row()
         col = row.column()
         col.prop(tb_ob, "slicethickness", expand=True, text="Thickness")
+        col.enabled = not is_yoked
         col = row.column()
         col.prop(tb_ob, "sliceposition", expand=True, text="Position")
+        col.enabled = not is_yoked
         col = row.column()
         col.prop(tb_ob, "sliceangle", expand=True, text="Angle")
+        col.enabled = not is_yoked
 
 
 class TractBlenderOverlayPanel(Panel):
@@ -371,6 +370,7 @@ class TractBlenderOverlayPanel(Panel):
     drawunit_texture = TractBlenderBasePanel.drawunit_texture
     drawunit_colourramp = TractBlenderBasePanel.drawunit_colourramp
     calc_nn_elpos = TractBlenderBasePanel.calc_nn_elpos
+    drawunit_slices = TractBlenderBasePanel.drawunit_slices
 
     def draw_tb_panel(self, layout, tb):
 
@@ -434,6 +434,8 @@ class TractBlenderOverlayPanel(Panel):
                 else:
                     self.drawunit_tri(layout, "items", tb, tb_ov)
 
+                if obtype == "voxelvolumes":
+                    self.drawunit_tri(layout, "overlay_slices", tb, tb_ov)
                 self.drawunit_tri(layout, "overlay_info", tb, tb_ov)
 
     def drawunit_tri_overlay_material(self, layout, tb, tb_ov):
@@ -531,6 +533,12 @@ class TractBlenderOverlayPanel(Panel):
         ramp = nt.nodes["ColorRamp"]
         box = layout.box()
         self.drawunit_colourramp(box, ramp, tb_coll)
+
+    def drawunit_tri_overlay_slices(self, layout, tb, tb_ov):
+
+        self.drawunit_slices(layout, tb_ov, tb_ov.is_yoked)
+        row = layout.row()
+        row.prop(tb_ov, "is_yoked", text="Follow parent")
 
     def drawunit_tri_overlay_info(self, layout, tb, tb_ov):
 
@@ -2958,9 +2966,10 @@ def sformfile_update(self, context):
 def slices_update(self, context):
     """Set slicethicknesses and positions for the object."""
 
-    # FIXME: objects lag one update 
-    ob = bpy.data.objects[self.name+"SliceBox"]
-    ob.scale = self.slicethickness
+    update_viewport()
+#     # FIXME: objects lag one update 
+#     ob = bpy.data.objects[self.name+"SliceBox"]
+#     ob.scale = self.slicethickness
 
 
 def rendertype_enum_update(self, context):
@@ -2971,15 +2980,27 @@ def rendertype_enum_update(self, context):
     mat.type = self.rendertype
     tex = mat.texture_slots[0]
     if mat.type == 'VOLUME':
-        for idx in range(0,3):
+        for idx in range(0, 3):
             tex.driver_remove("scale", idx)
             tex.driver_remove("offset", idx)
         tex.scale = [1, 1, 1]
         tex.offset = [0, 0, 0]
     elif mat.type == 'SURFACE':
-        for idx in range(0,3):
-            tb_imp.voxelvolume_slice_drivers_surface(tex, idx, "scale")
-            tb_imp.voxelvolume_slice_drivers_surface(tex, idx, "offset")
+        for idx in range(0, 3):
+            tb_imp.voxelvolume_slice_drivers_surface(self, tex, idx, "scale")
+            tb_imp.voxelvolume_slice_drivers_surface(self, tex, idx, "offset")
+
+
+def is_yoked_bool_update(self, context):
+    """Add or remove drivers linking voxelvolume and overlay."""
+
+    tb_ob = tb_utils.active_tb_object()[0]
+    for prop in ['slicethickness', 'sliceposition', 'sliceangle']:
+        for idx in range(0, 3):
+            if self.is_yoked:
+                tb_imp.voxelvolume_slice_drivers_yoke(tb_ob, self, prop, idx)
+            else:
+                self.driver_remove(prop, idx)
 
 
 def mode_enum_update(self, context):
@@ -3083,6 +3104,17 @@ def index_scalars_update_func(group=None):
                     splname = name + '_spl' + str(i).zfill(8)
                     spline.material_index = ob.material_slots.find(splname)
 
+        if "voxelvolumes" in group.path_from_id():
+            if hasattr(group, 'scalars'):
+                img = bpy.data.images[group.name]
+                img.filepath = scalar.filepath
+                img.reload()
+                for area in bpy.context.screen.areas :
+                    if area.type == 'IMAGE_EDITOR' :
+                            area.spaces.active.image = img
+                bpy.ops.image.reload()
+                update_viewport()
+                # TODO: DOESNT WORK
 
 def index_labels_update(self, context):
     """Switch views on updating label index."""
@@ -3130,10 +3162,10 @@ def material_enum_update(self, context):
 def colourmap_enum_update(self, context):
     """Assign a new colourmap to the object."""
 
-    if hasattr(self, 'slicebox'):
+    tb_ob = tb_utils.active_tb_object()[0]
+    if hasattr(tb_ob, 'slicebox'):
         cr = bpy.data.textures[self.name].color_ramp
     else:
-        tb_ob = tb_utils.active_tb_object()[0]
         if hasattr(tb_ob, "nstreamlines"):
             ng = bpy.data.node_groups.get("TractOvGroup")
             cr = ng.nodes["ColorRamp"].color_ramp
@@ -3349,6 +3381,14 @@ def curves_enum_callback(self, context):
                  (cu.name not in tracts))]
 
     return items
+
+
+def update_viewport():
+    """Trigger viewport updates"""
+
+    for area in bpy.context.screen.areas:
+        if area.type in ['IMAGE_EDITOR', 'VIEW_3D', 'PROPERTIES']:
+            area.tag_redraw()
 
 
 class ColorRampProperties(PropertyGroup):
@@ -3647,6 +3687,61 @@ class ScalarGroupProperties(PropertyGroup):
         min=0.,
         max=1.)
 
+    rendertype = EnumProperty(
+        name="rendertype",
+        description="Surface or volume rendering of texture",
+        items=[("SURFACE", "Surface",
+                "Switch to surface rendering", 0),
+               ("VOLUME", "Volume",
+                "Switch to volume rendering", 1)],
+        update=rendertype_enum_update)
+
+    slicebox = StringProperty(
+        name="Slicebox",
+        description="Name of slicebox",
+        default="box")
+    slicethickness = FloatVectorProperty(
+        name="Slice thickness",
+        description="The thickness of the slices",
+        default=(1.0, 1.0, 1.0),
+        size=3,
+        precision=2,
+        min=0,
+        max=1,
+        subtype="TRANSLATION",
+        update=slices_update)
+    sliceposition = FloatVectorProperty(
+        name="Slice position",
+        description="The position of the slices",
+        default=(0.5, 0.5, 0.5),
+        size=3,
+        precision=2,
+        min=0,
+        max=1,
+        subtype="TRANSLATION",
+        update=slices_update)
+    sliceangle = FloatVectorProperty(
+        name="Slice position",  
+        description="The position of the slices",
+        default=(0.0, 0.0, 0.0),
+        size=3,
+        precision=2,
+        min=-1.57,
+        max=1.57,
+        subtype="TRANSLATION",
+        update=slices_update)
+    is_yoked = BoolProperty(
+        name="Is Yoked",
+        description="Indicates if the overlay is yoked to parent",
+        default=False,
+        update=is_yoked_bool_update)
+    dimensions = FloatVectorProperty(
+        name="dimensions",
+        description="",
+        default=[0.0, 0.0, 0.0, 0.0],
+        size=4,
+        subtype="TRANSLATION")
+
 
 class LabelGroupProperties(PropertyGroup):
     """Properties of label groups."""
@@ -3683,6 +3778,61 @@ class LabelGroupProperties(PropertyGroup):
         default=0,
         min=0,
         update=index_labels_update)
+
+    rendertype = EnumProperty(
+        name="rendertype",
+        description="Surface or volume rendering of texture",
+        items=[("SURFACE", "Surface",
+                "Switch to surface rendering", 0),
+               ("VOLUME", "Volume",
+                "Switch to volume rendering", 1)],
+        update=rendertype_enum_update)
+
+    slicebox = StringProperty(
+        name="Slicebox",
+        description="Name of slicebox",
+        default="box")
+    slicethickness = FloatVectorProperty(
+        name="Slice thickness",
+        description="The thickness of the slices",
+        default=(1.0, 1.0, 1.0),
+        size=3,
+        precision=2,
+        min=0,
+        max=1,
+        subtype="TRANSLATION",
+        update=slices_update)
+    sliceposition = FloatVectorProperty(
+        name="Slice position",
+        description="The position of the slices",
+        default=(0.5, 0.5, 0.5),
+        size=3,
+        precision=2,
+        min=0,
+        max=1,
+        subtype="TRANSLATION",
+        update=slices_update)
+    sliceangle = FloatVectorProperty(
+        name="Slice position",  
+        description="The position of the slices",
+        default=(0.0, 0.0, 0.0),
+        size=3,
+        precision=2,
+        min=-1.57,
+        max=1.57,
+        subtype="TRANSLATION",
+        update=slices_update)
+    is_yoked = BoolProperty(
+        name="Is Yoked",
+        description="Indicates if the overlay is yoked to parent",
+        default=False,
+        update=is_yoked_bool_update)
+    dimensions = FloatVectorProperty(
+        name="dimensions",
+        description="",
+        default=[0.0, 0.0, 0.0, 0.0],
+        size=4,
+        subtype="TRANSLATION")
 
 
 class BorderGroupProperties(PropertyGroup):
@@ -4633,6 +4783,10 @@ class TractBlenderProperties(PropertyGroup):
         name="Overlay material",
         default=False,
         description="Show/hide the object's overlay material")
+    show_overlay_slices = BoolProperty(
+        name="Overlay slices",
+        default=False,
+        description="Show/hide the object's overlay slices")
     show_overlay_info = BoolProperty(
         name="Overlay info",
         default=False,
