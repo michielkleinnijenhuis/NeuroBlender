@@ -894,31 +894,31 @@ class ObjectListOperations(Operator):
                 ob = bpy.data.objects[name]
             except KeyError:
                 infostring = 'object "%s" not found'
-                info += [infostring % ob]
+                info += [infostring % name]
             else:
-                # remove the object itself
-                bpy.data.objects.remove(ob)
                 if self.type == 'voxelvolumes':
                     self.remove_material(ob, name)
                     try:
                         slicebox = bpy.data.objects[name+"SliceBox"]
                     except KeyError:
                         infostring = 'slicebox "%s" not found'
-                        info += [infostring % ob]
+                        info += [infostring % name+"SliceBox"]
                     else:
                         bpy.data.objects.remove(slicebox)
                         # FIXME: causes crash
 #                         for ms in ob.material_slots:
 #                             self.remove_material(ob, ms.name)
-            # remove all children
-            fun = eval("self.remove_%s_overlays" % self.type)
-            fun(tb_ob, ob)
+                # remove all children
+                fun = eval("self.remove_%s_overlays" % self.type)
+                fun(tb_ob, ob)
+                # remove the object itself
+                bpy.data.objects.remove(ob)
         elif self.action.endswith('_PL'):
             try:
                 ob = bpy.data.objects[name]
             except KeyError:
                 infostring = 'object "%s" not found'
-                info += [infostring % ob]
+                info += [infostring % name]
             else:
                 bpy.data.objects.remove(ob)
         elif self.action.endswith('_AN'):
