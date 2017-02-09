@@ -453,7 +453,7 @@ def voxelvolume_slice_drivers_surface(tex, index, prop):
     vv_idx = tb.index_voxelvolumes
 
     if prop == "scale":
-    # relative slicethickness
+        # relative slicethickness
         data_path = "tb.voxelvolumes[%d].slicethickness[%d]" % (vv_idx, index)
         tb_rp.create_var(driver, "slc_th",
                          'SINGLE_PROP', 'SCENE',
@@ -481,7 +481,7 @@ def voxelvolume_rendertype_driver(mat):
     tb_rp.create_var(driver, "type",
                      'SINGLE_PROP', 'SCENE',
                      scn, data_path)
-    driver.expression = "slc_th"
+    driver.expression = ""
 
 
 def find_bbox_coordinates(obs):
