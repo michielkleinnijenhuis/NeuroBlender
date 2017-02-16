@@ -590,7 +590,7 @@ def set_animations():
                   if ((anim.animationtype == "TimeSeries") &
                       (anim.is_rendered))]
     for anim in time_anims:
-        pass  # TODO
+        animate_timeseries(anim)
 
 
     for anim in cam_anims:
@@ -1130,6 +1130,39 @@ def has_keyframe(ob, attr):
     print('none')
 
     return False
+
+
+def animate_timeseries(anim):
+    """"""
+
+    scn = bpy.context.scene
+    tb = scn.tb
+
+    ob = bpy.data.objects[anim.anim_surface]
+    mat = bpy.data.materials[anim.anim_timeseries]
+    scalargroup = tb.surfaces[anim.anim_surface].scalargroups[anim.anim_timeseries]
+
+    fname = "img_%s.tp000.png" % anim.anim_timeseries
+    fpath = os.path.join(scalargroup.texdir, fname)
+    bpy.data.images.load(fpath, check_existing=False)
+    img = bpy.data.images[fname]
+    img.source = 'SEQUENCE'
+
+    nodes = mat.node_tree.nodes
+    links = mat.node_tree.links
+    itex = nodes["Image Texture"]
+    srgb = nodes["Separate RGB"]
+    itex.image_user.use_auto_refresh = True
+    itex.image_user.frame_duration = len(scalargroup.scalars)
+    itex.image = img
+    links.new(itex.outputs["Color"], srgb.inputs["Image"])
+
+    if "voxelvolumes" in group.path_from_id():
+        img = bpy.data.images[group.name]
+        img.filepath = scalar.filepath
+        # this reloads the sequence/updates the viewport
+        tex = bpy.data.textures[group.name]
+        tex.voxel_data.file_format = 'IMAGE_SEQUENCE'
 
 
 # ========================================================================== #

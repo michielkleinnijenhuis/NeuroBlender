@@ -2465,7 +2465,7 @@ class TractBlenderAnimationPanel(Panel):
 
                 row = layout.row()
                 col = row.column()
-                col.prop(anim, "anim_surface", expand=False, text="Surface")
+                col.prop(anim, "timeseries_object", expand=False, text="Object")
                 row = layout.row()
                 col = row.column()
                 col.prop(anim, "anim_timeseries", expand=False, text="Time series")
@@ -3366,12 +3366,17 @@ def timeseries_enum_callback(self, context):
     scn = context.scene
     tb = scn.tb
 
-    if self.anim_surface:
-        surface = tb.surfaces[self.anim_surface]
-        items = [(scalargroup.name, scalargroup.name, "List the timeseries", i)
-                 for i, scalargroup in enumerate(surface.scalargroups)]
+    if self.timeseries_object.startswith('T'):
+        sg = tb.tracts[self.anim_timeseries].scalargroups
+    elif self.timeseries_object.startswith('S'):
+        sg = tb.surfaces[self.anim_timeseries].scalargroups
+    elif self.timeseries_object.startswith('V'):
+        sg = tb.voxelvolumes[self.anim_timeseries].scalargroups
     else:
-        items = []
+        sg = []
+
+    items = [(scalargroup.name, scalargroup.name, "List the timeseries", i)
+             for i, scalargroup in enumerate(sg)]
 
     return items
 
@@ -3400,6 +3405,22 @@ def curves_enum_callback(self, context):
              for i, cu in enumerate(bpy.data.curves)
              if ((cu.name not in campaths) and
                  (cu.name not in tracts))]
+
+    return items
+
+
+def timeseries_object_enum_callback(self, context):
+    """Populate the enum based on available options."""
+
+    scn = context.scene
+    tb = scn.tb
+
+    tb_obs = ["%s: %s" % (l, ob.name)
+              for l, coll in zip(['T', 'S', 'V'], [tb.tracts, tb.surfaces, tb.voxelvolumes])
+              for ob in coll if len(ob.scalargroups)]
+    items = []  # FIXME
+#     items = [(obname, obname, "List the objects", i)
+#              for i, obname in enumerate(tb_obs)]
 
     return items
 
@@ -4644,6 +4665,11 @@ class AnimationProperties(PropertyGroup):
                ("Position", "Position", "Position", 1),
                ("Angle", "Angle", "Angle", 2)],
         default="Position")
+
+    timeseries_object = EnumProperty(
+        name="Object",
+        description="Select object to animate",
+        items=timeseries_object_enum_callback)
 
     # TODO: TimeSeries props
 
