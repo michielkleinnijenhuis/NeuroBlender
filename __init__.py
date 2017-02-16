@@ -39,6 +39,7 @@ from bpy.props import (BoolProperty,
                        IntVectorProperty,
                        PointerProperty)
 
+import os
 from os import listdir
 from os.path import dirname, join
 from shutil import copy
@@ -2848,6 +2849,10 @@ class TractBlenderSettingsPanel(Panel):
         row = layout.row()
         row.prop(tb, "verbose")
         row = layout.row()
+        row.prop(tb, "uv_resolution")
+        row = layout.row()
+        row.prop(tb, "texformat")
+        row = layout.row()
         row.operator("tb.reload",
                      text="Reload NeuroBlender",
                      icon="RECOVER_LAST")
@@ -2928,6 +2933,11 @@ class SaveBlend(Operator, ExportHelper):
 
         return {"FINISHED"}
 
+    def invoke(self, context, event):
+
+        context.window_manager.fileselect_add(self)
+
+        return {"RUNNING_MODAL"}
 
 class Reload(Operator):
     bl_idname = "tb.reload"
@@ -3098,7 +3108,7 @@ def index_scalars_update_func(group=None):
 
                 mat = bpy.data.materials[group.name]
                 attr = mat.node_tree.nodes["Attribute"]
-                attr.attribute_name = name
+                attr.attribute_name = name  # FIXME
 
                 for scalar in group.scalars:
                     scalar_index = group.scalars.find(scalar.name)
@@ -3754,6 +3764,17 @@ class ScalarGroupProperties(PropertyGroup):
         size=4,
         subtype="TRANSLATION")
 
+    texdir = StringProperty(
+        name="Texture directory",
+        description="The directory with textures")
+    texformat = EnumProperty(
+        name="Volume texture file format",
+        description="Choose a format to save volume textures",
+        default="IMAGE_SEQUENCE",
+        items=[("IMAGE_SEQUENCE", "IMAGE_SEQUENCE", "IMAGE_SEQUENCE", 0),
+               ("STRIP", "STRIP", "STRIP", 1),
+               ("RAW_8BIT", "RAW_8BIT", "RAW_8BIT", 2)])
+
 
 class LabelGroupProperties(PropertyGroup):
     """Properties of label groups."""
@@ -3847,6 +3868,17 @@ class LabelGroupProperties(PropertyGroup):
         size=4,
         subtype="TRANSLATION")
 
+    texdir = StringProperty(
+        name="Texture directory",
+        description="The directory with textures")
+    texformat = EnumProperty(
+        name="Volume texture file format",
+        description="Choose a format to save volume textures",
+        default="IMAGE_SEQUENCE",
+        items=[("IMAGE_SEQUENCE", "IMAGE_SEQUENCE", "IMAGE_SEQUENCE", 0),
+               ("STRIP", "STRIP", "STRIP", 1),
+               ("RAW_8BIT", "RAW_8BIT", "RAW_8BIT", 2)])
+
 
 class BorderGroupProperties(PropertyGroup):
     """Properties of border groups."""
@@ -3882,6 +3914,10 @@ class BorderGroupProperties(PropertyGroup):
         description="index of the borders collection",
         default=0,
         min=0)
+
+    uvtexdir = StringProperty(
+        name="UV directory",
+        description="The directory with UV image textures")
 
 
 class TractProperties(PropertyGroup):
@@ -4311,6 +4347,17 @@ class VoxelvolumeProperties(PropertyGroup):
         max=1.57,
         subtype="TRANSLATION",
         update=slices_update)
+
+    texdir = StringProperty(
+        name="Texture directory",
+        description="The directory with textures")
+    texformat = EnumProperty(
+        name="Volume texture file format",
+        description="Choose a format to save volume textures",
+        default="IMAGE_SEQUENCE",
+        items=[("IMAGE_SEQUENCE", "IMAGE_SEQUENCE", "IMAGE_SEQUENCE", 0),
+               ("STRIP", "STRIP", "STRIP", 1),
+               ("RAW_8BIT", "RAW_8BIT", "RAW_8BIT", 2)])
 
 
 class CameraProperties(PropertyGroup):
@@ -4918,6 +4965,23 @@ class TractBlenderProperties(PropertyGroup):
         name="overlay type",
         description="switch between overlay types",
         items=overlay_enum_callback)
+
+    uv_resolution = IntProperty(
+        name="utexture resolution",
+        description="the resolution of baked textures",
+        default=4096,
+        min=1)
+    uv_bakeall = BoolProperty(
+        name="Bake all",
+        description="Bake single or all scalars in a group",
+        default=True)
+    texformat = EnumProperty(
+        name="Volume texture file format",
+        description="Choose a format to save volume textures",
+        default="IMAGE_SEQUENCE",
+        items=[("IMAGE_SEQUENCE", "IMAGE_SEQUENCE", "IMAGE_SEQUENCE", 0),
+               ("STRIP", "STRIP", "STRIP", 1),
+               ("RAW_8BIT", "RAW_8BIT", "RAW_8BIT", 2)])
 
 
 # =========================================================================== #

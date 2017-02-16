@@ -192,14 +192,23 @@ def import_voxelvolume(directory, files, specname,
     scn.render.engine = "BLENDER_RENDER"
 
     fpath = os.path.join(directory, files[0])
+
     ca = [bpy.data.meshes,
           bpy.data.materials,
           bpy.data.textures]
     name = tb_utils.check_name(specname, fpath, ca)
 
+    # prep texture directory
+    # TODO: make sure project has been saved
+    if not bpy.data.is_saved:
+        bpy.ops.wm.save_as_mainfile('INVOKE_DEFAULT')
+    texdir = "//voltex_%s" % name
+    tb_utils.mkdir_p(bpy.path.abspath(texdir))
+
     if (fpath.endswith('.nii') | fpath.endswith('.nii.gz')):
-        file_format = "IMAGE_SEQUENCE"  #"STRIP"  #"RAW_8BIT"
-        img, dims, datarange, labels = prep_nifti(fpath, name, is_label, file_format)
+        file_format = tb.texformat
+        img, dims, datarange, labels = prep_nifti(fpath, name, is_label,
+                                                  file_format, texdir)
         if not is_overlay:
             sformfile = fpath
     elif (fpath.endswith('.png') |
@@ -259,6 +268,7 @@ def import_voxelvolume(directory, files, specname,
         matname = name
     else:
         item = add_voxelvolume_to_collection(name, fpath, sformfile, datarange, dims)
+        item.texdir = texdir
 #         vvprops = {"name": name,
 #                    "filepath": fpath,
 #                    "range": list(datarange),
@@ -1016,7 +1026,7 @@ def normalize_data(data):
     return data, [datamin, datamax]
 
 
-def prep_nifti(fpath, name, is_label=False, file_format="RAW_8BIT"):
+def prep_nifti(fpath, name, is_label=False, file_format="RAW_8BIT", texdir=""):
     """Write data in a nifti file to a temp directory.
 
     The nifti is read with nibabel with [z,y,x] layout, and is either
@@ -1036,9 +1046,8 @@ def prep_nifti(fpath, name, is_label=False, file_format="RAW_8BIT"):
 
         nii = nib.load(fpath)
 
-#         data = np.array(nii.get_data(), ndmin=4)  # leading
         data = nii.get_data()
-        data.shape += (1,) * (4 - data.ndim)  # trailing
+        data.shape += (1,) * (4 - data.ndim)
         dims = np.array(data.shape)
 
         if is_label:
@@ -1053,15 +1062,11 @@ def prep_nifti(fpath, name, is_label=False, file_format="RAW_8BIT"):
 
         data, datarange = normalize_data(data)
 
-        directory = os.path.dirname(fpath)
-        voltexdir = os.path.join(directory, "voltex_" + name)
-        tb_utils.mkdir_p(voltexdir)
-
         if file_format == "IMAGE_SEQUENCE":
             data = np.transpose(data)
             for volnr, vol in enumerate(data):
-                voldir = os.path.join(voltexdir, 'imseq', 'vol%04d' % volnr)
-                tb_utils.mkdir_p(voldir)
+                voldir = os.path.join(texdir, 'imseq', 'vol%04d' % volnr)
+                tb_utils.mkdir_p(bpy.path.abspath(voldir))
                 vol = np.reshape(vol, [dims[2], -1])
                 img = bpy.data.images.new("img", width=dims[0], height=dims[1])
                 for slcnr, slc in enumerate(vol):
@@ -1081,8 +1086,8 @@ def prep_nifti(fpath, name, is_label=False, file_format="RAW_8BIT"):
             img = bpy.data.images.new("img", width=dims[2]*dims[1], height=dims[0])
             for volnr, vol in enumerate(data):
                 vol = np.reshape(vol, [-1, 1])
-                stripdir = os.path.join(voltexdir, 'strip')
-                tb_utils.mkdir_p(stripdir)
+                stripdir = os.path.join(texdir, 'strip')
+                tb_utils.mkdir_p(bpy.path.abspath(stripdir))
                 pixels = []
                 for pix in vol:
                     pixels.append([pix, pix, pix, float(pix != 0)])
@@ -1096,7 +1101,7 @@ def prep_nifti(fpath, name, is_label=False, file_format="RAW_8BIT"):
             data = np.transpose(data)
             data *= 255
             for volnr, vol in enumerate(data):
-                filepath = os.path.join(voltexdir, 'vol%04d.raw_8bit' % volnr)
+                filepath = os.path.join(texdir, 'vol%04d.raw_8bit' % volnr)
                 with open(filepath, "wb") as f:
                     f.write(bytes(vol.astype('uint8')))
                 img = bpy.data.images.load(filepath)
@@ -1159,7 +1164,8 @@ def add_voxelvolume_to_collection(name, fpath, sformfile, datarange, dims):
 
     return vvol
 
-def add_scalargroup_to_collection(name, fpath, scalarrange=[0, 1], dimensions=[0, 0, 0]):
+def add_scalargroup_to_collection(name, fpath, scalarrange=[0, 1],
+                                  dimensions=[0, 0, 0, 0]):
     """Add scalargroup to the TractBlender collection."""
 
     tb_ob = tb_utils.active_tb_object()[0]
