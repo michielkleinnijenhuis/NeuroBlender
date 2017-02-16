@@ -23,6 +23,7 @@
 import bpy
 
 import os
+from glob import glob
 import random
 import numpy as np
 import mathutils
@@ -291,11 +292,12 @@ def create_vc_overlay(ob, fpath, name="", is_label=False):
     tb_ob = tb_utils.active_tb_object()[0]
     ca = [tb_ob.scalargroups]  # TODO: all other scalargroups etc
     name = tb_utils.check_name(name, fpath, ca)
+    texdir = "//uvtex_%s" % name
     scalargroup = tb_imp.add_scalargroup_to_collection(name, fpath, 
-                                                       timeseriesrange)
-
+                                                       timeseriesrange,
+                                                       texdir=texdir)
     vg = set_vertex_group(ob, name, scalars=np.mean(timeseries, axis=0))
-    map_to_vertexcolours(ob, scalargroup, [vg])
+    mat = map_to_vertexcolours(ob, scalargroup, [vg])
 
     if timeseries.shape[0] == 1:
         scalargroup.icon = "FORCE_CHARGE"
@@ -307,6 +309,13 @@ def create_vc_overlay(ob, fpath, name="", is_label=False):
             vg = set_vertex_group(ob, tpname, scalars=scalars)
             tb_ov = tb_imp.add_scalar_to_collection(scalargroup, tpname, fpath,
                                                     timeseriesrange)
+
+    abstexdir = bpy.path.abspath(texdir)
+    if os.path.isdir(abstexdir):
+        nfiles = len(glob(os.path.join(abstexdir, '*.png')))
+        if nfiles == len(scalargroup.scalars):
+            load_surface_textures(name, abstexdir,
+                                  len(scalargroup.scalars))
 
 
 def create_vg_annot(ob, fpath, name=""):
@@ -641,6 +650,7 @@ def map_to_vertexcolours(ob, tb_ov, vgs=None, is_label=False, colourtype=""):
 #     ob.data.vertex_colors.active = vc
 #     ob = assign_vc(ob, vc, vgs)
 
+    return mat
 
 def assign_vc(ob, vertexcolours, vgs, labelgroup=[], colour=[0, 0, 0]):
     """Assign RGB values to the vertex_colors attribute.
@@ -774,6 +784,31 @@ def get_voxmat(matname, img, dims, file_format="IMAGE_SEQUENCE",
     texslot.use_map_emission = True
 
     return mat
+
+
+def load_surface_textures(name, directory, nframes):
+    """"""
+
+    try:
+        mat = bpy.data.materials[name]
+    except KeyError:
+        pass
+    else:
+        absdir = bpy.path.abspath(directory)
+        fpath = glob(os.path.join(absdir, '*.png'))[0]
+        bpy.data.images.load(fpath, check_existing=False)
+        fname = os.path.basename(fpath)
+        img = bpy.data.images[fname]
+        img.source = 'SEQUENCE'
+
+        nodes = mat.node_tree.nodes
+        links = mat.node_tree.links
+        itex = nodes["Image Texture"]
+        srgb = nodes["Separate RGB"]
+        itex.image_user.use_auto_refresh = True
+        itex.image_user.frame_duration = nframes
+        itex.image = img
+        links.new(itex.outputs["Color"], srgb.inputs["Image"])
 
 
 def switch_colourmap(cr, colourmap="greyscale"):

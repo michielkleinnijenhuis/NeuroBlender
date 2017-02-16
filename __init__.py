@@ -541,13 +541,17 @@ class TractBlenderOverlayPanel(Panel):
     def drawunit_tri_overlay_info(self, layout, tb, tb_ov):
 
         row = layout.row()
-        row.enabled = False
         row.prop(tb_ov, "filepath")
+#         row.enabled = False
 
         if tb.overlaytype == "scalargroups":
+
             row = layout.row()
-            row.enabled = False
+            row.prop(tb_ov, "texdir")
+
+            row = layout.row()
             row.prop(tb_ov, "range")
+#             row.enabled = False
 
 
 class ObjectListL1(UIList):
@@ -1534,11 +1538,15 @@ class ImportScalarGroups(Operator, ImportHelper):
         name="Name",
         description="Specify a name for the object (default: filename)",
         default="")
-
     parent = StringProperty(
         name="Parent",
         description="The parent of the object",
         default="")
+    texdir = StringProperty(
+        name="Texture directory",
+        description="Directory with textures for this scalargroup",
+        default="",
+        subtype="DIR_PATH")  # TODO
 
     def execute(self, context):
         filenames = [file.name for file in self.files]
@@ -1776,9 +1784,10 @@ class VertexWeight2UV(Operator, ExportHelper):
         group = eval('.'.join(self.data_path.split('.')[:3]))
 
         # prep directory
-        if bpy.data.is_dirty:
+        if not bpy.data.is_saved:
             bpy.ops.wm.save_as_mainfile()
-        group.texdir = "//uvtex_%s" % group.name
+        if not group.texdir:
+            group.texdir = "//uvtex_%s" % group.name
         tb_utils.mkdir_p(bpy.path.abspath(group.texdir))
 
         # set the surface as active object
@@ -1815,7 +1824,7 @@ class VertexWeight2UV(Operator, ExportHelper):
                              index=i, matname="bake_vcol")
             img.source = 'GENERATED'
             bpy.ops.object.bake()
-            img.filepath_raw = join(group.texdir, "img_" + item.name + ".png")
+            img.filepath_raw = join(group.texdir, item.name[-5:] + ".png")
             img.save()
             vc = vcs[vcs.active_index]
             vcs.remove(vc)
@@ -3509,6 +3518,12 @@ def timeseries_object_enum_callback(self, context):
     return items
 
 
+def texture_directory_update(self, context):
+    """Update the texture."""
+
+    tb_mat.load_surface_textures(self.name, self.texdir, len(self.scalars))
+
+
 def update_viewport():
     """Trigger viewport updates"""
 
@@ -3538,7 +3553,8 @@ class ScalarProperties(PropertyGroup):
         description="The name of the scalar overlay")
     filepath = StringProperty(
         name="Filepath",
-        description="The filepath to the scalar overlay")
+        description="The filepath to the scalar overlay",
+        subtype="FILE_PATH")
     icon = StringProperty(
         name="Icon",
         description="Icon for scalar overlays",
@@ -3711,7 +3727,8 @@ class ScalarGroupProperties(PropertyGroup):
         description="The name of the time series overlay")
     filepath = StringProperty(
         name="Filepath",
-        description="The filepath to the time series overlay")
+        description="The filepath to the time series overlay",
+        subtype="FILE_PATH")
     icon = StringProperty(
         name="Icon",
         description="Icon for time series overlays",
@@ -3871,7 +3888,9 @@ class ScalarGroupProperties(PropertyGroup):
 
     texdir = StringProperty(
         name="Texture directory",
-        description="The directory with textures")
+        description="The directory with textures",
+        subtype="DIR_PATH",
+        update=texture_directory_update)
     texformat = EnumProperty(
         name="Volume texture file format",
         description="Choose a format to save volume textures",
@@ -3889,7 +3908,8 @@ class LabelGroupProperties(PropertyGroup):
         description="The name of the label overlay")
     filepath = StringProperty(
         name="Filepath",
-        description="The filepath to the label overlay")
+        description="The filepath to the label overlay",
+        subtype="FILE_PATH")
     icon = StringProperty(
         name="Icon",
         description="Icon for label overlays",
@@ -3975,7 +3995,9 @@ class LabelGroupProperties(PropertyGroup):
 
     texdir = StringProperty(
         name="Texture directory",
-        description="The directory with textures")
+        description="The directory with textures",
+        subtype="DIR_PATH",
+        update=texture_directory_update)
     texformat = EnumProperty(
         name="Volume texture file format",
         description="Choose a format to save volume textures",
@@ -3993,7 +4015,8 @@ class BorderGroupProperties(PropertyGroup):
         description="The name of the border overlay")
     filepath = StringProperty(
         name="Filepath",
-        description="The filepath to the border overlay")
+        description="The filepath to the border overlay",
+        subtype="FILE_PATH")
     icon = StringProperty(
         name="Icon",
         description="Icon for border overlays",
@@ -4020,9 +4043,18 @@ class BorderGroupProperties(PropertyGroup):
         default=0,
         min=0)
 
-    uvtexdir = StringProperty(
-        name="UV directory",
-        description="The directory with UV image textures")
+    texdir = StringProperty(
+        name="Texture directory",
+        description="The directory with textures",
+        subtype="DIR_PATH",
+        update=texture_directory_update)
+    texformat = EnumProperty(
+        name="Volume texture file format",
+        description="Choose a format to save volume textures",
+        default="IMAGE_SEQUENCE",
+        items=[("IMAGE_SEQUENCE", "IMAGE_SEQUENCE", "IMAGE_SEQUENCE", 0),
+               ("STRIP", "STRIP", "STRIP", 1),
+               ("RAW_8BIT", "RAW_8BIT", "RAW_8BIT", 2)])
 
 
 class TractProperties(PropertyGroup):
@@ -4034,7 +4066,8 @@ class TractProperties(PropertyGroup):
         default="")
     filepath = StringProperty(
         name="Filepath",
-        description="The filepath to the tract")
+        description="The filepath to the tract",
+        subtype="FILE_PATH")
     icon = StringProperty(
         name="Icon",
         description="Icon for tract objects",
@@ -4144,7 +4177,8 @@ class SurfaceProperties(PropertyGroup):
         default="")
     filepath = StringProperty(
         name="Filepath",
-        description="The filepath to the surface")
+        description="The filepath to the surface",
+        subtype="FILE_PATH")
     icon = StringProperty(
         name="Icon",
         description="Icon for surface objects",
@@ -4251,7 +4285,8 @@ class VoxelvolumeProperties(PropertyGroup):
         default="")
     filepath = StringProperty(
         name="Filepath",
-        description="The filepath to the voxelvolume")
+        description="The filepath to the voxelvolume",
+        subtype="FILE_PATH")
     icon = StringProperty(
         name="Icon",
         description="Icon for surface objects",
@@ -4455,7 +4490,9 @@ class VoxelvolumeProperties(PropertyGroup):
 
     texdir = StringProperty(
         name="Texture directory",
-        description="The directory with textures")
+        description="The directory with textures",
+        subtype="DIR_PATH",
+        update=texture_directory_update)
     texformat = EnumProperty(
         name="Volume texture file format",
         description="Choose a format to save volume textures",

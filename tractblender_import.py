@@ -1164,7 +1164,7 @@ def add_voxelvolume_to_collection(name, fpath, sformfile, datarange, dims):
     return vvol
 
 def add_scalargroup_to_collection(name, fpath, scalarrange=[0, 1],
-                                  dimensions=[0, 0, 0, 0]):
+                                  dimensions=[0, 0, 0, 0], texdir=""):
     """Add scalargroup to the TractBlender collection."""
 
     tb_ob = tb_utils.active_tb_object()[0]
@@ -1180,6 +1180,7 @@ def add_scalargroup_to_collection(name, fpath, scalarrange=[0, 1],
     scalargroup.filepath = fpath
     scalargroup.range = scalarrange
     scalargroup.dimensions = dimensions
+    scalargroup.texdir = texdir
 
     return scalargroup
 
@@ -1206,7 +1207,7 @@ def add_scalar_to_collection(scalargroup, name, fpath, scalarrange):
 
     return scalar
 
-def add_labelgroup_to_collection(name, fpath, dimensions=[0, 0, 0]):
+def add_labelgroup_to_collection(name, fpath, dimensions=[0, 0, 0, 0]):
     """Add labelgroup to the TractBlender collection."""
 
     tb_ob = tb_utils.active_tb_object()[0]

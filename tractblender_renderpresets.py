@@ -1142,20 +1142,9 @@ def animate_timeseries(anim):
     mat = bpy.data.materials[anim.anim_timeseries]
     scalargroup = tb.surfaces[anim.anim_surface].scalargroups[anim.anim_timeseries]
 
-    fname = "img_%s.tp000.png" % anim.anim_timeseries
-    fpath = os.path.join(scalargroup.texdir, fname)
-    bpy.data.images.load(fpath, check_existing=False)
-    img = bpy.data.images[fname]
-    img.source = 'SEQUENCE'
+    if "surfaces" in scalargroup.path_from_id():
 
-    nodes = mat.node_tree.nodes
-    links = mat.node_tree.links
-    itex = nodes["Image Texture"]
-    srgb = nodes["Separate RGB"]
-    itex.image_user.use_auto_refresh = True
-    itex.image_user.frame_duration = len(scalargroup.scalars)
-    itex.image = img
-    links.new(itex.outputs["Color"], srgb.inputs["Image"])
+        tb_mat.load_surface_textures(ts_name, scalargroup.texdir, len(scalargroup.scalars))
 
     if "voxelvolumes" in group.path_from_id():
         img = bpy.data.images[group.name]
