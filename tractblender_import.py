@@ -199,9 +199,9 @@ def import_voxelvolume(directory, files, specname,
     name = tb_utils.check_name(specname, fpath, ca)
 
     # prep texture directory
-    # TODO: make sure project has been saved
     if not bpy.data.is_saved:
-        bpy.ops.wm.save_as_mainfile('INVOKE_DEFAULT')
+        bpy.ops.wm.save_as_mainfile()
+
     texdir = "//voltex_%s" % name
     tb_utils.mkdir_p(bpy.path.abspath(texdir))
 
