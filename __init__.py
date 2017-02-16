@@ -1668,7 +1668,7 @@ class WeightPaintMode(Operator):
 
         bpy.ops.object.mode_set(mode="WEIGHT_PAINT")
 
-        index_update_func()
+        index_scalars_update_func()
 
         return {"FINISHED"}
 
