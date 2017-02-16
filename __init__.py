@@ -739,6 +739,7 @@ class ObjectListTS(UIList):
 class ObjectListOperations(Operator):
     bl_idname = "tb.oblist_ops"
     bl_label = "Objectlist operations"
+    bl_options = {"REGISTER", "UNDO"}
 
     action = bpy.props.EnumProperty(
         items=(('UP_L1', "UpL1", ""),
@@ -910,10 +911,9 @@ class ObjectListOperations(Operator):
                         infostring = 'slicebox "%s" not found'
                         info += [infostring % name+"SliceBox"]
                     else:
+                        for ms in ob.material_slots:
+                            self.remove_material(ob, ms.name)
                         bpy.data.objects.remove(slicebox)
-                        # FIXME: causes crash
-#                         for ms in ob.material_slots:
-#                             self.remove_material(ob, ms.name)
                 # remove all children
                 fun = eval("self.remove_%s_overlays" % self.type)
                 fun(tb_ob, ob)
