@@ -408,16 +408,12 @@ class TractBlenderOverlayPanel(Panel):
                 col = row.column()
                 col.operator("tb.vw2vc", text="", icon="GROUP_VCOL")
                 col.enabled = obtype == 'surfaces'
-#                 if ovtype == "scalargroups":
-#                     if tb_ov.index_scalars >= len(tb_ov.scalars):
-#                         col.enabled = False
-#                     else:
-#                         tpname = tb_ov.scalars[tb_ov.index_scalars].name
-#                         col.enabled = ob.data.vertex_colors.find(tpname) == -1
 
                 col = row.column()
                 col.operator("tb.vw2uv", text="", icon="GROUP_UVS")
                 col.enabled = obtype == 'surfaces'
+                col = row.column()
+                col.prop(tb, "uv_bakeall", toggle=True)
 
                 ob = bpy.data.objects[tb_ob.name]
 
@@ -437,6 +433,7 @@ class TractBlenderOverlayPanel(Panel):
 
                 if obtype == "voxelvolumes":
                     self.drawunit_tri(layout, "overlay_slices", tb, tb_ov)
+
                 self.drawunit_tri(layout, "overlay_info", tb, tb_ov)
 
     def drawunit_tri_overlay_material(self, layout, tb, tb_ov):
@@ -1682,113 +1679,143 @@ class VertexWeight2VertexColors(Operator):
     bl_description = "Bake vertex group weights to vertex colours"
     bl_options = {"REGISTER"}
 
-    name = StringProperty(
+    itemname = StringProperty(
         name="Name",
-        description="Specify a name for the object (default: filename)",
+        description="Specify the vertex group to bake",
         default="")
-    idx = IntProperty(
+    data_path = StringProperty(
+        name="data path",
+        description="Specify object data path",
+        default="")
+    index = IntProperty(
         name="index",
         description="index",
         default=-1)
-
-    def execute(self, context):
-
-        tb_ob = tb_utils.active_tb_object()[0]
-        group = tb_utils.active_tb_overlay()[0]
-        ob = bpy.data.objects[tb_ob.name]
-
-        if not self.name:
-            self.name = group.name
-
-        vcs = ob.data.vertex_colors
-        vc = vcs.new(name=self.name)
-        ob.data.vertex_colors.active = vc
-
-        if hasattr(group, 'scalars'):
-            if self.idx == -1:
-                self.idx = group.index_scalars
-            vgs = [ob.vertex_groups[group.scalars[self.idx].name]]
-            ob = tb_mat.assign_vc(ob, vc, vgs)
-            mat = ob.data.materials[self.name]
-            nodes = mat.node_tree.nodes
-            nodes["Attribute"].attribute_name = self.name
-
-        elif hasattr(group, 'labels'):
-            vgs = [ob.vertex_groups[label.name] for label in group.labels]
-            ob = tb_mat.assign_vc(ob, vc, vgs, group, colour=[0.5, 0.5, 0.5])
-
-        # do not switch to VERTEX_PAINT mode to prevent accidental painting?
-        bpy.ops.object.mode_set(mode="VERTEX_PAINT")
-
-        # FIXME
-        self.name = ""
-        self.idx = -1
-
-        return {"FINISHED"}
-
-
-class VertexWeight2UV(Operator):
-    bl_idname = "tb.vw2uv"
-    bl_label = "Bake vertex weights"
-    bl_description = "Bake vertex weights to texture (via vcol)"
-    bl_options = {"REGISTER", "UNDO", "PRESET"}
+    matname = StringProperty(
+        name="Name",
+        description="Specify the material to bake to",
+        default="")
 
     def execute(self, context):
 
         scn = context.scene
         tb = scn.tb
 
-        samples = scn.cycles.samples
-        preview_samples = scn.cycles.preview_samples
-        scn.cycles.samples = 5
-        scn.cycles.preview_samples = 5
-        scn.cycles.bake_type = 'EMIT'
+        tb_ob = eval('.'.join(self.data_path.split('.')[:2]))
+        group = eval('.'.join(self.data_path.split('.')[:3]))
+        ob = bpy.data.objects[tb_ob.name]
+
+        vcs = ob.data.vertex_colors
+        vc = vcs.new(name=self.itemname)
+        ob.data.vertex_colors.active = vc
+
+        if hasattr(group, 'scalars'):
+            scalar = eval(self.data_path)
+            vgs = [ob.vertex_groups[scalar.name]]
+            ob = tb_mat.assign_vc(ob, vc, vgs)
+            mat = ob.data.materials[self.matname]
+            nodes = mat.node_tree.nodes
+            nodes["Attribute"].attribute_name = self.itemname
+
+        elif hasattr(group, 'labels'):
+            vgs = [ob.vertex_groups[label.name] for label in group.labels]
+            ob = tb_mat.assign_vc(ob, vc, vgs, group, colour=[0.5, 0.5, 0.5])
+
+        bpy.ops.object.mode_set(mode="VERTEX_PAINT")
+
+        return {"FINISHED"}
+
+    def invoke(self, context, event):
 
         tb_ob = tb_utils.active_tb_object()[0]
-        group = tb_utils.active_tb_overlay()[0]
+        tb_ov = tb_utils.active_tb_overlay()[0]
+        tb_it = tb_utils.active_tb_overlayitem()[0]
 
-        if not bpy.path.abspath("//"):
-            bpy.ops.tb.save_blend('INVOKE_DEFAULT')
-        directory = bpy.path.abspath("//")  # FIXME: first time defaults to /Users/michielk/workspace
-        uvtexdir = join(directory, "uvtex_" + group.name)
-        tb_utils.mkdir_p(uvtexdir)
+        if hasattr(tb_ov, 'scalars'):
+            self.index = tb_ov.index_scalars
+        elif hasattr(tb_ov, 'labels'):
+            self.index = tb_ov.index_labels
 
+        self.data_path = tb_it.path_from_id()
+
+        self.itemname = tb_it.name
+        self.matname = tb_ov.name
+
+        return self.execute(context)
+
+
+class VertexWeight2UV(Operator, ExportHelper):
+    bl_idname = "tb.vw2uv"
+    bl_label = "Bake vertex weights"
+    bl_description = "Bake vertex weights to texture (via vcol)"
+    bl_options = {"REGISTER", "UNDO", "PRESET"}
+
+    itemname = StringProperty(
+        name="Name",
+        description="Specify the vertex group to bake",
+        default="")
+    data_path = StringProperty(
+        name="data path",
+        description="Specify object data path",
+        default="")
+    index = IntProperty(
+        name="index",
+        description="index",
+        default=-1)
+    matname = StringProperty(
+        name="Name",
+        description="Specify the material name for the group",
+        default="")
+
+    def execute(self, context):
+
+        scn = context.scene
+        tb = scn.tb
+
+        tb_ob = eval('.'.join(self.data_path.split('.')[:2]))
+        group = eval('.'.join(self.data_path.split('.')[:3]))
+
+        # prep directory
+        if bpy.data.is_dirty:
+            bpy.ops.wm.save_as_mainfile()
+        group.texdir = "//uvtex_%s" % group.name
+        tb_utils.mkdir_p(bpy.path.abspath(group.texdir))
+
+        # set the surface as active object
         surf = bpy.data.objects[tb_ob.name]
         for ob in bpy.data.objects:
             ob.select = False
         surf.select = True
         context.scene.objects.active = surf
 
-        vcname = "bake_vcol"
-        vcs = surf.data.vertex_colors
+        # save old and set new render settings for baking 
+        samples = scn.cycles.samples
+        preview_samples = scn.cycles.preview_samples
+        scn.cycles.samples = 5
+        scn.cycles.preview_samples = 5
+        scn.cycles.bake_type = 'EMIT'
 
-        img = bpy.data.images.new(vcname, width=4096, height=4096)
-        img.file_format = 'PNG'
-
-        mat = tb_mat.make_material_bake_cycles(vcname)
+        # save old and set new materials for baking 
         ami = surf.active_material_index
         matnames = [ms.name for ms in surf.material_slots]
         surf.data.materials.clear()
-        surf.data.materials.append(mat)
+        img = self.create_baking_material(surf, tb.uv_resolution, "bake_vcol")
 
-        nodes = mat.node_tree.nodes
-        nodes['Image Texture'].image = img
-        nodes["Attribute"].attribute_name = vcname
-        for node in nodes:
-            node.select = False
-        nodes['Material Output'].select = True
-        nodes.active = nodes['Material Output']
+        # select the item(s) to bake
+        dp_split = re.findall(r"[\w']+", self.data_path)
+        items = eval("group.%s" % dp_split[-2])
+        if not tb.uv_bakeall:
+            items = [items[self.index]]
 
-        if hasattr(group, 'scalars'):
-            items = group.scalars
-        elif hasattr(group, 'labels'):
-            items = [group]
-
+        # bake
+        vcs = surf.data.vertex_colors
         for i, item in enumerate(items):
-            bpy.ops.tb.vw2vc(name=vcname, idx=i)
-            img.filepath_raw = join(uvtexdir, "img_" + item.name + ".png")
-            img.reload()
+            dp = item.path_from_id()
+            bpy.ops.tb.vw2vc(itemname=item.name, data_path=dp,
+                             index=i, matname="bake_vcol")
+            img.source = 'GENERATED'
             bpy.ops.object.bake()
+            img.filepath_raw = join(group.texdir, "img_" + item.name + ".png")
             img.save()
             vc = vcs[vcs.active_index]
             vcs.remove(vc)
@@ -1803,6 +1830,49 @@ class VertexWeight2UV(Operator):
 
         return {"FINISHED"}
 
+    def invoke(self, context, event):
+
+        tb_ob = tb_utils.active_tb_object()[0]
+        tb_ov = tb_utils.active_tb_overlay()[0]
+        tb_it = tb_utils.active_tb_overlayitem()[0]
+
+        if hasattr(tb_ov, 'scalars'):
+            self.index = tb_ov.index_scalars
+        elif hasattr(tb_ov, 'labels'):
+            self.index = tb_ov.index_labels
+        self.data_path = tb_it.path_from_id()
+        self.itemname = tb_it.name
+        self.matname = tb_ov.name
+
+        if bpy.data.is_saved:
+            return self.execute(context)
+        else:
+            bpy.ops.wm.save_as_mainfile('INVOKE_DEFAULT')
+            return {"RUNNING_MODAL"}
+
+    def create_baking_material(self, surf, uvres, name):
+        """Create a material to bake vertex colours to."""
+
+        mat = tb_mat.make_material_bake_cycles(name)
+        surf.data.materials.append(mat)
+
+        nodes = mat.node_tree.nodes
+        itex = nodes['Image Texture']
+        attr = nodes['Attribute']
+        out = nodes['Material Output']
+
+        img = bpy.data.images.new(name, width=uvres, height=uvres)
+        img.file_format = 'PNG'
+        img.source = 'GENERATED'
+        itex.image = img
+        attr.attribute_name = name
+
+        for node in nodes:
+            node.select = False
+        out.select = True
+        nodes.active = out
+
+        return img
 
 class UnwrapSurface(Operator):
     bl_idname = "tb.unwrap_surface"
@@ -1810,32 +1880,46 @@ class UnwrapSurface(Operator):
     bl_description = "Unwrap a surface with sphere projection"
     bl_options = {"REGISTER", "UNDO", "PRESET"}
 
+    name_surface = StringProperty(
+        name="Surface name",
+        description="Specify the name for the surface to unwrap",
+        default="")
+    name_sphere = StringProperty(
+        name="Sphere name",
+        description="Specify the name for the sphere object to unwrap from",
+        default="")
+
     def execute(self, context):
 
         scn = context.scene
-        tb = scn.tb
 
-        tb_ob = tb_utils.active_tb_object()[0]
+        surf = bpy.data.objects[self.name_surface]
+        sphere = bpy.data.objects[self.name_sphere]
 
-        surf = bpy.data.objects[tb_ob.name]
-        sphere = bpy.data.objects[tb_ob.sphere]
+        # select sphere and project
         for ob in bpy.data.objects:
             ob.select = False
-
-        # select sphere
         sphere.select = True
-        bpy.context.scene.objects.active = sphere
+        scn.objects.active = sphere
         bpy.ops.object.mode_set(mode='EDIT')
         bpy.ops.uv.sphere_project()
         bpy.ops.object.mode_set(mode='OBJECT')
         # TODO: perhaps do scaling here to keep all vertices within range
 
-        # select surf then sphere
+        # copy the UV map: select surf then sphere
         surf.select = True
-        bpy.context.scene.objects.active = sphere
+        scn.objects.active = sphere
         bpy.ops.object.join_uvs()
 
         return {"FINISHED"}
+
+    def invoke(self, context, event):
+
+        tb_ob = tb_utils.active_tb_object()[0]
+        self.name_surface = tb_ob.name
+        self.name_sphere = tb_ob.sphere
+
+        return self.execute(context)
 
 
 class TractBlenderScenePanel(Panel):
