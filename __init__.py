@@ -4340,7 +4340,7 @@ class VoxelvolumeProperties(PropertyGroup):
         items=[("SURFACE", "Surface",
                 "Switch to surface rendering", 0),
                ("VOLUME", "Volume",
-                "Switch to volume rendering", 1)],
+                "Switch to volume rendering", 2)],
         update=rendertype_enum_update,
         default="VOLUME")
 

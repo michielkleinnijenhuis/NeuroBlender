@@ -510,14 +510,13 @@ def voxelvolume_rendertype_driver(mat, item):
     tb = scn.tb
 
     driver = mat.driver_add("type", -1).driver
-    driver.type = 'SCRIPTED'
+    driver.type = 'AVERAGE'
     vv_idx = tb.index_voxelvolumes
 
     data_path = "%s.rendertype" % item.path_from_id()
     tb_rp.create_var(driver, "type",
                      'SINGLE_PROP', 'SCENE',
                      scn, data_path)
-    driver.expression = "type"
 
 
 def voxelvolume_slice_drivers_yoke(parent, child, prop, index):
