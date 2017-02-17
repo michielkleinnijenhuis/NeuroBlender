@@ -1032,9 +1032,6 @@ def prep_nifti(fpath, name, is_label=False, file_format="RAW_8BIT", texdir=""):
     written as an [x,y] PNG image sequence (datarange=[0,1]) or
     as an 8bit raw binary volume with [x,y,z] layout (datarange=[0,255]).
     Labelvolumes: negative labels are ignored (i.e. set to 0)
-    Only 3D volumes are handled.
-    TODO: check which colorspace is expected of the data
-    ...and convert here accordingly
     """
 
     scn = bpy.context.scene
@@ -1061,52 +1058,71 @@ def prep_nifti(fpath, name, is_label=False, file_format="RAW_8BIT", texdir=""):
 
         data, datarange = normalize_data(data)
 
-        if file_format == "IMAGE_SEQUENCE":
-            data = np.transpose(data)
-            for volnr, vol in enumerate(data):
-                voldir = os.path.join(texdir, 'imseq', 'vol%04d' % volnr)
-                tb_utils.mkdir_p(bpy.path.abspath(voldir))
-                vol = np.reshape(vol, [dims[2], -1])
-                img = bpy.data.images.new("img", width=dims[0], height=dims[1])
-                for slcnr, slc in enumerate(vol):
-                    pixels = []
-                    for pix in slc:
-                        pixels.append([pix, pix, pix, float(pix != 0)])
-                    pixels = [chan for px in pixels for chan in px]
-                    img.pixels = pixels
-                    slcname = str(slcnr).zfill(4) + ".png"
-                    filepath = os.path.join(voldir, slcname)
-                    img.filepath_raw = bpy.path.abspath(filepath)
-                    img.file_format = 'PNG'
-                    img.save()
-#                     img.save_render(img.filepath_raw)
-        elif file_format == 'STRIP':  # FIXME
-            data = np.transpose(data)
-            img = bpy.data.images.new("img", width=dims[2]*dims[1], height=dims[0])
-            for volnr, vol in enumerate(data):
-                vol = np.reshape(vol, [-1, 1])
-                stripdir = os.path.join(texdir, 'strip')
-                tb_utils.mkdir_p(bpy.path.abspath(stripdir))
-                pixels = []
-                for pix in vol:
-                    pixels.append([pix, pix, pix, float(pix != 0)])
-                pixels = [chan for px in pixels for chan in px]
-                img.pixels = pixels
-                filepath = os.path.join(stripdir, 'vol%04d.png' % volnr)
-                img.filepath = bpy.path.abspath(filepath)
-                img.file_format = 'PNG'
-                img.save()
-        elif file_format == "RAW_8BIT":
-            data = np.transpose(data)
-            data *= 255
-            for volnr, vol in enumerate(data):
-                filepath = os.path.join(texdir, 'vol%04d.raw_8bit' % volnr)
-                with open(filepath, "wb") as f:
-                    f.write(bytes(vol.astype('uint8')))
-                img = bpy.data.images.load(filepath)
-                img.filepath = bpy.path.abspath(filepath)
+        imdir = os.path.join(texdir, file_format)
+        absimdir = bpy.path.abspath(imdir)
+        tb_utils.mkdir_p(absimdir)
+
+        data = np.transpose(data)
+        fun = eval("write_to_%s" % file_format.lower())
+        img = fun(absimdir, data, dims)
 
     return img, dims, datarange, labels
+
+
+def write_to_image_sequence(absimdir, data, dims):
+    """"""
+
+    for volnr, vol in enumerate(data):
+        voldir = os.path.join(absimdir, 'vol%04d' % volnr)
+        tb_utils.mkdir_p(voldir)
+        vol = np.reshape(vol, [dims[2], -1])
+        img = bpy.data.images.new("img", width=dims[0], height=dims[1])
+        for slcnr, slc in enumerate(vol):
+            pixels = []
+            for pix in slc:
+                pixels.append([pix, pix, pix, float(pix != 0)])
+            pixels = [chan for px in pixels for chan in px]
+            img.pixels = pixels
+            slcname = str(slcnr).zfill(4) + ".png"
+            filepath = os.path.join(voldir, slcname)
+            img.filepath_raw = bpy.path.abspath(filepath)
+            img.file_format = 'PNG'
+            img.save()
+#             img.save_render(img.filepath_raw)
+
+    return img
+
+
+def write_to_strip(absimdir, data, dims):
+    """"""
+
+    img = bpy.data.images.new("img", width=dims[2]*dims[1], height=dims[0])
+    for volnr, vol in enumerate(data):
+        vol = np.reshape(vol, [-1, 1])
+        pixels = []
+        for pix in vol:
+            pixels.append([pix, pix, pix, float(pix != 0)])
+        pixels = [chan for px in pixels for chan in px]
+        img.pixels = pixels
+        img.filepath = os.path.join(absimdir, 'vol%04d.png' % volnr)
+        img.file_format = 'PNG'
+        img.save()
+
+    return img
+
+
+def write_to_raw_8bit(absimdir, data, dims):
+    """"""
+
+    data *= 255
+    for volnr, vol in enumerate(data):
+        filepath = os.path.join(absimdir, 'vol%04d.raw_8bit' % volnr)
+        with open(filepath, "wb") as f:
+            f.write(bytes(vol.astype('uint8')))
+        img = bpy.data.images.load(filepath)
+        img.filepath = filepath
+
+    return img
 
 
 def add_tract_to_collection(name, fpath, sformfile,
