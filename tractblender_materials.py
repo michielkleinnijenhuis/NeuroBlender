@@ -741,6 +741,8 @@ def get_voxmat(matname, img, dims, file_format="IMAGE_SEQUENCE",
     tex = bpy.data.textures.new(matname, 'VOXEL_DATA')
     tex.use_preview_alpha = True
     tex.use_color_ramp = True
+    if file_format == 'STRIP':  # TODO: this should be handled with cycles
+        file_format = "IMAGE_SEQUENCE"
     tex.voxel_data.file_format = file_format
     tex.voxel_data.use_still_frame = True
     tex.voxel_data.still_frame = scn.frame_current
@@ -752,7 +754,7 @@ def get_voxmat(matname, img, dims, file_format="IMAGE_SEQUENCE",
         tex.image = img
     else:
         tex.voxel_data.filepath = bpy.path.abspath(img.filepath)
-        tex.voxel_data.resolution = [int(dim) for dim in dims]
+        tex.voxel_data.resolution = [int(dim) for dim in dims[:3]]
 
     if is_label:
         labels = labelgroup.labels
