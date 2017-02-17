@@ -203,32 +203,38 @@ class TractBlenderBasePanel(Panel):
     def drawunit_tri_info(self, layout, tb, tb_ob):
 
         row = layout.row()
+        row.prop(tb_ob, "filepath")
         row.enabled = False
-        row.prop(tb_ob, "filepath",
-                 text="Path", emboss=False)
 
         if tb.objecttype == "tracts":
+
             row = layout.row()
-            row.enabled = False
             row.prop(tb_ob, "nstreamlines",
                      text="Number of streamlines", emboss=False)
-            row = layout.row()
             row.enabled = False
+
+            row = layout.row()
             row.prop(tb_ob, "streamlines_interpolated",
                      text="Interpolation factor", emboss=False)
-            row = layout.row()
             row.enabled = False
+
+            row = layout.row()
             row.prop(tb_ob, "tract_weeded",
                      text="Tract weeding factor", emboss=False)
+            row.enabled = False
 
         elif tb.objecttype == 'surfaces':
             pass
 
         elif tb.objecttype == 'voxelvolumes':
+
             row = layout.row()
-            row.enabled = False
+            row.prop(tb_ob, "texdir")
+
+            row = layout.row()
             row.prop(tb_ob, "range",
                      text="Datarange", emboss=False)
+            row.enabled = False
 
     def drawunit_material(self, layout, tb_ob):
 
@@ -542,7 +548,7 @@ class TractBlenderOverlayPanel(Panel):
 
         row = layout.row()
         row.prop(tb_ov, "filepath")
-#         row.enabled = False
+        row.enabled = False
 
         if tb.overlaytype == "scalargroups":
 
