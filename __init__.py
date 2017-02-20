@@ -22,6 +22,7 @@
 
 import bpy
 
+from bpy.app.handlers import persistent
 from bpy_extras.io_utils import ImportHelper, ExportHelper
 from bpy.types import (Panel,
                        Operator,
@@ -40,8 +41,6 @@ from bpy.props import (BoolProperty,
                        PointerProperty)
 
 import os
-from os import listdir
-from os.path import dirname, join
 from shutil import copy
 import numpy as np
 import mathutils
@@ -133,9 +132,12 @@ class TractBlenderBasePanel(Panel):
                           rows=2)
         col = row.column(align=True)
         if addopt:
+            if ((uilistlevel == "L2") and 
+                data.path_from_id().startswith("tb.voxelvolumes")):
+                type = "voxelvolumes"
             col.operator("tb.import_" + type,
                          icon='ZOOMIN',
-                         text="")
+                         text="").parentpath = data.path_from_id()
         col.operator("tb.oblist_ops",
                      icon='ZOOMOUT',
                      text="").action = 'REMOVE_' + uilistlevel
@@ -184,6 +186,8 @@ class TractBlenderBasePanel(Panel):
     def drawunit_tri_material(self, layout, tb, tb_ob):
 
         if tb.objecttype == "voxelvolumes":
+            row = layout.row()
+            row.prop(tb_ob, "rendertype", expand=True)
             tex = bpy.data.textures[tb_ob.name]
             self.drawunit_texture(layout, tex, tb_ob)
         elif tb.objecttype == "surfaces":
@@ -269,9 +273,6 @@ class TractBlenderBasePanel(Panel):
         if text:
             row = layout.row()
             row.label(text=text)
-
-        row = layout.row()
-        row.prop(tb_coll, "rendertype", expand=True)
 
         row = layout.row()
         row.separator()
@@ -404,36 +405,30 @@ class TractBlenderOverlayPanel(Panel):
                 pass
             else:
 
-                row = layout.row()
+                if ((ovtype == "scalargroups") and (len(tb_ov.scalars) > 1)):
+                    row = layout.row()
+                    row.template_list("ObjectListTS", "",
+                                      tb_ov, "scalars",
+                                      tb_ov, "index_scalars",
+                                      rows=2, type="COMPACT")
 
-                col = row.column()
-                col.operator("tb.wp_preview", text="", icon="GROUP_VERTEX")
-#                 col.enabled = bpy.context.mode != 'PAINT_WEIGHT'
-                col.enabled = obtype == 'surfaces'
+                if obtype == 'surfaces':
+                    row = layout.row()
+                    col = row.column()
+                    col.operator("tb.wp_preview", text="", icon="GROUP_VERTEX")
+                    col = row.column()
+                    col.operator("tb.vw2vc", text="", icon="GROUP_VCOL")
+                    col = row.column()
+                    col.operator("tb.vw2uv", text="", icon="GROUP_UVS")
+                    col = row.column()
+                    col.prop(tb, "uv_bakeall", toggle=True)
 
-                col = row.column()
-                col.operator("tb.vw2vc", text="", icon="GROUP_VCOL")
-                col.enabled = obtype == 'surfaces'
-
-                col = row.column()
-                col.operator("tb.vw2uv", text="", icon="GROUP_UVS")
-                col.enabled = obtype == 'surfaces'
-                col = row.column()
-                col.prop(tb, "uv_bakeall", toggle=True)
-
-                ob = bpy.data.objects[tb_ob.name]
+                elif obtype == "voxelvolumes":
+                    row = layout.row()
+                    row.prop(tb_ov, "rendertype", expand=True)
 
                 if ovtype == "scalargroups":
-
-                    if len(tb_ov.scalars) > 1:
-                        col = row.column()
-                        col.template_list("ObjectListTS", "",
-                                          tb_ov, "scalars",
-                                          tb_ov, "index_scalars",
-                                          rows=2, type="COMPACT")
-
                     self.drawunit_tri(layout, "overlay_material", tb, tb_ov)
-
                 else:
                     self.drawunit_tri(layout, "items", tb, tb_ov)
 
@@ -459,7 +454,10 @@ class TractBlenderOverlayPanel(Panel):
             self.drawunit_material(layout, nt, tb_ov)
 
         elif tb.objecttype == "voxelvolumes":
-            tex = bpy.data.textures[tb_ov.name]
+            scalar = tb_ov.scalars[tb_ov.index_scalars]
+            mat = bpy.data.materials[scalar.matname]
+            tex = mat.texture_slots[scalar.tex_idx].texture
+            # FIXME: can setup drivers on color stops here to control it with one ramp
             self.drawunit_texture(layout, tex, tb_ov)
 
     def drawunit_tri_items(self, layout, tb, tb_ov):
@@ -1247,6 +1245,10 @@ class ImportTracts(Operator, ImportHelper):
         name="Name",
         description="Specify a name for the object (default: filename)",
         default="")
+    parentpath = StringProperty(
+        name="Parentpath",
+        description="The path to the parent of the object",
+        default="tb")
     interpolate_streamlines = FloatProperty(
         name="Interpolate streamlines",
         description="Interpolate the individual streamlines",
@@ -1308,10 +1310,10 @@ class ImportTracts(Operator, ImportHelper):
 
         filenames = [file.name for file in self.files]
         if not filenames:
-            filenames = listdir(self.directory)
+            filenames = os.listdir(self.directory)
 
         for f in filenames:
-            fpath = join(self.directory, f)
+            fpath = os.path.join(self.directory, f)
 
             ca = [bpy.data.objects,
                   bpy.data.materials]
@@ -1383,6 +1385,10 @@ class ImportSurfaces(Operator, ImportHelper):
         name="Name",
         description="Specify a name for the object (default: filename)",
         default="")
+    parentpath = StringProperty(
+        name="Parentpath",
+        description="The path to the parent of the object",
+        default="tb")
     beautify = BoolProperty(
         name="Beautify",
         description="Apply initial smoothing on surfaces",
@@ -1450,6 +1456,44 @@ class ImportSurfaces(Operator, ImportHelper):
         return {"RUNNING_MODAL"}
 
 
+def file_update(self, context):
+    ca = [bpy.data.meshes, bpy.data.materials, bpy.data.textures]
+    self.name = tb_utils.check_name(self.files[0].name, "", ca)
+
+
+def name_update(self, context):
+    self.texdir = "//voltex_%s" % self.name
+
+
+def texdir_update(self, context):
+    self.has_valid_texdir = tb_imp.check_texdir(self.texdir,
+                                                self.texformat,
+                                                overwrite=False)
+
+
+def is_overlay_update(self, context):
+
+    if self.is_overlay:
+        try:
+            tb_ob = tb_utils.active_tb_object()[0]
+        except IndexError:
+            pass  # no tb_obs found
+        else:
+            self.parentpath = tb_ob.path_from_id()
+    else:
+        self.parentpath = context.scene.tb.path_from_id()
+
+
+# class ImportFilesCollection(PropertyGroup):
+#     name = StringProperty(
+#             name="File Path",
+#             description="Filepath used for importing the file",
+#             maxlen=1024,
+#             subtype='FILE_PATH',
+#             update=file_update)
+# bpy.utils.register_class(ImportFilesCollection)
+
+
 class ImportVoxelvolumes(Operator, ImportHelper):
     bl_idname = "tb.import_voxelvolumes"
     bl_label = "Import voxelvolumes"
@@ -1457,17 +1501,63 @@ class ImportVoxelvolumes(Operator, ImportHelper):
     bl_options = {"REGISTER", "UNDO", "PRESET"}
 
     directory = StringProperty(subtype="FILE_PATH")
-    files = CollectionProperty(name="Filepath",
-                               type=OperatorFileListElement)
+    files = CollectionProperty(name="Filepath", type=OperatorFileListElement)
+#     files = CollectionProperty(type=ImportFilesCollection)
+    filter_glob = StringProperty(
+        options={"HIDDEN"},
+        default="*.nii;*.nii.gz;*.png;*.jpg;*.tif;*.tiff;")
 
     name = StringProperty(
         name="Name",
         description="Specify a name for the object (default: filename)",
-        default="")
-    beautify = BoolProperty(
-        name="Beautify",
-        description="Apply initial ... on voxelvolumes",
-        default=True)
+        default="voxelvolume",
+        update=name_update)
+    parentpath = StringProperty(
+        name="Parentpath",
+        description="The path to the parent of the object",
+        default="tb")
+    name_mode = EnumProperty(
+        name="nm",
+        description="...",
+        default="filename",
+        items=[("filename", "filename", "filename", 0),
+               ("custom", "custom", "custom", 1)])
+    is_overlay = BoolProperty(
+        name="Is overlay",
+        description="...",
+        default=False,
+        update=is_overlay_update)
+    is_label = BoolProperty(
+        name="Is label",
+        description="...",
+        default=False)
+    sformfile = StringProperty(
+        name="sformfile",
+        description="",
+        default="",
+        subtype="FILE_PATH")
+    has_valid_texdir = BoolProperty(
+        name="has_valid_texdir",
+        description="...",
+        default=False)
+    texdir = StringProperty(
+        name="Texture directory",
+        description="The directory with textures",
+        subtype="DIR_PATH",
+        default="//",
+        update=texdir_update)
+    texformat = EnumProperty(
+        name="Volume texture file format",
+        description="Choose a format to save volume textures",
+        default="IMAGE_SEQUENCE",
+        items=[("IMAGE_SEQUENCE", "IMAGE_SEQUENCE", "IMAGE_SEQUENCE", 0),
+               ("STRIP", "STRIP", "STRIP", 1),
+               ("RAW_8BIT", "RAW_8BIT", "RAW_8BIT", 2)],
+        update=texdir_update)
+    overwrite = BoolProperty(
+        name="overwrite",
+        description="Overwrite existing texture directory",
+        default=False)
 
     def execute(self, context):
 
@@ -1475,7 +1565,15 @@ class ImportVoxelvolumes(Operator, ImportHelper):
         tb = scn.tb
 
         filenames = [file.name for file in self.files]
-        item = tb_imp.import_voxelvolume(self.directory, filenames, self.name)[1]
+
+        ca = [bpy.data.meshes, bpy.data.materials, bpy.data.textures]
+        self.name = tb_utils.check_name(self.name, "", ca)
+
+        item = tb_imp.import_voxelvolume(self.directory, filenames, self.name,
+                                         self.is_overlay, self.is_label,
+                                         self.parentpath, self.sformfile,
+                                         self.texdir, self.texformat,
+                                         self.overwrite)[1]
     #     force updates
         tb.index_voxelvolumes = tb.index_voxelvolumes
         item.rendertype = item.rendertype
@@ -1483,48 +1581,62 @@ class ImportVoxelvolumes(Operator, ImportHelper):
         return {"FINISHED"}
 
     def draw(self, context):
+
+        scn = context.scene
+        tb = scn.tb
+
         layout = self.layout
 
-        row = self.layout.row()
+        # FIXME: solve with update function
+        if self.name_mode == "filename":
+            voltexdir = [s for s in self.directory.split('/') if "voltex_" in s]  # FIXME: generalize to other namings
+            if voltexdir:
+                self.name = voltexdir[0][7:]
+            else:
+                try:
+                    self.name = self.files[0].name
+                except IndexError:
+                    pass
+
+        row = layout.row()
+        row.prop(self, "name_mode", expand=True)
+
+        row = layout.row()
         row.prop(self, "name")
 
-        row = self.layout.row()
-        row.prop(self, "beautify")
+        row = layout.row()
+        row.prop(self, "sformfile")
+
+        row = layout.row()
+        col = row.column()
+        col.prop(self, "is_overlay")
+        col = row.column()
+        col.prop(self, "is_label")
+        col.enabled = self.is_overlay
+        row = layout.row()
+        row.prop(self, "parentpath")
+        row.enabled = self.is_overlay
+
+        row = layout.row()
+        row.prop(self, "texdir")
+        row = layout.row()
+        row.prop(self, "texformat")
+        row = layout.row()
+        row.prop(self, "has_valid_texdir")
+        row.enabled = False
+        row = layout.row()
+        row.prop(self, "overwrite")
+        row.enabled = self.has_valid_texdir
 
     def invoke(self, context, event):
-        context.window_manager.fileselect_add(self)
 
-        return {"RUNNING_MODAL"}
+        if self.parentpath.startswith("tb.voxelvolumes"):
+            self.is_overlay = True
 
+        if context.scene.tb.overlaytype == "labelgroups":
+            self.is_label = True
 
-class ImportScalars(Operator, ImportHelper):  # TODO: this is now obsolete?
-    bl_idname = "tb.import_scalars"
-    bl_label = "Import scalar overlay"
-    bl_description = "Import scalar overlay to vertexweights/colours"
-    bl_options = {"REGISTER", "UNDO", "PRESET"}
-
-    directory = StringProperty(subtype="FILE_PATH")
-    files = CollectionProperty(name="Filepath",
-                               type=OperatorFileListElement)
-
-    name = StringProperty(
-        name="Name",
-        description="Specify a name for the object (default: filename)",
-        default="")
-
-    parent = StringProperty(
-        name="Parent",
-        description="The parent of the object",
-        default="")
-
-    def execute(self, context):
-        filenames = [file.name for file in self.files]
-        tb_imp.import_overlays(self.directory, filenames,
-                               self.name, self.parent, "scalars")
-
-        return {"FINISHED"}
-
-    def invoke(self, context, event):
+        self.name = self.name
         context.window_manager.fileselect_add(self)
 
         return {"RUNNING_MODAL"}
@@ -1544,9 +1656,9 @@ class ImportScalarGroups(Operator, ImportHelper):
         name="Name",
         description="Specify a name for the object (default: filename)",
         default="")
-    parent = StringProperty(
-        name="Parent",
-        description="The parent of the object",
+    parentpath = StringProperty(
+        name="Parentpath",
+        description="The path to the parent of the object",
         default="")
     texdir = StringProperty(
         name="Texture directory",
@@ -1557,7 +1669,7 @@ class ImportScalarGroups(Operator, ImportHelper):
     def execute(self, context):
         filenames = [file.name for file in self.files]
         tb_imp.import_overlays(self.directory, filenames,
-                               self.name, self.parent, "scalargroups")
+                               self.name, self.parentpath, "scalargroups")
 
         return {"FINISHED"}
 
@@ -1581,16 +1693,15 @@ class ImportLabelGroups(Operator, ImportHelper):
         name="Name",
         description="Specify a name for the object (default: filename)",
         default="")
-
-    parent = StringProperty(
-        name="Parent",
-        description="The parent of the object",
+    parentpath = StringProperty(
+        name="Parentpath",
+        description="The path to the parent of the object",
         default="")
 
     def execute(self, context):
         filenames = [file.name for file in self.files]
         tb_imp.import_overlays(self.directory, filenames,
-                               self.name, self.parent, "labelgroups")
+                               self.name, self.parentpath, "labelgroups")
 
         return {"FINISHED"}
 
@@ -1614,16 +1725,15 @@ class ImportBorderGroups(Operator, ImportHelper):
         name="Name",
         description="Specify a name for the object (default: filename)",
         default="")
-
-    parent = StringProperty(
-        name="Parent",
-        description="The parent of the object",
+    parentpath = StringProperty(
+        name="Parentpath",
+        description="The path to the parent of the object",
         default="")
 
     def execute(self, context):
         filenames = [file.name for file in self.files]
         tb_imp.import_overlays(self.directory, filenames,
-                               self.name, self.parent, "bordergroups")
+                               self.name, self.parentpath, "bordergroups")
 
         return {"FINISHED"}
 
@@ -1830,7 +1940,7 @@ class VertexWeight2UV(Operator, ExportHelper):
                              index=i, matname="bake_vcol")
             img.source = 'GENERATED'
             bpy.ops.object.bake()
-            img.filepath_raw = join(group.texdir, item.name[-5:] + ".png")
+            img.filepath_raw = os.path.join(group.texdir, item.name[-5:] + ".png")
             img.save()
             vc = vcs[vcs.active_index]
             vcs.remove(vc)
@@ -2162,6 +2272,10 @@ class AddPreset(Operator):
         name="Name",
         description="Specify a name for the preset",
         default="Preset")
+    parentpath = StringProperty(
+        name="Parentpath",
+        description="The path to the parent of the object",
+        default="tb")
 
     def execute(self, context):
 
@@ -2330,6 +2444,10 @@ class AddLight(Operator):
         name="Name",
         description="Specify a name for the light",
         default="Light")
+    parentpath = StringProperty(
+        name="Parentpath",
+        description="The path to the parent of the object",
+        default="tb")
     type = EnumProperty(
         name="Light type",
         description="type of lighting",
@@ -2568,8 +2686,13 @@ class TractBlenderAnimationPanel(Panel):
                 row = layout.row()
                 col = row.column()
                 col.prop(anim, "anim_timeseries", expand=False, text="Time series")
+
+                sgs = tb_rp.find_ts_scalargroups(anim)
+                sg = sgs[anim.anim_timeseries]
+
+                npoints = len(sg.scalars)
                 row = layout.row()
-                row.label("%d frames in time series" % 3)  # TODO
+                row.label("%d points in time series" % npoints)
 
 
     def drawunit_tri_newpath(self, layout, tb, anim):
@@ -2610,6 +2733,10 @@ class AddAnimation(Operator):
         name="Name",
         description="Specify a name for the animation",
         default="Anim")
+    parentpath = StringProperty(
+        name="Parentpath",
+        description="The path to the parent of the object",
+        default="tb")
 
     def execute(self, context):
 
@@ -2951,6 +3078,13 @@ class TractBlenderSettingsPanel(Panel):
         row.prop(tb, "uv_resolution")
         row = layout.row()
         row.prop(tb, "texformat")
+
+        row = layout.row()
+        row.prop(tb, "projectdir")
+
+        row = layout.row()
+        row.prop(tb, "texmethod")
+
         row = layout.row()
         row.operator("tb.reload",
                      text="Reload NeuroBlender",
@@ -2986,15 +3120,15 @@ class MakeNibabelPersistent(Operator):
         scn = context.scene
         tb = scn.tb
 
-        addon_dir = dirname(__file__)
-        tb_dir = dirname(addon_dir)
-        scripts_dir = dirname(dirname(dirname(bpy.__file__)))
-        startup_dir = join(scripts_dir, 'startup')
+        addon_dir = os.path.dirname(__file__)
+        tb_dir = os.path.dirname(addon_dir)
+        scripts_dir = os.path.dirname(os.path.dirname(os.path.dirname(bpy.__file__)))
+        startup_dir = os.path.join(scripts_dir, 'startup')
         basename = 'external_sitepackages'
-        nibdir_txt = join(startup_dir, basename + '.txt')
+        nibdir_txt = os.path.join(startup_dir, basename + '.txt')
         with open(nibdir_txt, 'w') as f:
             f.write(scn.tb.nibabel_path)
-        es_fpath = join(addon_dir, basename + '.py')
+        es_fpath = os.path.join(addon_dir, basename + '.py')
         copy(es_fpath, startup_dir)
 
         infostring = 'added nibabel path "%s" to startup "%s"'
@@ -3070,49 +3204,62 @@ def nibabel_path_update(self, context):
 def sformfile_update(self, context):
     """Set the sform transformation matrix for the object."""
 
-    ob = bpy.data.objects[self.name]
-    affine = tb_imp.read_affine_matrix(self.sformfile)
-    ob.matrix_world = affine
+    try:
+        ob = bpy.data.objects[self.name]
+    except:
+        pass
+    else:
+        affine = tb_imp.read_affine_matrix(self.sformfile)
+        ob.matrix_world = affine
 
 
 def slices_update(self, context):
     """Set slicethicknesses and positions for the object."""
 
-#     # FIXME: objects lag one update 
-    ob = bpy.data.objects[self.name]
-    mat = bpy.data.materials[self.name]
-    mat.type = mat.type
-    mat.texture_slots[0].scale[0] = mat.texture_slots[0].scale[0]
     ob = bpy.data.objects[self.name+"SliceBox"]
     ob.scale = self.slicethickness
 
     try:
-        for sg in self.scalargroups:
-            sg_ob = bpy.data.objects[sg.name+"SliceBox"]
-            sg_ob.scale = self.slicethickness
+        scalar = self.scalars[self.index_scalars]
     except:
-        pass
-
-    update_viewport()
+        matname = self.name
+        mat = bpy.data.materials[matname]
+        mat.type = mat.type
+        mat.texture_slots[0].scale[0] = mat.texture_slots[0].scale[0]
+    else:
+        for scalar in self.scalars:
+            mat = bpy.data.materials[scalar.matname]
+            tss = [ts for ts in mat.texture_slots if ts is not None]
+            for ts in tss:
+                ts.scale[0] = ts.scale[0]
 
 
 def rendertype_enum_update(self, context):
     """Set surface or volume rendering for the voxelvolume."""
 
-    mat = bpy.data.materials[self.name]
+    try:
+        matnames = [scalar.matname for scalar in self.scalars]
+    except:
+        matnames = [self.name]
+    else:
+        matnames = set(matnames)
+ 
     # FIXME: vvol.rendertype ideally needs to switch if mat.type does
-    mat.type = self.rendertype
-    tex = mat.texture_slots[0]
-    if mat.type == 'VOLUME':
-        for idx in range(0, 3):
-            tex.driver_remove("scale", idx)
-            tex.driver_remove("offset", idx)
-        tex.scale = [1, 1, 1]
-        tex.offset = [0, 0, 0]
-    elif mat.type == 'SURFACE':
-        for idx in range(0, 3):
-            tb_imp.voxelvolume_slice_drivers_surface(self, tex, idx, "scale")
-            tb_imp.voxelvolume_slice_drivers_surface(self, tex, idx, "offset")
+    for matname in matnames:
+        mat = bpy.data.materials[matname]
+        mat.type = self.rendertype
+        tss = [ts for ts in mat.texture_slots if ts is not None]
+        for ts in tss:
+            if mat.type == 'VOLUME':
+                    for idx in range(0, 3):
+                        ts.driver_remove("scale", idx)
+                        ts.driver_remove("offset", idx)
+                    ts.scale = [1, 1, 1]
+                    ts.offset = [0, 0, 0]
+            elif mat.type == 'SURFACE':
+                for idx in range(0, 3):
+                    tb_imp.voxelvolume_slice_drivers_surface(self, ts, idx, "scale")
+                    tb_imp.voxelvolume_slice_drivers_surface(self, ts, idx, "offset")
 
 
 def is_yoked_bool_update(self, context):
@@ -3125,6 +3272,19 @@ def is_yoked_bool_update(self, context):
                 tb_imp.voxelvolume_slice_drivers_yoke(tb_ob, self, prop, idx)
             else:
                 self.driver_remove(prop, idx)
+
+
+def mat_is_yoked_bool_update(self, context):
+    """Add or remove drivers linking overlay's materials."""
+
+    pass
+#     tb_ob = tb_utils.active_tb_object()[0]
+#     for prop in ['slicethickness', 'sliceposition', 'sliceangle']:
+#         for idx in range(0, 3):
+#             if self.is_yoked:
+#                 tb_imp.voxelvolume_slice_drivers_yoke(tb_ob, self, prop, idx)
+#             else:
+#                 self.driver_remove(prop, idx)
 
 
 def mode_enum_update(self, context):
@@ -3180,10 +3340,35 @@ def index_scalars_update(self, context):
         index_scalars_update_func(sg)
 
 
+@persistent
+def index_scalars_handler_func(dummy):
+    """"""
+
+    scn = bpy.context.scene
+    tb = scn.tb
+
+    preset = tb.presets[tb.index_presets]
+    for anim in preset.animations:
+        if anim.animationtype == "TimeSeries":
+
+            sgs = tb_rp.find_ts_scalargroups(anim)
+            sg = sgs[anim.anim_timeseries]
+
+            scalar = sg.scalars[sg.index_scalars]
+            index_scalars_update_vvolscalar_func(sg, scalar, tb.texmethod)
+
+
+bpy.app.handlers.frame_change_pre.append(index_scalars_handler_func)
+
+
 def index_scalars_update_func(group=None):
     """Switch views on updating overlay index."""
 
-    tb_ob = tb_utils.active_tb_object()[0]
+    scn = bpy.context.scene
+    tb = scn.tb
+
+    tb_ob_path = '.'.join(group.path_from_id().split('.')[:-1])
+    tb_ob = eval(tb_ob_path)
     ob = bpy.data.objects[tb_ob.name]
 
     if group is None:
@@ -3196,7 +3381,7 @@ def index_scalars_update_func(group=None):
     else:
         name = scalar.name
 
-        if "surfaces" in group.path_from_id():
+        if group.path_from_id().startswith("tb.surfaces"):
 
             vg_idx = ob.vertex_groups.find(name)
             ob.vertex_groups.active_index = vg_idx
@@ -3222,19 +3407,76 @@ def index_scalars_update_func(group=None):
                 for mat in mats:
                     ob.data.materials.append(mat)
 
-        if "tracts" in group.path_from_id():
+        if group.path_from_id().startswith("tb.tracts"):
             if hasattr(group, 'scalars'):
                 for i, spline in enumerate(ob.data.splines):
                     splname = name + '_spl' + str(i).zfill(8)
                     spline.material_index = ob.material_slots.find(splname)
 
-        if "voxelvolumes" in group.path_from_id():
+        if group.path_from_id().startswith("tb.voxelvolumes"):  # FIXME: used texture slots
             if hasattr(group, 'scalars'):
-                img = bpy.data.images[group.name]
-                img.filepath = scalar.filepath
-                # this reloads the sequence/updates the viewport
+
+                index_scalars_update_vvolscalar_func(group, scalar, tb.texmethod)
+
+
+def index_scalars_update_vvolscalar_func(group, scalar, method=1):
+    """Switch views on updating overlay index."""
+
+    if method == 1:  # simple filepath switching
+
+        try:
+            img = bpy.data.images[group.name]
+        except KeyError:
+            pass
+        else:
+            # this reloads the sequence/updates the viewport
+            try:
                 tex = bpy.data.textures[group.name]
-                tex.voxel_data.file_format = 'IMAGE_SEQUENCE'
+            except KeyError:
+                pass
+            else:
+                img.filepath = scalar.filepath
+                tex.voxel_data.file_format = group.texformat
+
+    elif method == 2:
+
+        props = ("density_factor", "emission_factor", "emission_color_factor",
+                 "emit_factor", "diffuse_color_factor", "alpha_factor")
+
+        for sc in group.scalars:
+            mat = bpy.data.materials[sc.matname]
+            ts = mat.texture_slots[sc.tex_idx]
+            ts.use = True
+            for prop in props:
+                exec('ts.%s = 0' % prop)
+
+        mat = bpy.data.materials[scalar.matname]
+        ts = mat.texture_slots[scalar.tex_idx]
+        print(mat, ts, scalar.tex_idx)
+        for prop in props:
+            exec('ts.%s = 1' % prop)
+
+    elif method == 3:
+        mat = bpy.data.materials[group.name]
+        tss = [(i, ts) for i, ts in enumerate(mat.texture_slots)
+               if ts is not None]
+        props = ("density_factor", "emission_factor", "emission_color_factor",
+                 "emit_factor", "diffuse_color_factor", "alpha_factor")
+        for i, ts in tss:
+            ts.use = group.index_scalars == i
+            v = 1
+            for prop in props:
+                exec('ts.%s = v' % prop)
+
+    elif method == 4:  # simple texture switching in slot 0
+        try:
+            mat = bpy.data.materials[scalar.matname]
+            tex = bpy.data.textures[scalar.texname]
+        except:
+            pass
+        else:
+            mat.texture_slots[0].texture = tex
+
 
 def index_labels_update(self, context):
     """Switch views on updating label index."""
@@ -3254,7 +3496,11 @@ def index_labels_update(self, context):
 def index_labels_update_func(group=None):
     """Switch views on updating overlay index."""
 
-    tb_ob = tb_utils.active_tb_object()[0]
+    scn = bpy.context.scene
+    tb = scn.tb
+
+    tb_ob_path = '.'.join(group.path_from_id().split('.')[:-1])
+    tb_ob = eval(tb_ob_path)
     ob = bpy.data.objects[tb_ob.name]
 
     if group is None:
@@ -3465,17 +3711,14 @@ def timeseries_enum_callback(self, context):
     scn = context.scene
     tb = scn.tb
 
-    if self.timeseries_object.startswith('T'):
-        sg = tb.tracts[self.anim_timeseries].scalargroups
-    elif self.timeseries_object.startswith('S'):
-        sg = tb.surfaces[self.anim_timeseries].scalargroups
-    elif self.timeseries_object.startswith('V'):
-        sg = tb.voxelvolumes[self.anim_timeseries].scalargroups
-    else:
-        sg = []
+    # FIXME: crash when commenting/uncommenting this
+    aliases = {'T': 'tracts', 'S': 'surfaces', 'V': 'voxelvolumes'}
+    coll = eval('tb.%s' % aliases[self.timeseries_object[0]])
+    sgs = coll[self.timeseries_object[3:]].scalargroups
+#     sgs = tb_rp.find_ts_scalargroups(self)
 
     items = [(scalargroup.name, scalargroup.name, "List the timeseries", i)
-             for i, scalargroup in enumerate(sg)]
+             for i, scalargroup in enumerate(sgs)]
 
     return items
 
@@ -3517,9 +3760,8 @@ def timeseries_object_enum_callback(self, context):
     tb_obs = ["%s: %s" % (l, ob.name)
               for l, coll in zip(['T', 'S', 'V'], [tb.tracts, tb.surfaces, tb.voxelvolumes])
               for ob in coll if len(ob.scalargroups)]
-    items = []  # FIXME
-#     items = [(obname, obname, "List the objects", i)
-#              for i, obname in enumerate(tb_obs)]
+    items = [(obname, obname, "List the objects", i)
+             for i, obname in enumerate(tb_obs)]
 
     return items
 
@@ -3527,7 +3769,10 @@ def timeseries_object_enum_callback(self, context):
 def texture_directory_update(self, context):
     """Update the texture."""
 
-    tb_mat.load_surface_textures(self.name, self.texdir, len(self.scalars))
+    if "surfaces" in self.path_from_id():
+        tb_mat.load_surface_textures(self.name, self.texdir, len(self.scalars))
+    elif "voxelvolumes" in self.path_from_id():
+        pass  # TODO
 
 
 def update_viewport():
@@ -3649,6 +3894,16 @@ class ScalarProperties(PropertyGroup):
         default=0.5,
         min=0.,
         max=1.)
+
+    matname = StringProperty(
+        name="Material name",
+        description="The name of the scalar overlay")
+    texname = StringProperty(
+        name="Texture name",
+        description="The name of the scalar overlay")
+    tex_idx = IntProperty(
+        name="Texture index",
+        description="The name of the scalar overlay")
 
 
 class LabelProperties(PropertyGroup):
@@ -3842,7 +4097,7 @@ class ScalarGroupProperties(PropertyGroup):
         items=[("SURFACE", "Surface",
                 "Switch to surface rendering", 0),
                ("VOLUME", "Volume",
-                "Switch to volume rendering", 1)],
+                "Switch to volume rendering", 2)],
         update=rendertype_enum_update,
         default="VOLUME")
 
@@ -3905,6 +4160,12 @@ class ScalarGroupProperties(PropertyGroup):
                ("STRIP", "STRIP", "STRIP", 1),
                ("RAW_8BIT", "RAW_8BIT", "RAW_8BIT", 2)])
 
+    mat_is_yoked = BoolProperty(
+        name="Material Is Yoked",
+        description="Indicates if the overlay time point materials are yoked",
+        default=True,
+        update=mat_is_yoked_bool_update)
+
 
 class LabelGroupProperties(PropertyGroup):
     """Properties of label groups."""
@@ -3949,7 +4210,7 @@ class LabelGroupProperties(PropertyGroup):
         items=[("SURFACE", "Surface",
                 "Switch to surface rendering", 0),
                ("VOLUME", "Volume",
-                "Switch to volume rendering", 1)],
+                "Switch to volume rendering", 2)],
         update=rendertype_enum_update,
         default="VOLUME")
 
@@ -4507,6 +4768,13 @@ class VoxelvolumeProperties(PropertyGroup):
                ("STRIP", "STRIP", "STRIP", 1),
                ("RAW_8BIT", "RAW_8BIT", "RAW_8BIT", 2)])
 
+    matname = StringProperty(
+        name="Material name",
+        description="The name of the scalar overlay")
+    texname = StringProperty(
+        name="Texture name",
+        description="The name of the scalar overlay")
+
 
 class CameraProperties(PropertyGroup):
     """Properties of cameras."""
@@ -4661,7 +4929,17 @@ class TableProperties(PropertyGroup):
         default=[1.0, 0.0, 0.0],
         subtype="COLOR")
 
-    # TODO: size, material, shape, ...
+    scale = FloatVectorProperty(
+        name="Table scale",
+        description="Relative size of the table",
+        default=[4.0, 4.0, 1.0],
+        subtype="TRANSLATION")
+    location = FloatVectorProperty(
+        name="Table location",
+        description="Relative location of the table",
+        default=[0.0, 0.0, -1.0],
+        subtype="TRANSLATION")
+
 
 class AnimationProperties(PropertyGroup):
     """Properties of table."""
@@ -5136,6 +5414,29 @@ class TractBlenderProperties(PropertyGroup):
                ("STRIP", "STRIP", "STRIP", 1),
                ("RAW_8BIT", "RAW_8BIT", "RAW_8BIT", 2)])
 
+    projectdir = StringProperty(
+        name="Project directory",
+        description="The path to the NeuroBlender project",
+        subtype="DIR_PATH",
+        default=os.path.expanduser('~'))
+
+    texmethod = IntProperty(
+        name="texmethod",
+        description="",
+        default=1,
+        min=1, max=4)
+
+
+# @persistent
+# def projectdir_update(dummy):
+#     """"""
+# 
+#     scn = bpy.context.scene
+#     tb = scn.tb
+# 
+# #     tb.projectdir = os.path.
+# 
+# bpy.app.handlers.load_post(projectdir_update)
 
 # =========================================================================== #
 

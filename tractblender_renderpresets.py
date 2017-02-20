@@ -1138,20 +1138,109 @@ def animate_timeseries(anim):
     scn = bpy.context.scene
     tb = scn.tb
 
-    ob = bpy.data.objects[anim.anim_surface]
-    mat = bpy.data.materials[anim.anim_timeseries]
-    scalargroup = tb.surfaces[anim.anim_surface].scalargroups[anim.anim_timeseries]
+    sgs = find_ts_scalargroups(anim)
+    ts_name = anim.anim_timeseries
+    sg = sgs[ts_name]
 
-    if "surfaces" in scalargroup.path_from_id():
+    nframes = anim.frame_end - anim.frame_start
+    nscalars = len(sg.scalars)
 
-        tb_mat.load_surface_textures(ts_name, scalargroup.texdir, len(scalargroup.scalars))
+    if anim.timeseries_object.startswith("S: "):
 
-    if "voxelvolumes" in group.path_from_id():
-        img = bpy.data.images[group.name]
-        img.filepath = scalar.filepath
-        # this reloads the sequence/updates the viewport
-        tex = bpy.data.textures[group.name]
-        tex.voxel_data.file_format = 'IMAGE_SEQUENCE'
+        # TODO: this is for per-frame jumps of texture
+        tb_mat.load_surface_textures(ts_name, sg.texdir, nscalars)
+
+    elif anim.timeseries_object.startswith("V: "):
+
+        # TODO: stepwise fcurve interpolation is not accurate in this way
+        nframes = anim.frame_end - anim.frame_start
+        fptp = np.floor(nframes/nscalars)
+
+        kfs = {anim.frame_start-1: 0,
+               anim.frame_start: 0, 
+               anim.frame_end: nscalars - 1,
+               anim.frame_end+1: nscalars - 1}
+        for k, v in kfs.items():
+            scn.frame_set(k)
+            sg.index_scalars = v
+            sg.keyframe_insert("index_scalars")
+
+
+def find_ts_scalargroups(anim):
+    """"""
+
+    scn = bpy.context.scene
+    tb = scn.tb
+
+    aliases = {'T': 'tracts', 'S': 'surfaces', 'V': 'voxelvolumes'}
+
+    collkey = anim.timeseries_object[0]
+    ts_obname = anim.timeseries_object[3:]
+    ts_name = anim.anim_timeseries
+
+    coll = eval('tb.%s' % aliases[collkey])
+    sgs = coll[ts_obname].scalargroups
+
+    return sgs
+
+
+def animate_ts_vvol():  # scratch
+        mat = bpy.data.materials[scalargroup.name]
+
+        tss = [(i, ts) for i, ts in enumerate(mat.texture_slots)
+               if ts is not None]
+
+        ntss = len(tss)
+        nframes = anim.frame_end - anim.frame_start
+        fptp = np.floor(nframes/ntss)
+
+        interpolation = 'CONSTANT'  # 'CONSTANT' TODO: 'LINEAR' 'BEZIER'
+        fade_interval = np.floor(fptp / 3)
+
+        props = {"density_factor": 'CONSTANT',
+                 "emission_factor": interpolation,
+                 "emission_color_factor": 'CONSTANT',
+                 "emit_factor": interpolation,
+                 "diffuse_color_factor": 'CONSTANT',
+                 "alpha_factor": 'CONSTANT'}
+
+#         # TODO
+#         interval_head = [scn.frame_start, anim.frame_start - 1]
+#         interval_anim = [anim.frame_start, anim.frame_end]
+#         interval_tail = [anim.frame_end + 1, scn.frame_end]
+
+        # can I just keyframe the time index? and let the update function do the work?
+        # yes, but this is only for on/off?
+        for i, ts in tss:
+
+            tp_start = i*fptp + 1
+            tp_end = tp_start + fptp
+            tp_in_start = tp_start - fade_interval
+            tp_in_end = tp_start + fade_interval
+            tp_out_start = tp_end - fade_interval
+            tp_out_end = tp_end + fade_interval
+
+            kfs_constant = {tp_start-1: 0, tp_start: 1,
+                            tp_end: 1, tp_end+1: 0}
+            kfs_linear = {tp_in_start: 0, tp_in_end: 1,
+                          tp_out_start: 1, tp_out_end: 0}
+            kfs_bezier = {tp_in_start: 0, tp_in_end: 1,
+                          tp_out_start: 1, tp_out_end: 0}
+
+            # insert the animation 
+            for prop, interp in props.items():
+                kfs = eval("kfs_%s" % interp.lower())
+                for k, v in kfs.items():
+                    scn.frame_set(k)
+                    exec('ts.%s = v' % prop)
+                    ts.keyframe_insert(data_path=prop)
+
+        anim = mat.animation_data
+        for fcu in anim.action.fcurves:
+            fcu.color_mode = 'AUTO_RAINBOW'
+            propname = fcu.data_path.split('.')[-1]
+            for kf in fcu.keyframe_points:
+                kf.interpolation = props[propname]
 
 
 # ========================================================================== #

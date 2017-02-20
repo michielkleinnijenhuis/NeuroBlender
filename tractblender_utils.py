@@ -129,6 +129,9 @@ def active_tb_overlayitem():
 def get_tb_objectinfo(objectname):
     """"""
 
+    scn = bpy.context.scene
+    tb = scn.tb
+
     obtypes = ["tracts", "surfaces", "voxelvolumes"]
     idxs = [tb.tracts.find(parent),
             tb.surfaces.find(parent),
@@ -275,6 +278,10 @@ def add_item(parent, childpath, props):
     exec("scn.%s.index_%s = (len(coll)-1)" % (parentpath, childpath))
 
     for k, v in props.items():
-        item[k] = v
+        if isinstance(v, tuple):
+            for i, c in enumerate(v):
+                exec("item.%s[i] = c" % k)
+        else:
+            item[k] = v
 
     return item

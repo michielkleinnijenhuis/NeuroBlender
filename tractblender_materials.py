@@ -240,7 +240,7 @@ def create_vc_overlay_tract(ob, fpath, name="", is_label=False):
                                                   scalarranges)):
         # TODO: check against all other scalargroups etc
         ca = [sg.scalars for sg in tb_ob.scalargroups]
-        tpname = "%s.tp%03d" % (name, j)
+        tpname = "%s.vol%04d" % (name, j)
         scalarname = tb_utils.check_name(tpname, fpath, ca)
         sprops = {"name": scalarname,
                   "filepath": fpath,
@@ -305,7 +305,7 @@ def create_vc_overlay(ob, fpath, name="", is_label=False):
                                                 timeseriesrange)
     else:
         for i, scalars in enumerate(timeseries):
-            tpname = "%s.tp%03d" % (name, i)
+            tpname = "%s.vol%04d" % (name, i)
             vg = set_vertex_group(ob, tpname, scalars=scalars)
             tb_ov = tb_imp.add_scalar_to_collection(scalargroup, tpname, fpath,
                                                     timeseriesrange)
@@ -731,61 +731,69 @@ def linear_to_sRGB(L):
 # voxelvolume texture mapping
 # =========================================================================== #
 
+def get_voxmat(name):
+    """"""
 
-def get_voxmat(matname, img, dims, file_format="IMAGE_SEQUENCE",
-               is_overlay=False, is_label=False, labelgroup=None):
+    mat = bpy.data.materials.new(name)
+    mat.type = "VOLUME"
+    mat.volume.density = 0.
+    mat.preview_render_type = 'CUBE'
+    mat.use_fake_user = True
+
+    return mat
+
+def get_voxtex(mat, texdict, volname, item, is_overlay=False, is_label=False):
     """Return a textured material for voxeldata."""
 
     scn = bpy.context.scene
 
-    tex = bpy.data.textures.new(matname, 'VOXEL_DATA')
+    img = texdict['img']
+    dims = texdict['dims']
+    texdir = texdict['texdir']
+    texformat = texdict['texformat']
+
+    tex = bpy.data.textures.new(item.name, 'VOXEL_DATA')
     tex.use_preview_alpha = True
     tex.use_color_ramp = True
-    if file_format == 'STRIP':  # TODO: this should be handled with cycles
-        file_format = "IMAGE_SEQUENCE"
-    tex.voxel_data.file_format = file_format
+    tex.use_fake_user = True
+    if texformat == 'STRIP':  # TODO: this should be handled with cycles
+        texformat = "IMAGE_SEQUENCE"
+    tex.voxel_data.file_format = texformat
     tex.voxel_data.use_still_frame = True
     tex.voxel_data.still_frame = scn.frame_current
-    if file_format == "IMAGE_SEQUENCE":
+
+    if texformat == "IMAGE_SEQUENCE":
+        texpath = os.path.join(texdir, texformat, volname, '0000.png')
+        img = bpy.data.images.load(bpy.path.abspath(texpath))
+        img.name = item.name
+        img.source = 'SEQUENCE'
+        img.reload()
         tex.image_user.frame_duration = dims[2]
         tex.image_user.frame_start = 1
         tex.image_user.frame_offset = 0
-        img.filepath = bpy.path.abspath(img.filepath)
         tex.image = img
-    else:
+    elif texformat == "8BIT_RAW":
         tex.voxel_data.filepath = bpy.path.abspath(img.filepath)
         tex.voxel_data.resolution = [int(dim) for dim in dims[:3]]
 
     if is_label:
-        labels = labelgroup.labels
         tex.voxel_data.interpolation = "NEREASTNEIGHBOR"
         cr = tex.color_ramp
         cr.interpolation = 'CONSTANT'
         cre = cr.elements
-        maxlabel = max([label.value for label in labels])
+        maxlabel = max([label.value for label in item.labels])
         step = 1. / maxlabel
         offset = step / 2.
-        cre[1].position = labels[0].value / maxlabel - offset
-        cre[1].color = labels[0].colour
-        for label in labels[1:]:
+        cre[1].position = item.labels[0].value / maxlabel - offset
+        cre[1].color = item.labels[0].colour
+        for label in item.labels[1:]:
             pos = label.value / maxlabel - offset
             el = cre.new(pos)
             el.color = label.colour
     elif is_overlay:
         switch_colourmap(tex.color_ramp, "jet")
 
-    mat = bpy.data.materials.new(matname)
-    mat.type = "VOLUME"
-    mat.volume.density = 0.
-
-    texslot = mat.texture_slots.add()
-    texslot.texture = tex
-    texslot.use_map_density = True
-    texslot.texture_coords = 'ORCO'
-#     if is_overlay:
-    texslot.use_map_emission = True
-
-    return mat
+    return tex
 
 
 def load_surface_textures(name, directory, nframes):
