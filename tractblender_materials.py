@@ -767,6 +767,7 @@ def get_voxtex(mat, texdict, volname, item, is_overlay=False, is_label=False):
         img = bpy.data.images.load(bpy.path.abspath(texpath))
         img.name = item.name
         img.source = 'SEQUENCE'
+        img.colorspace_settings.name = 'Non-Color'  # TODO: check
         img.reload()
         tex.image_user.frame_duration = dims[2]
         tex.image_user.frame_start = 1
