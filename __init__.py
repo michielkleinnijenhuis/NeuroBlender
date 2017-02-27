@@ -457,7 +457,6 @@ class TractBlenderOverlayPanel(Panel):
             scalar = tb_ov.scalars[tb_ov.index_scalars]
             mat = bpy.data.materials[scalar.matname]
             tex = mat.texture_slots[scalar.tex_idx].texture
-            # FIXME: can setup drivers on color stops here to control it with one ramp
             self.drawunit_texture(layout, tex, tb_ov)
 
     def drawunit_tri_items(self, layout, tb, tb_ov):
@@ -727,6 +726,23 @@ class ObjectListAN(UIList):
             layout.prop(text="", icon=item_icon)
 
 
+class ObjectListCP(UIList):
+
+    def draw_item(self, context, layout, data, item, icon,
+                  active_data, active_propname, index):
+
+        item_icon = "CANCEL"
+        if self.layout_type in {'DEFAULT', 'COMPACT'}:
+
+            col = layout.column()
+            col.prop(item, "co", text="co", emboss=True,
+                     translate=False, icon=item_icon)
+
+        elif self.layout_type in {'GRID'}:
+            layout.alignment = 'CENTER'
+            layout.prop(text="", icon=item_icon)
+
+
 class ObjectListTS(UIList):
 
     def draw_item(self, context, layout, data, item, icon,
@@ -762,6 +778,9 @@ class ObjectListOperations(Operator):
                ('UP_PL', "UpPL", ""),
                ('DOWN_PL', "DownPL", ""),
                ('REMOVE_PL', "RemovePL", ""),
+               ('UP_CP', "UpCP", ""),
+               ('DOWN_CP', "DownCP", ""),
+               ('REMOVE_CP', "RemoveCP", ""),
                ('UP_AN', "UpAN", ""),
                ('DOWN_AN', "DownAN", ""),
                ('REMOVE_AN', "RemoveAN", "")))
@@ -1169,6 +1188,25 @@ class MassIsRenderedAN(Menu):
                         text="Invert").action = 'INVERT_AN'
 
 
+class MassIsRenderedCP(Menu):
+    bl_idname = "tb.mass_is_rendered_CP"
+    bl_label = "Vertex Group Specials"
+    bl_description = "Menu for group selection of rendering option"
+    bl_options = {"REGISTER"}
+
+    def draw(self, context):
+        layout = self.layout
+        layout.operator("tb.mass_select",
+                        icon='SCENE',
+                        text="Select All").action = 'SELECT_CP'
+        layout.operator("tb.mass_select",
+                        icon='SCENE',
+                        text="Deselect All").action = 'DESELECT_CP'
+        layout.operator("tb.mass_select",
+                        icon='SCENE',
+                        text="Invert").action = 'INVERT_CP'
+
+
 class MassSelect(Operator):
     bl_idname = "tb.mass_select"
     bl_label = "Mass select"
@@ -1188,6 +1226,9 @@ class MassSelect(Operator):
                ('SELECT_PL', "Select_PL", ""),
                ('DESELECT_PL', "Deselect_PL", ""),
                ('INVERT_PL', "Invert_PL", ""),
+               ('SELECT_CP', "Select_CP", ""),
+               ('DESELECT_CP', "Deselect_CP", ""),
+               ('INVERT_CP', "Invert_CP", ""),
                ('SELECT_AN', "Select_AN", ""),
                ('DESELECT_AN', "Deselect_AN", ""),
                ('INVERT_AN', "Invert_AN", "")))
@@ -2631,9 +2672,10 @@ class TractBlenderAnimationPanel(Panel):
                 col = row.column()
                 col.operator("tb.del_campath", icon='ZOOMOUT', text="")
                 col.enabled = True
-                row = layout.row()
-                box = row.box()
-                self.drawunit_tri(box, "newpath", tb, anim)
+
+                self.drawunit_tri(layout, "points", tb, anim)
+
+                self.drawunit_tri(layout, "newpath", tb, anim)
 
                 row = layout.row()
                 row.separator()
@@ -2694,6 +2736,28 @@ class TractBlenderAnimationPanel(Panel):
                 row = layout.row()
                 row.label("%d points in time series" % npoints)
 
+    def drawunit_tri_points(self, layout, tb, anim):
+
+        row = layout.row()
+        row.operator("tb.add_campoint",
+                     text="Add point at camera position")
+
+        try:
+            cu = bpy.data.objects[anim.campaths_enum].data
+            data = cu.splines[0]
+        except:
+            pass
+        else:
+            if len(data.bezier_points):
+                ps = "bezier_points"
+            else:
+                ps = "points"
+
+            row = layout.row()
+            row.template_list("ObjectListCP", "",
+                              data, ps,
+                              data, "material_index", rows=2,
+                              maxrows=4, type="DEFAULT")
 
     def drawunit_tri_newpath(self, layout, tb, anim):
 
@@ -2711,6 +2775,8 @@ class TractBlenderAnimationPanel(Panel):
         elif anim.pathtype == 'Select':
             row = layout.row()
             row.prop(anim, "anim_curve", text="")
+        elif anim.pathtype == 'Create':
+            pass  # name, for every options?
 
         row = layout.row()
         row.separator()
@@ -2747,7 +2813,7 @@ class AddAnimation(Operator):
         name = tb_utils.check_name(self.name, "", ca, forcefill=True)
         tb_imp.add_animation_to_collection(name)
 
-        tb_preset = tb.presets[tb.index_presets]
+        tb_preset = tb.presets[tb.index_presets]  # FIXME: self
         infostring = 'added animation "%s" in preset "%s"'
         info = [infostring % (name, tb_preset.name)]
         self.report({'INFO'}, '; '.join(info))
@@ -2763,6 +2829,69 @@ class AddAnimation(Operator):
 
         return self.execute(context)
 
+
+class AddCamPoint(Operator):
+    bl_idname = "tb.add_campoint"
+    bl_label = "New camera position"
+    bl_description = "Create a new camera position in campath"
+    bl_options = {"REGISTER", "UNDO", "PRESET"}
+
+    index_presets = IntProperty(
+        name="index presets",
+        description="Specify preset index",
+        default=-1)
+    index_animations = IntProperty(
+        name="index animations",
+        description="Specify animation index",
+        default=-1)
+    co = FloatVectorProperty(
+        name="camera coordinates",
+        description="Specify camera coordinates",
+        default=[0.0, 0.0, 0.0])
+
+    def execute(self, context):
+
+        scn = context.scene
+        tb = scn.tb
+
+        preset = tb.presets[self.index_presets]
+        anim = preset.animations[self.index_animations]
+        campath = bpy.data.objects[anim.campaths_enum]
+
+        try:
+            spline = campath.data.splines[0]
+            spline.points.add()
+        except:
+            spline = campath.data.splines.new('POLY')
+
+        spline.points[-1].co = tuple(self.co) + (1,)
+        spline.order_u = len(spline.points) - 1
+        spline.use_endpoint_u = True
+
+        infostring = 'added campoint "%02f, %02f, %02f"'
+        info = [infostring % tuple(self.co)]
+        self.report({'INFO'}, '; '.join(info))
+
+        return {"FINISHED"}
+
+    def invoke(self, context, event):
+
+        scn = context.scene
+        tb = scn.tb
+
+        self.index_presets = tb.index_presets
+        preset = tb.presets[self.index_presets]
+
+        self.index_animations = preset.index_animations
+
+        cam = bpy.data.objects[preset.cameras[0].name]
+        centre = bpy.data.objects[preset.centre]
+
+        self.co[0] = cam.location[0] * preset.dims[0] / 2 + centre.location[0]
+        self.co[1] = cam.location[1] * preset.dims[1] / 2 + centre.location[1]
+        self.co[2] = cam.location[2] * preset.dims[2] / 2 + centre.location[2]
+
+        return self.execute(context)
 
 
 class AddCamPath(Operator):
@@ -2791,7 +2920,9 @@ class AddCamPath(Operator):
                ("Streamline", "Streamline",
                 "Curvilinear trajectory from a streamline", 1),
                ("Select", "Select",
-                "Curvilinear trajectory from curve", 2)],
+                "Curvilinear trajectory from curve", 2),
+               ("Create", "Create",
+                "Create a path from camera positions", 3)],
         default="Circular")
     axis = EnumProperty(
         name="Animation axis",
@@ -2828,6 +2959,8 @@ class AddCamPath(Operator):
             name = "CP_%s_%05d" % (self.anim_tract, self.spline_index)
         elif self.pathtype == "Select":
             name = "CP_%s" % (anim.anim_curve)
+        elif self.pathtype == "Create":
+            name = "CP_%s" % ("fromCam")
 
         ca = [tb.campaths]
         name = self.name or name
@@ -2974,6 +3107,22 @@ class AddCamPath(Operator):
             infostring = 'copied camera path from "%s"'
 
         info = [infostring % self.anim_curve]
+
+        return ob, info
+
+    def campath_create(self, name):
+        """Generate an empty trajectory."""
+
+        scn = bpy.context.scene
+
+        curve = bpy.data.curves.new(name=name, type='CURVE')
+        curve.dimensions = '3D'
+        ob = bpy.data.objects.new(name, curve)
+        scn.objects.link(ob)
+
+        infostring = 'created empty path'
+
+        info = [infostring]
 
         return ob, info
 
@@ -3220,7 +3369,7 @@ def slices_update(self, context):
     ob.scale = self.slicethickness
 
     try:
-        scalar = self.scalars[self.index_scalars]
+        scalar = self.scalars[self.index_scalars]  # FIXME: should this be scalargroups?
     except:
         matname = self.name
         mat = bpy.data.materials[matname]
@@ -3615,12 +3764,13 @@ def campaths_enum_update(self, context):
     cam = bpy.data.objects[tb_preset.cameras[0].name]
     anim = tb_preset.animations[tb_preset.index_animations]
 
-    # overkill?
-    cam_anims = [anim for anim in tb_preset.animations
-                 if ((anim.animationtype == "CameraPath") &
-                     (anim.is_rendered))]
-    tb_rp.clear_camera_path_animations(cam, cam_anims)
-    tb_rp.create_camera_path_animations(cam, cam_anims)
+    if anim.animationtype == 'Trajectory':
+        # overkill?
+        cam_anims = [anim for anim in tb_preset.animations
+                     if ((anim.animationtype == "CameraPath") &
+                         (anim.is_rendered))]
+        tb_rp.clear_camera_path_animations(cam, cam_anims)
+        tb_rp.create_camera_path_animations(cam, cam_anims)
 
     # This adds Follow Path on the bottom of the constraint stack
 #     tb_rp.campath_animation(anim, cam)
@@ -5024,7 +5174,9 @@ class AnimationProperties(PropertyGroup):
                ("Streamline", "Streamline",
                 "Curvilinear trajectory from a streamline", 1),
                ("Select", "Select",
-                "Curvilinear trajectory from curve", 2)],
+                "Curvilinear trajectory from curve", 2),
+               ("Create", "Create",
+                "Create a path from camera positions", 3)],
         default="Circular")
 
     axis = EnumProperty(
@@ -5079,6 +5231,15 @@ class AnimationProperties(PropertyGroup):
     # TODO: TimeSeries props
 
 
+# class CamPointProperties(PropertyGroup):
+# 
+#     location = FloatVectorProperty(
+#         name="campoint",
+#         description="...",
+#         default=[0.0, 0.0, 0.0],
+#         subtype="TRANSLATION")
+
+
 class CamPathProperties(PropertyGroup):
     """Properties of a camera path."""
 
@@ -5098,6 +5259,16 @@ class CamPathProperties(PropertyGroup):
         name="Is Rendered",
         description="Indicates if the camera path is rendered",
         default=True)
+# 
+#     bezier_points = CollectionProperty(
+#         type=CamPointProperties,
+#         name="campoints",
+#         description="The collection of camera positions")
+#     index_bezier_points = IntProperty(
+#         name="campoint index",
+#         description="index of the campoints collection",
+#         default=0,
+#         min=0)
 
 
 class PresetProperties(PropertyGroup):
@@ -5331,6 +5502,10 @@ class TractBlenderProperties(PropertyGroup):
         name="New trajectory",
         default=False,
         description="Show/hide the camera trajectory generator")
+    show_points = BoolProperty(
+        name="Points",
+        default=False,
+        description="Show/hide the camera path points")
 
     tracts = CollectionProperty(
         type=TractProperties,
