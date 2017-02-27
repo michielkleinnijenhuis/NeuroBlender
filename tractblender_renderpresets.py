@@ -806,7 +806,7 @@ def animate_camera(cam, anim, campath):
     for fr in interval_tail:
         scn.frame_set(fr)
         cns.use_fixed_location = 1
-        cns.offset_factor = (anim.repetitions + anim.offset) % 1
+        cns.offset_factor = 1  #(anim.repetitions + anim.offset) % 1  # FIXME
         cns.keyframe_insert("use_fixed_location", group=group)
         cns.keyframe_insert("offset_factor", group=group)
     for fr in interval_anim:
@@ -1053,7 +1053,7 @@ def create_world():
 
 
 def animate_slicebox(vvol, anim=None, axis="Z", frame_start=1, frame_end=100,
-                     repetitions=1.0, frame_step=10):
+                     repetitions=1.0, offset=0.0, frame_step=10):
     """"""
 
     # TODO: set fcu.interpolation = 'LINEAR'
@@ -1067,20 +1067,20 @@ def animate_slicebox(vvol, anim=None, axis="Z", frame_start=1, frame_end=100,
     elif 'Z' in axis:
         idx = 2
 
-    kf1 = 0
-    kf2 = 1
+    kf1 = offset
+    kf2 = 1 * repetitions
 
     if anim.reverse:
-        kfs = {anim.frame_start: kf2, anim.frame_end: kf1}
+        kfs = {anim.frame_start: 1 - offset, anim.frame_end: 1 - repetitions}
     else:
-        kfs = {anim.frame_start: kf1, anim.frame_end: kf2}
+        kfs = {anim.frame_start: offset, anim.frame_end: repetitions % 1}
 
-    if anim.sliceproperty == "Thickness":
-        kfdefault = kf2
-    elif anim.sliceproperty == "Position":
-        kfdefault = kf1
-    elif anim.sliceproperty == "Angle":
-        kfdefault = kf1
+#     if anim.sliceproperty == "Thickness":
+#         kfdefault = kf2
+#     elif anim.sliceproperty == "Position":
+#         kfdefault = kf1
+#     elif anim.sliceproperty == "Angle":
+#         kfdefault = kf1
 
     # set all frames to default value // fcu.extrapolation
     prop = "slice%s" % anim.sliceproperty
@@ -1088,15 +1088,15 @@ def animate_slicebox(vvol, anim=None, axis="Z", frame_start=1, frame_end=100,
 
 #     print(has_keyframe(vvol, attr))
 #     if not has_keyframe(vvol, attr):
-    for k in range(scn.frame_start, scn.frame_end):
-        scn.frame_set(k)
-        exec('vvol.%s[idx] = kfdefault' % prop.lower())
-        vvol.keyframe_insert(data_path=prop.lower(), index=idx)
+#     for k in range(scn.frame_start, scn.frame_end):
+#         scn.frame_set(k)
+#         exec('vvol.%s[idx] = kfdefault' % prop.lower())
+#         vvol.keyframe_insert(data_path=prop.lower(), index=idx)
 
     # remove all keyframes in animation range
-    for k in range(anim.frame_start, anim.frame_end):
-        scn.frame_set(k)
-        vvol.keyframe_delete(data_path=prop.lower(), index=idx)
+#     for k in range(anim.frame_start, anim.frame_end):
+#         scn.frame_set(k)
+#         vvol.keyframe_delete(data_path=prop.lower(), index=idx)
 
     # insert the animation 
     for k, v in kfs.items():
