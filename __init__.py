@@ -1535,6 +1535,29 @@ def is_overlay_update(self, context):
 # bpy.utils.register_class(ImportFilesCollection)
 
 
+def h5_dataset_callback(self, context):
+    """Populate the enum based on available options."""
+
+    names = []
+
+    def h5_dataset_add(name, obj):
+        if isinstance(obj.id, h5py.h5d.DatasetID):
+            names.append(name)
+
+    try:
+        import h5py
+    except:
+        pass
+    else:
+        f = h5py.File(os.path.join(self.directory, self.files[0].name), 'r')
+        f.visititems(h5_dataset_add)
+        f.close()
+        items = [(name, name, "List the datatree", i)
+                 for i, name in enumerate(names)]
+
+        return items
+
+
 class ImportVoxelvolumes(Operator, ImportHelper):
     bl_idname = "tb.import_voxelvolumes"
     bl_label = "Import voxelvolumes"
@@ -1546,7 +1569,7 @@ class ImportVoxelvolumes(Operator, ImportHelper):
 #     files = CollectionProperty(type=ImportFilesCollection)
     filter_glob = StringProperty(
         options={"HIDDEN"},
-        default="*.nii;*.nii.gz;*.png;*.jpg;*.tif;*.tiff;")
+        default="*.nii;*.nii.gz;*.img;*.hdr;*.h5;*.png;*.jpg;*.tif;*.tiff;")
 
     name = StringProperty(
         name="Name",
@@ -1599,6 +1622,14 @@ class ImportVoxelvolumes(Operator, ImportHelper):
         name="overwrite",
         description="Overwrite existing texture directory",
         default=False)
+    dataset = EnumProperty(
+        name="Dataset",
+        description="The the name of the hdf5 dataset",
+        items=h5_dataset_callback)
+    vol_idx = IntProperty(
+        name="Volume index",
+        description="The index of the volume to import (-1 for all)",
+        default=-1)
 
     def execute(self, context):
 
@@ -1614,7 +1645,8 @@ class ImportVoxelvolumes(Operator, ImportHelper):
                                          self.is_overlay, self.is_label,
                                          self.parentpath, self.sformfile,
                                          self.texdir, self.texformat,
-                                         self.overwrite)[1]
+                                         self.overwrite, self.dataset,
+                                         self.vol_idx)[1]
     #     force updates
         tb.index_voxelvolumes = tb.index_voxelvolumes
         item.rendertype = item.rendertype
@@ -1630,7 +1662,8 @@ class ImportVoxelvolumes(Operator, ImportHelper):
 
         # FIXME: solve with update function
         if self.name_mode == "filename":
-            voltexdir = [s for s in self.directory.split('/') if "voltex_" in s]  # FIXME: generalize to other namings
+            voltexdir = [s for s in self.directory.split('/')
+                         if "voltex_" in s]  # FIXME: generalize to other namings
             if voltexdir:
                 self.name = voltexdir[0][7:]
             else:
@@ -1644,6 +1677,18 @@ class ImportVoxelvolumes(Operator, ImportHelper):
 
         row = layout.row()
         row.prop(self, "name")
+
+        try:
+            name = self.files[0].name
+        except:
+            pass
+        else:
+            if name.endswith('.h5'):
+                row = layout.row()
+                row.prop(self, "dataset", expand=False)
+
+        row = layout.row()
+        row.prop(self, "vol_idx")
 
         row = layout.row()
         row.prop(self, "sformfile")
@@ -3358,7 +3403,8 @@ def sformfile_update(self, context):
     except:
         pass
     else:
-        affine = tb_imp.read_affine_matrix(self.sformfile)
+        sformfile = bpy.path.abspath(self.sformfile)
+        affine = tb_imp.read_affine_matrix(sformfile)
         ob.matrix_world = affine
 
 

@@ -185,30 +185,36 @@ def import_voxelvolume(directory, files, name,
                        is_overlay=False, is_label=False,
                        parentpath="", sformfile="",
                        texdir="", texformat="IMAGE_SEQUENCE",
-                       overwrite=False):
+                       overwrite=False, fieldname='stack',
+                       vol_idx=-1):
     """Import a voxelvolume."""
 
     scn = bpy.context.scene
     tb = scn.tb
 
     fpath = os.path.join(directory, files[0])  # TODO: multiple files...
+#     if fpath.endswith('.h5'):
+#         if not fieldname.startwith('/'):
+#             fieldname = '/%s'.format(fieldname)
+#         fpath = fpath + fieldname
 
     # prep texture directory
     if not bpy.data.is_saved:
+        # TODO: create safe filename
         defaultpath = os.path.join(tb.projectdir, 'untitled.blend')
         bpy.ops.wm.save_as_mainfile(filepath=defaultpath)
     abstexdir = bpy.path.abspath(texdir)
     tb_utils.mkdir_p(abstexdir)
-    has_valid_texdir = check_texdir(abstexdir, texformat, overwrite)
+    has_valid_texdir = check_texdir(abstexdir, texformat, overwrite, vol_idx)
 
     texdict = {'name': name, 'texdir': texdir, 'texformat': texformat,
                 'has_valid_texdir': has_valid_texdir}
 
     # create/find the texture on disk
     if has_valid_texdir:
-        texdict = load_texdir(texdict, sformfile, is_overlay)
+        texdict = load_texdir(texdict, sformfile, is_overlay, vol_idx)
     else:
-        texdict = create_texdir(fpath, texdict, is_label, sformfile)
+        texdict = create_texdir(fpath, texdict, is_label, sformfile, fieldname, vol_idx)
 
     # add the voxelvolumes to neuroblender collections
     item = add_to_collections(fpath, texdict,
@@ -283,15 +289,17 @@ def import_voxelvolume(directory, files, name,
     return [ob], item
 
 
-def create_texdir(fpath, texdict, is_label, sformfile):
+def create_texdir(fpath, texdict, is_label, sformfile, fieldname='stack', vol_idx=-1):
     """"""
 
-    niiext = ('.nii', '.nii.gz')
+    niiext = ('.nii', '.nii.gz', '.img', '.hdr', '.h5')
     imext = ('.png', '.jpg', '.tif', '.tiff')
 
     if fpath.endswith(niiext):
 
-        texdict = prep_nifti(fpath, texdict, is_label)
+        texdict = prep_nifti(fpath, texdict, is_label, fieldname, vol_idx)
+        if not sformfile:
+            sformfile = fpath
 
     else:  # try to read it as a 3D volume in slices
 
@@ -319,7 +327,7 @@ def create_texdir(fpath, texdict, is_label, sformfile):
         texdict['labels'] = None
         # TODO: figure out labels and datarange
 
-    texdict['affine'] = read_affine_matrix(sformfile)
+    texdict['affine'] = read_affine_matrix(sformfile, fieldname)
 
     # save the essentials to the voltex directory
     abstexdir = bpy.path.abspath(texdict['texdir'])
@@ -332,22 +340,26 @@ def create_texdir(fpath, texdict, is_label, sformfile):
     return texdict
 
 
-def load_texdir(texdict, sformfile="", is_overlay=False):
+def load_texdir(texdict, sformfile="", is_overlay=False, vol_idx=-1):
     """"""
 
     texformat = texdict['texformat']
-    imdir = os.path.join(abstexdir, texformat)
     abstexdir = bpy.path.abspath(texdict['texdir'])
+    imdir = os.path.join(abstexdir, texformat)
     absimdir = bpy.path.abspath(imdir)
 
     vols = glob(os.path.join(absimdir, "*"))
+
+    if vol_idx == -1:
+        vol_idx = 0
+
     if texformat == "IMAGE_SEQUENCE":
-        slices = glob(os.path.join(vols[0], "*"))
+        slices = glob(os.path.join(vols[vol_idx], "*"))
         imgdir = slices[0]
     elif texformat == "STRIP":
-        imgdir = vols[0]
+        imgdir = vols[vol_idx]
     elif texformat == "8BIT_RAW":
-        imgdir = vols[0]
+        imgdir = vols[vol_idx]
 
     texdict['img'] = bpy.data.images.load(imgdir)
 
@@ -361,21 +373,33 @@ def load_texdir(texdict, sformfile="", is_overlay=False):
     return texdict
 
 
-def check_texdir(texdir, texformat, overwrite=False):
+def check_texdir(texdir, texformat, overwrite=False, vol_idx=-1):
     """"""
 
     if overwrite:
         return False
 
     abstexdir = bpy.path.abspath(texdir)
-    absimdir = os.path.join(abstexdir, texformat)
-
-    if not os.path.isdir(absimdir):
+    if not os.path.isdir(abstexdir):
         return False
 
     for fname in ['affine.npy', 'dims.npy', 'datarange.npy', 'labels.npy']:
         if not os.path.isfile(os.path.join(abstexdir, fname)):
             return False
+
+    absimdir = os.path.join(abstexdir, texformat)
+    if not os.path.isdir(absimdir):
+        return False
+
+    if vol_idx != -1:
+        absvoldir = os.path.join(absimdir, 'vol%04d' % vol_idx)
+        if not os.path.isdir(absvoldir):
+            return False
+    else:
+        absvoldir = os.path.join(absimdir, 'vol%04d' % 0)
+        if not os.path.isdir(absvoldir):
+            return False
+        # TODO: see if all vols are there
 
     nfiles = len(glob(os.path.join(absimdir, '*')))
     if not nfiles:
@@ -384,7 +408,7 @@ def check_texdir(texdir, texformat, overwrite=False):
     return True
 
 
-def prep_nifti(fpath, texdict, is_label=False):
+def prep_nifti(fpath, texdict, is_label=False, fieldname='stack', vol_idx=-1):
     """Write data in a nifti file to a temp directory.
 
     The nifti is read with nibabel with [z,y,x] layout, and is either
@@ -399,41 +423,71 @@ def prep_nifti(fpath, texdict, is_label=False):
     texdir = texdict['texdir'] 
     texformat = texdict['texformat']
 
-    nib = tb_utils.validate_nibabel('nifti')
-    if tb.nibabel_valid:
-
-        nii = nib.load(fpath)
-
-        data = nii.get_data()
-        data.shape += (1,) * (4 - data.ndim)
-        dims = np.array(data.shape)
-
-        if is_label:
-            mask = data < 0
-            if mask.any():
-                print("setting negative labels to 0")
-            data[mask] = 0
-            labels = np.unique(data)
-            labels = labels[labels > 0]
+    if fpath.endswith('.h5'):
+        try:
+            import h5py
+        except ImportError:
+            raise  # TODO: error to indicate how to set up h5py
         else:
-            labels = None
+            f = h5py.File(fpath, 'r')
+            in2out = h5_in2out(f[fieldname])
+            data = np.transpose(f[fieldname][:], in2out)
+            if vol_idx != -1:  # TODO: make efficient
+                data = data[..., vol_idx]
 
-        data, datarange = normalize_data(data)
+    else:
+        try:
+            import nibabel as nib
+        except ImportError:
+            raise  # TODO: error to indicate how to set up nibabel
+        else:
+            nii_proxy = nib.load(fpath)
+            data = nii_proxy.get_data()
+            if vol_idx != -1:
+                data = data[..., vol_idx]
 
-        imdir = os.path.join(bpy.path.abspath(texdir), texformat)
-        absimdir = bpy.path.abspath(imdir)
-        tb_utils.mkdir_p(absimdir)
+    data.shape += (1,) * (4 - data.ndim)
+    dims = np.array(data.shape)
 
-        data = np.transpose(data)
-        fun = eval("write_to_%s" % texformat.lower())
-        img = fun(absimdir, data, dims)
+    if is_label:
+        mask = data < 0
+        if mask.any():
+            print("setting negative labels to 0")
+        data[mask] = 0
+        labels = np.unique(data)
+        labels = labels[labels > 0]
+    else:
+        labels = None
 
-        texdict.update({'img': img,
-                        'dims': dims,
-                        'datarange': datarange,
-                        'labels': labels})
+    data, datarange = normalize_data(data)
+
+    imdir = os.path.join(bpy.path.abspath(texdir), texformat)
+    absimdir = bpy.path.abspath(imdir)
+    tb_utils.mkdir_p(absimdir)
+
+    data = np.transpose(data)
+    fun = eval("write_to_%s" % texformat.lower())
+    img = fun(absimdir, data, dims)
+
+    texdict.update({'img': img,
+                    'dims': dims,
+                    'datarange': datarange,
+                    'labels': labels})
 
     return texdict
+
+
+def h5_in2out(inds):
+    """"""
+
+    outlayout = 'xyzct'[0:inds.ndim]
+    try:
+        inlayout = [d.label for d in inds.dims]
+    except:
+        inlayout = 'xyzct'[0:inds.ndim]
+    in2out = [inlayout.index(l) for l in outlayout]
+
+    return in2out
 
 
 def normalize_data(data):
@@ -451,6 +505,15 @@ def normalize_data(data):
 def write_to_image_sequence(absimdir, data, dims):
     """"""
 
+    scn = bpy.context.scene
+    ff = scn.render.image_settings.file_format
+    cm = scn.render.image_settings.color_mode
+    cd = scn.render.image_settings.color_depth
+
+    scn.render.image_settings.file_format = 'PNG'
+    scn.render.image_settings.color_mode = 'BW'
+    scn.render.image_settings.color_depth = '16'
+
     for volnr, vol in enumerate(data):
         voldir = os.path.join(absimdir, 'vol%04d' % volnr)
         tb_utils.mkdir_p(voldir)
@@ -466,8 +529,12 @@ def write_to_image_sequence(absimdir, data, dims):
             filepath = os.path.join(voldir, slcname)
             img.filepath_raw = bpy.path.abspath(filepath)
             img.file_format = 'PNG'
-            img.save()
-#             img.save_render(img.filepath_raw)
+#             img.save()
+            img.save_render(img.filepath_raw)
+
+    scn.render.image_settings.file_format = ff
+    scn.render.image_settings.color_mode = cm
+    scn.render.image_settings.color_depth = cd
 
     return img
 
@@ -2003,7 +2070,7 @@ def make_polyline_ob_vi(curvedata, ob, vi_list):
 # ========================================================================== #
 
 
-def read_affine_matrix(filepath):
+def read_affine_matrix(filepath, fieldname='stack'):
     """Get the affine transformation matrix from the nifti or textfile."""
 
     scn = bpy.context.scene
@@ -2024,6 +2091,8 @@ def read_affine_matrix(filepath):
             if len(xform) == 16:
                 xform = np.reshape(xform, [4, 4])
             affine = Matrix(xform)
+    elif filepath.endswith('.h5'):
+        affine = h5_affine(filepath, fieldname)
     elif filepath.endswith('.npy'):
         affine = np.load(filepath)
     else:
@@ -2034,3 +2103,33 @@ def read_affine_matrix(filepath):
 #                     invalid affine transformation matrix'}
 
     return Matrix(affine)
+
+
+def h5_affine(fpath, fieldname):
+    """Read an 'affine' matrix from h5 element sizes."""
+
+    try:
+        import h5py
+    except ImportError:
+        raise  # TODO: error to indicate how to set up h5py
+    else:
+#         h5_path = fpath.split('.h5')
+#         f = h5py.File(h5_fpath[0] + '.h5', 'r')
+        f = h5py.File(fpath, 'r')
+        in2out = h5_in2out(f[fieldname])
+
+        affine = [[1, 0, 0, 0],
+                  [0, 1, 0, 0],
+                  [0, 0, 1, 0],
+                  [0, 0, 0, 1]]
+        try:
+            element_size_um = [f[fieldname].attrs['element_size_um'][i]
+                               for i in in2out]
+        except:
+            pass
+        else:
+            affine[0][0] = element_size_um[0]
+            affine[1][1] = element_size_um[1]
+            affine[2][2] = element_size_um[2]
+
+        return affine
