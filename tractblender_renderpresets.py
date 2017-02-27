@@ -583,7 +583,8 @@ def set_animations():
                          anim.axis,
                          anim.frame_start,
                          anim.frame_end,
-                         anim.repetitions)
+                         anim.repetitions,
+                         anim.offset)
 
     # time series
     time_anims = [anim for anim in tb_anims
@@ -593,11 +594,11 @@ def set_animations():
         animate_timeseries(anim)
 
 
-    for anim in cam_anims:
-        # FIXME: handle case when no campaths exist/selected
-        campath = bpy.data.objects[anim.campaths_enum]
-        if campath not in preset_obs:
-            preset_obs = preset_obs + [campath]
+#     for anim in cam_anims:
+#         # FIXME: handle case when no campaths exist/selected
+#         campath = bpy.data.objects[anim.campaths_enum]
+#         if campath not in preset_obs:  # FIXME: preset_obs not defined
+#             preset_obs = preset_obs + [campath]
 
 # bpy.data.actions[24].name
 def clear_camera_path_animations(cam, anims):
