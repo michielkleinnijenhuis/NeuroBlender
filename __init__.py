@@ -3428,6 +3428,23 @@ def slices_update(self, context):
             for ts in tss:
                 ts.scale[0] = ts.scale[0]
 
+@persistent
+def slices_handler(dummy):
+    """Set surface or volume rendering for the voxelvolume."""
+
+    scn = bpy.context.scene
+    tb = scn.tb
+
+    for vvol in tb.voxelvolumes:
+        slices_update(vvol, bpy.context)
+    for vvol in tb.voxelvolumes:
+        for scalargroup in vvol.scalargroups:
+            slices_update(scalargroup, bpy.context)
+        for labelgroup in vvol.labelgroups:
+            slices_update(labelgroup, bpy.context)
+
+bpy.app.handlers.frame_change_pre.append(slices_handler)
+
 
 def rendertype_enum_update(self, context):
     """Set surface or volume rendering for the voxelvolume."""
@@ -3455,6 +3472,27 @@ def rendertype_enum_update(self, context):
                 for idx in range(0, 3):
                     tb_imp.voxelvolume_slice_drivers_surface(self, ts, idx, "scale")
                     tb_imp.voxelvolume_slice_drivers_surface(self, ts, idx, "offset")
+
+
+# FIXME: excessive to remove/add these drivers at every frame; 
+# mostly just need an update of the offset values for texture mapping;
+# except when keyframing rendertype!
+@persistent
+def rendertype_enum_handler(dummy):
+    """Set surface or volume rendering for the voxelvolume."""
+
+    scn = bpy.context.scene
+    tb = scn.tb
+
+    for vvol in tb.voxelvolumes:
+        rendertype_enum_update(vvol, bpy.context)
+    for vvol in tb.voxelvolumes:
+        for scalargroup in vvol.scalargroups:
+            rendertype_enum_update(scalargroup, bpy.context)
+        for labelgroup in vvol.labelgroups:
+            rendertype_enum_update(labelgroup, bpy.context)
+
+bpy.app.handlers.frame_change_pre.append(rendertype_enum_handler)  # does this need to be post?
 
 
 def is_yoked_bool_update(self, context):
