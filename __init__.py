@@ -3128,6 +3128,11 @@ class AddCamPath(Operator):
             streamline = [point.co[0:3] for point in spline.points]
             tb_imp.make_polyline_ob(curve, streamline)
             ob.matrix_world = tb_ob.matrix_world
+            ob.select = True
+            bpy.context.scene.objects.active = ob
+            bpy.ops.object.transform_apply(location=False,
+                                           rotation=False,
+                                           scale=True)
 
             infostring = 'copied path from tract "%s:spline[%s]"'
 
@@ -3141,14 +3146,21 @@ class AddCamPath(Operator):
         scn = bpy.context.scene
 
         try:
-            cu = bpy.data.objects[self.anim_curve].data.copy()
+            cubase = bpy.data.objects[self.anim_curve]
         except KeyError:
             ob = None
             infostring = 'curve "%s" not found'
         else:
+            cu = cubase.data.copy()
             ob = bpy.data.objects.new(name, cu)
             scn.objects.link(ob)
             scn.update()
+            ob.matrix_world = cubase.matrix_world
+            ob.select = True
+            bpy.context.scene.objects.active = ob
+            bpy.ops.object.transform_apply(location=False,
+                                           rotation=False,
+                                           scale=True)
             infostring = 'copied camera path from "%s"'
 
         info = [infostring % self.anim_curve]
