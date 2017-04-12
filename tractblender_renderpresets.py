@@ -517,10 +517,12 @@ def add_constraint(ob, type, name, target, val=None):
         cns.limit_mode = 'LIMITDIST_INSIDE'
         cns.distance = val
     elif name.startswith('FollowPath'):
+        cns.forward_axis = 'TRACK_NEGATIVE_Z'
+        cns.up_axis = 'UP_Y'
         cns.use_curve_follow = val == "TrackPath"
-        if val == 'TrackPath':
-            cns.forward_axis = 'TRACK_NEGATIVE_Z'
-            cns.up_axis = 'UP_Y'
+#         if val == 'TrackPath':
+#             cns.forward_axis = 'TRACK_NEGATIVE_Z'
+#             cns.up_axis = 'UP_Y'
     elif name.startswith('Child Of'):
         if val is not None:
             for k, v in val.items():
@@ -547,24 +549,22 @@ def add_cam_constraints(cam):
 
 
 def set_animations():
-    """"""
+    """Generate a set of animations."""
 
     scn = bpy.context.scene
     tb = scn.tb
 
     tb_preset = tb.presets[tb.index_presets]
-    tb_cam = tb_preset.cameras[0]
-    tb_lights = tb_preset.lights
-    tb_tab = tb_preset.tables[0]
     tb_anims = tb_preset.animations
 
-    cam = bpy.data.objects[tb_preset.cameras[0].name]
-
     # camera path animations
-    cam_anims = [anim for anim in tb_anims
-                 if ((anim.animationtype == "CameraPath") &
-                     (anim.is_rendered))]
-    clear_camera_path_animations(cam, cam_anims)
+    cam = bpy.data.objects[tb_preset.cameras[0].name]
+    del_indices, cam_anims = [], []
+    for i, anim in enumerate(tb_anims):
+        if ((anim.animationtype == "CameraPath") & (anim.is_rendered)):
+            del_indices.append(i)
+            cam_anims.append(anim)
+    clear_camera_path_animations(cam, tb_anims, del_indices)
     create_camera_path_animations(cam, cam_anims)
 
     # slice fly-throughs
@@ -594,68 +594,96 @@ def set_animations():
         animate_timeseries(anim)
 
 
-#     for anim in cam_anims:
-#         # FIXME: handle case when no campaths exist/selected
-#         campath = bpy.data.objects[anim.campaths_enum]
-#         if campath not in preset_obs:  # FIXME: preset_obs not defined
-#             preset_obs = preset_obs + [campath]
+def clear_camera_path_animations(cam, anims, delete_indices):
+    """Remove camera trajectory animations."""
 
-# bpy.data.actions[24].name
-def clear_camera_path_animations(cam, anims):
-    """Clear a set of camera animations."""
+    del_anims = [anim for i, anim in enumerate(anims) if i in delete_indices]
+    cam_anims = [anim for i, anim in enumerate(anims)
+                 if ((anim.animationtype == "CameraPath") &
+                     (anim.is_rendered) &
+                     (i not in delete_indices))]
 
-    scn = bpy.context.scene
+    for anim in del_anims:
+        clear_CP_evaltime(anim)
+        clear_CP_followpath(anim)
+        remove_CP_followpath(cam, anim)
 
-    # the constraints will still contain the animation data
-    # when adding them again with the same name
-#     cam.animation_data_clear()
+    update_cam_constraints(cam, cam_anims)
 
-    if not cam.animation_data:
-        return
 
+def clear_CP_evaltime(anim):
+    """Remove modifiers on campath evaluation time."""
+
+    actname = '{}Action'.format(anim.campaths_enum)
     try:
-        cns = cam.constraints["TrackToCentre"]
+        fcu = bpy.data.actions[actname].fcurves.find("eval_time")
+        action = bpy.data.actions[actname]
     except:
         pass
     else:
-        # find all keyframes
-        for fr in range(0, scn.frame_end):
-            cns.keyframe_delete("influence", frame=fr)
+        """ TODO: get rid of hacky mod removal:
+            it can fail when anim.frame_start is changed
+        """
+        for mod in fcu.modifiers:
+            if ((mod.frame_start == anim.frame_start) &
+                (mod.frame_end == anim.frame_end)):
+                fcu.modifiers.remove(mod)
 
-    try:
-        cns = cam.constraints["Child Of"]
-        cns.keyframe_delete("use_location_x", 0)
-    except:
-        pass
-    else:
-        props = {"use_location_x": True,
-                 "use_location_y": True,
-                 "use_location_z": True,
-                 "use_rotation_x": True,
-                 "use_rotation_y": True,
-                 "use_rotation_z": True,
-                 "use_scale_x": False,
-                 "use_scale_y": False,
-                 "use_scale_z": False}
-        for fr in range(0, scn.frame_end):
-            for k, v in props.items():
-                cns.keyframe_delete(k, frame=fr)
 
-    for anim in anims:
-        # FIXME: handle case when no campaths exist/selected
-#         campath = bpy.data.objects[anim.campaths_enum]
-#         campath.animation_data_clear()
+def clear_CP_followpath(anim):
+    """Remove the keyframes on the FollowPath constraint."""
 
-        cnsname = "FollowPath" + anim.campaths_enum
+    props = ['use_fixed_location', 'offset_factor',
+             'forward_axis', 'influence']
+    for prop in props:
+        dpath = 'constraints["{}"].{}'.format(anim.cnsname, prop)
         try:
-            cns = cam.constraints[cnsname]
+            fcu = bpy.data.actions['CamAction'].fcurves.find(dpath)
         except:
             pass
         else:
-            for fr in range(0, scn.frame_end):
-                cns.keyframe_delete("influence", frame=fr)
-                cns.keyframe_delete("use_fixed_location", frame=fr)
-                cns.keyframe_delete("offset_factor", frame=fr)
+            action.fcurves.remove(fcu)
+
+
+def remove_CP_followpath(cam, anim):
+    """Delete a FollowPath constraint from the camera."""
+
+    try:
+        cns = cam.constraints[anim.cnsname]
+    except:
+        pass
+    else:
+        cam.constraints.remove(cns)
+
+
+def update_cam_constraints(cam, cam_anims):
+    """Update the basic constraints of the camera."""
+
+    scn = bpy.context.scene
+
+    try:
+        action = bpy.data.actions['CamAction']
+    except:
+        pass
+    else:
+        props = ["use_location_x", "use_location_y", "use_location_z",
+                 "use_rotation_x", "use_rotation_y", "use_rotation_z"]
+        for prop in props:
+            dpath = 'constraints["Child Of"].{}'.format(prop)
+            fcu = action.fcurves.find(dpath)
+            action.fcurves.remove(fcu)
+        # add the constraint keyframes back again
+        cns = cam.constraints["Child Of"]
+        timeline = generate_timeline(scn, cam_anims)
+        restrict_trans_timeline(scn, cns, timeline, group="ChildOf")
+
+        dpath = 'constraints["TrackToCentre"].influence'
+        fcu = action.fcurves.find(dpath)
+        action.fcurves.remove(fcu)
+        # add the constraint keyframes back again
+        cns = cam.constraints["TrackToCentre"]
+        timeline = generate_timeline(scn, cam_anims, trackcentre=True)
+        restrict_incluence_timeline(scn, cns, timeline, group="TrackTo")
 
 
 def create_camera_path_animations(cam, anims):
@@ -682,68 +710,18 @@ def create_camera_path_animations(cam, anims):
 #         for _ in range(0,n_cns):
 #             bpy.ops.constraint.move_up(override, constraint=cns.name)
 
-    anim_blocks = separate_anim_blocks(anims)
-    timeline = generate_timeline(scn, anims, anim_blocks)
-
     for anim in anims:
         campath = bpy.data.objects[anim.campaths_enum]
         animate_campath(campath, anim)
         animate_camera(cam, anim, campath)
 
     cnsCO = add_constraint(cam, "CHILD_OF", "Child Of", box)
-    timeline = generate_timeline(scn, anims, anim_blocks)
+    timeline = generate_timeline(scn, anims)
     restrict_trans_timeline(scn, cnsCO, timeline, group="ChildOf")
 
     cnsTT = add_constraint(cam, "TRACK_TO", "TrackToCentre", centre)
-    timeline = generate_timeline(scn, anims, anim_blocks, True)
+    timeline = generate_timeline(scn, anims, trackcentre=True)
     restrict_incluence_timeline(scn, cnsTT, timeline, group="TrackTo")
-
-
-def separate_anim_blocks(anims):
-    """"""
-
-    scn = bpy.context.scene
-
-    # sort animations in order of anim.frame_start
-    fframes = [anim.frame_start for anim in anims]
-    order = np.argsort(fframes)
-    anims = [anims[i] for i in order]
-
-    # define intervals for the animations
-    anim_blocks = [[scn.frame_start, scn.frame_end]]
-    anims[0].anim_block = [int(anim_blocks[0][0]), int(anim_blocks[0][1])]
-    if len(anims) > 1:
-        for i, anim in enumerate(anims[1:]):
-            frame_e = anims[i].frame_end
-            frame_s = anim.frame_start
-            frame_b = frame_e + np.ceil(((frame_s - frame_e) / 2))
-            anim_blocks[i][1] = frame_b - 1
-            anims[i].anim_block = [int(anim_blocks[i][0]), int(anim_blocks[i][1])]
-            newblock = [frame_b, scn.frame_end]
-            anim_blocks.append(newblock)
-
-        anims[-1].anim_block = [int(anim_blocks[-1][0]), int(anim_blocks[-1][1])]
-
-    # TODO: generate warning/error on overlapping animation intervals
-#             lastframe = anim.frame_end
-#             if anim.frame_start < lastframe:
-#                 print('WARNING: overlapping animation intervals detected')
-
-    return anim_blocks
-
-
-def generate_timeline(scn, anims, anim_blocks, ttc=False):
-    """"""
-
-    timeline = np.zeros(scn.frame_end + 1)
-    for anim, anim_block in zip(anims, anim_blocks):
-        for i in range(int(anim_block[0]), int(anim_block[1]) + 1):
-            if ttc:
-                timeline[i] = anim.tracktype == 'TrackCentre'
-            else:
-                timeline[i] = 1
-
-    return timeline
 
 
 def animate_campath(campath=None, anim=None):
@@ -752,35 +730,32 @@ def animate_campath(campath=None, anim=None):
     scn = bpy.context.scene
 
     campath.data.use_path = True
-    animdata = campath.data.animation_data_create()
-    animdata.action = bpy.data.actions.new("%sAction" % campath.data.name)
-    fcu = animdata.action.fcurves.new("eval_time")
-    mod = fcu.modifiers.new('GENERATOR')
+    actname = "{}Action".format(campath.data.name)
+    try:
+        fcu = bpy.data.actions[actname].fcurves.find("eval_time")
+    except:
+        animdata = campath.data.animation_data_create()
+        animdata.action = bpy.data.actions.new(actname)
+        fcu = animdata.action.fcurves.new("eval_time")
 
+    mod = fcu.modifiers.new('GENERATOR')
     intercept, slope, _ = calculate_coefficients(campath, anim)
     mod.coefficients = (intercept, slope)
-
-    if 0:
-        mod.use_restricted_range = True
-        mod.frame_start = anim.frame_start
-        mod.frame_end = anim.frame_end
-
-        mod = fcu.modifiers.new('LIMITS')
-        mod.use_restricted_range = mod.use_min_y = mod.use_max_y = True
-        mod.min_y = mod.max_y = max_val
-        mod.frame_start = anim.frame_end
-        mod.frame_end = scn.frame_end
+    mod.use_additive = True
+    mod.use_restricted_range = True
+    mod.frame_start = anim.frame_start
+    mod.frame_end = anim.frame_end
 
 
 def calculate_coefficients(campath, anim):
-    """"""
+    """Calculate the coefficients for a campath modifier."""
 
     max_val = anim.repetitions * campath.data.path_duration
     slope = max_val / (anim.frame_end - anim.frame_start)
     intercept = -(anim.frame_start) * slope
 
     if anim.reverse:
-        intercept = -intercept + 100  # TODO: check correctness of value
+        intercept = -intercept + 100  # TODO: check correctness of value 100
         slope = -slope
         max_val = -max_val
 
@@ -792,63 +767,51 @@ def animate_camera(cam, anim, campath):
 
     scn = bpy.context.scene
 
-    cnsname = "FollowPath" + anim.campaths_enum
+    cnsname = "FollowPath{}".format(anim.campaths_enum)
     cns = add_constraint(cam, "FOLLOW_PATH", cnsname, campath, anim.tracktype)
-    restrict_incluence(cns, [anim.anim_block[0], anim.anim_block[1]])
+    anim.cnsname = cns.name
+    restrict_incluence(cns, anim)
 
     cns.offset = anim.offset * -100
 
-    if anim.reverse:
-        fwaxis = 'FORWARD_Z'
-    else:
-        fwaxis = 'TRACK_NEGATIVE_Z'
-
-    group = "CamPathAnim"
     interval_head = [scn.frame_start, anim.frame_start - 1]
     interval_anim = [anim.frame_start, anim.frame_end]
     interval_tail = [anim.frame_end + 1, scn.frame_end]
-    for fr in interval_head:
-        scn.frame_set(fr)
-        cns.use_fixed_location = 1
-        cns.offset_factor = 0
-        cns.forward_axis = 'TRACK_NEGATIVE_Z'
-        cns.keyframe_insert("use_fixed_location", group=group)
-        cns.keyframe_insert("offset_factor", group=group)
-        cns.keyframe_insert("forward_axis", group=group)
-    for fr in interval_tail:
-        scn.frame_set(fr)
-        cns.use_fixed_location = 1
-        cns.offset_factor = 1  #(anim.repetitions + anim.offset) % 1  # FIXME
-        cns.forward_axis = 'TRACK_NEGATIVE_Z'
-        cns.keyframe_insert("use_fixed_location", group=group)
-        cns.keyframe_insert("offset_factor", group=group)
-        cns.keyframe_insert("forward_axis", group=group)
-    for fr in interval_anim:
-        scn.frame_set(fr)
-        cns.use_fixed_location = 0
-        cns.offset_factor = anim.offset
-        cns.forward_axis = fwaxis
-        cns.keyframe_insert("use_fixed_location", group=group)
-        cns.keyframe_insert("offset_factor", group=group)
-        cns.keyframe_insert("forward_axis", group=group)
+    ivs = [interval_head, interval_tail, interval_anim]
+    vals = [(1, 0, 'TRACK_NEGATIVE_Z'),
+            (1, 0, 'TRACK_NEGATIVE_Z'),
+            (0, anim.offset,
+             'FORWARD_Z' if anim.reverse else 'TRACK_NEGATIVE_Z')]
+    for iv, val in zip(ivs, vals):
+        for fr in iv:
+            scn.frame_set(fr)
+            cns.use_fixed_location = val[0]
+            cns.offset_factor = val[1]
+            cns.forward_axis = val[2]
+            cns.keyframe_insert("use_fixed_location")
+            cns.keyframe_insert("offset_factor")
+            cns.keyframe_insert("forward_axis")
 
 
-def setup_animation_rendering(filepath="render/anim",
-                              file_format="AVI_JPEG",
-                              blendpath=""):
-    """Set rendering properties for animations."""
+def generate_timeline(scn, anims, trackcentre=False):
+    """Generate a timeline for a set of animations."""
 
-    scn = bpy.context.scene
+    timeline = np.zeros(scn.frame_end + 1)
+    if trackcentre:
+        timeline += 1
 
-    scn.render.filepath = filepath
-    scn.render.image_settings.file_format = file_format
-    bpy.ops.render.render(animation=True)
+    for anim in anims:
+        for i in range(anim.frame_start, anim.frame_end + 1):
+            if trackcentre:
+                timeline[i] = anim.tracktype == 'TrackCentre'
+            else:
+                timeline[i] = 1
 
-    bpy.ops.wm.save_as_mainfile(filepath=blendpath)
+    return timeline
 
 
 def restrict_trans_timeline(scn, cns, timeline, group=""):
-    """"""
+    """Restrict the loc/rot in a constraint according to timeline."""
 
     for prop in ["use_location_x", "use_location_y", "use_location_z",
                  "use_rotation_x", "use_rotation_y", "use_rotation_z"]:
@@ -876,7 +839,7 @@ def restrict_trans_timeline(scn, cns, timeline, group=""):
 
 
 def restrict_incluence_timeline(scn, cns, timeline, group=""):
-    """"""
+    """Restrict the influence of a constraint according to timeline."""
 
     scn.frame_set(scn.frame_start)
     cns.influence = timeline[scn.frame_start]
@@ -894,26 +857,35 @@ def restrict_incluence_timeline(scn, cns, timeline, group=""):
     cns.keyframe_insert("influence", group=group)
 
 
-def restrict_incluence(cns, anim_block):
-    """"""
+def restrict_incluence(cns, anim):
+    """Restrict the influence of a constraint to the animation interval."""
 
     scn = bpy.context.scene
 
-    interval_head = [scn.frame_start, anim_block[0]-1]
-    interval_anim = anim_block
-    interval_tail = [anim_block[1] + 1, scn.frame_end]
-    for fr in interval_head:
-        scn.frame_set(fr)
-        cns.influence = 0
-        cns.keyframe_insert(data_path="influence", index=-1)
-    for fr in interval_tail:
-        scn.frame_set(fr)
-        cns.influence = 0
-        cns.keyframe_insert(data_path="influence", index=-1)
-    for fr in interval_anim:
-        scn.frame_set(fr)
-        cns.influence = 1
-        cns.keyframe_insert(data_path="influence", index=-1)
+    interval_head = [scn.frame_start, anim.frame_start - 1]
+    interval_anim = [anim.frame_start, anim.frame_end]
+    interval_tail = [anim.frame_end + 1, scn.frame_end]
+    ivs = [interval_head, interval_tail, interval_anim]
+    vals = [0, 0, 1]
+    for iv, val in zip(ivs, vals):
+        for fr in iv:
+            scn.frame_set(fr)
+            cns.influence = val
+            cns.keyframe_insert(data_path="influence", index=-1)
+
+
+def setup_animation_rendering(filepath="render/anim",
+                              file_format="AVI_JPEG",
+                              blendpath=""):
+    """Set rendering properties for animations."""
+
+    scn = bpy.context.scene
+
+    scn.render.filepath = filepath
+    scn.render.image_settings.file_format = file_format
+    bpy.ops.render.render(animation=True)
+
+    bpy.ops.wm.save_as_mainfile(filepath=blendpath)
 
 
 # ========================================================================== #

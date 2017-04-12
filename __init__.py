@@ -955,10 +955,10 @@ class ObjectListOperations(Operator):
             else:
                 bpy.data.objects.remove(ob)
         elif self.action.endswith('_AN'):
-            print("remove AN")  # FIXME: TODO
-            # for CamPath anim:
-            # remove follow path constraint on camera
-            # remove keyframes on TrackTo constraint influence
+            cam = bpy.data.objects['Cam']
+            preset = eval("tb.presets[%d]" % tb.index_presets)
+            tb_rp.clear_camera_path_animations(cam, preset.animations,
+                                               [self.index])
         else:
             tb_ov, ov_idx = tb_utils.active_tb_overlay()
             ob = bpy.data.objects[tb_ob.name]
@@ -5324,6 +5324,11 @@ class AnimationProperties(PropertyGroup):
         name="Object",
         description="Select object to animate",
         items=timeseries_object_enum_callback)
+
+    cnsname = StringProperty(
+        name="Constraint Name",
+        description="Name of the campath constraint",
+        default="")
 
     # TODO: TimeSeries props
 
