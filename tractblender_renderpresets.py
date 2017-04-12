@@ -691,9 +691,11 @@ def create_camera_path_animations(cam, anims):
         animate_camera(cam, anim, campath)
 
     cnsCO = add_constraint(cam, "CHILD_OF", "Child Of", box)
+    timeline = generate_timeline(scn, anims, anim_blocks)
     restrict_trans_timeline(scn, cnsCO, timeline, group="ChildOf")
 
     cnsTT = add_constraint(cam, "TRACK_TO", "TrackToCentre", centre)
+    timeline = generate_timeline(scn, anims, anim_blocks, True)
     restrict_incluence_timeline(scn, cnsTT, timeline, group="TrackTo")
 
 
@@ -730,13 +732,16 @@ def separate_anim_blocks(anims):
     return anim_blocks
 
 
-def generate_timeline(scn, anims, anim_blocks):
+def generate_timeline(scn, anims, anim_blocks, ttc=False):
     """"""
 
     timeline = np.zeros(scn.frame_end + 1)
     for anim, anim_block in zip(anims, anim_blocks):
         for i in range(int(anim_block[0]), int(anim_block[1]) + 1):
-            timeline[i] = anim.tracktype == 'TrackCentre'
+            if ttc:
+                timeline[i] = anim.tracktype == 'TrackCentre'
+            else:
+                timeline[i] = 1
 
     return timeline
 
@@ -775,7 +780,7 @@ def calculate_coefficients(campath, anim):
     intercept = -(anim.frame_start) * slope
 
     if anim.reverse:
-        intercept = -intercept
+        intercept = -intercept + 100  # TODO: check correctness of value
         slope = -slope
         max_val = -max_val
 
@@ -793,6 +798,11 @@ def animate_camera(cam, anim, campath):
 
     cns.offset = anim.offset * -100
 
+    if anim.reverse:
+        fwaxis = 'FORWARD_Z'
+    else:
+        fwaxis = 'TRACK_NEGATIVE_Z'
+
     group = "CamPathAnim"
     interval_head = [scn.frame_start, anim.frame_start - 1]
     interval_anim = [anim.frame_start, anim.frame_end]
@@ -801,20 +811,26 @@ def animate_camera(cam, anim, campath):
         scn.frame_set(fr)
         cns.use_fixed_location = 1
         cns.offset_factor = 0
+        cns.forward_axis = 'TRACK_NEGATIVE_Z'
         cns.keyframe_insert("use_fixed_location", group=group)
         cns.keyframe_insert("offset_factor", group=group)
+        cns.keyframe_insert("forward_axis", group=group)
     for fr in interval_tail:
         scn.frame_set(fr)
         cns.use_fixed_location = 1
         cns.offset_factor = 1  #(anim.repetitions + anim.offset) % 1  # FIXME
+        cns.forward_axis = 'TRACK_NEGATIVE_Z'
         cns.keyframe_insert("use_fixed_location", group=group)
         cns.keyframe_insert("offset_factor", group=group)
+        cns.keyframe_insert("forward_axis", group=group)
     for fr in interval_anim:
         scn.frame_set(fr)
         cns.use_fixed_location = 0
         cns.offset_factor = anim.offset
+        cns.forward_axis = fwaxis
         cns.keyframe_insert("use_fixed_location", group=group)
         cns.keyframe_insert("offset_factor", group=group)
+        cns.keyframe_insert("forward_axis", group=group)
 
 
 def setup_animation_rendering(filepath="render/anim",
