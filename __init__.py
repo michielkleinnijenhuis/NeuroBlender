@@ -3152,6 +3152,7 @@ class AddCamPath(Operator):
             infostring = 'curve "%s" not found'
         else:
             cu = cubase.data.copy()
+            cu.name = name
             ob = bpy.data.objects.new(name, cu)
             scn.objects.link(ob)
             scn.update()
