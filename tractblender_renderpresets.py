@@ -115,6 +115,8 @@ def scene_preset_init(name):
                   "location": (0, 0, -1)}
     table = create_table(preset, centre, tableprops)
     tableprops["name"] = table.name
+    table.hide = True
+    table.hide_render = True
 
     """add newly created objects to collections"""
     presetprops = {"name": name, "centre": centre.name,

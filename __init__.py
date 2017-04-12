@@ -5156,7 +5156,7 @@ class TableProperties(PropertyGroup):
     is_rendered = BoolProperty(
         name="Is Rendered",
         description="Indicates if the overlay is rendered",
-        default=True)
+        default=False)
     beautified = BoolProperty(
         name="Beautify",
         description="",
