@@ -70,26 +70,30 @@ def import_tract(fpath, name, sformfile="",
     """
 
     weed_tract = argdict["weed_tract"]
-    interpolate_streamlines = argdict["interpolate_streamlines"]
+    interp_sl = argdict["interpolate_streamlines"]
 
     scn = bpy.context.scene
     tb = scn.tb
 
     outcome = "failed"
     ext = os.path.splitext(fpath)[1]
+
     try:
-        streamlines = eval("read_streamlines_%s(fpath)" % ext[1:])
+        funcall = "read_streamlines_{}(fpath)".format(ext[1:])
+        streamlines = eval(funcall)
+
     except NameError:
-        reason = "file format '%s' not supported" % ext
-        info = "import %s: %s" % (outcome, reason)
+        reason = "file format '{}' not supported".format(ext)
+        info = "import {}: {}".format(outcome, reason)
         return None, info, "no geometry loaded"
     except (IOError, FileNotFoundError):
-        reason = "file '%s' not valid" % fpath
-        info = "import %s: %s" % (outcome, reason)
+        reason = "file '{}' not valid".format(fpath)
+        info = "import {}: {}".format(outcome, reason)
         return None, info, "no geometry loaded"
+
     except:
         reason = "unknown import error"
-        info = "import %s: %s" % (outcome, reason)
+        info = "import {}: {}".format(outcome, reason)
         raise
 
     curve = bpy.data.curves.new(name=name, type='CURVE')
@@ -104,9 +108,9 @@ def import_tract(fpath, name, sformfile="",
 
     for i, streamline in enumerate(streamlines):
         if i in streamlines_sample:
-            if interpolate_streamlines < 1.:
-                subsample_streamlines = int(1/interpolate_streamlines)
-                streamline = np.array(streamline)[1::subsample_streamlines, :]
+            if interp_sl < 1.:
+                subs_sl = int(1/interp_sl)
+                streamline = np.array(streamline)[1::subs_sl, :]
 #                 TODO: interpolation
 #                 from scipy import interpolate
 #                 x = interpolate.splprep(list(np.transpose(streamline)))
@@ -116,8 +120,13 @@ def import_tract(fpath, name, sformfile="",
     affine = read_affine_matrix(sformfile)
     ob.matrix_world = affine
 
-    add_tract_to_collection(name, fpath, sformfile,
-                            nsamples, weed_tract, interpolate_streamlines)
+    props = {"name": name,
+             "filepath": fpath,
+             "sformfile": sformfile,
+             "nstreamlines": nsamples,
+             "tract_weeded": weed_tract,
+             "streamines_interpolated": interp_sl}
+    tb_utils.add_item(tb, "tracts", props)
 
     tb_utils.move_to_layer(ob, 0)
     scn.layers[0] = True
@@ -126,59 +135,70 @@ def import_tract(fpath, name, sformfile="",
     ob.select = True
 
     outcome = "successful"
-    info = "import %s" % outcome
-    info_geom = "transform: %s\n" % affine
-    info_geom = info_geom + "decimate: weeding=%.3f; interpolation=%.3f" \
-                % (weed_tract, interpolate_streamlines)
+    info = "import {}".format(outcome)
+    info_tf = "transform: {}\n".format(affine)
+    info_dc = """decimate: 
+                 weeding={}; interpolation={}""".format(weed_tract, interp_sl)
 
-    return [ob], info, info_geom
+    return [ob], info, info_tf + info_dc
 
 
 def import_surface(fpath, name, sformfile="", argdict={}):
     """Import a surface object."""
     # TODO: subsampling? (but has to be compatible with loading overlays)
+    # solve with decimate modifier?
 
     scn = bpy.context.scene
     tb = scn.tb
 
     outcome = "failed"
     ext = os.path.splitext(fpath)[1]
+
     try:
-        obs, affines, sformfiles = eval("read_surfaces_%s(fpath, name, sformfile)" % ext[1:])
+        funcall = "read_surfaces_{}(fpath, name, sformfile)".format(ext[1:])
+        surfaces = eval(funcall)
+
     except NameError:
-        reason = "file format '%s' not supported" % ext
-        info = "import %s: %s" % (outcome, reason)
+        reason = "file format '{}' not supported".format(ext)
+        info = "import {}: {}".format(outcome, reason)
         raise
         return None, info, "no geometry loaded"
     except (IOError, FileNotFoundError):
-        reason = "file '%s' not valid" % fpath
-        info = "import %s: %s" % (outcome, reason)
+        reason = "file '{}' not valid".format(fpath)
+        info = "import {}: {}".format(outcome, reason)
         return None, info, "no geometry loaded"
     except ImportError:
         reason = "nibabel not found"
-        info = "import %s: %s" % (outcome, reason)
+        info = "import {}: {}".format(outcome, reason)
         return None, info, "no geometry loaded"
+
     except:
         reason = "unknown import error"
-        info = "import %s: %s" % (outcome, reason)
+        info = "import {}: {}".format(outcome, reason)
         raise
 
-    for ob, affine, sformfile in zip(obs, affines, sformfiles):
+    for surf in surfaces:
+
+        ob, affine, sformfile = surf
+
         ob.matrix_world = affine
 
-        add_surface_to_collection(ob.name, fpath, sformfile)
+        props = {"name": name,
+                 "filepath": fpath,
+                 "sformfile": sformfile}
+        tb_utils.add_item(tb, "surfaces", props)
 
         tb_utils.move_to_layer(ob, 1)
         scn.layers[1] = True
 
-    bpy.context.scene.objects.active = ob
+    scn.objects.active = ob
     ob.select = True
 
     outcome = "successful"
-    info = "import %s" % outcome
-    info_geom = "transform: %s" % affine
+    info = "import {}".format(outcome)
+    info_tf = "transform: {}".format(affine)
 
-    return obs, info, info_geom
+    return [surf[0] for surf in surfaces] , info, info_tf
 
 
 def import_voxelvolume(directory, files, name,
@@ -927,6 +947,7 @@ def import_overlays(directory, files, name="", parent="", ovtype=""):
     scn = bpy.context.scene
     tb = scn.tb
 
+#    parent = tb_utils.active_tb_object()[0].name  # FIXME
     if not parent:
         parent = tb_utils.active_tb_object()[0].name
 #     else:
@@ -1620,7 +1641,7 @@ def read_surfaces_obj(fpath, name, sformfile):
     ob.name = name
     affine = read_affine_matrix(sformfile)
 
-    return [ob], [affine], [sformfile]
+    return [(ob, affine, sformfile)]
 
 
 def read_surfaces_stl(fpath, name, sformfile):
@@ -1634,7 +1655,7 @@ def read_surfaces_stl(fpath, name, sformfile):
     ob.name = name
     affine = read_affine_matrix(sformfile)
 
-    return [ob], [affine], [sformfile]
+    return [(ob, affine, sformfile)]
 
 
 def read_surfaces_gii(fpath, name, sformfile):
@@ -1662,7 +1683,7 @@ def read_surfaces_gii(fpath, name, sformfile):
     ob = bpy.data.objects.new(name, me)
     bpy.context.scene.objects.link(ob)
 
-    return [ob], [affine], [sformfile]
+    return [(ob, affine, sformfile)]
 
 
 def read_surfaces_white(fpath, name, sformfile):
@@ -1684,7 +1705,7 @@ def read_surfaces_white(fpath, name, sformfile):
     ob = bpy.data.objects.new(name, me)
     bpy.context.scene.objects.link(ob)
 
-    return [ob], [affine], [sformfile]
+    return [(ob, affine, sformfile)]
 
 
 read_surfaces_pial = read_surfaces_white
@@ -1699,17 +1720,13 @@ def read_surfaces_blend(fpath, name, sformfile):
     with bpy.data.libraries.load(fpath) as (data_from, data_to):
         data_to.objects = data_from.objects
 
-    obs = []
-    affines = []
-    sformfiles = []
+    surfaces = []
     for ob in data_to.objects:
         if ob is not None:
             bpy.context.scene.objects.link(ob)
-            obs.append(ob)
-            affines.append(ob.matrix_world)
-            sformfiles.append('')
+            surfaces.append((ob, ob.matrix_world, ''))
 
-    return obs, affines, sformfiles
+    return surfaces
 
 
 # ========================================================================== #
