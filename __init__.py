@@ -188,6 +188,11 @@ class TractBlenderBasePanel(Panel):
         if tb.objecttype == "voxelvolumes":
             row = layout.row()
             row.prop(tb_ob, "rendertype", expand=True)
+            mat = bpy.data.materials[tb_ob.name]
+            if tb_ob.rendertype == "SURFACE":
+                row = layout.row()
+                row.prop(mat, "use_transparency", text="Box Transparency")
+                row.prop(mat, "alpha")
             tex = bpy.data.textures[tb_ob.name]
             self.drawunit_texture(layout, tex, tb_ob)
         elif tb.objecttype == "surfaces":
@@ -4450,6 +4455,37 @@ class LabelGroupProperties(PropertyGroup):
         default=0,
         min=0,
         update=index_labels_update)
+
+    range = FloatVectorProperty(
+        name="Range",
+        description="The original min-max of scalars mapped in vertexweights",
+        default=(0, 0),
+        size=2,
+        precision=4)
+    colourmap_enum = EnumProperty(
+        name="colourmap",
+        description="Apply this colour map",
+        items=[("greyscale", "greyscale", "greyscale", 1),
+               ("jet", "jet", "jet", 2),
+               ("hsv", "hsv", "hsv", 3),
+               ("hot", "hot", "hot", 4),
+               ("cool", "cool", "cool", 5),
+               ("spring", "spring", "spring", 6),
+               ("summer", "summer", "summer", 7),
+               ("autumn", "autumn", "autumn", 8),
+               ("winter", "winter", "winter", 9),
+               ("parula", "parula", "parula", 10)],
+        default="jet",
+        update=colourmap_enum_update)
+    nn_elements = CollectionProperty(
+        type=ColorRampProperties,
+        name="nn_elements",
+        description="The non-normalized color stops")
+    index_nn_elements = IntProperty(
+        name="nn_element index",
+        description="Index of the non-normalized color stops",
+        default=0,
+        min=0)
 
     rendertype = EnumProperty(
         name="rendertype",
