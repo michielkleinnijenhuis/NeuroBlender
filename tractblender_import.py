@@ -144,9 +144,19 @@ def import_tract(fpath, name, sformfile="",
 
 
 def import_surface(fpath, name, sformfile="", argdict={}):
-    """Import a surface object."""
-    # TODO: subsampling? (but has to be compatible with loading overlays)
-    # solve with decimate modifier?
+    """Import a surface object.
+
+    This imports the surfaces found in the specified file.
+    Valid formats include:
+    - .gii (via nibabel)
+    - .white/.pial/.inflated/.sphere/.orig (FreeSurfer)
+    - .obj
+    - .stl
+    - .blend
+
+    'sformfile' sets matrix_world to affine transformation.
+
+    """
 
     scn = bpy.context.scene
     tb = scn.tb
@@ -1625,111 +1635,6 @@ def add_campath_to_collection(name):
 
 
 # ========================================================================== #
-# reading surface files
-# ========================================================================== #
-
-
-def read_surfaces_obj(fpath, name, sformfile):
-    """"""
-
-    # TODO: multiple objects import
-    # need split_mode='OFF' for loading scalars onto the correct vertices
-    bpy.ops.import_scene.obj(filepath=fpath,
-                             axis_forward='Y', axis_up='Z',
-                             split_mode='OFF')
-    ob = bpy.context.selected_objects[0]
-    ob.name = name
-    affine = read_affine_matrix(sformfile)
-
-    return [(ob, affine, sformfile)]
-
-
-def read_surfaces_stl(fpath, name, sformfile):
-    """"""
-
-    # TODO: multiple objects import
-
-    bpy.ops.import_mesh.stl(filepath=fpath,
-                            axis_forward='Y', axis_up='Z')
-    ob = bpy.context.selected_objects[0]
-    ob.name = name
-    affine = read_affine_matrix(sformfile)
-
-    return [(ob, affine, sformfile)]
-
-
-def read_surfaces_gii(fpath, name, sformfile):
-    """"""
-
-    # TODO: multiple objects import
-
-    scn = bpy.context.scene
-    tb = scn.tb
-
-    nib = tb_utils.validate_nibabel('.gifti')
-
-    gio = nib.gifti.giftiio
-    img = gio.read(fpath)
-    verts = [tuple(vert) for vert in img.darrays[0].data]
-    faces = [tuple(face) for face in img.darrays[1].data]
-    xform = img.darrays[0].coordsys.xform
-    if len(xform) == 16:
-        xform = np.reshape(xform, [4, 4])
-    affine = Matrix(xform)
-    sformfile = fpath
-
-    me = bpy.data.meshes.new(name)
-    me.from_pydata(verts, [], faces)
-    ob = bpy.data.objects.new(name, me)
-    bpy.context.scene.objects.link(ob)
-
-    return [(ob, affine, sformfile)]
-
-
-def read_surfaces_white(fpath, name, sformfile):
-    """"""
-
-    scn = bpy.context.scene
-    tb = scn.tb
-
-    nib = tb_utils.validate_nibabel('.gifti')
-
-    fsio = nib.freesurfer.io
-    verts, faces = fsio.read_geometry(fpath)
-    verts = [tuple(vert) for vert in verts]
-    faces = [tuple(face) for face in faces]
-    affine = Matrix()
-
-    me = bpy.data.meshes.new(name)
-    me.from_pydata(verts, [], faces)
-    ob = bpy.data.objects.new(name, me)
-    bpy.context.scene.objects.link(ob)
-
-    return [(ob, affine, sformfile)]
-
-
-read_surfaces_pial = read_surfaces_white
-read_surfaces_inflated = read_surfaces_white
-read_surfaces_sphere = read_surfaces_white
-read_surfaces_orig = read_surfaces_white
-
-
-def read_surfaces_blend(fpath, name, sformfile):
-    """"""
-
-    with bpy.data.libraries.load(fpath) as (data_from, data_to):
-        data_to.objects = data_from.objects
-
-    surfaces = []
-    for ob in data_to.objects:
-        if ob is not None:
-            bpy.context.scene.objects.link(ob)
-            surfaces.append((ob, ob.matrix_world, ''))
-
-    return surfaces
-
-
-# ========================================================================== #
 # reading tract files
 # ========================================================================== #
 
@@ -1776,7 +1681,7 @@ def read_streamlines_dpy(dpyfile):
     """Return all streamlines in a dipy .dpy tract file (uses dipy)."""
 
     if tb_utils.validate_dipy('.trk'):
-        dpr = Dpy('fornix.dpy', 'r')
+        dpr = Dpy(dpyfile, 'r')  # FIXME
         streamlines = dpr.read_tracks()
         dpr.close()
 
@@ -2090,6 +1995,110 @@ def make_polyline_ob_vi(curvedata, ob, vi_list):
     polyline.order_u = len(polyline.points)-1
     polyline.use_endpoint_u = True
     polyline.use_cyclic_u = True
+
+
+# ========================================================================== #
+# reading surface files
+# ========================================================================== #
+
+
+def read_surfaces_obj(fpath, name, sformfile):
+    """Import a surface from a .obj file."""
+    # TODO: multiple objects import
+
+    # need split_mode='OFF' for loading scalars onto the correct vertices
+    bpy.ops.import_scene.obj(filepath=fpath,
+                             axis_forward='Y', axis_up='Z',
+                             split_mode='OFF')
+    ob = bpy.context.selected_objects[0]
+    ob.name = name
+    affine = read_affine_matrix(sformfile)
+
+    return [(ob, affine, sformfile)]
+
+
+def read_surfaces_stl(fpath, name, sformfile):
+    """Import a surface from a .stl file."""
+    # TODO: multiple objects import
+
+    bpy.ops.import_mesh.stl(filepath=fpath,
+                            axis_forward='Y', axis_up='Z')
+    ob = bpy.context.selected_objects[0]
+    ob.name = name
+    affine = read_affine_matrix(sformfile)
+
+    return [(ob, affine, sformfile)]
+
+
+def read_surfaces_gii(fpath, name, sformfile):
+    """Import a surface from a .gii file."""
+    # TODO: multiple objects import
+
+    scn = bpy.context.scene
+    tb = scn.tb
+
+    nib = tb_utils.validate_nibabel('.gifti')
+
+    gio = nib.gifti.giftiio
+    img = gio.read(fpath)
+    verts = [tuple(vert) for vert in img.darrays[0].data]
+    faces = [tuple(face) for face in img.darrays[1].data]
+    xform = img.darrays[0].coordsys.xform
+    if len(xform) == 16:
+        xform = np.reshape(xform, [4, 4])
+    affine = Matrix(xform)
+    sformfile = fpath
+
+    me = bpy.data.meshes.new(name)
+    me.from_pydata(verts, [], faces)
+    ob = bpy.data.objects.new(name, me)
+    bpy.context.scene.objects.link(ob)
+
+    return [(ob, affine, sformfile)]
+
+
+def read_surfaces_fs(fpath, name, sformfile):
+    """Import a surface from a FreeSurfer file."""
+
+    scn = bpy.context.scene
+    tb = scn.tb
+
+    nib = tb_utils.validate_nibabel('.gifti')
+
+    fsio = nib.freesurfer.io
+    verts, faces = fsio.read_geometry(fpath)
+    verts = [tuple(vert) for vert in verts]
+    faces = [tuple(face) for face in faces]
+    affine = Matrix()
+
+    me = bpy.data.meshes.new(name)
+    me.from_pydata(verts, [], faces)
+    ob = bpy.data.objects.new(name, me)
+    bpy.context.scene.objects.link(ob)
+
+    return [(ob, affine, sformfile)]
+
+
+read_surfaces_white = read_surfaces_fs
+read_surfaces_pial = read_surfaces_fs
+read_surfaces_inflated = read_surfaces_fs
+read_surfaces_sphere = read_surfaces_fs
+read_surfaces_orig = read_surfaces_fs
+
+
+def read_surfaces_blend(fpath, name, sformfile):
+    """Import a surface from a .blend file."""
+
+    with bpy.data.libraries.load(fpath) as (data_from, data_to):
+        data_to.objects = data_from.objects
+
+    surfaces = []
+    for ob in data_to.objects:
+        if ob is not None:
+            bpy.context.scene.objects.link(ob)
+            surfaces.append((ob, ob.matrix_world, ''))
+
+    return surfaces
 
 
 # ========================================================================== #
