@@ -208,7 +208,7 @@ def import_voxelvolume(directory, files, name,
     has_valid_texdir = check_texdir(abstexdir, texformat, overwrite, vol_idx)
 
     texdict = {'name': name, 'texdir': texdir, 'texformat': texformat,
-                'has_valid_texdir': has_valid_texdir}
+               'has_valid_texdir': has_valid_texdir}
 
     # create/find the texture on disk
     if has_valid_texdir:
@@ -228,6 +228,7 @@ def import_voxelvolume(directory, files, name,
         for volnr, label in enumerate(item.labels):
             pass
     elif is_overlay:
+        item.rendertype = "SURFACE"
         for scalar in item.scalars:
             volname = scalar.name[-7:]  # FIXME: this is not secure
             imdir = os.path.join(texdir, texformat)
@@ -252,7 +253,7 @@ def import_voxelvolume(directory, files, name,
                                      texdict['affine'])
     else:
         ob = voxelvolume_object_slicebox(name, texdict['dims'],
-                                         texdict['affine'], item)
+                                         texdict['affine'], item, is_overlay)
 
     # single texture slot for simple switching
     texslot = mat.texture_slots.add()
@@ -283,6 +284,8 @@ def import_voxelvolume(directory, files, name,
         tb_ob = eval(parentpath)
         ob.parent = bpy.data.objects[tb_ob.name]
         item.index_scalars = 0  # induce switch
+        bpy.ops.object.mode_set(mode='EDIT')  # TODO: more elegant update
+        bpy.ops.object.mode_set(mode='OBJECT')
 
     scn.render.engine = "BLENDER_RENDER"
 
@@ -675,7 +678,7 @@ def voxelvolume_object_bool(name, dims, affine):
 
     return ob
 
-def voxelvolume_object_slicebox(name, dims, affine, item):
+def voxelvolume_object_slicebox(name, dims, affine, item, is_overlay=False):
     """"""
 
     scn = bpy.context.scene
@@ -687,6 +690,8 @@ def voxelvolume_object_slicebox(name, dims, affine, item):
     ob1 = voxelvolume_box_ob(dims, "Bounds")
     ob2 = voxelvolume_box_ob(dims, "SliceBox")
 
+    ob.select = True
+    scn.objects.active = ob
     obs = [ob, ob1, ob2]
     ctx = bpy.context.copy()
     ctx['active_object'] = ob
@@ -697,7 +702,10 @@ def voxelvolume_object_slicebox(name, dims, affine, item):
     scn.objects.active = ob
     ob.select = True
 
-    ob.matrix_world = Matrix(affine)
+    mat = Matrix()
+    if not is_overlay:
+        mat = Matrix(affine)
+    ob.matrix_world = mat
 
     slicebox = voxelvolume_cutout(ob)
 
