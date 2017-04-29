@@ -317,21 +317,22 @@ class TractBlenderBasePanel(Panel):
                               tb_coll, "index_nn_elements",
                               rows=2)
 
-            row = layout.row()
-            row.separator()
-            row = layout.row()
-            row.prop(tb_coll, "showcolourbar")
-            if tb_coll.showcolourbar:
+            if hasattr(tb_coll, "showcolourbar"):
                 row = layout.row()
-                row.prop(tb_coll, "colourbar_size", text="size")
-                row.prop(tb_coll, "colourbar_position", text="position")
+                row.separator()
                 row = layout.row()
-#                 nt = bpy.data.materials[tb_coll.name + "cbartext"].node_tree
-#                 emit_in = nt.nodes["Emission"].inputs[0]
-#                 row.prop(emit_in, "default_value", text="Textlabels")
-                row.prop(tb_coll, "textlabel_colour", text="Textlabels")
-                row.prop(tb_coll, "textlabel_placement", text="")
-                row.prop(tb_coll, "textlabel_size", text="size")
+                row.prop(tb_coll, "showcolourbar")
+                if tb_coll.showcolourbar:
+                    row = layout.row()
+                    row.prop(tb_coll, "colourbar_size", text="size")
+                    row.prop(tb_coll, "colourbar_position", text="position")
+                    row = layout.row()
+    #                 nt = bpy.data.materials[tb_coll.name + "cbartext"].node_tree
+    #                 emit_in = nt.nodes["Emission"].inputs[0]
+    #                 row.prop(emit_in, "default_value", text="Textlabels")
+                    row.prop(tb_coll, "textlabel_colour", text="Textlabels")
+                    row.prop(tb_coll, "textlabel_placement", text="")
+                    row.prop(tb_coll, "textlabel_size", text="size")
 
     def calc_nn_elpos(self, tb_ov, ramp):
         # TODO: solve with drivers

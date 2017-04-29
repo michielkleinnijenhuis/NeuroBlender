@@ -735,12 +735,17 @@ def get_voxmat(name):
     """"""
 
     mat = bpy.data.materials.new(name)
-    mat.type = "VOLUME"
+    mat.type = "SURFACE"
+    mat.use_transparency = True
+    mat.alpha = 0.
     mat.volume.density = 0.
+    mat.volume.reflection = 0.
+    mat.use_shadeless = True
     mat.preview_render_type = 'CUBE'
     mat.use_fake_user = True
 
     return mat
+
 
 def get_voxtex(mat, texdict, volname, item, is_overlay=False, is_label=False):
     """Return a textured material for voxeldata."""
