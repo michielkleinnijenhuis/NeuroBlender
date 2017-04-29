@@ -626,6 +626,8 @@ def add_to_collections(fpath, texdict,
                  "texdir": texdir}
 
         if is_label:
+            labelvals = [int(label) for label in labels]
+            props["range"] = (min(labelvals), max(labelvals))
             item = tb_utils.add_item(tb_ob, "labelgroups", props)
             for label in labels:
                 colour = tb_mat.get_golden_angle_colour(label) + [1.]
