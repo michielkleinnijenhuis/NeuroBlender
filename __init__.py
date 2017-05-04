@@ -1655,25 +1655,22 @@ class ImportVoxelvolumes(Operator, ImportHelper):
         description="The index of the volume to import (-1 for all)",
         default=-1)
 
+    import_objects = ImportTracts.import_objects
+
     def execute(self, context):
 
-        scn = context.scene
-        tb = scn.tb
+        importtype = "voxelvolumes"
+        impdict = {"is_overlay": self.is_overlay,
+                   "is_label": self.is_label,
+                   "parentpath": self.parentpath,
+                   "texdir": self.texdir,
+                   "texformat": self.texformat,
+                   "overwrite": self.overwrite,
+                   "dataset": self.dataset,
+                   "vol_idx": self.vol_idx}
+        beaudict = {}
 
-        filenames = [file.name for file in self.files]
-
-        ca = [bpy.data.meshes, bpy.data.materials, bpy.data.textures]
-        self.name = tb_utils.check_name(self.name, "", ca)
-
-        item = tb_imp.import_voxelvolume(self.directory, filenames, self.name,
-                                         self.is_overlay, self.is_label,
-                                         self.parentpath, self.sformfile,
-                                         self.texdir, self.texformat,
-                                         self.overwrite, self.dataset,
-                                         self.vol_idx)[1]
-    #     force updates
-        tb.index_voxelvolumes = tb.index_voxelvolumes
-        item.rendertype = item.rendertype
+        self.import_objects(importtype, impdict, beaudict)
 
         return {"FINISHED"}
 
