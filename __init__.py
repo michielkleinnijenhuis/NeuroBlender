@@ -2006,6 +2006,8 @@ class VertexWeight2UV(Operator, ExportHelper):
         tb_ob = eval('.'.join(self.data_path.split('.')[:2]))
         group = eval('.'.join(self.data_path.split('.')[:3]))
 
+        # TODO: exit on no UVmap
+
         # prep directory
         if not bpy.data.is_saved:
             tb_utils.force_save(projectdir)
@@ -2020,7 +2022,9 @@ class VertexWeight2UV(Operator, ExportHelper):
         surf.select = True
         context.scene.objects.active = surf
 
-        # save old and set new render settings for baking 
+        # save old and set new render settings for baking
+        engine = scn.render.engine
+        scn.render.engine = "CYCLES"
         samples = scn.cycles.samples
         preview_samples = scn.cycles.preview_samples
         scn.cycles.samples = 5
@@ -2047,16 +2051,21 @@ class VertexWeight2UV(Operator, ExportHelper):
                              index=i, matname="bake_vcol")
             img.source = 'GENERATED'
             bpy.ops.object.bake()
-            img.filepath_raw = os.path.join(group.texdir, item.name[-5:] + ".png")
+            if len(items) > 1:
+                itemname = item.name[-5:]
+            else:
+                itemname = item.name
+            img.filepath_raw = os.path.join(group.texdir, itemname + ".png")
             img.save()
             vc = vcs[vcs.active_index]
             vcs.remove(vc)
 
-        # reinstate materials and render properties
+        # reinstate materials and render settings
         surf.data.materials.pop(0)
         for matname in matnames:
             surf.data.materials.append(bpy.data.materials[matname])
         surf.active_material_index = ami
+        scn.render.engine = engine
         scn.cycles.samples = samples
         scn.cycles.preview_samples = preview_samples
 
@@ -2076,11 +2085,7 @@ class VertexWeight2UV(Operator, ExportHelper):
         self.itemname = tb_it.name
         self.matname = tb_ov.name
 
-        if bpy.data.is_saved:
-            return self.execute(context)
-        else:
-            bpy.ops.wm.save_as_mainfile('INVOKE_DEFAULT')
-            return {"RUNNING_MODAL"}
+        return self.execute(context)
 
     def create_baking_material(self, surf, uvres, name):
         """Create a material to bake vertex colours to."""
