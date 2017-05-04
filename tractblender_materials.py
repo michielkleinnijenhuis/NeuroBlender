@@ -808,6 +808,7 @@ def get_voxtex(mat, texdict, volname, item):
     tex.voxel_data.file_format = texformat
     tex.voxel_data.use_still_frame = True
     tex.voxel_data.still_frame = scn.frame_current
+    tex.voxel_data.interpolation = 'NEREASTNEIGHBOR'
 
     if texformat == "IMAGE_SEQUENCE":
         texpath = os.path.join(texdir, texformat, volname, '0000.png')
