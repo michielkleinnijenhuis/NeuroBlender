@@ -475,16 +475,25 @@ class TractBlenderOverlayPanel(Panel):
             self.drawunit_material(layout, nt, tb_ov)
 
         elif tb.objecttype == "voxelvolumes":
-            scalar = tb_ov.scalars[tb_ov.index_scalars]
-            mat = bpy.data.materials[scalar.matname]
-            tex = mat.texture_slots[scalar.tex_idx].texture
-            self.drawunit_texture(layout, tex, tb_ov)
+            if tb.overlaytype == "scalargroups":
+                scalar = tb_ov.scalars[tb_ov.index_scalars]
+                mat = bpy.data.materials[scalar.matname]
+                tex = mat.texture_slots[scalar.tex_idx].texture
+                self.drawunit_texture(layout, tex, tb_ov)
+            elif tb.overlaytype == "labelgroups":
+                label = tb_ov.labels[tb_ov.index_labels]
+                mat = bpy.data.materials[tb_ov.name]
+                tex = mat.texture_slots[tb_ov.name].texture
+                self.drawunit_texture(layout, tex, tb_ov)
 
     def drawunit_tri_items(self, layout, tb, tb_ov):
 
         itemtype = tb.overlaytype.replace("groups", "s")
         self.drawunit_UIList(layout, "L3", tb_ov, itemtype, addopt=False)
-        self.drawunit_tri(layout, "itemprops", tb, tb_ov)
+        if len(tb_ov.labels) < 33:
+            self.drawunit_tri(layout, "itemprops", tb, tb_ov)
+        else:
+            self.drawunit_tri(layout, "overlay_material", tb, tb_ov)
 
     def drawunit_tri_itemprops(self, layout, tb, tb_ov):
 
