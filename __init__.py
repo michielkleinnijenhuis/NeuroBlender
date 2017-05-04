@@ -3592,18 +3592,21 @@ def mode_enum_update(self, context):
     scn = context.scene
     tb = scn.tb
 
-    tb_preset = tb.presets[self.index_presets]
-    tb_cam = tb_preset.cameras[0]
-
     for mat in bpy.data.materials:
         tb_mat.switch_mode_mat(mat, self.mode)
 
-    light_obs = [bpy.data.objects.get(light.name)
-                 for light in tb_preset.lights]
-    table_obs = [bpy.data.objects.get(table.name)
-                 for table in tb_preset.tables]
-
-    tb_rp.switch_mode_preset(light_obs, table_obs, tb.mode, tb_cam.cam_view)
+    try:
+        tb_preset = tb.presets[self.index_presets]
+        tb_cam = tb_preset.cameras[0]
+        light_obs = [bpy.data.objects.get(light.name)
+                     for light in tb_preset.lights]
+        table_obs = [bpy.data.objects.get(table.name)
+                     for table in tb_preset.tables]
+    except:
+        pass
+    else:
+        tb_rp.switch_mode_preset(light_obs, table_obs,
+                                 tb.mode, tb_cam.cam_view)
 
     # TODO: switch colourbars
 

@@ -96,17 +96,15 @@ def link_innode(mat, colourtype):
     links = mat.node_tree.links
 
     diff = nodes["Diffuse BSDF"]
-    in_node = nodes["diff_ingroup"]
+    emit = nodes["Emission"]
 
     if colourtype == "directional":
-        links.new(in_node.outputs["Color"], diff.inputs["Color"])
+        inp = nodes["diff_ingroup"]
     else:
-        try:
-            link = in_node.outputs["Color"].links[0]
-        except IndexError:
-            pass
-        else:
-            links.remove(link)
+        inp = nodes["RGB"]
+
+    links.new(inp.outputs["Color"], diff.inputs["Color"])
+    links.new(inp.outputs["Color"], emit.inputs["Color"])
 
 
 def switch_mode_mat(mat, newmode):
