@@ -1390,21 +1390,27 @@ class ImportTracts(Operator, ImportHelper):
         for f in filenames:
             fpath = os.path.join(self.directory, f)
 
-            ca = [bpy.data.objects,
-                  bpy.data.materials]
+            ca = [bpy.data.objects, bpy.data.meshes,
+                  bpy.data.materials, bpy.data.textures]
             name = tb_utils.check_name(self.name, fpath, ca)
 
             obs, info_imp, info_geom = importfun(fpath, name, "", impdict)
 
             for ob in obs:
-                info_mat = tb_mat.materialise(ob,
-                                              self.colourtype,
-                                              self.colourpicker,
-                                              self.transparency)
-                info_beau = tb_beau.beautify_brain(ob,
-                                                   importtype,
-                                                   self.beautify,
-                                                   beaudict)
+                try:
+                    self.beautify
+                except:  # force updates on voxelvolumes
+                    tb.index_voxelvolumes = tb.index_voxelvolumes
+#                     item.rendertype = item.rendertype  # FIXME
+                else:
+                    info_mat = tb_mat.materialise(ob,
+                                                  self.colourtype,
+                                                  self.colourpicker,
+                                                  self.transparency)
+                    info_beau = tb_beau.beautify_brain(ob,
+                                                       importtype,
+                                                       self.beautify,
+                                                       beaudict)
 
             info = info_imp
             if tb.verbose:
