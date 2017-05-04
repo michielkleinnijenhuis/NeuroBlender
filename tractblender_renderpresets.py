@@ -635,6 +635,7 @@ def clear_CP_evaltime(anim):
 def clear_CP_followpath(anim):
     """Remove the keyframes on the FollowPath constraint."""
 
+#     action = bpy.data.actions['CamAction']
     props = ['use_fixed_location', 'offset_factor',
              'forward_axis', 'influence']
     for prop in props:
@@ -644,7 +645,7 @@ def clear_CP_followpath(anim):
         except:
             pass
         else:
-            action.fcurves.remove(fcu)
+            bpy.data.actions['CamAction'].fcurves.remove(fcu)
 
 
 def remove_CP_followpath(cam, anim):
