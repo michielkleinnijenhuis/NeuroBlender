@@ -96,14 +96,22 @@ def scene_preset_init(name):
         driver.expression = "scale"
         create_var(driver, "scale", 'SINGLE_PROP', 'OBJECT',
                    lights, "scale[2]")
-    keystrength = 10000000
-    lp_key = {'name': "Key", 'type': "SPOT",
+    # setting these all to SUN, because they work well in both BI and CYCLES
+    if scn.render.engine == "CYCLES":
+#         keystrength = 10000000
+#         type = ["SPOT", "SPOT", "POINT"]
+        keystrength = 1
+        type = ["SUN", "SUN", "SUN"]
+    else:
+        keystrength = 1
+        type = ["SUN", "SUN", "SUN"]
+    lp_key = {'name': "Key", 'type': type[0],
               'size': [1.0, 1.0], 'colour': (1.0, 1.0, 1.0),
               'strength': keystrength, 'location': (1, 4, 6)}
-    lp_fill = {'name': "Fill", 'type': "SPOT",
+    lp_fill = {'name': "Fill", 'type': type[1],
                'size': [1.0, 1.0], 'colour': (1.0, 1.0, 1.0),
                'strength': 0.2*keystrength, 'location': (4, -1, 1)}
-    lp_back = {'name': "Back", 'type': "POINT",
+    lp_back = {'name': "Back", 'type': type[2],
                'size': [1.0, 1.0], 'colour': (1.0, 1.0, 1.0),
                'strength': 0.1*keystrength, 'location': (-4, -4, 3)}
     for lightprops in [lp_key, lp_fill, lp_back]:
