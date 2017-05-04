@@ -196,6 +196,48 @@ def get_golden_angle_colour(i):
     return list(c)
 
 
+def CR2BR(mat):
+    """Copy Cycles settings to Blender Render material."""
+
+    mat.use_nodes = False
+
+    try:
+        rgb = mat.node_tree.nodes["RGB"]
+    except KeyError:
+        pass
+    else:
+        mat.diffuse_color = rgb.outputs[0].default_value[0:3]
+
+    try:
+        trans = mat.node_tree.nodes["Transparency"]
+    except KeyError:
+        pass
+    else:
+        mat.use_transparency = True
+        mat.alpha = trans.outputs[0].default_value
+
+
+def BR2CR(mat):
+    """Copy Blender Render settings to Cycles material."""
+
+    mat.use_nodes = True
+
+    try:
+        rgb = mat.node_tree.nodes["RGB"]
+    except KeyError:
+        pass
+    else:
+        rgb.outputs[0].default_value[0:3] = mat.diffuse_color
+
+    try:
+        trans = mat.node_tree.nodes["Transparency"]
+    except KeyError:
+        pass
+    else:
+        mat.use_transparency = True
+        trans.outputs[0].default_value = mat.alpha
+
+
 # ========================================================================== #
 # mapping properties to vertices
 # ========================================================================== #
@@ -928,7 +970,9 @@ def make_material_basic_cycles(name, diff_col, mix=0.04,
 
     scn = bpy.context.scene
     tb = scn.tb
-    if not scn.render.engine == "CYCLES":
+
+    engine = scn.render.engine
+    if not engine == "CYCLES":
         scn.render.engine = "CYCLES"
 
     mat = (bpy.data.materials.get(name) or
@@ -1018,6 +1062,14 @@ def make_material_basic_cycles(name, diff_col, mix=0.04,
         in_node.label = "diff_ingroup"
         in_node.node_tree = diff_ingroup
 
+    # for switching to Blender Render
+    mat.diffuse_color = rgb.outputs["Color"].default_value[0:3]
+    mat.use_transparency = True
+    mat.alpha = tval.outputs["Value"].default_value
+
+    scn.render.engine = engine
+    mat.use_nodes = scn.render.engine == "CYCLES"
+
     return mat
 
 
@@ -1053,8 +1105,8 @@ def make_material_emit_cycles(name, emission):
     """Create a Cycles emitter material for lighting."""
 
     scn = bpy.context.scene
-    if not scn.render.engine == "CYCLES":
-        scn.render.engine = "CYCLES"
+#     if not scn.render.engine == "CYCLES":
+#         scn.render.engine = "CYCLES"
 
     mat = (bpy.data.materials.get(name) or
            bpy.data.materials.new(name))
@@ -1087,8 +1139,8 @@ def make_material_emit_internal(name, emission, is_addition=False):
     """Create a Blender Internal emitter material for lighting."""
 
     scn = bpy.context.scene
-    if not scn.render.engine == "BLENDER_RENDER":
-        scn.render.engine = "BLENDER_RENDER"
+#     if not scn.render.engine == "BLENDER_RENDER":
+#         scn.render.engine = "BLENDER_RENDER"
 
     mat = (bpy.data.materials.get(name) or
            bpy.data.materials.new(name))
@@ -1228,8 +1280,8 @@ def make_material_overlay_cycles(name, vcname, ob=None, tb_ov=None, img=None):
 
     scn = bpy.context.scene
     tb = scn.tb
-    if not scn.render.engine == "CYCLES":
-        scn.render.engine = "CYCLES"
+#     if not scn.render.engine == "CYCLES":
+#         scn.render.engine = "CYCLES"
 
     mat = (bpy.data.materials.get(name) or
            bpy.data.materials.new(name))
@@ -1353,8 +1405,8 @@ def make_material_uvoverlay_cycles(name, vcname, img):
     """Create a Cycles material for colourramped vertexcolour rendering."""
 
     scn = bpy.context.scene
-    if not scn.render.engine == "CYCLES":
-        scn.render.engine = "CYCLES"
+#     if not scn.render.engine == "CYCLES":
+#         scn.render.engine = "CYCLES"
 
     mat = (bpy.data.materials.get(name) or
            bpy.data.materials.new(name))
@@ -1477,8 +1529,8 @@ def make_material_overlaytract_cycles_group(diffcol, mix=0.04):
     glossy = {'colour': (1.0, 1.0, 1.0, 1.0), 'roughness': 0.1}
 
     scn = bpy.context.scene
-    if not scn.render.engine == "CYCLES":
-        scn.render.engine = "CYCLES"
+#     if not scn.render.engine == "CYCLES":
+#         scn.render.engine = "CYCLES"
 
     group = bpy.data.node_groups.new("TractOvGroup", "ShaderNodeTree")
     group.inputs.new("NodeSocketColor", "Color")
@@ -1556,8 +1608,8 @@ def make_material_bake_cycles(name, vcname=None, img=None):
 
     scn = bpy.context.scene
     tb = scn.tb
-    if not scn.render.engine == "CYCLES":
-        scn.render.engine = "CYCLES"
+#     if not scn.render.engine == "CYCLES":
+#         scn.render.engine = "CYCLES"
 
     mat = (bpy.data.materials.get(name) or
            bpy.data.materials.new(name))
@@ -1870,8 +1922,8 @@ def make_material_labels_cycles(name, vcname):
     """Create a Cycles material for vertexcolour rendering."""
 
     scn = bpy.context.scene
-    if not scn.render.engine == "CYCLES":
-        scn.render.engine = "CYCLES"
+#     if not scn.render.engine == "CYCLES":
+#         scn.render.engine = "CYCLES"
 
     mat = (bpy.data.materials.get(name) or
            bpy.data.materials.new(name))

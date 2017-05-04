@@ -247,9 +247,24 @@ class TractBlenderBasePanel(Panel):
 
     def drawunit_material(self, layout, tb_ob):
 
+        scn = bpy.context.scene
+        tb = scn.tb
+
+        if tb.engine.startswith("BLENDER"):
+            self.drawunit_basic_blender(layout, tb_ob)
+        else:
+            row = layout.row()
+            row.prop(tb_ob, "colourtype", expand=True)
+            self.drawunit_basic_cycles(layout, tb_ob)
+
+    def drawunit_basic_blender(self, layout, tb_ob):
+
+        mat = bpy.data.materials[tb_ob.name]
         row = layout.row()
-        row.prop(tb_ob, "colourtype", expand=True)
-        self.drawunit_basic_cycles(layout, tb_ob)
+        row.prop(mat, "diffuse_color", text="Colour")
+        row.prop(mat, "alpha", text="Transparency")
+        if hasattr(tb_ob, "colour"):
+            row.operator("tb.revert_label", icon='BACK', text="")
 
     def drawunit_basic_cycles(self, layout, tb_ob):
 
@@ -3299,6 +3314,9 @@ class TractBlenderSettingsPanel(Panel):
         row.prop(tb, "texmethod")
 
         row = layout.row()
+        row.prop(tb, "engine")
+
+        row = layout.row()
         row.operator("tb.reload",
                      text="Reload NeuroBlender",
                      icon="RECOVER_LAST")
@@ -3406,6 +3424,35 @@ class Reload(Operator):
         bpy.ops.wm.addon_enable(module=self.name)
 
         return {"FINISHED"}
+
+
+def engine_update(self, context):
+    """Update materials when switching between engines."""
+
+    scn = context.scene
+    tb = scn.tb
+
+    for mat in bpy.data.materials:
+        mat.use_nodes = tb.engine == "CYCLES"
+        if tb.engine.startswith("BLENDER"):
+            tb_mat.CR2BR(mat)
+        else:
+            tb_mat.BR2CR(mat)
+
+    scn.render.engine = tb.engine
+
+
+def engine_driver():
+
+    scn = bpy.context.scene
+    tb = scn.tb
+
+    driver = tb.driver_add("engine", -1).driver
+    driver.type = 'AVERAGE'
+
+    tb_rp.create_var(driver, "type",
+                     'SINGLE_PROP', 'SCENE',
+                     scn, "render.engine")
 
 
 def nibabel_path_update(self, context):
@@ -3768,6 +3815,14 @@ def index_labels_update_func(group=None):
         if "surfaces" in group.path_from_id():
             vg_idx = ob.vertex_groups.find(name)
             ob.vertex_groups.active_index = vg_idx
+
+
+def material_update(self, context):
+    """Assign a new preset material to the object."""
+
+    mat = bpy.data.materials[self.name]
+    if context.scene.tb.engine.startswith("BLENDER"):
+        tb_mat.CR2BR(mat)
 
 
 def material_enum_update(self, context):
@@ -4193,7 +4248,8 @@ class LabelProperties(PropertyGroup):
         subtype="COLOR",
         size=4,
         min=0,
-        max=1)
+        max=1,
+        update=material_update)
 
 
 class BorderProperties(PropertyGroup):
@@ -4230,7 +4286,8 @@ class BorderProperties(PropertyGroup):
         subtype="COLOR",
         size=4,
         min=0,
-        max=1)
+        max=1,
+        update=material_update)
 
 
 class ScalarGroupProperties(PropertyGroup):
@@ -4693,13 +4750,15 @@ class TractProperties(PropertyGroup):
         name="",
         description="Pick a colour",
         default=[1.0, 0.0, 0.0],
-        subtype="COLOR")
+        subtype="COLOR",
+        update=material_update)
     transparency = FloatProperty(
         name="Transparency",
         description="Set the transparency",
         default=1.,
         min=0.,
-        max=1.)
+        max=1.,
+        update=material_update)
 
     nstreamlines = IntProperty(
         name="Nstreamlines",
@@ -4815,11 +4874,13 @@ class SurfaceProperties(PropertyGroup):
         name="",
         description="Pick a colour",
         default=[1.0, 0.0, 0.0],
-        subtype="COLOR")
+        subtype="COLOR",
+        update=material_update)
     transparency = FloatProperty(
         name="Transparency",
         description="Set the transparency",
-        default=1.0)
+        default=1.0,
+        update=material_update)
 
     sphere = EnumProperty(
         name="Unwrapping sphere",
@@ -4918,7 +4979,8 @@ class VoxelvolumeProperties(PropertyGroup):
         name="",
         description="Pick a colour",
         default=[1.0, 0.0, 0.0],
-        subtype="COLOR")
+        subtype="COLOR",
+        update=material_update)
 
     rendertype = EnumProperty(
         name="rendertype",
@@ -5211,7 +5273,8 @@ class TableProperties(PropertyGroup):
         name="",
         description="Pick a colour",
         default=[1.0, 0.0, 0.0],
-        subtype="COLOR")
+        subtype="COLOR",
+        update=material_update)
 
     scale = FloatVectorProperty(
         name="Table scale",
@@ -5740,6 +5803,14 @@ class TractBlenderProperties(PropertyGroup):
         default=1,
         min=1, max=4)
 
+    engine = EnumProperty(
+        name="engine",
+        description="Engine to use for rendering:",
+        items=[("BLENDER_RENDER", "Blender Render", "Blender Render", 0),
+               ("BLENDER_GAME", "Blender Game", "Blender Game", 1),
+               ("CYCLES", "Cycles Render", "Cycles Render", 2)],
+        update=engine_update)
+
 
 # @persistent
 # def projectdir_update(dummy):
@@ -5751,6 +5822,14 @@ class TractBlenderProperties(PropertyGroup):
 # #     tb.projectdir = os.path.
 # 
 # bpy.app.handlers.load_post(projectdir_update)
+
+# @persistent
+# def engine_driver_handler(dummy):
+#     """"""
+# 
+#     engine_driver()
+# 
+# bpy.app.handlers.load_post.append(engine_driver_handler)
 
 # =========================================================================== #
 

@@ -313,7 +313,7 @@ def prep_scenes(name, engine, device, layers, use_sky, obs, tb_preset):
     scn.frame_start = tb_preset.frame_start
     scn.frame_end = tb_preset.frame_end
 
-    scn.render.engine = engine
+#     scn.render.engine = engine
     scn.cycles.device = device
     for l in range(20):
         scn.layers[l] = l in layers
@@ -938,6 +938,7 @@ def create_light(preset, centre, box, lights, lightprops):
     """"""
 
     scn = bpy.context.scene
+    engine = scn.render.engine
 
     name = lightprops['name']
     type = lightprops['type']
@@ -957,10 +958,18 @@ def create_light(preset, centre, box, lights, lightprops):
         scn.objects.link(light)
         scn.objects.active = light
         light.select = True
+
+        if not engine == "CYCLES":
+            scn.render.engine = "CYCLES"
         light.data.use_nodes = True
         light.data.shadow_soft_size = 50
         node = light.data.node_tree.nodes["Emission"]
         node.inputs[1].default_value = strength
+
+        scn.render.engine = "BLENDER_RENDER"
+        light.data.energy = strength
+
+    scn.render.engine = engine
 
     light.parent = lights
     light.location = lightprops['location']
