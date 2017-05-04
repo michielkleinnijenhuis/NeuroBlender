@@ -27,7 +27,6 @@ from glob import glob
 import numpy as np
 from mathutils import Vector, Matrix
 from random import sample
-import tempfile
 import random
 import xml.etree.ElementTree
 import pickle
@@ -230,9 +229,7 @@ def import_voxelvolume(directory, files, name,
 
     # prep texture directory
     if not bpy.data.is_saved:
-        # TODO: create safe filename
-        defaultpath = os.path.join(tb.projectdir, 'untitled.blend')
-        bpy.ops.wm.save_as_mainfile(filepath=defaultpath)
+        tb_utils.force_save(projectdir)
     abstexdir = bpy.path.abspath(texdir)
     tb_utils.mkdir_p(abstexdir)
     has_valid_texdir = check_texdir(abstexdir, texformat, overwrite, vol_idx)

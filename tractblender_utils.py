@@ -25,6 +25,7 @@ import bpy
 import os
 import sys
 import errno
+import tempfile
 
 # ========================================================================== #
 # general utilities
@@ -148,6 +149,14 @@ def validate_texture_path(voxelvolume):
     tex = bpy.data.textures[voxelvolume.name]
 
     return os.path.isfile(tex.voxel_data.filepath)
+
+
+def force_save(projectdir):
+    """Save the project to the default directory with unique name."""
+
+    defaultpath = tempfile.mkstemp(suffix='.blend', prefix='untitled_',
+                                   dir=tb.projectdir)
+    bpy.ops.wm.save_as_mainfile(filepath=defaultpath[1])
 
 
 # ========================================================================== #
