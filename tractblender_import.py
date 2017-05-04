@@ -68,11 +68,11 @@ def import_tract(fpath, name, sformfile="",
 
     """
 
-    weed_tract = argdict["weed_tract"]
-    interp_sl = argdict["interpolate_streamlines"]
-
     scn = bpy.context.scene
     tb = scn.tb
+
+    weed_tract = argdict["weed_tract"]
+    interp_sl = argdict["interpolate_streamlines"]
 
     outcome = "failed"
     ext = os.path.splitext(fpath)[1]
@@ -84,11 +84,11 @@ def import_tract(fpath, name, sformfile="",
     except NameError:
         reason = "file format '{}' not supported".format(ext)
         info = "import {}: {}".format(outcome, reason)
-        return None, info, "no geometry loaded"
+        return [], info, "no geometry loaded"
     except (IOError, FileNotFoundError):
         reason = "file '{}' not valid".format(fpath)
         info = "import {}: {}".format(outcome, reason)
-        return None, info, "no geometry loaded"
+        return [], info, "no geometry loaded"
 
     except:
         reason = "unknown import error"
@@ -170,16 +170,15 @@ def import_surface(fpath, name, sformfile="", argdict={}):
     except NameError:
         reason = "file format '{}' not supported".format(ext)
         info = "import {}: {}".format(outcome, reason)
-        raise
-        return None, info, "no geometry loaded"
+        return [], info, "no geometry loaded"
     except (IOError, FileNotFoundError):
         reason = "file '{}' not valid".format(fpath)
         info = "import {}: {}".format(outcome, reason)
-        return None, info, "no geometry loaded"
+        return [], info, "no geometry loaded"
     except ImportError:
         reason = "nibabel not found"
         info = "import {}: {}".format(outcome, reason)
-        return None, info, "no geometry loaded"
+        return [], info, "no geometry loaded"
 
     except:
         reason = "unknown import error"
@@ -210,47 +209,53 @@ def import_surface(fpath, name, sformfile="", argdict={}):
     return [surf[0] for surf in surfaces] , info, info_tf
 
 
-def import_voxelvolume(directory, files, name,
-                       is_overlay=False, is_label=False,
-                       parentpath="", sformfile="",
-                       texdir="", texformat="IMAGE_SEQUENCE",
-                       overwrite=False, fieldname='stack',
-                       vol_idx=-1):
-    """Import a voxelvolume."""
+def import_voxelvolume(fpath, name, sformfile="", texdict={
+        "is_overlay": False, "is_label": False,
+        "parentpath": "", "sformfile": "",
+        "texdir": "", "texformat": "IMAGE_SEQUENCE",
+        "overwrite": False, "dataset": 'stack',
+        "vol_idx":-1}):
+    """Import a voxelvolume.
+
+    This imports the volumes found in the specified file.
+    Valid formats include:
+    - .nii(.gz)/.img/.hdr (via nibabel)
+    - .h5 (with h5py)
+    - Blender/NeuroBlender directory tree (IMAGE_SEQUENCE or 8BIT_RAW .raw)
+    -- ...
+    -- ...
+
+    'sformfile' sets matrix_world to affine transformation.
+
+    """
 
     scn = bpy.context.scene
     tb = scn.tb
 
-    fpath = os.path.join(directory, files[0])  # TODO: multiple files...
-#     if fpath.endswith('.h5'):
-#         if not fieldname.startwith('/'):
-#             fieldname = '/%s'.format(fieldname)
-#         fpath = fpath + fieldname
+    texdict["fpath"] = fpath
+    texdict["name"] = name
+    texdict["sformfile"] = sformfile
+    is_overlay = texdict["is_overlay"]
+    is_label = texdict["is_label"]
+    texdir = texdict["texdir"]
+    texformat = texdict["texformat"]
 
     # prep texture directory
     if not bpy.data.is_saved:
         tb_utils.force_save(projectdir)
     abstexdir = bpy.path.abspath(texdir)
     tb_utils.mkdir_p(abstexdir)
-    has_valid_texdir = check_texdir(abstexdir, texformat, overwrite, vol_idx)
 
-    texdict = {'name': name, 'texdir': texdir, 'texformat': texformat,
-               'has_valid_texdir': has_valid_texdir}
+    outcome = "failed"
+    ext = os.path.splitext(fpath)[1]
 
-    # create/find the texture on disk
-    if has_valid_texdir:
-        texdict = load_texdir(texdict, sformfile, is_overlay, vol_idx)
-    else:
-        texdict = create_texdir(fpath, texdict, is_label, sformfile, fieldname, vol_idx)
+    texdict = load_texdir(texdict)
 
-    # add the voxelvolumes to neuroblender collections
-    item = add_to_collections(fpath, texdict,
-                              is_overlay, is_label,
-                              sformfile, parentpath)
+    item = add_to_collections(texdict)
 
-    # create the voxelvolume textures in blender
     mat = tb_mat.get_voxmat(name)
-    tex = tb_mat.get_voxtex(mat, texdict, 'vol0000', item, is_overlay, is_label)
+    tex = tb_mat.get_voxtex(mat, texdict, 'vol0000', item)
+
     if is_label:
         for volnr, label in enumerate(item.labels):
             pass
@@ -258,29 +263,19 @@ def import_voxelvolume(directory, files, name,
         item.rendertype = "SURFACE"
         for scalar in item.scalars:
             volname = scalar.name[-7:]  # FIXME: this is not secure
-            imdir = os.path.join(texdir, texformat)
-            if texformat == "IMAGE_SEQUENCE":
-                scalarpath = os.path.join(imdir, volname, '0000.png')
-            elif texformat == "STRIP":
-                scalarpath = os.path.join(imdir, volname + '.png')
-            elif texformat == "8BIT_RAW":
-                scalarpath = os.path.join(imdir, volname + '.raw_8bit')
-            if tb.texmethod == 4:
-                tex = tb_mat.get_voxtex(mat, texdict, volname, scalar,
-                                        is_overlay, is_label)
-
+            pfdict = {"IMAGE_SEQUENCE": os.path.join(volname, '0000.png'),
+                      "STRIP": volname + '.png',
+                      "8BIT_RAW": volname + '.raw_8bit'}
+            scalarpath = os.path.join(texdir, texformat, pfdict[texformat])
             scalar.filepath = scalarpath
             scalar.matname = mat.name
             scalar.texname = tex.name
+            if tb.texmethod == 4:
+                tex = tb_mat.get_voxtex(mat, texdict, volname, scalar)
 
     # create the voxelvolume object
-    boolmod = False
-    if boolmod:
-        ob = voxelvolume_object_bool(name, texdict['dims'],
-                                     texdict['affine'])
-    else:
-        ob = voxelvolume_object_slicebox(name, texdict['dims'],
-                                         texdict['affine'], item, is_overlay)
+#     ob = voxelvolume_object_bool(name, texdict['dims'], texdict['affine'])
+    ob, sbox = voxelvolume_object_slicebox(item, texdict)
 
     # single texture slot for simple switching
     texslot = mat.texture_slots.add()
@@ -291,120 +286,31 @@ def import_voxelvolume(directory, files, name,
 
     voxelvolume_rendertype_driver(mat, item)
 
-    # is this even necessary? maybe not for simple switching
-#     props = ("density_factor", "emission_factor", "emission_color_factor",
-#              "emit_factor", "diffuse_color_factor", "alpha_factor")
-#     tss = [ts for ts in mat.texture_slots if ts is not None]
-#     for ts in tss:
-#         ts.use = True
-#         for prop in props:
-#             exec('ts.%s = 0' % prop)
-#     for prop in props:
-#         exec('mats[0].texture_slots[0].%s = 1' % prop)
-
     tb_mat.set_materials(ob.data, mat)
 
-    tb_utils.move_to_layer(ob, 2)
-    scn.layers[2] = True
-
     if is_overlay:
-        tb_ob = eval(parentpath)
+        tb_ob = eval(texdict["parentpath"])
         ob.parent = bpy.data.objects[tb_ob.name]
         item.index_scalars = 0  # induce switch
         bpy.ops.object.mode_set(mode='EDIT')  # TODO: more elegant update
         bpy.ops.object.mode_set(mode='OBJECT')
 
+    tb_utils.move_to_layer(ob, 2)
+    tb_utils.move_to_layer(sbox, 2)
+    scn.layers[2] = True
+
     scn.render.engine = "BLENDER_RENDER"
 
-    return [ob], item
+    outcome = "successful"
+    info = "import {}".format(outcome)
+    info_tf = "transform: {}".format(texdict["affine"])
+    # more info ...
 
-
-def create_texdir(fpath, texdict, is_label, sformfile, fieldname='stack', vol_idx=-1):
-    """"""
-
-    niiext = ('.nii', '.nii.gz', '.img', '.hdr', '.h5')
-    imext = ('.png', '.jpg', '.tif', '.tiff')
-
-    if fpath.endswith(niiext):
-
-        texdict = prep_nifti(fpath, texdict, is_label, fieldname, vol_idx)
-        if not sformfile:
-            sformfile = fpath
-
-    else:  # try to read it as a 3D volume in slices
-
-        if not texdict['name']:  # probably have a directory
-            texdict['name'] = fpath.split(os.sep)[-1]
-
-        abstexdir = bpy.path.abspath(texdict['texdir'])
-        srcdir = os.path.dirname(fpath)
-        trgdir = os.path.join(abstexdir,
-                              texdict['texformat'],
-                              'vol0000')
-        tb_utils.mkdir_p(trgdir)
-
-        # educated guess of the files we want to glob
-        pat = '*%s' % os.path.splitext(fpath)[1]
-        for f in glob(os.path.join(srcdir, pat)):
-            fname = os.path.basename(f)
-            os.symlink(f, os.path.join(trgdir, fname))
-
-        texdict['img'] = bpy.data.images.load(fpath)
-        texdict['dims'] = [s for s in texdict['img'].size] + \
-                          [image_sequence_length(fpath)] + [1]
-        texdict['texformat'] = "IMAGE_SEQUENCE"
-        texdict['datarange'] = [0, 1]
-        texdict['labels'] = None
-        # TODO: figure out labels and datarange
-
-    texdict['affine'] = read_affine_matrix(sformfile, fieldname)
-
-    # save the essentials to the voltex directory
-    abstexdir = bpy.path.abspath(texdict['texdir'])
-    ns = ('affine.npy', 'dims.npy', 'datarange.npy', 'labels.npy')
-    ps = (texdict['affine'], texdict['dims'],
-          texdict['datarange'], texdict['labels'])
-    for n, p in zip(ns, ps):
-        np.save(os.path.join(abstexdir, n), np.array(p))
-
-    return texdict
-
-
-def load_texdir(texdict, sformfile="", is_overlay=False, vol_idx=-1):
-    """"""
-
-    texformat = texdict['texformat']
-    abstexdir = bpy.path.abspath(texdict['texdir'])
-    imdir = os.path.join(abstexdir, texformat)
-    absimdir = bpy.path.abspath(imdir)
-
-    vols = glob(os.path.join(absimdir, "*"))
-
-    if vol_idx == -1:
-        vol_idx = 0
-
-    if texformat == "IMAGE_SEQUENCE":
-        slices = glob(os.path.join(vols[vol_idx], "*"))
-        imgdir = slices[0]
-    elif texformat == "STRIP":
-        imgdir = vols[vol_idx]
-    elif texformat == "8BIT_RAW":
-        imgdir = vols[vol_idx]
-
-    texdict['img'] = bpy.data.images.load(imgdir)
-
-    if ((not sformfile) and (not is_overlay)):  #FIXME
-        sformfile = os.path.join(abstexdir, 'affine.npy')
-    texdict['affine'] = read_affine_matrix(sformfile)
-    texdict['dims'] = np.load(os.path.join(abstexdir, 'dims.npy'))
-    texdict['datarange'] = np.load(os.path.join(abstexdir, 'datarange.npy'))
-    texdict['labels'] = np.load(os.path.join(abstexdir, 'labels.npy'))
-
-    return texdict
+    return [ob], info, info_tf
 
 
 def check_texdir(texdir, texformat, overwrite=False, vol_idx=-1):
-    """"""
+    """Check whether path is in a valid NeuroBlender volume texture."""
 
     if overwrite:
         return False
@@ -413,8 +319,8 @@ def check_texdir(texdir, texformat, overwrite=False, vol_idx=-1):
     if not os.path.isdir(abstexdir):
         return False
 
-    for fname in ['affine.npy', 'dims.npy', 'datarange.npy', 'labels.npy']:
-        if not os.path.isfile(os.path.join(abstexdir, fname)):
+    for pf in ('affine', 'dims', 'datarange', 'labels'):
+        if not os.path.isfile(os.path.join(abstexdir, "{}.npy".format(pf))):
             return False
 
     absimdir = os.path.join(abstexdir, texformat)
@@ -438,8 +344,89 @@ def check_texdir(texdir, texformat, overwrite=False, vol_idx=-1):
     return True
 
 
-def prep_nifti(fpath, texdict, is_label=False, fieldname='stack', vol_idx=-1):
-    """Write data in a nifti file to a temp directory.
+def load_texdir(texdict):
+    """Load a volume texture previously generated in NeuroBlender."""
+
+    texformat = texdict['texformat']
+    vol_idx = max(0, texdict['vol_idx'])
+
+    abstexdir = bpy.path.abspath(texdict['texdir'])
+    imdir = os.path.join(abstexdir, texformat)
+    absimdir = bpy.path.abspath(imdir)
+
+    vols = glob(os.path.join(absimdir, "*"))
+
+    try:
+        vol = vols[vol_idx]
+        if texformat == "IMAGE_SEQUENCE":
+            slices = glob(os.path.join(vol, "*"))
+            vol = slices[0]
+        texdict['img'] = bpy.data.images.load(vol)
+
+        for pf in ("affine", "dims", "datarange", "labels"):
+            npy = os.path.join(abstexdir, "{}.npy".format(pf))
+            texdict[pf] = np.load(npy)
+    except:
+        texdict = create_texdir(texdict)
+
+    texdict['loaded'] = True
+
+    return texdict
+
+
+def create_texdir(texdict):
+    """Generate a NeuroBlender volume texture from a external format."""
+
+    fpath = texdict['fpath']
+    sformfile = texdict['sformfile']
+    is_label = texdict['is_label']
+    fieldname = texdict['dataset']
+    vol_idx = texdict['vol_idx']
+
+    abstexdir = bpy.path.abspath(texdict['texdir'])
+
+    niiext = ('.nii', '.nii.gz', '.img', '.hdr', '.h5')
+    imext = ('.png', '.jpg', '.tif', '.tiff')
+
+    if fpath.endswith(niiext):
+
+        texdict = prep_nifti(texdict)
+        sformfile = sformfile or fpath
+
+    else:  # try to read it as a 3D volume in slices
+
+        texdict['name'] = texdict['name'] or fpath.split(os.sep)[-1]
+
+        srcdir = os.path.dirname(fpath)
+        trgdir = os.path.join(abstexdir, texdict['texformat'], 'vol0000')
+        tb_utils.mkdir_p(trgdir)
+
+        # educated guess of the files we want to glob
+        pat = '*%s' % os.path.splitext(fpath)[1]
+        for f in glob(os.path.join(srcdir, pat)):
+            fname = os.path.basename(f)
+            os.symlink(f, os.path.join(trgdir, fname))
+
+        texdict['img'] = bpy.data.images.load(fpath)
+
+        texdict['dims'] = [s for s in texdict['img'].size] + \
+                          [image_sequence_length(fpath)] + [1]
+        texdict['texformat'] = "IMAGE_SEQUENCE"
+        texdict['datarange'] = [0, 1]
+        texdict['labels'] = None
+        # TODO: figure out labels and datarange
+
+    texdict['affine'] = read_affine_matrix(sformfile, fieldname)
+
+    # save the essentials to the voltex directory
+    for pf in ('affine', 'dims', 'datarange', 'labels'):
+        np.save(os.path.join(abstexdir, pf), np.array(texdict[pf]))
+
+    return texdict
+
+
+def prep_nifti(texdict):
+    """Write data in a nifti file to a NeuroBlender volume texture.
 
     The nifti is read with nibabel with [z,y,x] layout, and is either
     written as an [x,y] PNG image sequence (datarange=[0,1]) or
@@ -450,7 +437,11 @@ def prep_nifti(fpath, texdict, is_label=False, fieldname='stack', vol_idx=-1):
     scn = bpy.context.scene
     tb = scn.tb
 
-    texdir = texdict['texdir'] 
+    fpath = texdict['fpath']
+    is_label = texdict['is_label']
+    fieldname = texdict['dataset']
+    vol_idx = texdict['vol_idx']
+    texdir = texdict['texdir']
     texformat = texdict['texformat']
 
     if fpath.endswith('.h5'):
@@ -508,13 +499,14 @@ def prep_nifti(fpath, texdict, is_label=False, fieldname='stack', vol_idx=-1):
 
 
 def h5_in2out(inds):
-    """"""
+    """Permute dimension labels to Fortran order."""
 
     outlayout = 'xyzct'[0:inds.ndim]
     try:
         inlayout = [d.label for d in inds.dims]
     except:
         inlayout = 'xyzct'[0:inds.ndim]
+
     in2out = [inlayout.index(l) for l in outlayout]
 
     return in2out
@@ -592,7 +584,7 @@ def write_to_raw_8bit(absimdir, data, dims):
 
     data *= 255
     for volnr, vol in enumerate(data):
-        filepath = os.path.join(absimdir, 'vol%04d.raw_8bit' % volnr)
+        filepath = os.path.join(absimdir, 'vol%04d.8bit_raw' % volnr)
         with open(filepath, "wb") as f:
             f.write(bytes(vol.astype('uint8')))
         img = bpy.data.images.load(filepath)
@@ -630,9 +622,7 @@ def image_sequence_length(filepath):
     return n_images
 
 
-def add_to_collections(fpath, texdict,
-                       is_overlay, is_label,
-                       sformfile, parentpath):
+def add_to_collections(texdict):
 
     scn = bpy.context.scene
     tb = scn.tb
@@ -642,6 +632,12 @@ def add_to_collections(fpath, texdict,
     texdir = texdict['texdir']
     datarange = texdict['datarange']
     labels = texdict['labels']
+
+    fpath = texdict['fpath']
+    sformfile = texdict['sformfile']
+    is_overlay = texdict['is_overlay']
+    is_label = texdict['is_label']
+    parentpath = texdict['parentpath']
 
     if is_overlay:
 
@@ -707,17 +703,17 @@ def voxelvolume_object_bool(name, dims, affine):
 
     return ob
 
-def voxelvolume_object_slicebox(name, dims, affine, item, is_overlay=False):
+def voxelvolume_object_slicebox(item, texdict):
     """"""
 
     scn = bpy.context.scene
 
     slices = False
-    me = bpy.data.meshes.new(name)
-    ob = bpy.data.objects.new(name, me)
+    me = bpy.data.meshes.new(texdict["name"])
+    ob = bpy.data.objects.new(texdict["name"], me)
     bpy.context.scene.objects.link(ob)
-    ob1 = voxelvolume_box_ob(dims, "Bounds")
-    ob2 = voxelvolume_box_ob(dims, "SliceBox")
+    ob1 = voxelvolume_box_ob(texdict["dims"], "Bounds")
+    ob2 = voxelvolume_box_ob(texdict["dims"], "SliceBox")
 
     ob.select = True
     scn.objects.active = ob
@@ -731,9 +727,7 @@ def voxelvolume_object_slicebox(name, dims, affine, item, is_overlay=False):
     scn.objects.active = ob
     ob.select = True
 
-    mat = Matrix()
-    if not is_overlay:
-        mat = Matrix(affine)
+    mat = Matrix() if texdict["is_overlay"] else Matrix(texdict["affine"])
     ob.matrix_world = mat
 
     slicebox = voxelvolume_cutout(ob)
@@ -743,7 +737,7 @@ def voxelvolume_object_slicebox(name, dims, affine, item, is_overlay=False):
         voxelvolume_slice_drivers_volume(item, slicebox, idx, "location")
         voxelvolume_slice_drivers_volume(item, slicebox, idx, "rotation_euler")
 
-    return ob
+    return ob, slicebox
 
 
 def voxelvolume_cutout(ob):
@@ -948,21 +942,22 @@ def find_bbox_coordinates(obs):
     return bb_min, bb_max
 
 
-def import_overlays(directory, files, name="", parent="", ovtype=""):
+def import_overlays(directory, files, name="", parentpath="", ovtype=""):
     """"""
 
     scn = bpy.context.scene
     tb = scn.tb
 
-#    parent = tb_utils.active_tb_object()[0].name  # FIXME
-    if not parent:
-        parent = tb_utils.active_tb_object()[0].name
+    try:
+        parent = eval(parentpath)
+    except (SyntaxError, NameError):
+        parent = tb_utils.active_tb_object()[0]
 #     else:
-#         obinfo = tb_utils.get_tb_objectinfo(parent)
+#         obinfo = tb_utils.get_tb_objectinfo(parent.name)
 #         tb.objecttype = obinfo['type']
 #         exec("tb.index_%s = %s" % (obinfo['type'], obinfo['index']))
 
-    parent_ob = bpy.data.objects[parent]
+    parent_ob = bpy.data.objects[parent.name]
 
     if not files:
         files = os.listdir(directory)

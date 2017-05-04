@@ -787,7 +787,7 @@ def get_voxmat(name):
     return mat
 
 
-def get_voxtex(mat, texdict, volname, item, is_overlay=False, is_label=False):
+def get_voxtex(mat, texdict, volname, item):
     """Return a textured material for voxeldata."""
 
     scn = bpy.context.scene
@@ -796,6 +796,8 @@ def get_voxtex(mat, texdict, volname, item, is_overlay=False, is_label=False):
     dims = texdict['dims']
     texdir = texdict['texdir']
     texformat = texdict['texformat']
+    is_overlay = texdict['is_overlay']
+    is_label = texdict['is_label']
 
     tex = bpy.data.textures.new(item.name, 'VOXEL_DATA')
     tex.use_preview_alpha = True
@@ -824,22 +826,31 @@ def get_voxtex(mat, texdict, volname, item, is_overlay=False, is_label=False):
 
     if is_label:
         tex.voxel_data.interpolation = "NEREASTNEIGHBOR"
-        cr = tex.color_ramp
-        cr.interpolation = 'CONSTANT'
-        cre = cr.elements
-        maxlabel = max([label.value for label in item.labels])
-        step = 1. / maxlabel
-        offset = step / 2.
-        cre[1].position = item.labels[0].value / maxlabel - offset
-        cre[1].color = item.labels[0].colour
-        for label in item.labels[1:]:
-            pos = label.value / maxlabel - offset
-            el = cre.new(pos)
-            el.color = label.colour
+        if len(item.labels) < 33:
+            generate_label_ramp(tex, item)
+        else:  # too many labels: switching to continuous ramp
+            switch_colourmap(tex.color_ramp, "jet")
     elif is_overlay:
         switch_colourmap(tex.color_ramp, "jet")
 
     return tex
+
+
+def generate_label_ramp(tex, item):
+    """Make a color ramp from labelcollection."""
+
+    cr = tex.color_ramp
+    cr.interpolation = 'CONSTANT'
+    cre = cr.elements
+    maxlabel = max([label.value for label in item.labels])
+    step = 1. / maxlabel
+    offset = step / 2.
+    cre[1].position = item.labels[0].value / maxlabel - offset
+    cre[1].color = item.labels[0].colour
+    for label in item.labels[1:]:
+        pos = label.value / maxlabel - offset
+        el = cre.new(pos)
+        el.color = label.colour
 
 
 def load_surface_textures(name, directory, nframes):
