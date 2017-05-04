@@ -962,7 +962,8 @@ def create_light(preset, centre, box, lights, lightprops):
         if not engine == "CYCLES":
             scn.render.engine = "CYCLES"
         light.data.use_nodes = True
-        light.data.shadow_soft_size = 50
+        if type != "HEMI":
+            light.data.shadow_soft_size = 50
         node = light.data.node_tree.nodes["Emission"]
         node.inputs[1].default_value = strength
 
