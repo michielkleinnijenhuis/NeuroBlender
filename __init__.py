@@ -2016,7 +2016,7 @@ class VertexWeight2UV(Operator, ExportHelper):
 
         # prep directory
         if not bpy.data.is_saved:
-            tb_utils.force_save(projectdir)
+            tb_utils.force_save(tb.projectdir)
         if not group.texdir:
             group.texdir = "//uvtex_%s" % group.name
         tb_utils.mkdir_p(bpy.path.abspath(group.texdir))

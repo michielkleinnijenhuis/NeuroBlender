@@ -242,7 +242,7 @@ def import_voxelvolume(fpath, name, sformfile="", texdict={
 
     # prep texture directory
     if not bpy.data.is_saved:
-        tb_utils.force_save(projectdir)
+        tb_utils.force_save(tb.projectdir)
     abstexdir = bpy.path.abspath(texdir)
     tb_utils.mkdir_p(abstexdir)
 
