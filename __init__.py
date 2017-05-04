@@ -3662,15 +3662,28 @@ def index_scalars_handler_func(dummy):
     scn = bpy.context.scene
     tb = scn.tb
 
-    preset = tb.presets[tb.index_presets]
-    for anim in preset.animations:
-        if anim.animationtype == "TimeSeries":
+    try:
+        preset = tb.presets[tb.index_presets]
+    except:
+        pass
+    else:
+        for anim in preset.animations:
+            if anim.animationtype == "TimeSeries":
 
-            sgs = tb_rp.find_ts_scalargroups(anim)
-            sg = sgs[anim.anim_timeseries]
+                sgs = tb_rp.find_ts_scalargroups(anim)
+                sg = sgs[anim.anim_timeseries]
 
-            scalar = sg.scalars[sg.index_scalars]
-            index_scalars_update_vvolscalar_func(sg, scalar, tb.texmethod)
+                scalar = sg.scalars[sg.index_scalars]
+
+                if sg.path_from_id().startswith("tb.surfaces"):
+                    # update Image Sequence Texture index
+                    mat = bpy.data.materials[sg.name]
+                    itex = mat.node_tree.nodes["Image Texture"]
+                    itex.image_user.frame_offset = scn.frame_current
+                    # FIXME: more flexible indexing
+
+                elif sg.path_from_id().startswith("tb.voxelvolumes"):
+                    index_scalars_update_vvolscalar_func(sg, scalar, tb.texmethod)
 
 
 bpy.app.handlers.frame_change_pre.append(index_scalars_handler_func)
@@ -3682,12 +3695,12 @@ def index_scalars_update_func(group=None):
     scn = bpy.context.scene
     tb = scn.tb
 
+    if group is None:
+        group = tb_utils.active_tb_overlay()[0]
+
     tb_ob_path = '.'.join(group.path_from_id().split('.')[:-1])
     tb_ob = eval(tb_ob_path)
     ob = bpy.data.objects[tb_ob.name]
-
-    if group is None:
-        group = tb_utils.active_tb_overlay()[0]
 
     try:
         scalar = group.scalars[group.index_scalars]
@@ -3702,12 +3715,19 @@ def index_scalars_update_func(group=None):
             ob.vertex_groups.active_index = vg_idx
 
             if hasattr(group, 'scalars'):
-                vc_idx = ob.data.vertex_colors.find(name)
-                ob.data.vertex_colors.active_index = vc_idx
 
                 mat = bpy.data.materials[group.name]
+
+                # update Image Sequence Texture index
+                itex = mat.node_tree.nodes["Image Texture"]
+                itex.image_user.frame_offset = group.index_scalars
+
+                # update Vertex Color attribute
                 attr = mat.node_tree.nodes["Attribute"]
                 attr.attribute_name = name  # FIXME
+
+                vc_idx = ob.data.vertex_colors.find(name)
+                ob.data.vertex_colors.active_index = vc_idx
 
                 for scalar in group.scalars:
                     scalar_index = group.scalars.find(scalar.name)
