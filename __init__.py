@@ -2310,8 +2310,10 @@ class TractBlenderScenePanel(Panel):
             tab = preset.tables.add()
             preset.index_tables = (len(preset.tables)-1)
         else:
+            tab_ob = bpy.data.objects[tab.name]
             row = layout.row()
-            row.prop(tab, "is_rendered", toggle=True)
+            row.prop(tab_ob, "hide", toggle=True)
+            row.prop(tab_ob, "hide_render", toggle=True)
             row = layout.row()
             self.drawunit_basic_cycles(layout, tab)
 
