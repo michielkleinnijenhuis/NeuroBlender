@@ -1559,16 +1559,6 @@ def is_overlay_update(self, context):
         self.parentpath = context.scene.tb.path_from_id()
 
 
-# class ImportFilesCollection(PropertyGroup):
-#     name = StringProperty(
-#             name="File Path",
-#             description="Filepath used for importing the file",
-#             maxlen=1024,
-#             subtype='FILE_PATH',
-#             update=file_update)
-# bpy.utils.register_class(ImportFilesCollection)
-
-
 def h5_dataset_callback(self, context):
     """Populate the enum based on available options."""
 
@@ -1580,10 +1570,10 @@ def h5_dataset_callback(self, context):
 
     try:
         import h5py
-    except:
-        pass
-    else:
         f = h5py.File(os.path.join(self.directory, self.files[0].name), 'r')
+    except:
+        items = [("no data", "no data", "not a valid h5", 0)]
+    else:
         f.visititems(h5_dataset_add)
         f.close()
         items = [(name, name, "List the datatree", i)
