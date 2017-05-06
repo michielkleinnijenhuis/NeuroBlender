@@ -46,11 +46,11 @@ import numpy as np
 import mathutils
 import re
 
-from . import tractblender_import as tb_imp
-from . import tractblender_materials as tb_mat
-from . import tractblender_renderpresets as tb_rp
-from . import tractblender_beautify as tb_beau
-from . import tractblender_utils as tb_utils
+from . import neuroblender_import as nb_imp
+from . import neuroblender_materials as nb_mat
+from . import neuroblender_renderpresets as nb_rp
+from . import neuroblender_beautify as nb_beau
+from . import neuroblender_utils as nb_utils
 from . import external_sitepackages as ext_sp
 
 
@@ -75,9 +75,9 @@ bl_info = {
 # =========================================================================== #
 
 
-class TractBlenderBasePanel(Panel):
-    """Host the TractBlender base geometry"""
-    bl_idname = "OBJECT_PT_tb_geometry"
+class NeuroBlenderBasePanel(Panel):
+    """Host the NeuroBlender base geometry"""
+    bl_idname = "OBJECT_PT_nb_geometry"
     bl_label = "NeuroBlender - Base"
     bl_space_type = "PROPERTIES"
     bl_region_type = "WINDOW"
@@ -86,50 +86,50 @@ class TractBlenderBasePanel(Panel):
     def draw(self, context):
 
         scn = context.scene
-        tb = scn.tb
+        nb = scn.nb
 
-        if tb.is_enabled:
-            self.draw_tb_panel(self.layout, tb)
+        if nb.is_enabled:
+            self.draw_nb_panel(self.layout, nb)
         else:
-            self.drawunit_switch_to_main(self.layout, tb)
+            self.drawunit_switch_to_main(self.layout, nb)
 
-    def draw_tb_panel(self, layout, tb):
+    def draw_nb_panel(self, layout, nb):
 
         row = layout.row()
-        row.prop(tb, "objecttype", expand=True)
+        row.prop(nb, "objecttype", expand=True)
 
         row = layout.row()
         row.separator()
 
-        self.drawunit_UIList(layout, "L1", tb, tb.objecttype)
+        self.drawunit_UIList(layout, "L1", nb, nb.objecttype)
 
         row = layout.row()
         row.separator()
 
         try:
-            idx = eval("tb.index_%s" % tb.objecttype)
-            tb_ob = eval("tb.%s[%d]" % (tb.objecttype, idx))
+            idx = eval("nb.index_%s" % nb.objecttype)
+            nb_ob = eval("nb.%s[%d]" % (nb.objecttype, idx))
         except IndexError:
             pass
         else:
-            if tb.objecttype == "surfaces":
-                self.drawunit_tri(layout, "unwrap", tb, tb_ob)
-            elif tb.objecttype == "voxelvolumes":
-                self.drawunit_tri(layout, "slices", tb, tb_ob)
+            if nb.objecttype == "surfaces":
+                self.drawunit_tri(layout, "unwrap", nb, nb_ob)
+            elif nb.objecttype == "voxelvolumes":
+                self.drawunit_tri(layout, "slices", nb, nb_ob)
 
-            self.drawunit_tri(layout, "material", tb, tb_ob)
+            self.drawunit_tri(layout, "material", nb, nb_ob)
 
-            self.drawunit_tri(layout, "transform", tb, tb_ob)
+            self.drawunit_tri(layout, "transform", nb, nb_ob)
 
-            if tb.advanced:
-                self.drawunit_tri(layout, "info", tb, tb_ob)
+            if nb.advanced:
+                self.drawunit_tri(layout, "info", nb, nb_ob)
 
-    def drawunit_switch_to_main(self, layout, tb):
+    def drawunit_switch_to_main(self, layout, nb):
 
         row = layout.row()
-        row.label(text="Please use the main scene for TractBlender.")
+        row.label(text="Please use the main scene for NeuroBlender.")
         row = layout.row()
-        row.operator("tb.switch_to_main",
+        row.operator("nb.switch_to_main",
                      text="Switch to main",
                      icon="FORWARD")
 
@@ -143,48 +143,48 @@ class TractBlenderBasePanel(Panel):
         col = row.column(align=True)
         if addopt:
             if ((uilistlevel == "L2") and
-                    data.path_from_id().startswith("tb.voxelvolumes")):
+                    data.path_from_id().startswith("nb.voxelvolumes")):
                 obtype = "voxelvolumes"
-            col.operator("tb.import_" + obtype,
+            col.operator("nb.import_" + obtype,
                          icon='ZOOMIN',
                          text="").parentpath = data.path_from_id()
-        col.operator("tb.oblist_ops",
+        col.operator("nb.oblist_ops",
                      icon='ZOOMOUT',
                      text="").action = 'REMOVE_' + uilistlevel
 
-        if bpy.context.scene.tb.advanced:
-            col.menu("tb.mass_is_rendered_" + uilistlevel,
+        if bpy.context.scene.nb.advanced:
+            col.menu("nb.mass_is_rendered_" + uilistlevel,
                      icon='DOWNARROW_HLT',
                      text="")
             col.separator()
-            col.operator("tb.oblist_ops",
+            col.operator("nb.oblist_ops",
                          icon='TRIA_UP',
                          text="").action = 'UP_' + uilistlevel
-            col.operator("tb.oblist_ops",
+            col.operator("nb.oblist_ops",
                          icon='TRIA_DOWN',
                          text="").action = 'DOWN_' + uilistlevel
 
-    def drawunit_tri(self, layout, triflag, tb, data):
+    def drawunit_tri(self, layout, triflag, nb, data):
 
         row = layout.row()
         prop = "show_%s" % triflag
-        if eval("tb.%s" % prop):
-            exec("self.drawunit_tri_%s(layout, tb, data)" % triflag)
+        if eval("nb.%s" % prop):
+            exec("self.drawunit_tri_%s(layout, nb, data)" % triflag)
             icon = 'TRIA_DOWN'
         else:
             icon = 'TRIA_RIGHT'
-        row.prop(tb, prop, icon=icon, emboss=False)
+        row.prop(nb, prop, icon=icon, emboss=False)
 
         row = layout.row()
         row.separator()
 
-    def drawunit_tri_transform(self, layout, tb, tb_ob):
+    def drawunit_tri_transform(self, layout, nb, nb_ob):
 
         row = layout.row()
-        row.prop(tb_ob, "sformfile", text="")
+        row.prop(nb_ob, "sformfile", text="")
 
-        if bpy.context.scene.tb.advanced:
-            ob = bpy.data.objects[tb_ob.name]
+        if bpy.context.scene.nb.advanced:
+            ob = bpy.data.objects[nb_ob.name]
             mw = ob.matrix_world
             txts = ["srow_%s  %8.3f %8.3f %8.3f %8.3f" % (dim,
                         mw[i][0], mw[i][1], mw[i][2], mw[i][3])
@@ -199,120 +199,120 @@ class TractBlenderBasePanel(Panel):
             row.enabled = False
             row.label(text=txts[2])
 
-    def drawunit_tri_material(self, layout, tb, tb_ob):
+    def drawunit_tri_material(self, layout, nb, nb_ob):
 
-        if tb.objecttype == "voxelvolumes":
+        if nb.objecttype == "voxelvolumes":
 
-            self.drawunit_rendertype(layout, tb_ob)
+            self.drawunit_rendertype(layout, nb_ob)
 
-            tex = bpy.data.textures[tb_ob.name]
-            self.drawunit_texture(layout, tex, tb_ob)
+            tex = bpy.data.textures[nb_ob.name]
+            self.drawunit_texture(layout, tex, nb_ob)
 
         else:
 
-            self.drawunit_material(layout, tb_ob)
+            self.drawunit_material(layout, nb_ob)
 
-    def drawunit_rendertype(self, layout, tb_ob):
+    def drawunit_rendertype(self, layout, nb_ob):
 
         row = layout.row()
-        row.prop(tb_ob, "rendertype", expand=True)
+        row.prop(nb_ob, "rendertype", expand=True)
 
         row = layout.row()
         row.separator()
 
-        if tb_ob.rendertype == "SURFACE":
-            mat = bpy.data.materials[tb_ob.name]
+        if nb_ob.rendertype == "SURFACE":
+            mat = bpy.data.materials[nb_ob.name]
             row = layout.row()
             row.prop(mat, "alpha", text="SliceBox alpha")
             # NOTE: more fun stuff under Material => Transparency
 
-    def drawunit_tri_unwrap(self, layout, tb, tb_ob):
+    def drawunit_tri_unwrap(self, layout, nb, nb_ob):
 
-        self.drawunit_unwrap(layout, tb_ob)
+        self.drawunit_unwrap(layout, nb_ob)
 
-    def drawunit_tri_slices(self, layout, tb, tb_ob):
+    def drawunit_tri_slices(self, layout, nb, nb_ob):
 
-        self.drawunit_slices(layout, tb_ob)
+        self.drawunit_slices(layout, nb_ob)
 
-    def drawunit_tri_info(self, layout, tb, tb_ob):
+    def drawunit_tri_info(self, layout, nb, nb_ob):
 
         row = layout.row()
-        row.prop(tb_ob, "filepath")
+        row.prop(nb_ob, "filepath")
         row.enabled = False
 
-        if tb.objecttype == "tracts":
+        if nb.objecttype == "tracts":
 
             row = layout.row()
-            row.prop(tb_ob, "nstreamlines",
+            row.prop(nb_ob, "nstreamlines",
                      text="Number of streamlines", emboss=False)
             row.enabled = False
 
             row = layout.row()
-            row.prop(tb_ob, "streamlines_interpolated",
+            row.prop(nb_ob, "streamlines_interpolated",
                      text="Interpolation factor", emboss=False)
             row.enabled = False
 
             row = layout.row()
-            row.prop(tb_ob, "tract_weeded",
+            row.prop(nb_ob, "tract_weeded",
                      text="Tract weeding factor", emboss=False)
             row.enabled = False
 
-        elif tb.objecttype == 'surfaces':
+        elif nb.objecttype == 'surfaces':
             pass
 
-        elif tb.objecttype == 'voxelvolumes':
+        elif nb.objecttype == 'voxelvolumes':
 
             row = layout.row()
-            row.prop(tb_ob, "texdir")
+            row.prop(nb_ob, "texdir")
 
             row = layout.row()
-            row.prop(tb_ob, "texformat")
+            row.prop(nb_ob, "texformat")
             row.enabled = False
 
             row = layout.row()
-            row.prop(tb_ob, "range", text="Datarange", emboss=False)
+            row.prop(nb_ob, "range", text="Datarange", emboss=False)
             row.enabled = False
 
-    def drawunit_material(self, layout, tb_ob):
+    def drawunit_material(self, layout, nb_ob):
 
         scn = bpy.context.scene
-        tb = scn.tb
+        nb = scn.nb
 
-        if tb.engine.startswith("BLENDER"):
+        if nb.engine.startswith("BLENDER"):
 
-            self.drawunit_basic_blender(layout, tb_ob)
+            self.drawunit_basic_blender(layout, nb_ob)
 
         else:
 
             row = layout.row()
-            row.prop(tb_ob, "colourtype", expand=True)
+            row.prop(nb_ob, "colourtype", expand=True)
 
             row = layout.row()
             row.separator()
 
-            self.drawunit_basic_cycles(layout, tb_ob)
+            self.drawunit_basic_cycles(layout, nb_ob)
 
-    def drawunit_basic_blender(self, layout, tb_ob):
+    def drawunit_basic_blender(self, layout, nb_ob):
 
-        mat = bpy.data.materials[tb_ob.name]
+        mat = bpy.data.materials[nb_ob.name]
 
         row = layout.row()
         row.prop(mat, "diffuse_color", text="")
         row.prop(mat, "alpha", text="Transparency")
-        if hasattr(tb_ob, "colour"):
-            row.operator("tb.revert_label", icon='BACK', text="")
+        if hasattr(nb_ob, "colour"):
+            row.operator("nb.revert_label", icon='BACK', text="")
 
-    def drawunit_basic_cycles(self, layout, tb_ob):
+    def drawunit_basic_cycles(self, layout, nb_ob):
 
-        mat = bpy.data.materials[tb_ob.name]
+        mat = bpy.data.materials[nb_ob.name]
         colour = mat.node_tree.nodes["RGB"].outputs[0]
         trans = mat.node_tree.nodes["Transparency"].outputs[0]
 
         row = layout.row()
         row.prop(colour, "default_value", text="")
         row.prop(trans, "default_value", text="Transparency")
-        if hasattr(tb_ob, "colour"):
-            row.operator("tb.revert_label", icon='BACK', text="")
+        if hasattr(nb_ob, "colour"):
+            row.operator("nb.revert_label", icon='BACK', text="")
 
         row = layout.row()
         row.separator()
@@ -331,7 +331,7 @@ class TractBlenderBasePanel(Panel):
         row.prop(nt.nodes["MixDiffGlos"].inputs[0],
                  "default_value", text="mix")
 
-    def drawunit_texture(self, layout, tex, tb_coll=None, text=""):
+    def drawunit_texture(self, layout, tex, nb_coll=None, text=""):
 
         if text:
             row = layout.row()
@@ -357,22 +357,22 @@ class TractBlenderBasePanel(Panel):
             row.separator()
 
             row = layout.row()
-            row.prop(tb_coll, "colourmap_enum", expand=False)
+            row.prop(nb_coll, "colourmap_enum", expand=False)
 
             row = layout.row()
             row.separator()
 
             # NOTE: more fun stuff under Texture => Influence
-            self.drawunit_colourramp(layout, tex, tb_coll)
+            self.drawunit_colourramp(layout, tex, nb_coll)
 
         else:
 
-            mat = bpy.data.materials[tb_coll.name]
-            ts = mat.texture_slots.get(tb_coll.name)
+            mat = bpy.data.materials[nb_coll.name]
+            ts = mat.texture_slots.get(nb_coll.name)
             row.prop(ts, "color")
 
 
-    def drawunit_colourramp(self, layout, ramp, tb_coll=None, text=""):
+    def drawunit_colourramp(self, layout, ramp, nb_coll=None, text=""):
 
         if text:
             row = layout.row()
@@ -381,7 +381,7 @@ class TractBlenderBasePanel(Panel):
         row = layout.row()
         layout.template_color_ramp(ramp, "color_ramp", expand=True)
 
-        if ((tb_coll is not None) and bpy.context.scene.tb.advanced):
+        if ((nb_coll is not None) and bpy.context.scene.nb.advanced):
 
             row = layout.row()
             row.separator()
@@ -389,38 +389,38 @@ class TractBlenderBasePanel(Panel):
             row = layout.row()
             row.label(text="non-normalized colour stop positions:")
 
-            self.calc_nn_elpos(tb_coll, ramp)
+            self.calc_nn_elpos(nb_coll, ramp)
             row = layout.row()
             row.enabled = False
             row.template_list("ObjectListCR", "",
-                              tb_coll, "nn_elements",
-                              tb_coll, "index_nn_elements",
+                              nb_coll, "nn_elements",
+                              nb_coll, "index_nn_elements",
                               rows=2)
 
-            if hasattr(tb_coll, "showcolourbar"):
+            if hasattr(nb_coll, "showcolourbar"):
 
                 row = layout.row()
                 row.separator()
 
                 row = layout.row()
-                row.prop(tb_coll, "showcolourbar")
+                row.prop(nb_coll, "showcolourbar")
 
-                if tb_coll.showcolourbar:
-
-                    row = layout.row()
-                    row.prop(tb_coll, "colourbar_size", text="size")
-                    row.prop(tb_coll, "colourbar_position", text="position")
+                if nb_coll.showcolourbar:
 
                     row = layout.row()
-                    row.prop(tb_coll, "textlabel_colour", text="Textlabels")
-                    row.prop(tb_coll, "textlabel_placement", text="")
-                    row.prop(tb_coll, "textlabel_size", text="size")
+                    row.prop(nb_coll, "colourbar_size", text="size")
+                    row.prop(nb_coll, "colourbar_position", text="position")
 
-    def calc_nn_elpos(self, tb_ov, ramp):
+                    row = layout.row()
+                    row.prop(nb_coll, "textlabel_colour", text="Textlabels")
+                    row.prop(nb_coll, "textlabel_placement", text="")
+                    row.prop(nb_coll, "textlabel_size", text="size")
+
+    def calc_nn_elpos(self, nb_ov, ramp):
 
         # TODO: solve with drivers
         els = ramp.color_ramp.elements
-        nnels = tb_ov.nn_elements
+        nnels = nb_ov.nn_elements
         n_els = len(els)
         n_nnels = len(nnels)
         if n_els > n_nnels:
@@ -429,120 +429,120 @@ class TractBlenderBasePanel(Panel):
         elif n_els < n_nnels:
             for _ in range(n_nnels-n_els):
                 nnels.remove(0)
-        dmin = tb_ov.range[0]
-        dmax = tb_ov.range[1]
+        dmin = nb_ov.range[0]
+        dmax = nb_ov.range[1]
         drange = dmax-dmin
         for i, el in enumerate(nnels):
             el.name = "colour stop " + str(i)
             el.nn_position = els[i].position * drange + dmin
 
-    def drawunit_slices(self, layout, tb_ob, is_yoked=False):
+    def drawunit_slices(self, layout, nb_ob, is_yoked=False):
 
         row = layout.row()
         col = row.column()
-        col.prop(tb_ob, "slicethickness", expand=True, text="Thickness")
+        col.prop(nb_ob, "slicethickness", expand=True, text="Thickness")
         col.enabled = not is_yoked
         col = row.column()
-        col.prop(tb_ob, "sliceposition", expand=True, text="Position")
+        col.prop(nb_ob, "sliceposition", expand=True, text="Position")
         col.enabled = not is_yoked
         col = row.column()
-        col.prop(tb_ob, "sliceangle", expand=True, text="Angle")
+        col.prop(nb_ob, "sliceangle", expand=True, text="Angle")
         col.enabled = not is_yoked
 
-    def drawunit_unwrap(self, layout, tb_ob):
+    def drawunit_unwrap(self, layout, nb_ob):
 
         row = layout.row()
         row.separator()
 
         row = layout.row()
-        row.prop(tb_ob, "sphere", text="")
+        row.prop(nb_ob, "sphere", text="")
         row = layout.row()
-        row.operator("tb.unwrap_surface", text="Unwrap from sphere")
+        row.operator("nb.unwrap_surface", text="Unwrap from sphere")
 
 
-class TractBlenderOverlayPanel(Panel):
-    """Host the TractBlender overlay functions"""
-    bl_idname = "OBJECT_PT_tb_overlays"
+class NeuroBlenderOverlayPanel(Panel):
+    """Host the NeuroBlender overlay functions"""
+    bl_idname = "OBJECT_PT_nb_overlays"
     bl_label = "NeuroBlender - Overlays"
     bl_space_type = "PROPERTIES"
     bl_region_type = "WINDOW"
     bl_context = "scene"
 
     # delegate some methods
-    draw = TractBlenderBasePanel.draw
-    drawunit_switch_to_main = TractBlenderBasePanel.drawunit_switch_to_main
-    drawunit_UIList = TractBlenderBasePanel.drawunit_UIList
-    drawunit_tri = TractBlenderBasePanel.drawunit_tri
-    drawunit_basic_blender = TractBlenderBasePanel.drawunit_basic_blender
-    drawunit_basic_cycles = TractBlenderBasePanel.drawunit_basic_cycles
-    drawunit_basic_cycles_mix = TractBlenderBasePanel.drawunit_basic_cycles_mix
-    drawunit_rendertype = TractBlenderBasePanel.drawunit_rendertype
-    drawunit_texture = TractBlenderBasePanel.drawunit_texture
-    drawunit_colourramp = TractBlenderBasePanel.drawunit_colourramp
-    calc_nn_elpos = TractBlenderBasePanel.calc_nn_elpos
-    drawunit_slices = TractBlenderBasePanel.drawunit_slices
+    draw = NeuroBlenderBasePanel.draw
+    drawunit_switch_to_main = NeuroBlenderBasePanel.drawunit_switch_to_main
+    drawunit_UIList = NeuroBlenderBasePanel.drawunit_UIList
+    drawunit_tri = NeuroBlenderBasePanel.drawunit_tri
+    drawunit_basic_blender = NeuroBlenderBasePanel.drawunit_basic_blender
+    drawunit_basic_cycles = NeuroBlenderBasePanel.drawunit_basic_cycles
+    drawunit_basic_cycles_mix = NeuroBlenderBasePanel.drawunit_basic_cycles_mix
+    drawunit_rendertype = NeuroBlenderBasePanel.drawunit_rendertype
+    drawunit_texture = NeuroBlenderBasePanel.drawunit_texture
+    drawunit_colourramp = NeuroBlenderBasePanel.drawunit_colourramp
+    calc_nn_elpos = NeuroBlenderBasePanel.calc_nn_elpos
+    drawunit_slices = NeuroBlenderBasePanel.drawunit_slices
 
-    def draw_tb_panel(self, layout, tb):
+    def draw_nb_panel(self, layout, nb):
 
         try:
-            ob_idx = eval("tb.index_%s" % tb.objecttype)
-            tb_ob = eval("tb.%s[%d]" % (tb.objecttype, ob_idx))
+            ob_idx = eval("nb.index_%s" % nb.objecttype)
+            nb_ob = eval("nb.%s[%d]" % (nb.objecttype, ob_idx))
         except IndexError:
             row = self.layout.row()
-            row.label(text="No " + tb.objecttype + " loaded ...")
+            row.label(text="No " + nb.objecttype + " loaded ...")
         else:
-            self.draw_tb_overlaypanel(layout, tb, tb_ob)
+            self.draw_nb_overlaypanel(layout, nb, nb_ob)
 
-    def draw_tb_overlaypanel(self, layout, tb, tb_ob):
+    def draw_nb_overlaypanel(self, layout, nb, nb_ob):
 
         row = layout.row()
-        row.prop(tb, "overlaytype", expand=True)
+        row.prop(nb, "overlaytype", expand=True)
 
         row = layout.row()
         row.separator()
 
-        self.drawunit_UIList(layout, "L2", tb_ob, tb.overlaytype)
+        self.drawunit_UIList(layout, "L2", nb_ob, nb.overlaytype)
 
         row = layout.row()
         row.separator()
 
         try:
-            ov_idx = eval("tb_ob.index_%s" % tb.overlaytype)
-            tb_ov = eval("tb_ob.%s[%d]" % (tb.overlaytype, ov_idx))
+            ov_idx = eval("nb_ob.index_%s" % nb.overlaytype)
+            nb_ov = eval("nb_ob.%s[%d]" % (nb.overlaytype, ov_idx))
         except IndexError:
             pass
         else:
-            self.draw_tb_overlayprops(layout, tb, tb_ob, tb_ov)
+            self.draw_nb_overlayprops(layout, nb, nb_ob, nb_ov)
 
-    def draw_tb_overlayprops(self, layout, tb, tb_ob, tb_ov):
+    def draw_nb_overlayprops(self, layout, nb, nb_ob, nb_ov):
 
-        if tb.objecttype == 'tracts':
+        if nb.objecttype == 'tracts':
 
             pass
 
-        elif tb.objecttype == 'surfaces':
+        elif nb.objecttype == 'surfaces':
 
-            if tb.overlaytype == "scalargroups":
-                if len(tb_ov.scalars) > 1:
+            if nb.overlaytype == "scalargroups":
+                if len(nb_ov.scalars) > 1:
                     row = layout.row()
                     row.template_list("ObjectListTS", "",
-                                      tb_ov, "scalars",
-                                      tb_ov, "index_scalars",
+                                      nb_ov, "scalars",
+                                      nb_ov, "index_scalars",
                                       rows=2, type="COMPACT")
 
                 self.drawunit_bake(layout)
 
-        elif tb.objecttype == "voxelvolumes":
+        elif nb.objecttype == "voxelvolumes":
 
-            self.drawunit_tri(layout, "overlay_slices", tb, tb_ov)
+            self.drawunit_tri(layout, "overlay_slices", nb, nb_ov)
 
-        if tb.overlaytype == "scalargroups":
-            self.drawunit_tri(layout, "overlay_material", tb, tb_ov)
+        if nb.overlaytype == "scalargroups":
+            self.drawunit_tri(layout, "overlay_material", nb, nb_ov)
         else:
-            self.drawunit_tri(layout, "items", tb, tb_ov)
+            self.drawunit_tri(layout, "items", nb, nb_ov)
 
-        if tb.advanced:
-            self.drawunit_tri(layout, "overlay_info", tb, tb_ov)
+        if nb.advanced:
+            self.drawunit_tri(layout, "overlay_info", nb, nb_ov)
 
     def drawunit_bake(self, layout):
 
@@ -550,111 +550,111 @@ class TractBlenderOverlayPanel(Panel):
         row.separator()
 
         scn = bpy.context.scene
-        tb = scn.tb
+        nb = scn.nb
 
         row = layout.row()
         col = row.column()
-        col.operator("tb.wp_preview", text="", icon="GROUP_VERTEX")
+        col.operator("nb.wp_preview", text="", icon="GROUP_VERTEX")
         col = row.column()
-        col.operator("tb.vw2vc", text="", icon="GROUP_VCOL")
+        col.operator("nb.vw2vc", text="", icon="GROUP_VCOL")
         col = row.column()
-        col.operator("tb.vw2uv", text="", icon="GROUP_UVS")
+        col.operator("nb.vw2uv", text="", icon="GROUP_UVS")
         col = row.column()
-        col.prop(tb, "uv_bakeall", toggle=True)
+        col.prop(nb, "uv_bakeall", toggle=True)
 
         row = layout.row()
         row.separator()
 
-    def drawunit_tri_overlay_material(self, layout, tb, tb_ov):
+    def drawunit_tri_overlay_material(self, layout, nb, nb_ov):
 
-        if tb.objecttype == "tracts":
+        if nb.objecttype == "tracts":
 
             ng = bpy.data.node_groups.get("TractOvGroup")
             ramp = ng.nodes["ColorRamp"]
-            self.drawunit_colourramp(layout, ramp, tb_ov)
+            self.drawunit_colourramp(layout, ramp, nb_ov)
 
-        elif tb.objecttype == "surfaces":
+        elif nb.objecttype == "surfaces":
 
-            mat = bpy.data.materials[tb_ov.name]
+            mat = bpy.data.materials[nb_ov.name]
             ramp = mat.node_tree.nodes["ColorRamp"]
 
-            self.drawunit_colourramp(layout, ramp, tb_ov)
+            self.drawunit_colourramp(layout, ramp, nb_ov)
 
             row = layout.row()
             row.separator()
 
             self.drawunit_basic_cycles_mix(layout, mat)
 
-        elif tb.objecttype == "voxelvolumes":
+        elif nb.objecttype == "voxelvolumes":
 
-            self.drawunit_rendertype(layout, tb_ov)
+            self.drawunit_rendertype(layout, nb_ov)
 
-            itemtype = tb.overlaytype.replace("groups", "s")
-            item = eval("tb_ov.{0}[tb_ov.index_{0}]".format(itemtype))
+            itemtype = nb.overlaytype.replace("groups", "s")
+            item = eval("nb_ov.{0}[nb_ov.index_{0}]".format(itemtype))
             mat = bpy.data.materials[item.matname]
             tex = mat.texture_slots[item.tex_idx].texture
-            self.drawunit_texture(layout, tex, tb_ov)
+            self.drawunit_texture(layout, tex, nb_ov)
 
-    def drawunit_tri_items(self, layout, tb, tb_ov):
+    def drawunit_tri_items(self, layout, nb, nb_ov):
 
-        if tb.objecttype == "voxelvolumes":
+        if nb.objecttype == "voxelvolumes":
 
-            mat = bpy.data.materials[tb_ov.name]
-            ts = mat.texture_slots.get(tb_ov.name)
+            mat = bpy.data.materials[nb_ov.name]
+            ts = mat.texture_slots.get(nb_ov.name)
             row = layout.row()
             row.prop(ts, "emission_factor")
             row.prop(ts, "emission_color_factor")
 
-        itemtype = tb.overlaytype.replace("groups", "s")
-        self.drawunit_UIList(layout, "L3", tb_ov, itemtype, addopt=False)
+        itemtype = nb.overlaytype.replace("groups", "s")
+        self.drawunit_UIList(layout, "L3", nb_ov, itemtype, addopt=False)
 
-        self.drawunit_tri(layout, "itemprops", tb, tb_ov)
+        self.drawunit_tri(layout, "itemprops", nb, nb_ov)
 #         if itemtype == "labels":
-#             if len(tb_ov.labels) < 33:  # TODO: proper method
-#                 self.drawunit_tri(layout, "itemprops", tb, tb_ov)
+#             if len(nb_ov.labels) < 33:  # TODO: proper method
+#                 self.drawunit_tri(layout, "itemprops", nb, nb_ov)
 #             else:
-#                 self.drawunit_tri(layout, "overlay_material", tb, tb_ov)
+#                 self.drawunit_tri(layout, "overlay_material", nb, nb_ov)
 #         else:
-#             self.drawunit_tri(layout, "itemprops", tb, tb_ov)
+#             self.drawunit_tri(layout, "itemprops", nb, nb_ov)
 
-    def drawunit_tri_itemprops(self, layout, tb, tb_ov):
+    def drawunit_tri_itemprops(self, layout, nb, nb_ov):
 
-        type = tb.overlaytype.replace("groups", "s")
+        type = nb.overlaytype.replace("groups", "s")
 
         try:
-            idx = eval("tb_ov.index_%s" % type)
-            data = eval("tb_ov.%s[%d]" % (type, idx))
+            idx = eval("nb_ov.index_%s" % type)
+            data = eval("nb_ov.%s[%d]" % (type, idx))
         except IndexError:
             pass
         else:
-            exec("self.drawunit_%s(layout, tb, data)" % type)
+            exec("self.drawunit_%s(layout, nb, data)" % type)
 
-    def drawunit_labels(self, layout, tb, tb_ov):
+    def drawunit_labels(self, layout, nb, nb_ov):
 
-        if tb.objecttype == "voxelvolumes":
+        if nb.objecttype == "voxelvolumes":
 
-            tb_overlay = tb_utils.active_tb_overlay()[0]
+            nb_overlay = nb_utils.active_nb_overlay()[0]
 
-            tex = bpy.data.textures[tb_overlay.name]
-            el = tex.color_ramp.elements[tb_overlay.index_labels + 1]
+            tex = bpy.data.textures[nb_overlay.name]
+            el = tex.color_ramp.elements[nb_overlay.index_labels + 1]
             row = layout.row()
             row.prop(el, "color", text="")
 
         else:
 
-            if tb.engine.startswith("BLENDER"):
-                self.drawunit_basic_blender(layout, tb_ov)
+            if nb.engine.startswith("BLENDER"):
+                self.drawunit_basic_blender(layout, nb_ov)
             else:
-                self.drawunit_basic_cycles(layout, tb_ov)
+                self.drawunit_basic_cycles(layout, nb_ov)
 
-    def drawunit_borders(self, layout, tb, tb_ov):
+    def drawunit_borders(self, layout, nb, nb_ov):
 
-        self.drawunit_basic_cycles(layout, tb_ov)
+        self.drawunit_basic_cycles(layout, nb_ov)
 
         row = layout.row()
         row.separator()
 
-        ob = bpy.data.objects[tb_ov.name]
+        ob = bpy.data.objects[nb_ov.name]
 
         row = layout.row()
         row.label(text="Smoothing:")
@@ -666,25 +666,25 @@ class TractBlenderOverlayPanel(Panel):
         row.prop(ob.data, "bevel_depth")
         row.prop(ob.data, "bevel_resolution")
 
-    def drawunit_tri_overlay_slices(self, layout, tb, tb_ov):
+    def drawunit_tri_overlay_slices(self, layout, nb, nb_ov):
 
         row = layout.row()
-        row.prop(tb_ov, "is_yoked", text="Follow parent")
-        self.drawunit_slices(layout, tb_ov, tb_ov.is_yoked)
+        row.prop(nb_ov, "is_yoked", text="Follow parent")
+        self.drawunit_slices(layout, nb_ov, nb_ov.is_yoked)
 
-    def drawunit_tri_overlay_info(self, layout, tb, tb_ov):
+    def drawunit_tri_overlay_info(self, layout, nb, nb_ov):
 
         row = layout.row()
-        row.prop(tb_ov, "filepath")
+        row.prop(nb_ov, "filepath")
         row.enabled = False
 
-        if tb.overlaytype == "scalargroups":
+        if nb.overlaytype == "scalargroups":
 
             row = layout.row()
-            row.prop(tb_ov, "texdir")
+            row.prop(nb_ov, "texdir")
 
             row = layout.row()
-            row.prop(tb_ov, "range")
+            row.prop(nb_ov, "range")
 #             row.enabled = False
 
 
@@ -704,7 +704,7 @@ class ObjectListL1(UIList):
             col.prop(item, "name", text="", emboss=False,
                      translate=False, icon=item_icon)
 
-            if bpy.context.scene.tb.advanced:
+            if bpy.context.scene.nb.advanced:
                 col = layout.column()
                 col.alignment = "RIGHT"
                 col.active = item.is_rendered
@@ -732,7 +732,7 @@ class ObjectListL2(UIList):
             col.prop(item, "name", text="", emboss=False,
                      translate=False, icon=item_icon)
 
-            if bpy.context.scene.tb.advanced:
+            if bpy.context.scene.nb.advanced:
                 col = layout.column()
                 col.alignment = "RIGHT"
                 col.active = item.is_rendered
@@ -760,7 +760,7 @@ class ObjectListL3(UIList):
             col.prop(item, "name", text="", emboss=False,
                      translate=False, icon=item_icon)
 
-            if bpy.context.scene.tb.advanced:
+            if bpy.context.scene.nb.advanced:
                 col = layout.column()
                 col.alignment = "RIGHT"
                 col.enabled = False
@@ -816,7 +816,7 @@ class ObjectListPL(UIList):
             col.prop(item, "name", text="", emboss=False,
                      translate=False, icon=item_icon)
 
-            if bpy.context.scene.tb.advanced:
+            if bpy.context.scene.nb.advanced:
                 col = layout.column()
                 col.alignment = "RIGHT"
                 col.active = item.is_rendered
@@ -844,7 +844,7 @@ class ObjectListAN(UIList):
             col.prop(item, "name", text="", emboss=False,
                      translate=False, icon=item_icon)
 
-            if bpy.context.scene.tb.advanced:
+            if bpy.context.scene.nb.advanced:
                 col = layout.column()
                 col.alignment = "RIGHT"
                 col.active = item.is_rendered
@@ -891,7 +891,7 @@ class ObjectListTS(UIList):
 
 
 class ObjectListOperations(Operator):
-    bl_idname = "tb.oblist_ops"
+    bl_idname = "nb.oblist_ops"
     bl_label = "Objectlist operations"
     bl_options = {"REGISTER", "UNDO"}
 
@@ -935,9 +935,9 @@ class ObjectListOperations(Operator):
     def execute(self, context):
 
         scn = context.scene
-        tb = scn.tb
+        nb = scn.nb
 
-        collection, data, tb_ob = self.get_collection(context)
+        collection, data, nb_ob = self.get_collection(context)
 
         try:
             item = collection[self.index]
@@ -953,19 +953,19 @@ class ObjectListOperations(Operator):
                 exec("%s.index_%s -= 1" % (data, self.type))
             elif self.action.startswith('REMOVE'):
                 info = ['removed %s' % (collection[self.index].name)]
-                info += self.remove_items(tb, data, collection, tb_ob)
+                info += self.remove_items(nb, data, collection, nb_ob)
                 self.report({'INFO'}, '; '.join(info))
 
         if self.type == "voxelvolumes":
-            # TODO: update the index to tb.voxelvolumes in all drivers
-            for i, vvol in enumerate(tb.voxelvolumes):
+            # TODO: update the index to nb.voxelvolumes in all drivers
+            for i, vvol in enumerate(nb.voxelvolumes):
                 slicebox = bpy.data.objects[vvol.name+"SliceBox"]
                 for dr in slicebox.animation_data.drivers:
                     for var in dr.driver.variables:
                         for tar in var.targets:
                             dp = tar.data_path
                             idx = 16
-                            if dp.index("tb.voxelvolumes[") == 0:
+                            if dp.index("nb.voxelvolumes[") == 0:
                                 newpath = dp[:idx] + "%d" % i + dp[idx + 1:]
                                 tar.data_path = dp[:idx] + "%d" % i + dp[idx + 1:]
 
@@ -974,37 +974,37 @@ class ObjectListOperations(Operator):
     def invoke(self, context, event):
 
         scn = context.scene
-        tb = scn.tb
+        nb = scn.nb
 
-        tb_ob = tb_utils.active_tb_object()[0]
+        nb_ob = nb_utils.active_nb_object()[0]
 
         if self.action.endswith('_L1'):
-            self.type = tb.objecttype
-            self.name = tb_ob.name
-            self.index = eval("tb.%s.find(self.name)" % self.type)
-            self.data_path = tb_ob.path_from_id()
+            self.type = nb.objecttype
+            self.name = nb_ob.name
+            self.index = eval("nb.%s.find(self.name)" % self.type)
+            self.data_path = nb_ob.path_from_id()
         elif self.action.endswith('_L2'):
-            tb_ov = tb_utils.active_tb_overlay()[0]
-            self.type = tb.overlaytype
-            self.name = tb_ov.name
-            self.index = eval("tb_ob.%s.find(self.name)" % self.type)
-            self.data_path = tb_ov.path_from_id()
+            nb_ov = nb_utils.active_nb_overlay()[0]
+            self.type = nb.overlaytype
+            self.name = nb_ov.name
+            self.index = eval("nb_ob.%s.find(self.name)" % self.type)
+            self.data_path = nb_ov.path_from_id()
         elif self.action.endswith('_L3'):
-            tb_ov = tb_utils.active_tb_overlay()[0]
-            tb_it = tb_utils.active_tb_overlayitem()[0]
-            self.type = tb.overlaytype.replace("groups", "s")
-            self.name = tb_it.name
-            self.index = eval("tb_ov.%s.find(self.name)" % self.type)
-            self.data_path = tb_it.path_from_id()
+            nb_ov = nb_utils.active_nb_overlay()[0]
+            nb_it = nb_utils.active_nb_overlayitem()[0]
+            self.type = nb.overlaytype.replace("groups", "s")
+            self.name = nb_it.name
+            self.index = eval("nb_ov.%s.find(self.name)" % self.type)
+            self.data_path = nb_it.path_from_id()
         elif self.action.endswith('_PL'):
-            preset = eval("tb.presets[%d]" % tb.index_presets)
+            preset = eval("nb.presets[%d]" % nb.index_presets)
             light = preset.lights[preset.index_lights]
             self.type = "lights"
             self.name = light.name
             self.index = preset.index_lights
             self.data_path = light.path_from_id()
         elif self.action.endswith('_AN'):
-            preset = eval("tb.presets[%d]" % tb.index_presets)
+            preset = eval("nb.presets[%d]" % nb.index_presets)
             animation = preset.animations[preset.index_animations]
             self.type = "animations"
             self.name = animation.name
@@ -1016,7 +1016,7 @@ class ObjectListOperations(Operator):
     def get_collection(self, context):
 
         scn = context.scene
-        tb = scn.tb
+        nb = scn.nb
 
         try:
             self.data_path = eval("%s.path_from_id()" % self.data_path)
@@ -1043,11 +1043,11 @@ class ObjectListOperations(Operator):
         if not self.name:
             self.name = collection[self.index].name
 
-        tb_ob = eval('.'.join(self.data_path.split('.')[:2]))
+        nb_ob = eval('.'.join(self.data_path.split('.')[:2]))
 
-        return collection, data, tb_ob
+        return collection, data, nb_ob
 
-    def remove_items(self, tb, data, collection, tb_ob):
+    def remove_items(self, nb, data, collection, nb_ob):
         """Remove items from NeuroBlender."""
 
         info = []
@@ -1074,7 +1074,7 @@ class ObjectListOperations(Operator):
                         bpy.data.objects.remove(slicebox)
                 # remove all children
                 fun = eval("self.remove_%s_overlays" % self.type)
-                fun(tb_ob, ob)
+                fun(nb_ob, ob)
                 # remove the object itself
                 bpy.data.objects.remove(ob)
         elif self.action.endswith('_PL'):
@@ -1087,13 +1087,13 @@ class ObjectListOperations(Operator):
                 bpy.data.objects.remove(ob)
         elif self.action.endswith('_AN'):
             cam = bpy.data.objects['Cam']
-            preset = eval("tb.presets[%d]" % tb.index_presets)
-            tb_rp.clear_camera_path_animations(cam, preset.animations,
+            preset = eval("nb.presets[%d]" % nb.index_presets)
+            nb_rp.clear_camera_path_animations(cam, preset.animations,
                                                [self.index])
         else:
-            tb_ov, ov_idx = tb_utils.active_tb_overlay()
-            ob = bpy.data.objects[tb_ob.name]
-            fun = eval("self.remove_%s_%s" % (tb.objecttype, self.type))
+            nb_ov, ov_idx = nb_utils.active_nb_overlay()
+            ob = bpy.data.objects[nb_ob.name]
+            fun = eval("self.remove_%s_%s" % (nb.objecttype, self.type))
             fun(collection[self.index], ob)
 
         collection.remove(self.index)
@@ -1117,12 +1117,12 @@ class ObjectListOperations(Operator):
         for bg in surface.bordergroups:
             self.remove_surfaces_bordergroups(bg, ob)
 
-    def remove_voxelvolumes_overlays(self, tb_ob, ob):
+    def remove_voxelvolumes_overlays(self, nb_ob, ob):
         """Remove voxelvolume scalars and labels."""
 
-        for sg in tb_ob.scalargroups:
+        for sg in nb_ob.scalargroups:
             self.remove_voxelvolumes_scalargroups(sg, ob)
-        for lg in tb_ob.labelgroups:
+        for lg in nb_ob.labelgroups:
             self.remove_voxelvolumes_labelgroups(lg, ob)
 
     def remove_tracts_scalargroups(self, scalargroup, ob):
@@ -1230,121 +1230,121 @@ class ObjectListOperations(Operator):
 
 
 class MassIsRenderedL1(Menu):
-    bl_idname = "tb.mass_is_rendered_L1"
+    bl_idname = "nb.mass_is_rendered_L1"
     bl_label = "Vertex Group Specials"
     bl_description = "Menu for group selection of rendering option"
     bl_options = {"REGISTER"}
 
     def draw(self, context):
         layout = self.layout
-        layout.operator("tb.mass_select",
+        layout.operator("nb.mass_select",
                         icon='SCENE',
                         text="Select All").action = 'SELECT_L1'
-        layout.operator("tb.mass_select",
+        layout.operator("nb.mass_select",
                         icon='SCENE',
                         text="Deselect All").action = 'DESELECT_L1'
-        layout.operator("tb.mass_select",
+        layout.operator("nb.mass_select",
                         icon='SCENE',
                         text="Invert").action = 'INVERT_L1'
 
 
 class MassIsRenderedL2(Menu):
-    bl_idname = "tb.mass_is_rendered_L2"
+    bl_idname = "nb.mass_is_rendered_L2"
     bl_label = "Vertex Group Specials"
     bl_description = "Menu for group selection of rendering option"
     bl_options = {"REGISTER"}
 
     def draw(self, context):
         layout = self.layout
-        layout.operator("tb.mass_select",
+        layout.operator("nb.mass_select",
                         icon='SCENE',
                         text="Select All").action = 'SELECT_L2'
-        layout.operator("tb.mass_select",
+        layout.operator("nb.mass_select",
                         icon='SCENE',
                         text="Deselect All").action = 'DESELECT_L2'
-        layout.operator("tb.mass_select",
+        layout.operator("nb.mass_select",
                         icon='SCENE',
                         text="Invert").action = 'INVERT_L2'
 
 
 class MassIsRenderedL3(Menu):
-    bl_idname = "tb.mass_is_rendered_L3"
+    bl_idname = "nb.mass_is_rendered_L3"
     bl_label = "Vertex Group Specials"
     bl_description = "Menu for group selection of rendering option"
     bl_options = {"REGISTER"}
 
     def draw(self, context):
         layout = self.layout
-        layout.operator("tb.mass_select",
+        layout.operator("nb.mass_select",
                         icon='SCENE',
                         text="Select All").action = 'SELECT_L3'
-        layout.operator("tb.mass_select",
+        layout.operator("nb.mass_select",
                         icon='SCENE',
                         text="Deselect All").action = 'DESELECT_L3'
-        layout.operator("tb.mass_select",
+        layout.operator("nb.mass_select",
                         icon='SCENE',
                         text="Invert").action = 'INVERT_L3'
 
 
 class MassIsRenderedPL(Menu):
-    bl_idname = "tb.mass_is_rendered_PL"
+    bl_idname = "nb.mass_is_rendered_PL"
     bl_label = "Vertex Group Specials"
     bl_description = "Menu for group selection of rendering option"
     bl_options = {"REGISTER"}
 
     def draw(self, context):
         layout = self.layout
-        layout.operator("tb.mass_select",
+        layout.operator("nb.mass_select",
                         icon='SCENE',
                         text="Select All").action = 'SELECT_PL'
-        layout.operator("tb.mass_select",
+        layout.operator("nb.mass_select",
                         icon='SCENE',
                         text="Deselect All").action = 'DESELECT_PL'
-        layout.operator("tb.mass_select",
+        layout.operator("nb.mass_select",
                         icon='SCENE',
                         text="Invert").action = 'INVERT_PL'
 
 
 class MassIsRenderedAN(Menu):
-    bl_idname = "tb.mass_is_rendered_AN"
+    bl_idname = "nb.mass_is_rendered_AN"
     bl_label = "Animation Specials"
     bl_description = "Menu for group selection of rendering option"
     bl_options = {"REGISTER"}
 
     def draw(self, context):
         layout = self.layout
-        layout.operator("tb.mass_select",
+        layout.operator("nb.mass_select",
                         icon='SCENE',
                         text="Select All").action = 'SELECT_AN'
-        layout.operator("tb.mass_select",
+        layout.operator("nb.mass_select",
                         icon='SCENE',
                         text="Deselect All").action = 'DESELECT_AN'
-        layout.operator("tb.mass_select",
+        layout.operator("nb.mass_select",
                         icon='SCENE',
                         text="Invert").action = 'INVERT_AN'
 
 
 class MassIsRenderedCP(Menu):
-    bl_idname = "tb.mass_is_rendered_CP"
+    bl_idname = "nb.mass_is_rendered_CP"
     bl_label = "Vertex Group Specials"
     bl_description = "Menu for group selection of rendering option"
     bl_options = {"REGISTER"}
 
     def draw(self, context):
         layout = self.layout
-        layout.operator("tb.mass_select",
+        layout.operator("nb.mass_select",
                         icon='SCENE',
                         text="Select All").action = 'SELECT_CP'
-        layout.operator("tb.mass_select",
+        layout.operator("nb.mass_select",
                         icon='SCENE',
                         text="Deselect All").action = 'DESELECT_CP'
-        layout.operator("tb.mass_select",
+        layout.operator("nb.mass_select",
                         icon='SCENE',
                         text="Invert").action = 'INVERT_CP'
 
 
 class MassSelect(Operator):
-    bl_idname = "tb.mass_select"
+    bl_idname = "nb.mass_select"
     bl_label = "Mass select"
     bl_description = "Select/Deselect/Invert rendered objects/overlays"
     bl_options = {"REGISTER"}
@@ -1405,7 +1405,7 @@ class MassSelect(Operator):
 
 
 class ImportTracts(Operator, ImportHelper):
-    bl_idname = "tb.import_tracts"
+    bl_idname = "nb.import_tracts"
     bl_label = "Import tracts"
     bl_description = "Import tracts as curves"
     bl_options = {"REGISTER", "UNDO", "PRESET"}
@@ -1425,7 +1425,7 @@ class ImportTracts(Operator, ImportHelper):
     parentpath = StringProperty(
         name="Parentpath",
         description="The path to the parent of the object",
-        default="tb")
+        default="nb")
     interpolate_streamlines = FloatProperty(
         name="Interpolate streamlines",
         description="Interpolate the individual streamlines",
@@ -1481,9 +1481,9 @@ class ImportTracts(Operator, ImportHelper):
     def import_objects(self, importtype, impdict, beaudict):
 
         scn = bpy.context.scene
-        tb = scn.tb
+        nb = scn.nb
 
-        importfun = eval("tb_imp.import_%s" % importtype[:-1])
+        importfun = eval("nb_imp.import_%s" % importtype[:-1])
 
         filenames = [file.name for file in self.files]
         if not filenames:
@@ -1494,7 +1494,7 @@ class ImportTracts(Operator, ImportHelper):
 
             ca = [bpy.data.objects, bpy.data.meshes,
                   bpy.data.materials, bpy.data.textures]
-            name = tb_utils.check_name(self.name, fpath, ca)
+            name = nb_utils.check_name(self.name, fpath, ca)
 
             obs, info_imp, info_geom = importfun(fpath, name, "", impdict)
 
@@ -1502,20 +1502,20 @@ class ImportTracts(Operator, ImportHelper):
                 try:
                     self.beautify
                 except:  # force updates on voxelvolumes
-                    tb.index_voxelvolumes = tb.index_voxelvolumes
+                    nb.index_voxelvolumes = nb.index_voxelvolumes
 #                     item.rendertype = item.rendertype  # FIXME
                 else:
-                    info_mat = tb_mat.materialise(ob,
+                    info_mat = nb_mat.materialise(ob,
                                                   self.colourtype,
                                                   self.colourpicker,
                                                   self.transparency)
-                    info_beau = tb_beau.beautify_brain(ob,
+                    info_beau = nb_beau.beautify_brain(ob,
                                                        importtype,
                                                        self.beautify,
                                                        beaudict)
 
             info = info_imp
-            if tb.verbose:
+            if nb.verbose:
                 info = info + "\nname: '%s'\npath: '%s'\n" % (name, fpath)
                 info = info + "%s\n%s\n%s" % (info_geom, info_mat, info_beau)
 
@@ -1552,7 +1552,7 @@ class ImportTracts(Operator, ImportHelper):
 
 
 class ImportSurfaces(Operator, ImportHelper):
-    bl_idname = "tb.import_surfaces"
+    bl_idname = "nb.import_surfaces"
     bl_label = "Import surfaces"
     bl_description = "Import surfaces as mesh data"
     bl_options = {"REGISTER", "UNDO", "PRESET"}
@@ -1571,7 +1571,7 @@ class ImportSurfaces(Operator, ImportHelper):
     parentpath = StringProperty(
         name="Parentpath",
         description="The path to the parent of the object",
-        default="tb")
+        default="nb")
     beautify = BoolProperty(
         name="Beautify",
         description="Apply initial smoothing on surfaces",
@@ -1641,7 +1641,7 @@ class ImportSurfaces(Operator, ImportHelper):
 
 def file_update(self, context):
     ca = [bpy.data.meshes, bpy.data.materials, bpy.data.textures]
-    self.name = tb_utils.check_name(self.files[0].name, "", ca)
+    self.name = nb_utils.check_name(self.files[0].name, "", ca)
 
 
 def name_update(self, context):
@@ -1649,7 +1649,7 @@ def name_update(self, context):
 
 
 def texdir_update(self, context):
-    self.has_valid_texdir = tb_imp.check_texdir(self.texdir,
+    self.has_valid_texdir = nb_imp.check_texdir(self.texdir,
                                                 self.texformat,
                                                 overwrite=False)
 
@@ -1658,13 +1658,13 @@ def is_overlay_update(self, context):
 
     if self.is_overlay:
         try:
-            tb_ob = tb_utils.active_tb_object()[0]
+            nb_ob = nb_utils.active_nb_object()[0]
         except IndexError:
-            pass  # no tb_obs found
+            pass  # no nb_obs found
         else:
-            self.parentpath = tb_ob.path_from_id()
+            self.parentpath = nb_ob.path_from_id()
     else:
-        self.parentpath = context.scene.tb.path_from_id()
+        self.parentpath = context.scene.nb.path_from_id()
 
 
 def h5_dataset_callback(self, context):
@@ -1691,7 +1691,7 @@ def h5_dataset_callback(self, context):
 
 
 class ImportVoxelvolumes(Operator, ImportHelper):
-    bl_idname = "tb.import_voxelvolumes"
+    bl_idname = "nb.import_voxelvolumes"
     bl_label = "Import voxelvolumes"
     bl_description = "Import voxelvolumes to textures"
     bl_options = {"REGISTER", "UNDO", "PRESET"}
@@ -1711,7 +1711,7 @@ class ImportVoxelvolumes(Operator, ImportHelper):
     parentpath = StringProperty(
         name="Parentpath",
         description="The path to the parent of the object",
-        default="tb")
+        default="nb")
     name_mode = EnumProperty(
         name="nm",
         description="...",
@@ -1785,7 +1785,7 @@ class ImportVoxelvolumes(Operator, ImportHelper):
     def draw(self, context):
 
         scn = context.scene
-        tb = scn.tb
+        nb = scn.nb
 
         layout = self.layout
 
@@ -1845,10 +1845,10 @@ class ImportVoxelvolumes(Operator, ImportHelper):
 
     def invoke(self, context, event):
 
-        if self.parentpath.startswith("tb.voxelvolumes"):
+        if self.parentpath.startswith("nb.voxelvolumes"):
             self.is_overlay = True
 
-        if context.scene.tb.overlaytype == "labelgroups":
+        if context.scene.nb.overlaytype == "labelgroups":
             self.is_label = True
 
         self.name = self.name
@@ -1858,7 +1858,7 @@ class ImportVoxelvolumes(Operator, ImportHelper):
 
 
 class ImportScalarGroups(Operator, ImportHelper):
-    bl_idname = "tb.import_scalargroups"
+    bl_idname = "nb.import_scalargroups"
     bl_label = "Import time series overlay"
     bl_description = "Import time series overlay to vertexweights/colours"
     bl_options = {"REGISTER", "UNDO", "PRESET"}
@@ -1883,7 +1883,7 @@ class ImportScalarGroups(Operator, ImportHelper):
 
     def execute(self, context):
         filenames = [file.name for file in self.files]
-        tb_imp.import_overlays(self.directory, filenames,
+        nb_imp.import_overlays(self.directory, filenames,
                                self.name, self.parentpath, "scalargroups")
 
         return {"FINISHED"}
@@ -1895,7 +1895,7 @@ class ImportScalarGroups(Operator, ImportHelper):
 
 
 class ImportLabelGroups(Operator, ImportHelper):
-    bl_idname = "tb.import_labelgroups"
+    bl_idname = "nb.import_labelgroups"
     bl_label = "Import label overlay"
     bl_description = "Import label overlay to vertexgroups/colours"
     bl_options = {"REGISTER", "UNDO", "PRESET"}
@@ -1915,7 +1915,7 @@ class ImportLabelGroups(Operator, ImportHelper):
 
     def execute(self, context):
         filenames = [file.name for file in self.files]
-        tb_imp.import_overlays(self.directory, filenames,
+        nb_imp.import_overlays(self.directory, filenames,
                                self.name, self.parentpath, "labelgroups")
 
         return {"FINISHED"}
@@ -1927,7 +1927,7 @@ class ImportLabelGroups(Operator, ImportHelper):
 
 
 class ImportBorderGroups(Operator, ImportHelper):
-    bl_idname = "tb.import_bordergroups"
+    bl_idname = "nb.import_bordergroups"
     bl_label = "Import bordergroup overlay"
     bl_description = "Import bordergroup overlay to curves"
     bl_options = {"REGISTER", "UNDO", "PRESET"}
@@ -1947,7 +1947,7 @@ class ImportBorderGroups(Operator, ImportHelper):
 
     def execute(self, context):
         filenames = [file.name for file in self.files]
-        tb_imp.import_overlays(self.directory, filenames,
+        nb_imp.import_overlays(self.directory, filenames,
                                self.name, self.parentpath, "bordergroups")
 
         return {"FINISHED"}
@@ -1959,7 +1959,7 @@ class ImportBorderGroups(Operator, ImportHelper):
 
 
 class RevertLabel(Operator):
-    bl_idname = "tb.revert_label"
+    bl_idname = "nb.revert_label"
     bl_label = "Revert label"
     bl_description = "Revert changes to imported label colour/transparency"
     bl_options = {"REGISTER"}
@@ -1972,7 +1972,7 @@ class RevertLabel(Operator):
     def execute(self, context):
 
         scn = bpy.context.scene
-        tb = scn.tb
+        nb = scn.nb
 
         item = eval(self.data_path)
 
@@ -1986,14 +1986,14 @@ class RevertLabel(Operator):
 
     def invoke(self, context, event):
 
-        tb_it = tb_utils.active_tb_overlayitem()[0]
-        self.data_path = tb_it.path_from_id()
+        nb_it = nb_utils.active_nb_overlayitem()[0]
+        self.data_path = nb_it.path_from_id()
 
         return self.execute(context)
 
 
 class WeightPaintMode(Operator):
-    bl_idname = "tb.wp_preview"
+    bl_idname = "nb.wp_preview"
     bl_label = "wp_mode button"
     bl_description = "Go to weight paint mode for preview"
     bl_options = {"REGISTER", "UNDO", "PRESET"}
@@ -2002,8 +2002,8 @@ class WeightPaintMode(Operator):
 
         scn = bpy.context.scene
 
-        tb_ob = tb_utils.active_tb_object()[0]
-        scn.objects.active = bpy.data.objects[tb_ob.name]
+        nb_ob = nb_utils.active_nb_object()[0]
+        scn.objects.active = bpy.data.objects[nb_ob.name]
 
         bpy.ops.object.mode_set(mode="WEIGHT_PAINT")
 
@@ -2013,7 +2013,7 @@ class WeightPaintMode(Operator):
 
 
 class VertexWeight2VertexColors(Operator):
-    bl_idname = "tb.vw2vc"
+    bl_idname = "nb.vw2vc"
     bl_label = "VW to VC"
     bl_description = "Bake vertex group weights to vertex colours"
     bl_options = {"REGISTER"}
@@ -2038,11 +2038,11 @@ class VertexWeight2VertexColors(Operator):
     def execute(self, context):
 
         scn = context.scene
-        tb = scn.tb
+        nb = scn.nb
 
-        tb_ob = eval('.'.join(self.data_path.split('.')[:2]))
+        nb_ob = eval('.'.join(self.data_path.split('.')[:2]))
         group = eval('.'.join(self.data_path.split('.')[:3]))
-        ob = bpy.data.objects[tb_ob.name]
+        ob = bpy.data.objects[nb_ob.name]
 
         vcs = ob.data.vertex_colors
         vc = vcs.new(name=self.itemname)
@@ -2051,14 +2051,14 @@ class VertexWeight2VertexColors(Operator):
         if hasattr(group, 'scalars'):
             scalar = eval(self.data_path)
             vgs = [ob.vertex_groups[scalar.name]]
-            ob = tb_mat.assign_vc(ob, vc, vgs)
+            ob = nb_mat.assign_vc(ob, vc, vgs)
             mat = ob.data.materials[self.matname]
             nodes = mat.node_tree.nodes
             nodes["Attribute"].attribute_name = self.itemname
 
         elif hasattr(group, 'labels'):
             vgs = [ob.vertex_groups[label.name] for label in group.labels]
-            ob = tb_mat.assign_vc(ob, vc, vgs, group, colour=[0.5, 0.5, 0.5])
+            ob = nb_mat.assign_vc(ob, vc, vgs, group, colour=[0.5, 0.5, 0.5])
 
         bpy.ops.object.mode_set(mode="VERTEX_PAINT")
 
@@ -2066,25 +2066,25 @@ class VertexWeight2VertexColors(Operator):
 
     def invoke(self, context, event):
 
-        tb_ob = tb_utils.active_tb_object()[0]
-        tb_ov = tb_utils.active_tb_overlay()[0]
-        tb_it = tb_utils.active_tb_overlayitem()[0]
+        nb_ob = nb_utils.active_nb_object()[0]
+        nb_ov = nb_utils.active_nb_overlay()[0]
+        nb_it = nb_utils.active_nb_overlayitem()[0]
 
-        if hasattr(tb_ov, 'scalars'):
-            self.index = tb_ov.index_scalars
-        elif hasattr(tb_ov, 'labels'):
-            self.index = tb_ov.index_labels
+        if hasattr(nb_ov, 'scalars'):
+            self.index = nb_ov.index_scalars
+        elif hasattr(nb_ov, 'labels'):
+            self.index = nb_ov.index_labels
 
-        self.data_path = tb_it.path_from_id()
+        self.data_path = nb_it.path_from_id()
 
-        self.itemname = tb_it.name
-        self.matname = tb_ov.name
+        self.itemname = nb_it.name
+        self.matname = nb_ov.name
 
         return self.execute(context)
 
 
 class VertexWeight2UV(Operator, ExportHelper):
-    bl_idname = "tb.vw2uv"
+    bl_idname = "nb.vw2uv"
     bl_label = "Bake vertex weights"
     bl_description = "Bake vertex weights to texture (via vcol)"
     bl_options = {"REGISTER", "UNDO", "PRESET"}
@@ -2109,22 +2109,22 @@ class VertexWeight2UV(Operator, ExportHelper):
     def execute(self, context):
 
         scn = context.scene
-        tb = scn.tb
+        nb = scn.nb
 
-        tb_ob = eval('.'.join(self.data_path.split('.')[:2]))
+        nb_ob = eval('.'.join(self.data_path.split('.')[:2]))
         group = eval('.'.join(self.data_path.split('.')[:3]))
 
         # TODO: exit on no UVmap
 
         # prep directory
         if not bpy.data.is_saved:
-            tb_utils.force_save(tb.projectdir)
+            nb_utils.force_save(nb.projectdir)
         if not group.texdir:
             group.texdir = "//uvtex_%s" % group.name
-        tb_utils.mkdir_p(bpy.path.abspath(group.texdir))
+        nb_utils.mkdir_p(bpy.path.abspath(group.texdir))
 
         # set the surface as active object
-        surf = bpy.data.objects[tb_ob.name]
+        surf = bpy.data.objects[nb_ob.name]
         for ob in bpy.data.objects:
             ob.select = False
         surf.select = True
@@ -2143,19 +2143,19 @@ class VertexWeight2UV(Operator, ExportHelper):
         ami = surf.active_material_index
         matnames = [ms.name for ms in surf.material_slots]
         surf.data.materials.clear()
-        img = self.create_baking_material(surf, tb.uv_resolution, "bake_vcol")
+        img = self.create_baking_material(surf, nb.uv_resolution, "bake_vcol")
 
         # select the item(s) to bake
         dp_split = re.findall(r"[\w']+", self.data_path)
         items = eval("group.%s" % dp_split[-2])
-        if not tb.uv_bakeall:
+        if not nb.uv_bakeall:
             items = [items[self.index]]
 
         # bake
         vcs = surf.data.vertex_colors
         for i, item in enumerate(items):
             dp = item.path_from_id()
-            bpy.ops.tb.vw2vc(itemname=item.name, data_path=dp,
+            bpy.ops.nb.vw2vc(itemname=item.name, data_path=dp,
                              index=i, matname="bake_vcol")
             img.source = 'GENERATED'
             bpy.ops.object.bake()
@@ -2181,24 +2181,24 @@ class VertexWeight2UV(Operator, ExportHelper):
 
     def invoke(self, context, event):
 
-        tb_ob = tb_utils.active_tb_object()[0]
-        tb_ov = tb_utils.active_tb_overlay()[0]
-        tb_it = tb_utils.active_tb_overlayitem()[0]
+        nb_ob = nb_utils.active_nb_object()[0]
+        nb_ov = nb_utils.active_nb_overlay()[0]
+        nb_it = nb_utils.active_nb_overlayitem()[0]
 
-        if hasattr(tb_ov, 'scalars'):
-            self.index = tb_ov.index_scalars
-        elif hasattr(tb_ov, 'labels'):
-            self.index = tb_ov.index_labels
-        self.data_path = tb_it.path_from_id()
-        self.itemname = tb_it.name
-        self.matname = tb_ov.name
+        if hasattr(nb_ov, 'scalars'):
+            self.index = nb_ov.index_scalars
+        elif hasattr(nb_ov, 'labels'):
+            self.index = nb_ov.index_labels
+        self.data_path = nb_it.path_from_id()
+        self.itemname = nb_it.name
+        self.matname = nb_ov.name
 
         return self.execute(context)
 
     def create_baking_material(self, surf, uvres, name):
         """Create a material to bake vertex colours to."""
 
-        mat = tb_mat.make_material_bake_cycles(name)
+        mat = nb_mat.make_material_bake_cycles(name)
         surf.data.materials.append(mat)
 
         nodes = mat.node_tree.nodes
@@ -2220,7 +2220,7 @@ class VertexWeight2UV(Operator, ExportHelper):
         return img
 
 class UnwrapSurface(Operator):
-    bl_idname = "tb.unwrap_surface"
+    bl_idname = "nb.unwrap_surface"
     bl_label = "Unwrap surface"
     bl_description = "Unwrap a surface with sphere projection"
     bl_options = {"REGISTER", "UNDO", "PRESET"}
@@ -2260,35 +2260,35 @@ class UnwrapSurface(Operator):
 
     def invoke(self, context, event):
 
-        tb_ob = tb_utils.active_tb_object()[0]
-        self.name_surface = tb_ob.name
-        self.name_sphere = tb_ob.sphere
+        nb_ob = nb_utils.active_nb_object()[0]
+        self.name_surface = nb_ob.name
+        self.name_sphere = nb_ob.sphere
 
         return self.execute(context)
 
 
-class TractBlenderScenePanel(Panel):
-    """Host the TractBlender scene setup functionality"""
-    bl_idname = "OBJECT_PT_tb_scene"
+class NeuroBlenderScenePanel(Panel):
+    """Host the NeuroBlender scene setup functionality"""
+    bl_idname = "OBJECT_PT_nb_scene"
     bl_label = "NeuroBlender - Scene setup"
     bl_space_type = "PROPERTIES"
     bl_region_type = "WINDOW"
     bl_context = "scene"
 
-    draw = TractBlenderBasePanel.draw
-    drawunit_switch_to_main = TractBlenderBasePanel.drawunit_switch_to_main
-    drawunit_UIList = TractBlenderBasePanel.drawunit_UIList
-    drawunit_tri = TractBlenderBasePanel.drawunit_tri
-    drawunit_basic_cycles = TractBlenderBasePanel.drawunit_basic_cycles
-    drawunit_basic_cycles_mix = TractBlenderBasePanel.drawunit_basic_cycles_mix
+    draw = NeuroBlenderBasePanel.draw
+    drawunit_switch_to_main = NeuroBlenderBasePanel.drawunit_switch_to_main
+    drawunit_UIList = NeuroBlenderBasePanel.drawunit_UIList
+    drawunit_tri = NeuroBlenderBasePanel.drawunit_tri
+    drawunit_basic_cycles = NeuroBlenderBasePanel.drawunit_basic_cycles
+    drawunit_basic_cycles_mix = NeuroBlenderBasePanel.drawunit_basic_cycles_mix
 
-    def draw_tb_panel(self, layout, tb):
+    def draw_nb_panel(self, layout, nb):
 
-        self.drawunit_presets(layout, tb)
+        self.drawunit_presets(layout, nb)
 
         try:
-            idx = tb.index_presets
-            preset = tb.presets[idx]
+            idx = nb.index_presets
+            preset = nb.presets[idx]
         except IndexError:
             pass
         else:
@@ -2298,11 +2298,11 @@ class TractBlenderScenePanel(Panel):
             row = layout.row()
             row.separator()
 
-            self.drawunit_tri(layout, "bounds", tb, preset)
-            self.drawunit_tri(layout, "cameras", tb, preset)
-            self.drawunit_tri(layout, "lights", tb, preset)
-            self.drawunit_tri(layout, "tables", tb, preset)
-#             self.drawunit_tri(layout, "animations", tb, preset)
+            self.drawunit_tri(layout, "bounds", nb, preset)
+            self.drawunit_tri(layout, "cameras", nb, preset)
+            self.drawunit_tri(layout, "lights", nb, preset)
+            self.drawunit_tri(layout, "tables", nb, preset)
+#             self.drawunit_tri(layout, "animations", nb, preset)
 
         row = layout.row()
         row.separator()
@@ -2311,38 +2311,38 @@ class TractBlenderScenePanel(Panel):
         sobs = bpy.context.selected_objects
         if obs:
             row = layout.row()
-            row.operator("tb.scene_preset",
+            row.operator("nb.scene_preset",
                          text="Load scene preset",
                          icon="WORLD")
-            row.enabled = len(tb.presets) > 0
+            row.enabled = len(nb.presets) > 0
         else:
             row = layout.row()
             row.label(text="No geometry loaded ...")
 
-    def drawunit_presets(self, layout, tb):
+    def drawunit_presets(self, layout, nb):
 
         row = layout.row()
-        row.operator("tb.add_preset", icon='ZOOMIN', text="")
-        row.prop(tb, "presets_enum", expand=False, text="")
-        row.operator("tb.del_preset", icon='ZOOMOUT', text="")
+        row.operator("nb.add_preset", icon='ZOOMIN', text="")
+        row.prop(nb, "presets_enum", expand=False, text="")
+        row.operator("nb.del_preset", icon='ZOOMOUT', text="")
 
-    def drawunit_tri_bounds(self, layout, tb, preset):
+    def drawunit_tri_bounds(self, layout, nb, preset):
 
         preset_ob = bpy.data.objects[preset.centre]
         row = layout.row()
         col = row.column()
         col.prop(preset_ob, "location")
         col = row.column()
-        col.operator("tb.reset_presetcentre", icon='BACK', text="")
+        col.operator("nb.reset_presetcentre", icon='BACK', text="")
 
         col = row.column()
         col.prop(preset_ob, "scale")
 #         col.prop(preset, "dims")
 #         col.enabled = False
         col = row.column()
-        col.operator("tb.reset_presetdims", icon='BACK', text="")
+        col.operator("nb.reset_presetdims", icon='BACK', text="")
 
-    def drawunit_tri_cameras(self, layout, tb, preset):
+    def drawunit_tri_cameras(self, layout, nb, preset):
 
         try:
             cam = preset.cameras[0]
@@ -2376,7 +2376,7 @@ class TractBlenderScenePanel(Panel):
 
             # consider more choices of camera properties (lens, clip, trackto)
 
-    def drawunit_tri_lights(self, layout, tb, preset):
+    def drawunit_tri_lights(self, layout, nb, preset):
 
         lights = bpy.data.objects[preset.lightsempty]
         row = layout.row()
@@ -2410,12 +2410,12 @@ class TractBlenderScenePanel(Panel):
             row = layout.row()
             row.prop(light, "size")
 
-    def drawunit_tri_tables(self, layout, tb, preset):
+    def drawunit_tri_tables(self, layout, nb, preset):
 
         try:
             tab = preset.tables[0]
         except IndexError:
-            # tab = tb_rp.create_table(preset.name+"DissectionTable")
+            # tab = nb_rp.create_table(preset.name+"DissectionTable")
             tab = preset.tables.add()
             preset.index_tables = (len(preset.tables)-1)
         else:
@@ -2428,7 +2428,7 @@ class TractBlenderScenePanel(Panel):
 
 
 class ResetPresetCentre(Operator):
-    bl_idname = "tb.reset_presetcentre"
+    bl_idname = "nb.reset_presetcentre"
     bl_label = "Reset preset centre"
     bl_description = "Revert changes preset to preset centre"
     bl_options = {"REGISTER"}
@@ -2436,18 +2436,18 @@ class ResetPresetCentre(Operator):
     def execute(self, context):
 
         scn = bpy.context.scene
-        tb = scn.tb
+        nb = scn.nb
 
-        obs = tb_rp.get_render_objects(tb)
-        centre_location = tb_rp.get_brainbounds(obs)[0]
+        obs = nb_rp.get_render_objects(nb)
+        centre_location = nb_rp.get_brainbounds(obs)[0]
 
-        tb_preset = tb.presets[tb.index_presets]
-        name = tb_preset.centre
+        nb_preset = nb.presets[nb.index_presets]
+        name = nb_preset.centre
         centre = bpy.data.objects[name]
         centre.location = centre_location
 
         infostring = 'reset location of preset "%s"'
-        info = [infostring % tb_preset.name]
+        info = [infostring % nb_preset.name]
         infostring = 'location is now "%s"'
         info += [infostring % ' '.join('%.2f' % l for l in centre_location)]
         self.report({'INFO'}, '; '.join(info))
@@ -2456,7 +2456,7 @@ class ResetPresetCentre(Operator):
 
 
 class ResetPresetDims(Operator):
-    bl_idname = "tb.reset_presetdims"
+    bl_idname = "nb.reset_presetdims"
     bl_label = "Recalculate scene dimensions"
     bl_description = "Recalculate scene dimension"
     bl_options = {"REGISTER"}
@@ -2464,20 +2464,20 @@ class ResetPresetDims(Operator):
     def execute(self, context):
 
         scn = bpy.context.scene
-        tb = scn.tb
+        nb = scn.nb
 
-        obs = tb_rp.get_render_objects(tb)
-        dims = tb_rp.get_brainbounds(obs)[1]
+        obs = nb_rp.get_render_objects(nb)
+        dims = nb_rp.get_brainbounds(obs)[1]
 
-        tb_preset = tb.presets[tb.index_presets]
-        name = tb_preset.centre
+        nb_preset = nb.presets[nb.index_presets]
+        name = nb_preset.centre
         centre = bpy.data.objects[name]
         centre.scale = 0.5 * mathutils.Vector(dims)
 
-        tb.presets[tb.index_presets].dims = dims
+        nb.presets[nb.index_presets].dims = dims
 
         infostring = 'reset dimensions of preset "%s"'
-        info = [infostring % tb_preset.name]
+        info = [infostring % nb_preset.name]
         infostring = 'dimensions are now "%s"'
         info += [infostring % ' '.join('%.2f' % d for d in dims)]
         self.report({'INFO'}, '; '.join(info))
@@ -2486,7 +2486,7 @@ class ResetPresetDims(Operator):
 
 
 class AddPreset(Operator):
-    bl_idname = "tb.add_preset"
+    bl_idname = "nb.add_preset"
     bl_label = "New preset"
     bl_description = "Create a new preset"
     bl_options = {"REGISTER", "UNDO", "PRESET"}
@@ -2498,18 +2498,18 @@ class AddPreset(Operator):
     parentpath = StringProperty(
         name="Parentpath",
         description="The path to the parent of the object",
-        default="tb")
+        default="nb")
 
     def execute(self, context):
 
         scn = context.scene
-        tb = scn.tb
+        nb = scn.nb
 
-        ca = [tb.presets]
-        name = tb_utils.check_name(self.name, "", ca, firstfill=1)
+        ca = [nb.presets]
+        name = nb_utils.check_name(self.name, "", ca, firstfill=1)
 
-        tb_rp.scene_preset_init(name)
-        tb.presets_enum = name
+        nb_rp.scene_preset_init(name)
+        nb.presets_enum = name
 
         infostring = 'added preset "%s"'
         info = [infostring % name]
@@ -2519,7 +2519,7 @@ class AddPreset(Operator):
 
 
 class DelPreset(Operator):
-    bl_idname = "tb.del_preset"
+    bl_idname = "nb.del_preset"
     bl_label = "Delete preset"
     bl_description = "Delete a preset"
     bl_options = {"REGISTER", "UNDO", "PRESET"}
@@ -2536,36 +2536,36 @@ class DelPreset(Operator):
     def execute(self, context):
 
         scn = context.scene
-        tb = scn.tb
+        nb = scn.nb
 
         info = []
 
         if self.name:  # got here through cli
             try:
-                tb.presets[self.name]
+                nb.presets[self.name]
             except KeyError:
                 infostring = 'no preset with name "%s"'
                 info = [infostring % self.name]
                 self.report({'INFO'}, info[0])
                 return {"CANCELLED"}
             else:
-                self.index = tb.presets.find(self.name)
+                self.index = nb.presets.find(self.name)
         else:  # got here through invoke
-            self.name = tb.presets[self.index].name
+            self.name = nb.presets[self.index].name
 
-        info = self.delete_preset(tb.presets[self.index], info)
-        tb.presets.remove(self.index)
-        tb.index_presets -= 1
+        info = self.delete_preset(nb.presets[self.index], info)
+        nb.presets.remove(self.index)
+        nb.index_presets -= 1
         infostring = 'removed preset "%s"'
         info = [infostring % self.name] + info
 
         try:
-            name = tb.presets[0].name
+            name = nb.presets[0].name
         except IndexError:
             infostring = 'all presets have been removed'
             info += [infostring]
         else:
-            tb.presets_enum = name
+            nb.presets_enum = name
             infostring = 'preset is now "%s"'
             info += [infostring % name]
 
@@ -2576,19 +2576,19 @@ class DelPreset(Operator):
     def invoke(self, context, event):
 
         scn = context.scene
-        tb = scn.tb
+        nb = scn.nb
 
-        self.index = tb.index_presets
+        self.index = nb.index_presets
         self.name = ""
 
         return self.execute(context)
 
-    def delete_preset(self, tb_preset, info=[]):
+    def delete_preset(self, nb_preset, info=[]):
         """Delete a preset."""
 
         # unlink all objects from the rendering scenes
         for s in ['_cycles', '_internal']:
-            sname = tb_preset.name + s
+            sname = nb_preset.name + s
             try:
                 scn = bpy.data.scenes[sname]
             except KeyError:
@@ -2600,15 +2600,15 @@ class DelPreset(Operator):
                 bpy.data.scenes.remove(scn)
 
         # delete all preset objects and data
-        ps_obnames = [tb_ob.name
-                      for tb_coll in [tb_preset.cameras,
-                                      tb_preset.lights,
-                                      tb_preset.tables]
-                      for tb_ob in tb_coll]
-        ps_obnames += [tb_preset.lightsempty,
-                       tb_preset.box,
-                       tb_preset.centre,
-                       tb_preset.name]
+        ps_obnames = [nb_ob.name
+                      for nb_coll in [nb_preset.cameras,
+                                      nb_preset.lights,
+                                      nb_preset.tables]
+                      for nb_ob in nb_coll]
+        ps_obnames += [nb_preset.lightsempty,
+                       nb_preset.box,
+                       nb_preset.centre,
+                       nb_preset.name]
         for ps_obname in ps_obnames:
             try:
                 ob = bpy.data.objects[ps_obname]
@@ -2618,7 +2618,7 @@ class DelPreset(Operator):
             else:
                 bpy.data.objects.remove(ob)
 
-        for ps_cam in tb_preset.cameras:
+        for ps_cam in nb_preset.cameras:
             try:
                 cam = bpy.data.cameras[ps_cam.name]
             except KeyError:
@@ -2627,7 +2627,7 @@ class DelPreset(Operator):
             else:
                 bpy.data.cameras.remove(cam)
 
-        for ps_lamp in tb_preset.lights:
+        for ps_lamp in nb_preset.lights:
             try:
                 lamp = bpy.data.lamps[ps_lamp.name]
             except KeyError:
@@ -2636,7 +2636,7 @@ class DelPreset(Operator):
             else:
                 bpy.data.lamps.remove(lamp)
 
-        for ps_mesh in tb_preset.tables:
+        for ps_mesh in nb_preset.tables:
             try:
                 mesh = bpy.data.meshes[ps_mesh.name]
             except KeyError:
@@ -2654,7 +2654,7 @@ class DelPreset(Operator):
 
 
 class AddLight(Operator):
-    bl_idname = "tb.import_lights"
+    bl_idname = "nb.import_lights"
     bl_label = "New light"
     bl_description = "Create a new light"
     bl_options = {"REGISTER", "UNDO", "PRESET"}
@@ -2670,7 +2670,7 @@ class AddLight(Operator):
     parentpath = StringProperty(
         name="Parentpath",
         description="The path to the parent of the object",
-        default="tb")
+        default="nb")
     type = EnumProperty(
         name="Light type",
         description="type of lighting",
@@ -2706,16 +2706,16 @@ class AddLight(Operator):
     def execute(self, context):
 
         scn = context.scene
-        tb = scn.tb
+        nb = scn.nb
 
-        tb_preset = tb.presets[self.index]
-        preset = bpy.data.objects[tb_preset.name]
-        centre = bpy.data.objects[tb_preset.centre]
-        box = bpy.data.objects[tb_preset.box]
-        lights = bpy.data.objects[tb_preset.lightsempty]
+        nb_preset = nb.presets[self.index]
+        preset = bpy.data.objects[nb_preset.name]
+        centre = bpy.data.objects[nb_preset.centre]
+        box = bpy.data.objects[nb_preset.box]
+        lights = bpy.data.objects[nb_preset.lightsempty]
 
-        ca = [tb_preset.lights]
-        name = tb_utils.check_name(self.name, "", ca)
+        ca = [nb_preset.lights]
+        name = nb_utils.check_name(self.name, "", ca)
 
         lp = {'name': name,
               'type': self.type,
@@ -2723,11 +2723,11 @@ class AddLight(Operator):
               'colour': self.colour,
               'strength': self.strength,
               'location': self.location}
-        tb_light = tb_utils.add_item(tb_preset, "lights", lp)
-        tb_rp.create_light(preset, centre, box, lights, lp)
+        nb_light = nb_utils.add_item(nb_preset, "lights", lp)
+        nb_rp.create_light(preset, centre, box, lights, lp)
 
         infostring = 'added light "%s" in preset "%s"'
-        info = [infostring % (name, tb_preset.name)]
+        info = [infostring % (name, nb_preset.name)]
         self.report({'INFO'}, '; '.join(info))
 
         return {"FINISHED"}
@@ -2735,61 +2735,61 @@ class AddLight(Operator):
     def invoke(self, context, event):
 
         scn = context.scene
-        tb = scn.tb
+        nb = scn.nb
 
-        self.index = tb.index_presets
+        self.index = nb.index_presets
 
         return self.execute(context)
 
 class ScenePreset(Operator):
-    bl_idname = "tb.scene_preset"
+    bl_idname = "nb.scene_preset"
     bl_label = "Load scene preset"
     bl_description = "Setup up camera and lighting for this brain"
     bl_options = {"REGISTER", "UNDO", "PRESET"}
 
     def execute(self, context):
 
-        tb_rp.scene_preset()
+        nb_rp.scene_preset()
 
         return {"FINISHED"}
 
 
 class SetAnimations(Operator):
-    bl_idname = "tb.set_animations"
+    bl_idname = "nb.set_animations"
     bl_label = "Set animations"
     bl_description = "(Re)set all animation in the preset"
     bl_options = {"REGISTER", "UNDO", "PRESET"}
 
     def execute(self, context):
 
-        tb_rp.set_animations()
+        nb_rp.set_animations()
 
         return {"FINISHED"}
 
 
-class TractBlenderAnimationPanel(Panel):
-    """Host the TractBlender animation functionality"""
-    bl_idname = "OBJECT_PT_tb_animation"
+class NeuroBlenderAnimationPanel(Panel):
+    """Host the NeuroBlender animation functionality"""
+    bl_idname = "OBJECT_PT_nb_animation"
     bl_label = "NeuroBlender - Animations"
     bl_space_type = "PROPERTIES"
     bl_region_type = "WINDOW"
     bl_context = "scene"
 
-    draw = TractBlenderBasePanel.draw
-    drawunit_switch_to_main = TractBlenderBasePanel.drawunit_switch_to_main
-    drawunit_UIList = TractBlenderBasePanel.drawunit_UIList
-    drawunit_tri = TractBlenderBasePanel.drawunit_tri
+    draw = NeuroBlenderBasePanel.draw
+    drawunit_switch_to_main = NeuroBlenderBasePanel.drawunit_switch_to_main
+    drawunit_UIList = NeuroBlenderBasePanel.drawunit_UIList
+    drawunit_tri = NeuroBlenderBasePanel.drawunit_tri
 
-    def draw_tb_panel(self, layout, tb):
+    def draw_nb_panel(self, layout, nb):
 
         try:
-            idx = tb.index_presets
-            preset = tb.presets[idx]
+            idx = nb.index_presets
+            preset = nb.presets[idx]
         except IndexError:
             row = layout.row()
             row.label(text="No presets loaded ...")
         else:
-            self.drawunit_animations(layout, tb, preset)
+            self.drawunit_animations(layout, nb, preset)
 
         row = layout.row()
         row.separator()
@@ -2797,11 +2797,11 @@ class TractBlenderAnimationPanel(Panel):
                if ob.type not in ["CAMERA", "LAMP", "EMPTY"]]
         sobs = bpy.context.selected_objects
         row = layout.row()
-        row.operator("tb.set_animations",
+        row.operator("nb.set_animations",
                      text="Set animations",
                      icon="RENDER_ANIMATION")
 
-    def drawunit_animations(self, layout, tb, preset):
+    def drawunit_animations(self, layout, nb, preset):
 
         row = layout.row()
         # consider preset.frame_start and frame_end (min frame_start=1)
@@ -2852,12 +2852,12 @@ class TractBlenderAnimationPanel(Panel):
                 col = row.column()
                 col.prop(anim, "campaths_enum", expand=False, text="")
                 col = row.column()
-                col.operator("tb.del_campath", icon='ZOOMOUT', text="")
+                col.operator("nb.del_campath", icon='ZOOMOUT', text="")
                 col.enabled = True
 
-                self.drawunit_tri(layout, "points", tb, anim)
+                self.drawunit_tri(layout, "points", nb, anim)
 
-                self.drawunit_tri(layout, "newpath", tb, anim)
+                self.drawunit_tri(layout, "newpath", nb, anim)
 
                 row = layout.row()
                 row.separator()
@@ -2866,11 +2866,11 @@ class TractBlenderAnimationPanel(Panel):
                 row.label("Camera tracking:")
                 row = layout.row()
                 row.prop(anim, "tracktype", expand=True)
-                tb_cam = preset.cameras[0]
-                cam_ob = bpy.data.objects[tb_cam.name]
+                nb_cam = preset.cameras[0]
+                cam_ob = bpy.data.objects[nb_cam.name]
                 row = layout.row()
                 row.prop(cam_ob, "rotation_euler", index=2, text="tumble")
-                cam = bpy.data.cameras[tb_cam.name]
+                cam = bpy.data.cameras[nb_cam.name]
                 row.prop(cam, "clip_start")
                 row.prop(cam, "clip_end")
 
@@ -2880,7 +2880,7 @@ class TractBlenderAnimationPanel(Panel):
                 col = row.column()
                 col.prop(anim, "anim_voxelvolume", expand=False, text="Voxelvolume")
                 col = row.column()
-                col.operator("tb.del_campath", icon='ZOOMOUT', text="")
+                col.operator("nb.del_campath", icon='ZOOMOUT', text="")
                 col.enabled = False
 
                 row = layout.row()
@@ -2911,17 +2911,17 @@ class TractBlenderAnimationPanel(Panel):
                 col = row.column()
                 col.prop(anim, "anim_timeseries", expand=False, text="Time series")
 
-                sgs = tb_rp.find_ts_scalargroups(anim)
+                sgs = nb_rp.find_ts_scalargroups(anim)
                 sg = sgs[anim.anim_timeseries]
 
                 npoints = len(sg.scalars)
                 row = layout.row()
                 row.label("%d points in time series" % npoints)
 
-    def drawunit_tri_points(self, layout, tb, anim):
+    def drawunit_tri_points(self, layout, nb, anim):
 
         row = layout.row()
-        row.operator("tb.add_campoint",
+        row.operator("nb.add_campoint",
                      text="Add point at camera position")
 
         try:
@@ -2941,7 +2941,7 @@ class TractBlenderAnimationPanel(Panel):
                               data, "material_index", rows=2,
                               maxrows=4, type="DEFAULT")
 
-    def drawunit_tri_newpath(self, layout, tb, anim):
+    def drawunit_tri_newpath(self, layout, nb, anim):
 
         row = layout.row()
         row.prop(anim, "pathtype", expand=True)
@@ -2964,11 +2964,11 @@ class TractBlenderAnimationPanel(Panel):
         row.separator()
 
         row = layout.row()
-        row.operator("tb.add_campath", text="Add trajectory")
+        row.operator("nb.add_campath", text="Add trajectory")
 
 
 class AddAnimation(Operator):
-    bl_idname = "tb.import_animations"
+    bl_idname = "nb.import_animations"
     bl_label = "New animation"
     bl_description = "Create a new animation"
     bl_options = {"REGISTER", "UNDO", "PRESET"}
@@ -2984,20 +2984,20 @@ class AddAnimation(Operator):
     parentpath = StringProperty(
         name="Parentpath",
         description="The path to the parent of the object",
-        default="tb")
+        default="nb")
 
     def execute(self, context):
 
         scn = context.scene
-        tb = scn.tb
+        nb = scn.nb
 
-        ca = [preset.animations for preset in tb.presets]
-        name = tb_utils.check_name(self.name, "", ca, forcefill=True)
-        tb_imp.add_animation_to_collection(name)
+        ca = [preset.animations for preset in nb.presets]
+        name = nb_utils.check_name(self.name, "", ca, forcefill=True)
+        nb_imp.add_animation_to_collection(name)
 
-        tb_preset = tb.presets[tb.index_presets]  # FIXME: self
+        nb_preset = nb.presets[nb.index_presets]  # FIXME: self
         infostring = 'added animation "%s" in preset "%s"'
-        info = [infostring % (name, tb_preset.name)]
+        info = [infostring % (name, nb_preset.name)]
         self.report({'INFO'}, '; '.join(info))
 
         return {"FINISHED"}
@@ -3005,15 +3005,15 @@ class AddAnimation(Operator):
     def invoke(self, context, event):
 
         scn = context.scene
-        tb = scn.tb
+        nb = scn.nb
 
-        self.index_presets = tb.index_presets
+        self.index_presets = nb.index_presets
 
         return self.execute(context)
 
 
 class AddCamPoint(Operator):
-    bl_idname = "tb.add_campoint"
+    bl_idname = "nb.add_campoint"
     bl_label = "New camera position"
     bl_description = "Create a new camera position in campath"
     bl_options = {"REGISTER", "UNDO", "PRESET"}
@@ -3034,9 +3034,9 @@ class AddCamPoint(Operator):
     def execute(self, context):
 
         scn = context.scene
-        tb = scn.tb
+        nb = scn.nb
 
-        preset = tb.presets[self.index_presets]
+        preset = nb.presets[self.index_presets]
         anim = preset.animations[self.index_animations]
         campath = bpy.data.objects[anim.campaths_enum]
 
@@ -3059,10 +3059,10 @@ class AddCamPoint(Operator):
     def invoke(self, context, event):
 
         scn = context.scene
-        tb = scn.tb
+        nb = scn.nb
 
-        self.index_presets = tb.index_presets
-        preset = tb.presets[self.index_presets]
+        self.index_presets = nb.index_presets
+        preset = nb.presets[self.index_presets]
 
         self.index_animations = preset.index_animations
 
@@ -3077,7 +3077,7 @@ class AddCamPoint(Operator):
 
 
 class AddCamPath(Operator):
-    bl_idname = "tb.add_campath"
+    bl_idname = "nb.add_campath"
     bl_label = "New camera path"
     bl_description = "Create a new path for the camera"
     bl_options = {"REGISTER", "UNDO", "PRESET"}
@@ -3130,9 +3130,9 @@ class AddCamPath(Operator):
     def execute(self, context):
 
         scn = context.scene
-        tb = scn.tb
+        nb = scn.nb
 
-        preset = tb.presets[self.index_presets]
+        preset = nb.presets[self.index_presets]
         anim = preset.animations[self.index_animations]
 
         if self.pathtype == "Circular":
@@ -3144,16 +3144,16 @@ class AddCamPath(Operator):
         elif self.pathtype == "Create":
             name = "CP_%s" % ("fromCam")
 
-        ca = [tb.campaths]
+        ca = [nb.campaths]
         name = self.name or name
-        name = tb_utils.check_name(name, "", ca)
+        name = nb_utils.check_name(name, "", ca)
         fun = eval("self.campath_%s" % self.pathtype.lower())
         campath, info = fun(name)
 
         if campath is not None:
             campath.hide_render = True
             campath.parent = bpy.data.objects[preset.name]
-            tb_imp.add_campath_to_collection(name)
+            nb_imp.add_campath_to_collection(name)
             infostring = 'added camera path "%s" to preset "%s"'
             info = [infostring % (name, preset.name)] + info
 
@@ -3171,10 +3171,10 @@ class AddCamPath(Operator):
     def invoke(self, context, event):
 
         scn = context.scene
-        tb = scn.tb
+        nb = scn.nb
 
-        self.index_presets = tb.index_presets
-        preset = tb.presets[self.index_presets]
+        self.index_presets = nb.index_presets
+        preset = nb.presets[self.index_presets]
         self.index_animations = preset.index_animations
         anim = preset.animations[self.index_animations]
         self.pathtype = anim.pathtype
@@ -3189,9 +3189,9 @@ class AddCamPath(Operator):
         """Generate a circular trajectory from the camera position."""
 
         scn = bpy.context.scene
-        tb = scn.tb
+        nb = scn.nb
 
-        preset = tb.presets[self.index_presets]
+        preset = nb.presets[self.index_presets]
         cam = bpy.data.objects[preset.cameras[0].name]
         centre = bpy.data.objects[preset.centre]
         box = bpy.data.objects[preset.box]
@@ -3248,8 +3248,8 @@ class AddCamPath(Operator):
         scn = bpy.context.scene
 
         try:
-            tb_ob = bpy.data.objects[self.anim_tract]
-            spline = tb_ob.data.splines[self.spline_index]
+            nb_ob = bpy.data.objects[self.anim_tract]
+            spline = nb_ob.data.splines[self.spline_index]
         except KeyError:
             ob = None
             infostring = 'tract "%s:spline[%s]" not found'
@@ -3263,8 +3263,8 @@ class AddCamPath(Operator):
             scn.objects.link(ob)
 
             streamline = [point.co[0:3] for point in spline.points]
-            tb_imp.make_polyline_ob(curve, streamline)
-            ob.matrix_world = tb_ob.matrix_world
+            nb_imp.make_polyline_ob(curve, streamline)
+            ob.matrix_world = nb_ob.matrix_world
             ob.select = True
             bpy.context.scene.objects.active = ob
             bpy.ops.object.transform_apply(location=False,
@@ -3346,7 +3346,7 @@ class AddCamPath(Operator):
 
 
 class DelCamPath(Operator):
-    bl_idname = "tb.del_campath"
+    bl_idname = "nb.del_campath"
     bl_label = "Delete camera path"
     bl_description = "Delete a camera path"
     bl_options = {"REGISTER", "UNDO", "PRESET"}
@@ -3367,7 +3367,7 @@ class DelCamPath(Operator):
     def execute(self, context):
 
         scn = context.scene
-        tb = scn.tb
+        nb = scn.nb
 
         try:
             campath = bpy.data.objects[self.name]
@@ -3377,8 +3377,8 @@ class DelCamPath(Operator):
         else:
             bpy.data.curves.remove(cu)
             bpy.data.objects.remove(campath)
-            tb.campaths.remove(tb.campaths.find(self.name))
-            tb.index_campaths = 0
+            nb.campaths.remove(nb.campaths.find(self.name))
+            nb.index_campaths = 0
             # TODO: find and reset all animations that use campath
             infostring = 'removed camera path curve "%s"'
 
@@ -3389,10 +3389,10 @@ class DelCamPath(Operator):
     def invoke(self, context, event):
 
         scn = context.scene
-        tb = scn.tb
+        nb = scn.nb
 
-        self.index_presets = tb.index_presets
-        preset = tb.presets[self.index_presets]
+        self.index_presets = nb.index_presets
+        preset = nb.presets[self.index_presets]
         self.index_animations = preset.index_animations
         anim = preset.animations[self.index_animations]
         self.name = anim.campaths_enum
@@ -3400,67 +3400,67 @@ class DelCamPath(Operator):
         return self.execute(context)
 
 
-class TractBlenderSettingsPanel(Panel):
-    """Host the TractBlender settings"""
-    bl_idname = "OBJECT_PT_tb_settings"
+class NeuroBlenderSettingsPanel(Panel):
+    """Host the NeuroBlender settings"""
+    bl_idname = "OBJECT_PT_nb_settings"
     bl_label = "NeuroBlender - Settings"
     bl_space_type = "PROPERTIES"
     bl_region_type = "WINDOW"
     bl_context = "scene"
 
-    draw = TractBlenderBasePanel.draw
-    drawunit_switch_to_main = TractBlenderBasePanel.drawunit_switch_to_main
+    draw = NeuroBlenderBasePanel.draw
+    drawunit_switch_to_main = NeuroBlenderBasePanel.drawunit_switch_to_main
 
-    def draw_tb_panel(self, layout, tb):
-
-        row = layout.row()
-        row.prop(tb, "mode")
-        self.draw_nibabel(layout, tb)
-        row = layout.row()
-        row.prop(tb, "verbose")
-        row = layout.row()
-        row.prop(tb, "uv_resolution")
-        row = layout.row()
-        row.prop(tb, "texformat")
+    def draw_nb_panel(self, layout, nb):
 
         row = layout.row()
-        row.prop(tb, "projectdir")
+        row.prop(nb, "mode")
+        self.draw_nibabel(layout, nb)
+        row = layout.row()
+        row.prop(nb, "verbose")
+        row = layout.row()
+        row.prop(nb, "uv_resolution")
+        row = layout.row()
+        row.prop(nb, "texformat")
 
         row = layout.row()
-        row.prop(tb, "texmethod")
+        row.prop(nb, "projectdir")
 
         row = layout.row()
-        row.prop(tb, "engine")
+        row.prop(nb, "texmethod")
 
         row = layout.row()
-        row.prop(tb, "advanced")
+        row.prop(nb, "engine")
 
         row = layout.row()
-        row.operator("tb.reload",
+        row.prop(nb, "advanced")
+
+        row = layout.row()
+        row.operator("nb.reload",
                      text="Reload NeuroBlender",
                      icon="RECOVER_LAST")
         # TODO: etc
 
-    def draw_nibabel(self, layout, tb):
+    def draw_nibabel(self, layout, nb):
 
         box = layout.box()
         row = box.row()
-        row.prop(tb, "nibabel_use")
-        if tb.nibabel_use:
-            row.prop(tb, "nibabel_path")
+        row.prop(nb, "nibabel_use")
+        if nb.nibabel_use:
+            row.prop(nb, "nibabel_path")
             row = box.row()
             col = row.column()
-            col.prop(tb, "nibabel_valid")
+            col.prop(nb, "nibabel_valid")
             col.enabled = False
             col = row.column()
-            col.operator("tb.make_nibabel_persistent",
+            col.operator("nb.make_nibabel_persistent",
                          text="Make persistent",
                          icon="LOCKED")
-            col.enabled = tb.nibabel_valid
+            col.enabled = nb.nibabel_valid
 
 
 class MakeNibabelPersistent(Operator):
-    bl_idname = "tb.make_nibabel_persistent"
+    bl_idname = "nb.make_nibabel_persistent"
     bl_label = "Make nibabel persistent"
     bl_description = "Add script to /scripts/startup/ that loads shadow-python"
     bl_options = {"REGISTER"}
@@ -3468,29 +3468,29 @@ class MakeNibabelPersistent(Operator):
     def execute(self, context):
 
         scn = context.scene
-        tb = scn.tb
+        nb = scn.nb
 
         addon_dir = os.path.dirname(__file__)
-        tb_dir = os.path.dirname(addon_dir)
+        nb_dir = os.path.dirname(addon_dir)
         scripts_dir = os.path.dirname(os.path.dirname(os.path.dirname(bpy.__file__)))
         startup_dir = os.path.join(scripts_dir, 'startup')
         basename = 'external_sitepackages'
         nibdir_txt = os.path.join(startup_dir, basename + '.txt')
         with open(nibdir_txt, 'w') as f:
-            f.write(scn.tb.nibabel_path)
+            f.write(scn.nb.nibabel_path)
         es_fpath = os.path.join(addon_dir, basename + '.py')
         copy(es_fpath, startup_dir)
 
         infostring = 'added nibabel path "%s" to startup "%s"'
-        info = [infostring % (scn.tb.nibabel_path, startup_dir)]
+        info = [infostring % (scn.nb.nibabel_path, startup_dir)]
 
         return {"FINISHED"}
 
 
 class SwitchToMainScene(Operator):
-    bl_idname = "tb.switch_to_main"
+    bl_idname = "nb.switch_to_main"
     bl_label = "Switch to main"
-    bl_description = "Switch to main TractBlender scene to import"
+    bl_description = "Switch to main NeuroBlender scene to import"
     bl_options = {"REGISTER"}
 
     def execute(self, context):
@@ -3501,7 +3501,7 @@ class SwitchToMainScene(Operator):
 
 
 class SaveBlend(Operator, ExportHelper):
-    bl_idname = "tb.save_blend"
+    bl_idname = "nb.save_blend"
     bl_label = "Save blend file"
     bl_description = "Prompt to save a blend file"
     bl_options = {"REGISTER"}
@@ -3523,7 +3523,7 @@ class SaveBlend(Operator, ExportHelper):
         return {"RUNNING_MODAL"}
 
 class Reload(Operator):
-    bl_idname = "tb.reload"
+    bl_idname = "nb.reload"
     bl_label = "Reload"
     bl_description = "Reload"
     bl_options = {"REGISTER", "UNDO", "PRESET"}
@@ -3531,11 +3531,11 @@ class Reload(Operator):
     name = StringProperty(
         name="name",
         description="The name of the addon",
-        default="TractBlender")
+        default="NeuroBlender")
     path = StringProperty(
         name="path",
         description="The path to the NeuroBlender zip file",
-        default="/Users/michielk/workspace/TractBlender/TractBlender.zip")
+        default="/Users/michielk/workspace/NeuroBlender/NeuroBlender.zip")
 
     def execute(self, context):
 
@@ -3549,27 +3549,27 @@ def engine_update(self, context):
     """Update materials when switching between engines."""
 
     scn = context.scene
-    tb = scn.tb
+    nb = scn.nb
 
     for mat in bpy.data.materials:
-        mat.use_nodes = tb.engine == "CYCLES"
-        if tb.engine.startswith("BLENDER"):
-            tb_mat.CR2BR(mat)
+        mat.use_nodes = nb.engine == "CYCLES"
+        if nb.engine.startswith("BLENDER"):
+            nb_mat.CR2BR(mat)
         else:
-            tb_mat.BR2CR(mat)
+            nb_mat.BR2CR(mat)
 
-    scn.render.engine = tb.engine
+    scn.render.engine = nb.engine
 
 
 def engine_driver():
 
     scn = bpy.context.scene
-    tb = scn.tb
+    nb = scn.nb
 
-    driver = tb.driver_add("engine", -1).driver
+    driver = nb.driver_add("engine", -1).driver
     driver.type = 'AVERAGE'
 
-    tb_rp.create_var(driver, "type",
+    nb_rp.create_var(driver, "type",
                      'SINGLE_PROP', 'SCENE',
                      scn, "render.engine")
 
@@ -3577,7 +3577,7 @@ def engine_driver():
 def nibabel_path_update(self, context):
     """Check whether nibabel can be imported."""
 
-    tb_utils.validate_nibabel("")
+    nb_utils.validate_nibabel("")
 
 
 def sformfile_update(self, context):
@@ -3589,7 +3589,7 @@ def sformfile_update(self, context):
         pass
     else:
         sformfile = bpy.path.abspath(self.sformfile)
-        affine = tb_imp.read_affine_matrix(sformfile)
+        affine = nb_imp.read_affine_matrix(sformfile)
         ob.matrix_world = affine
 
 
@@ -3618,11 +3618,11 @@ def slices_handler(dummy):
     """Set surface or volume rendering for the voxelvolume."""
 
     scn = bpy.context.scene
-    tb = scn.tb
+    nb = scn.nb
 
-    for vvol in tb.voxelvolumes:
+    for vvol in nb.voxelvolumes:
         slices_update(vvol, bpy.context)
-    for vvol in tb.voxelvolumes:
+    for vvol in nb.voxelvolumes:
         for scalargroup in vvol.scalargroups:
             slices_update(scalargroup, bpy.context)
         for labelgroup in vvol.labelgroups:
@@ -3655,8 +3655,8 @@ def rendertype_enum_update(self, context):
                     ts.offset = [0, 0, 0]
             elif mat.type == 'SURFACE':
                 for idx in range(0, 3):
-                    tb_imp.voxelvolume_slice_drivers_surface(self, ts, idx, "scale")
-                    tb_imp.voxelvolume_slice_drivers_surface(self, ts, idx, "offset")
+                    nb_imp.voxelvolume_slice_drivers_surface(self, ts, idx, "scale")
+                    nb_imp.voxelvolume_slice_drivers_surface(self, ts, idx, "offset")
 
 
 # FIXME: excessive to remove/add these drivers at every frame;
@@ -3667,11 +3667,11 @@ def rendertype_enum_handler(dummy):
     """Set surface or volume rendering for the voxelvolume."""
 
     scn = bpy.context.scene
-    tb = scn.tb
+    nb = scn.nb
 
-    for vvol in tb.voxelvolumes:
+    for vvol in nb.voxelvolumes:
         rendertype_enum_update(vvol, bpy.context)
-    for vvol in tb.voxelvolumes:
+    for vvol in nb.voxelvolumes:
         for scalargroup in vvol.scalargroups:
             rendertype_enum_update(scalargroup, bpy.context)
         for labelgroup in vvol.labelgroups:
@@ -3683,11 +3683,11 @@ bpy.app.handlers.frame_change_pre.append(rendertype_enum_handler)  # does this n
 def is_yoked_bool_update(self, context):
     """Add or remove drivers linking voxelvolume and overlay."""
 
-    tb_ob = tb_utils.active_tb_object()[0]
+    nb_ob = nb_utils.active_nb_object()[0]
     for prop in ['slicethickness', 'sliceposition', 'sliceangle']:
         for idx in range(0, 3):
             if self.is_yoked:
-                tb_imp.voxelvolume_slice_drivers_yoke(tb_ob, self, prop, idx)
+                nb_imp.voxelvolume_slice_drivers_yoke(nb_ob, self, prop, idx)
             else:
                 self.driver_remove(prop, idx)
 
@@ -3696,11 +3696,11 @@ def mat_is_yoked_bool_update(self, context):
     """Add or remove drivers linking overlay's materials."""
 
     pass
-#     tb_ob = tb_utils.active_tb_object()[0]
+#     nb_ob = nb_utils.active_nb_object()[0]
 #     for prop in ['slicethickness', 'sliceposition', 'sliceangle']:
 #         for idx in range(0, 3):
 #             if self.is_yoked:
-#                 tb_imp.voxelvolume_slice_drivers_yoke(tb_ob, self, prop, idx)
+#                 nb_imp.voxelvolume_slice_drivers_yoke(nb_ob, self, prop, idx)
 #             else:
 #                 self.driver_remove(prop, idx)
 
@@ -3709,23 +3709,23 @@ def mode_enum_update(self, context):
     """Perform actions for updating mode."""
 
     scn = context.scene
-    tb = scn.tb
+    nb = scn.nb
 
     for mat in bpy.data.materials:
-        tb_mat.switch_mode_mat(mat, self.mode)
+        nb_mat.switch_mode_mat(mat, self.mode)
 
     try:
-        tb_preset = tb.presets[self.index_presets]
-        tb_cam = tb_preset.cameras[0]
+        nb_preset = nb.presets[self.index_presets]
+        nb_cam = nb_preset.cameras[0]
         light_obs = [bpy.data.objects.get(light.name)
-                     for light in tb_preset.lights]
+                     for light in nb_preset.lights]
         table_obs = [bpy.data.objects.get(table.name)
-                     for table in tb_preset.tables]
+                     for table in nb_preset.tables]
     except:
         pass
     else:
-        tb_rp.switch_mode_preset(light_obs, table_obs,
-                                 tb.mode, tb_cam.cam_view)
+        nb_rp.switch_mode_preset(light_obs, table_obs,
+                                 nb.mode, nb_cam.cam_view)
 
     # TODO: switch colourbars
 
@@ -3766,30 +3766,30 @@ def index_scalars_handler_func(dummy):
     """"""
 
     scn = bpy.context.scene
-    tb = scn.tb
+    nb = scn.nb
 
     try:
-        preset = tb.presets[tb.index_presets]
+        preset = nb.presets[nb.index_presets]
     except:
         pass
     else:
         for anim in preset.animations:
             if anim.animationtype == "TimeSeries":
 
-                sgs = tb_rp.find_ts_scalargroups(anim)
+                sgs = nb_rp.find_ts_scalargroups(anim)
                 sg = sgs[anim.anim_timeseries]
 
                 scalar = sg.scalars[sg.index_scalars]
 
-                if sg.path_from_id().startswith("tb.surfaces"):
+                if sg.path_from_id().startswith("nb.surfaces"):
                     # update Image Sequence Texture index
                     mat = bpy.data.materials[sg.name]
                     itex = mat.node_tree.nodes["Image Texture"]
                     itex.image_user.frame_offset = scn.frame_current
                     # FIXME: more flexible indexing
 
-                elif sg.path_from_id().startswith("tb.voxelvolumes"):
-                    index_scalars_update_vvolscalar_func(sg, scalar, tb.texmethod)
+                elif sg.path_from_id().startswith("nb.voxelvolumes"):
+                    index_scalars_update_vvolscalar_func(sg, scalar, nb.texmethod)
 
 
 bpy.app.handlers.frame_change_pre.append(index_scalars_handler_func)
@@ -3799,14 +3799,14 @@ def index_scalars_update_func(group=None):
     """Switch views on updating overlay index."""
 
     scn = bpy.context.scene
-    tb = scn.tb
+    nb = scn.nb
 
     if group is None:
-        group = tb_utils.active_tb_overlay()[0]
+        group = nb_utils.active_nb_overlay()[0]
 
-    tb_ob_path = '.'.join(group.path_from_id().split('.')[:-1])
-    tb_ob = eval(tb_ob_path)
-    ob = bpy.data.objects[tb_ob.name]
+    nb_ob_path = '.'.join(group.path_from_id().split('.')[:-1])
+    nb_ob = eval(nb_ob_path)
+    ob = bpy.data.objects[nb_ob.name]
 
     try:
         scalar = group.scalars[group.index_scalars]
@@ -3815,7 +3815,7 @@ def index_scalars_update_func(group=None):
     else:
         name = scalar.name
 
-        if group.path_from_id().startswith("tb.surfaces"):
+        if group.path_from_id().startswith("nb.surfaces"):
 
             vg_idx = ob.vertex_groups.find(name)
             ob.vertex_groups.active_index = vg_idx
@@ -3848,16 +3848,16 @@ def index_scalars_update_func(group=None):
                 for mat in mats:
                     ob.data.materials.append(mat)
 
-        if group.path_from_id().startswith("tb.tracts"):
+        if group.path_from_id().startswith("nb.tracts"):
             if hasattr(group, 'scalars'):
                 for i, spline in enumerate(ob.data.splines):
                     splname = name + '_spl' + str(i).zfill(8)
                     spline.material_index = ob.material_slots.find(splname)
 
-        if group.path_from_id().startswith("tb.voxelvolumes"):  # FIXME: used texture slots
+        if group.path_from_id().startswith("nb.voxelvolumes"):  # FIXME: used texture slots
             if hasattr(group, 'scalars'):
 
-                index_scalars_update_vvolscalar_func(group, scalar, tb.texmethod)
+                index_scalars_update_vvolscalar_func(group, scalar, nb.texmethod)
 
 
 def index_scalars_update_vvolscalar_func(group, scalar, method=1):
@@ -3938,14 +3938,14 @@ def index_labels_update_func(group=None):
     """Switch views on updating overlay index."""
 
     scn = bpy.context.scene
-    tb = scn.tb
+    nb = scn.nb
 
-    tb_ob_path = '.'.join(group.path_from_id().split('.')[:-1])
-    tb_ob = eval(tb_ob_path)
-    ob = bpy.data.objects[tb_ob.name]
+    nb_ob_path = '.'.join(group.path_from_id().split('.')[:-1])
+    nb_ob = eval(nb_ob_path)
+    ob = bpy.data.objects[nb_ob.name]
 
     if group is None:
-        group = tb_utils.active_tb_overlay()[0]
+        group = nb_utils.active_nb_overlay()[0]
 
     try:
         label = group.labels[group.index_labels]
@@ -3963,41 +3963,41 @@ def material_update(self, context):
     """Assign a new preset material to the object."""
 
     mat = bpy.data.materials[self.name]
-    if context.scene.tb.engine.startswith("BLENDER"):
-        tb_mat.CR2BR(mat)
+    if context.scene.nb.engine.startswith("BLENDER"):
+        nb_mat.CR2BR(mat)
 
 
 def material_enum_update(self, context):
     """Assign a new preset material to the object."""
 
     mat = bpy.data.materials[self.name]
-    tb_mat.link_innode(mat, self.colourtype)
+    nb_mat.link_innode(mat, self.colourtype)
 
 
 def colourmap_enum_update(self, context):
     """Assign a new colourmap to the object."""
 
-    tb_ob = tb_utils.active_tb_object()[0]
-    if hasattr(tb_ob, 'slicebox'):
+    nb_ob = nb_utils.active_nb_object()[0]
+    if hasattr(nb_ob, 'slicebox'):
         cr = bpy.data.textures[self.name].color_ramp
     else:
-        if hasattr(tb_ob, "nstreamlines"):
+        if hasattr(nb_ob, "nstreamlines"):
             ng = bpy.data.node_groups.get("TractOvGroup")
             cr = ng.nodes["ColorRamp"].color_ramp
-        elif hasattr(tb_ob, "sphere"):
+        elif hasattr(nb_ob, "sphere"):
             nt = bpy.data.materials[self.name].node_tree
             cr = nt.nodes["ColorRamp"].color_ramp
 
     colourmap = self.colourmap_enum
-    tb_mat.switch_colourmap(cr, colourmap)
+    nb_mat.switch_colourmap(cr, colourmap)
 
 
 def cam_view_enum_XX_update(self, context):
     """Set the camview property from enum options."""
 
     scn = context.scene
-    tb = scn.tb
-    tb_preset = tb.presets[tb.index_presets]
+    nb = scn.nb
+    nb_preset = nb.presets[nb.index_presets]
 
     lud = {'Centre': 0,
            'Left': -1, 'Right': 1,
@@ -4013,9 +4013,9 @@ def cam_view_enum_XX_update(self, context):
     self.cam_view = list(cv_unit * self.cam_distance)
 
     cam = bpy.data.objects[self.name]
-    centre = bpy.data.objects[tb_preset.centre]
+    centre = bpy.data.objects[nb_preset.centre]
 
-#     tb_rp.cam_view_update(cam, centre, self.cam_view, tb_preset.dims)
+#     nb_rp.cam_view_update(cam, centre, self.cam_view, nb_preset.dims)
     cam.location = self.cam_view
 
     scn.frame_set(0)
@@ -4034,7 +4034,7 @@ def presets_enum_update(self, context):
     """Update the preset enum."""
 
     scn = context.scene
-    tb = scn.tb
+    nb = scn.nb
 
     self.index_presets = self.presets.find(self.presets_enum)
     preset = self.presets[self.index_presets]
@@ -4047,10 +4047,10 @@ def campaths_enum_callback(self, context):
     """Populate the enum based on available options."""
 
     scn = context.scene
-    tb = scn.tb
+    nb = scn.nb
 
     items = [(cp.name, cp.name, "List the camera paths", i)
-             for i, cp in enumerate(tb.campaths)]
+             for i, cp in enumerate(nb.campaths)]
 
     return items
 
@@ -4059,21 +4059,21 @@ def campaths_enum_update(self, context):
     """Update the camera path."""
 
     scn = context.scene
-    tb = scn.tb
-    tb_preset = tb.presets[tb.index_presets]
-    cam = bpy.data.objects[tb_preset.cameras[0].name]
-    anim = tb_preset.animations[tb_preset.index_animations]
+    nb = scn.nb
+    nb_preset = nb.presets[nb.index_presets]
+    cam = bpy.data.objects[nb_preset.cameras[0].name]
+    anim = nb_preset.animations[nb_preset.index_animations]
 
     if anim.animationtype == 'Trajectory':
         # overkill?
-        cam_anims = [anim for anim in tb_preset.animations
+        cam_anims = [anim for anim in nb_preset.animations
                      if ((anim.animationtype == "CameraPath") &
                          (anim.is_rendered))]
-        tb_rp.clear_camera_path_animations(cam, cam_anims)
-        tb_rp.create_camera_path_animations(cam, cam_anims)
+        nb_rp.clear_camera_path_animations(cam, cam_anims)
+        nb_rp.create_camera_path_animations(cam, cam_anims)
 
     # This adds Follow Path on the bottom of the constraint stack
-#     tb_rp.campath_animation(anim, cam)
+#     nb_rp.campath_animation(anim, cam)
 
     scn.frame_set(anim.frame_start)
 
@@ -4082,22 +4082,22 @@ def tracktype_enum_update(self, context):
     """Update the camera path constraints."""
 
     scn = context.scene
-    tb = scn.tb
-    tb_preset = tb.presets[tb.index_presets]
-    cam = bpy.data.objects[tb_preset.cameras[0].name]
-    centre = bpy.data.objects[tb_preset.centre]
-    anim = tb_preset.animations[tb_preset.index_animations]
+    nb = scn.nb
+    nb_preset = nb.presets[nb.index_presets]
+    cam = bpy.data.objects[nb_preset.cameras[0].name]
+    centre = bpy.data.objects[nb_preset.centre]
+    anim = nb_preset.animations[nb_preset.index_animations]
 
-    cam_anims = [anim for anim in tb_preset.animations
+    cam_anims = [anim for anim in nb_preset.animations
                  if ((anim.animationtype == "CameraPath") &
                      (anim.is_rendered))]
 
     anim_blocks = [[anim.anim_block[0], anim.anim_block[1]]
                    for anim in cam_anims]
 
-    timeline = tb_rp.generate_timeline(scn, cam_anims, anim_blocks)
+    timeline = nb_rp.generate_timeline(scn, cam_anims, anim_blocks)
     cnsTT = cam.constraints["TrackToCentre"]
-    tb_rp.restrict_incluence_timeline(scn, cnsTT, timeline, group="TrackTo")
+    nb_rp.restrict_incluence_timeline(scn, cnsTT, timeline, group="TrackTo")
 
     cns = cam.constraints["FollowPath" + anim.campaths_enum]  # TODO: if not yet executed/exists
     cns.use_curve_follow = anim.tracktype == "TrackPath"
@@ -4115,9 +4115,9 @@ def direction_toggle_update(self, context):
     """Update the direction of animation on a curve."""
 
     scn = context.scene
-    tb = scn.tb
-    tb_preset = tb.presets[tb.index_presets]
-    anim = tb_preset.animations[tb_preset.index_animations]
+    nb = scn.nb
+    nb_preset = nb.presets[nb.index_presets]
+    anim = nb_preset.animations[nb_preset.index_animations]
 
     try:
         campath = bpy.data.objects[anim.campaths_enum]
@@ -4127,7 +4127,7 @@ def direction_toggle_update(self, context):
         animdata = campath.data.animation_data
         fcu = animdata.action.fcurves.find("eval_time")
         mod = fcu.modifiers[0]  # TODO: sloppy
-        intercept, slope, _ = tb_rp.calculate_coefficients(campath, anim)
+        intercept, slope, _ = nb_rp.calculate_coefficients(campath, anim)
         mod.coefficients = (intercept, slope)
 
 
@@ -4135,10 +4135,10 @@ def tracts_enum_callback(self, context):
     """Populate the enum based on available options."""
 
     scn = context.scene
-    tb = scn.tb
+    nb = scn.nb
 
     items = [(tract.name, tract.name, "List the tracts", i)
-             for i, tract in enumerate(tb.tracts)]
+             for i, tract in enumerate(nb.tracts)]
 
     return items
 
@@ -4147,10 +4147,10 @@ def surfaces_enum_callback(self, context):
     """Populate the enum based on available options."""
 
     scn = context.scene
-    tb = scn.tb
+    nb = scn.nb
 
     items = [(surface.name, surface.name, "List the surfaces", i)
-             for i, surface in enumerate(tb.surfaces)]
+             for i, surface in enumerate(nb.surfaces)]
 
     return items
 
@@ -4159,13 +4159,13 @@ def timeseries_enum_callback(self, context):
     """Populate the enum based on available options."""
 
     scn = context.scene
-    tb = scn.tb
+    nb = scn.nb
 
     # FIXME: crash when commenting/uncommenting this
     aliases = {'T': 'tracts', 'S': 'surfaces', 'V': 'voxelvolumes'}
-    coll = eval('tb.%s' % aliases[self.timeseries_object[0]])
+    coll = eval('nb.%s' % aliases[self.timeseries_object[0]])
     sgs = coll[self.timeseries_object[3:]].scalargroups
-#     sgs = tb_rp.find_ts_scalargroups(self)
+#     sgs = nb_rp.find_ts_scalargroups(self)
 
     items = [(scalargroup.name, scalargroup.name, "List the timeseries", i)
              for i, scalargroup in enumerate(sgs)]
@@ -4177,10 +4177,10 @@ def voxelvolumes_enum_callback(self, context):
     """Populate the enum based on available options."""
 
     scn = context.scene
-    tb = scn.tb
+    nb = scn.nb
 
     items = [(vvol.name, vvol.name, "List the voxelvolumes", i)
-             for i, vvol in enumerate(tb.voxelvolumes)]
+             for i, vvol in enumerate(nb.voxelvolumes)]
 
     return items
 
@@ -4189,10 +4189,10 @@ def curves_enum_callback(self, context):
     """Populate the enum based on available options."""
 
     scn = context.scene
-    tb = scn.tb
+    nb = scn.nb
 
-    campaths = [cp.name for cp in tb.campaths]
-    tracts = [tract.name for tract in tb.tracts]
+    campaths = [cp.name for cp in nb.campaths]
+    tracts = [tract.name for tract in nb.tracts]
     items = [(cu.name, cu.name, "List the curves", i)
              for i, cu in enumerate(bpy.data.curves)
              if ((cu.name not in campaths) and
@@ -4205,13 +4205,13 @@ def timeseries_object_enum_callback(self, context):
     """Populate the enum based on available options."""
 
     scn = context.scene
-    tb = scn.tb
+    nb = scn.nb
 
-    tb_obs = ["%s: %s" % (l, ob.name)
-              for l, coll in zip(['T', 'S', 'V'], [tb.tracts, tb.surfaces, tb.voxelvolumes])
+    nb_obs = ["%s: %s" % (l, ob.name)
+              for l, coll in zip(['T', 'S', 'V'], [nb.tracts, nb.surfaces, nb.voxelvolumes])
               for ob in coll if len(ob.scalargroups)]
     items = [(obname, obname, "List the objects", i)
-             for i, obname in enumerate(tb_obs)]
+             for i, obname in enumerate(nb_obs)]
 
     return items
 
@@ -4220,7 +4220,7 @@ def texture_directory_update(self, context):
     """Update the texture."""
 
     if "surfaces" in self.path_from_id():
-        tb_mat.load_surface_textures(self.name, self.texdir, len(self.scalars))
+        nb_mat.load_surface_textures(self.name, self.texdir, len(self.scalars))
     elif "voxelvolumes" in self.path_from_id():
         pass  # TODO
 
@@ -4237,7 +4237,7 @@ def update_name(self, context):
     """Update the name of a NeuroBlender collection item."""
 
     scn = context.scene
-    tb = scn.tb
+    nb = scn.nb
 
     def rename_voxelvolume(vvol):
         colls = [bpy.data.objects,
@@ -4279,24 +4279,24 @@ def update_name(self, context):
         parent = '.'.join(self.path_from_id().split('.')[:-1])
         parent_coll = eval(parent)
         parent_ob = bpy.data.objects[parent_coll.name]
-        if parent.startswith("tb.tracts"):
+        if parent.startswith("nb.tracts"):
             # FIXME: make sure collection name and matnames agree in the first place!
             rename_group(self, bpy.data.materials)
             colls = []
-        elif parent.startswith("tb.surfaces"):
+        elif parent.startswith("nb.surfaces"):
             rename_group(self, parent_ob.vertex_groups)
             colls = [bpy.data.materials]
-        elif parent.startswith("tb.voxelvolumes"):
+        elif parent.startswith("nb.voxelvolumes"):
             colls = rename_voxelvolume(self)
         rename_group(self, self.scalars)
 
     elif colltype == "labelgroups":
         parent = '.'.join(self.path_from_id().split('.')[:-1])
-        if parent.startswith("tb.tracts"):
+        if parent.startswith("nb.tracts"):
             colls = []  # N/A
-        elif parent.startswith("tb.surfaces"):
+        elif parent.startswith("nb.surfaces"):
             colls = [bpy.data.materials]
-        elif parent.startswith("tb.voxelvolumes"):
+        elif parent.startswith("nb.voxelvolumes"):
             colls = rename_voxelvolume(self)
 
     elif colltype == "bordergroups":
@@ -4309,13 +4309,13 @@ def update_name(self, context):
         parent = '.'.join(self.path_from_id().split('.')[:-2])
         parent_coll = eval(parent)
         parent_ob = bpy.data.objects[parent_coll.name]
-        if parent.startswith("tb.tracts"):
+        if parent.startswith("nb.tracts"):
             colls = []  # N/A
-        elif parent.startswith("tb.surfaces"):
+        elif parent.startswith("nb.surfaces"):
             vg = parent_ob.vertex_groups.get(self.name_mem)
             vg.name = self.name
             colls = [bpy.data.materials]
-        elif parent.startswith("tb.voxelvolumes"):
+        elif parent.startswith("nb.voxelvolumes"):
             colls = []  # irrelevant: name not referenced
 
     elif colltype == "borders":
@@ -5896,8 +5896,8 @@ class PresetProperties(PropertyGroup):
         default=100)
 
 
-class TractBlenderProperties(PropertyGroup):
-    """Properties for the TractBlender panel."""
+class NeuroBlenderProperties(PropertyGroup):
+    """Properties for the NeuroBlender panel."""
 
     try:
         import nibabel as nib
@@ -5908,8 +5908,8 @@ class TractBlenderProperties(PropertyGroup):
         nib_path = ""
 
     is_enabled = BoolProperty(
-        name="Show/hide Tractblender",
-        description="Show/hide the tractblender panel contents",
+        name="Show/hide NeuroBlender",
+        description="Show/hide the NeuroBlender panel contents",
         default=True)
     verbose = BoolProperty(
         name="Verbose",
@@ -5918,7 +5918,7 @@ class TractBlenderProperties(PropertyGroup):
 
     mode = EnumProperty(
         name="mode",
-        description="switch between tractblender modes",
+        description="switch between NeuroBlender modes",
         items=[("artistic", "artistic", "artistic", 1),
                ("scientific", "scientific", "scientific", 2)],
         default="artistic",
@@ -6145,9 +6145,9 @@ class TractBlenderProperties(PropertyGroup):
 #     """"""
 #
 #     scn = bpy.context.scene
-#     tb = scn.tb
+#     nb = scn.nb
 #
-# #     tb.projectdir = os.path.
+# #     nb.projectdir = os.path.
 #
 # bpy.app.handlers.load_post(projectdir_update)
 
@@ -6164,12 +6164,12 @@ class TractBlenderProperties(PropertyGroup):
 
 def register():
     bpy.utils.register_module(__name__)
-    bpy.types.Scene.tb = PointerProperty(type=TractBlenderProperties)
+    bpy.types.Scene.nb = PointerProperty(type=NeuroBlenderProperties)
 
 
 def unregister():
     bpy.utils.unregister_module(__name__)
-    bpy.types.Scene.tb
+    bpy.types.Scene.nb
 
 if __name__ == "__main__":
     register()

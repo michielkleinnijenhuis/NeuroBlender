@@ -31,10 +31,10 @@ import random
 import xml.etree.ElementTree
 import pickle
 
-from . import tractblender_beautify as tb_beau
-from . import tractblender_materials as tb_mat
-from . import tractblender_renderpresets as tb_rp
-from . import tractblender_utils as tb_utils
+from . import neuroblender_beautify as nb_beau
+from . import neuroblender_materials as nb_mat
+from . import neuroblender_renderpresets as nb_rp
+from . import neuroblender_utils as nb_utils
 
 # ========================================================================== #
 # brain data import functions
@@ -69,7 +69,7 @@ def import_tract(fpath, name, sformfile="",
     """
 
     scn = bpy.context.scene
-    tb = scn.tb
+    nb = scn.nb
 
     weed_tract = argdict["weed_tract"]
     interp_sl = argdict["interpolate_streamlines"]
@@ -125,9 +125,9 @@ def import_tract(fpath, name, sformfile="",
              "nstreamlines": nsamples,
              "tract_weeded": weed_tract,
              "streamines_interpolated": interp_sl}
-    tb_utils.add_item(tb, "tracts", props)
+    nb_utils.add_item(nb, "tracts", props)
 
-    tb_utils.move_to_layer(ob, 0)
+    nb_utils.move_to_layer(ob, 0)
     scn.layers[0] = True
 
     scn.objects.active = ob
@@ -158,7 +158,7 @@ def import_surface(fpath, name, sformfile="", argdict={}):
     """
 
     scn = bpy.context.scene
-    tb = scn.tb
+    nb = scn.nb
 
     outcome = "failed"
     ext = os.path.splitext(fpath)[1]
@@ -194,9 +194,9 @@ def import_surface(fpath, name, sformfile="", argdict={}):
         props = {"name": name,
                  "filepath": fpath,
                  "sformfile": sformfile}
-        tb_utils.add_item(tb, "surfaces", props)
+        nb_utils.add_item(nb, "surfaces", props)
 
-        tb_utils.move_to_layer(ob, 1)
+        nb_utils.move_to_layer(ob, 1)
         scn.layers[1] = True
 
     scn.objects.active = ob
@@ -230,7 +230,7 @@ def import_voxelvolume(fpath, name, sformfile="", texdict={
     """
 
     scn = bpy.context.scene
-    tb = scn.tb
+    nb = scn.nb
 
     texdict["fpath"] = fpath
     texdict["name"] = name
@@ -242,9 +242,9 @@ def import_voxelvolume(fpath, name, sformfile="", texdict={
 
     # prep texture directory
     if not bpy.data.is_saved:
-        tb_utils.force_save(tb.projectdir)
+        nb_utils.force_save(nb.projectdir)
     abstexdir = bpy.path.abspath(texdir)
-    tb_utils.mkdir_p(abstexdir)
+    nb_utils.mkdir_p(abstexdir)
 
     outcome = "failed"
     ext = os.path.splitext(fpath)[1]
@@ -253,8 +253,8 @@ def import_voxelvolume(fpath, name, sformfile="", texdict={
 
     item = add_to_collections(texdict)
 
-    mat = tb_mat.get_voxmat(name)
-    tex = tb_mat.get_voxtex(mat, texdict, 'vol0000', item)
+    mat = nb_mat.get_voxmat(name)
+    tex = nb_mat.get_voxtex(mat, texdict, 'vol0000', item)
 
     if is_label:
         for volnr, label in enumerate(item.labels):
@@ -270,8 +270,8 @@ def import_voxelvolume(fpath, name, sformfile="", texdict={
             scalar.filepath = scalarpath
             scalar.matname = mat.name
             scalar.texname = tex.name
-            if tb.texmethod == 4:
-                tex = tb_mat.get_voxtex(mat, texdict, volname, scalar)
+            if nb.texmethod == 4:
+                tex = nb_mat.get_voxtex(mat, texdict, volname, scalar)
 
     # create the voxelvolume object
 #     ob = voxelvolume_object_bool(name, texdict['dims'], texdict['affine'])
@@ -286,17 +286,17 @@ def import_voxelvolume(fpath, name, sformfile="", texdict={
 
     voxelvolume_rendertype_driver(mat, item)
 
-    tb_mat.set_materials(ob.data, mat)
+    nb_mat.set_materials(ob.data, mat)
 
     if is_overlay:
-        tb_ob = eval(texdict["parentpath"])
-        ob.parent = bpy.data.objects[tb_ob.name]
+        nb_ob = eval(texdict["parentpath"])
+        ob.parent = bpy.data.objects[nb_ob.name]
         item.index_scalars = 0  # induce switch
         bpy.ops.object.mode_set(mode='EDIT')  # TODO: more elegant update
         bpy.ops.object.mode_set(mode='OBJECT')
 
-    tb_utils.move_to_layer(ob, 2)
-    tb_utils.move_to_layer(sbox, 2)
+    nb_utils.move_to_layer(ob, 2)
+    nb_utils.move_to_layer(sbox, 2)
     scn.layers[2] = True
 
     scn.render.engine = "BLENDER_RENDER"
@@ -399,7 +399,7 @@ def create_texdir(texdict):
 
         srcdir = os.path.dirname(fpath)
         trgdir = os.path.join(abstexdir, texdict['texformat'], 'vol0000')
-        tb_utils.mkdir_p(trgdir)
+        nb_utils.mkdir_p(trgdir)
 
         # educated guess of the files we want to glob
         pat = '*%s' % os.path.splitext(fpath)[1]
@@ -435,7 +435,7 @@ def prep_nifti(texdict):
     """
 
     scn = bpy.context.scene
-    tb = scn.tb
+    nb = scn.nb
 
     fpath = texdict['fpath']
     is_label = texdict['is_label']
@@ -484,7 +484,7 @@ def prep_nifti(texdict):
 
     imdir = os.path.join(bpy.path.abspath(texdir), texformat)
     absimdir = bpy.path.abspath(imdir)
-    tb_utils.mkdir_p(absimdir)
+    nb_utils.mkdir_p(absimdir)
 
     data = np.transpose(data)
     fun = eval("write_to_%s" % texformat.lower())
@@ -538,7 +538,7 @@ def write_to_image_sequence(absimdir, data, dims):
 
     for volnr, vol in enumerate(data):
         voldir = os.path.join(absimdir, 'vol%04d' % volnr)
-        tb_utils.mkdir_p(voldir)
+        nb_utils.mkdir_p(voldir)
         vol = np.reshape(vol, [dims[2], -1])
         img = bpy.data.images.new("img", width=dims[0], height=dims[1])
         for slcnr, slc in enumerate(vol):
@@ -625,7 +625,7 @@ def image_sequence_length(filepath):
 def add_to_collections(texdict):
 
     scn = bpy.context.scene
-    tb = scn.tb
+    nb = scn.nb
 
     name = texdict['name']
     dims = texdict['dims']
@@ -641,7 +641,7 @@ def add_to_collections(texdict):
 
     if is_overlay:
 
-        tb_ob = eval(parentpath)
+        nb_ob = eval(parentpath)
 
         props = {"name": name,
                  "filepath": fpath,
@@ -651,20 +651,20 @@ def add_to_collections(texdict):
         if is_label:
             labelvals = [int(label) for label in labels]
             props["range"] = (min(labelvals), max(labelvals))
-            item = tb_utils.add_item(tb_ob, "labelgroups", props)
+            item = nb_utils.add_item(nb_ob, "labelgroups", props)
             for label in labels:
-                colour = tb_mat.get_golden_angle_colour(label) + [1.]
+                colour = nb_mat.get_golden_angle_colour(label) + [1.]
                 props = {"name": "label." + str(label).zfill(2),
                          "value": int(label),
                          "colour": tuple(colour)}
-                tb_utils.add_item(item, "labels", props)
+                nb_utils.add_item(item, "labels", props)
         else:
             props["range"] = datarange
-            item = tb_utils.add_item(tb_ob, "scalargroups", props)
+            item = nb_utils.add_item(nb_ob, "scalargroups", props)
             for volnr in range(dims[3]):
                 props = {"name": "%s.vol%04d" % (name, volnr),
                          "range": tuple(datarange)}
-                tb_utils.add_item(item, "scalars", props)
+                nb_utils.add_item(item, "scalars", props)
 
     else:
         props = {"name": name,
@@ -673,7 +673,7 @@ def add_to_collections(texdict):
                  "range": tuple(datarange),
                  "dimensions": tuple(dims),
                  "texdir": texdir}
-        item = tb_utils.add_item(tb, "voxelvolumes", props)
+        item = nb_utils.add_item(nb, "voxelvolumes", props)
 
     return item
 
@@ -832,29 +832,29 @@ def voxelvolume_cutout(ob):
 def voxelvolume_slice_drivers_volume(item, slicebox, index, prop, relative=True):
 
     scn = bpy.context.scene
-    tb = scn.tb
+    nb = scn.nb
 
     driver = slicebox.driver_add(prop, index).driver
     driver.type = 'SCRIPTED'
 
     # dimension of the voxelvolume
     data_path = "%s.dimensions[%d]" % (item.path_from_id(), index)
-    tb_rp.create_var(driver, "dim",
+    nb_rp.create_var(driver, "dim",
                      'SINGLE_PROP', 'SCENE',
                      scn, data_path)
     # relative slicethickness
     data_path = "%s.slicethickness[%d]" % (item.path_from_id(), index)
-    tb_rp.create_var(driver, "slc_th",
+    nb_rp.create_var(driver, "slc_th",
                      'SINGLE_PROP', 'SCENE',
                      scn, data_path)
     # relative sliceposition
     data_path = "%s.sliceposition[%d]" % (item.path_from_id(), index)
-    tb_rp.create_var(driver, "slc_pos",
+    nb_rp.create_var(driver, "slc_pos",
                      'SINGLE_PROP', 'SCENE',
                      scn, data_path)
     # sliceangle
     data_path = "%s.sliceangle[%d]" % (item.path_from_id(), index)
-    tb_rp.create_var(driver, "slc_angle",
+    nb_rp.create_var(driver, "slc_angle",
                      'SINGLE_PROP', 'SCENE',
                      scn, data_path)
 
@@ -881,13 +881,13 @@ def voxelvolume_slice_drivers_volume(item, slicebox, index, prop, relative=True)
 def voxelvolume_slice_drivers_surface(item, tex, index, prop):
 
     scn = bpy.context.scene
-    tb = scn.tb
+    nb = scn.nb
 
     driver = tex.driver_add(prop, index).driver
     driver.type = 'SCRIPTED'
 
     data_path = "%s.slicethickness[%d]" % (item.path_from_id(), index)
-    tb_rp.create_var(driver, "slc_th",
+    nb_rp.create_var(driver, "slc_th",
                      'SINGLE_PROP', 'SCENE',
                      scn, data_path)
     if prop == "scale":
@@ -896,7 +896,7 @@ def voxelvolume_slice_drivers_surface(item, tex, index, prop):
     elif prop == "offset":
         # relative sliceposition
         data_path = "%s.sliceposition[%d]" % (item.path_from_id(), index)
-        tb_rp.create_var(driver, "slc_pos",
+        nb_rp.create_var(driver, "slc_pos",
                          'SINGLE_PROP', 'SCENE',
                          scn, data_path)
         driver.expression = "2*(1/slc_th-1) * slc_pos - (1/slc_th-1)"
@@ -905,14 +905,14 @@ def voxelvolume_slice_drivers_surface(item, tex, index, prop):
 def voxelvolume_rendertype_driver(mat, item):
 
     scn = bpy.context.scene
-    tb = scn.tb
+    nb = scn.nb
 
     driver = mat.driver_add("type", -1).driver
     driver.type = 'AVERAGE'
-    vv_idx = tb.index_voxelvolumes
+    vv_idx = nb.index_voxelvolumes
 
     data_path = "%s.rendertype" % item.path_from_id()
-    tb_rp.create_var(driver, "type",
+    nb_rp.create_var(driver, "type",
                      'SINGLE_PROP', 'SCENE',
                      scn, data_path)
 
@@ -920,12 +920,12 @@ def voxelvolume_rendertype_driver(mat, item):
 def voxelvolume_slice_drivers_yoke(parent, child, prop, index):
 
     scn = bpy.context.scene
-    tb = scn.tb
+    nb = scn.nb
 
     driver = child.driver_add(prop, index).driver
     driver.type = 'SCRIPTED'
     data_path = "%s.%s[%d]" % (parent.path_from_id(), prop, index)
-    tb_rp.create_var(driver, "var",
+    nb_rp.create_var(driver, "var",
                      'SINGLE_PROP', 'SCENE',
                      scn, data_path)
     driver.expression = "var"
@@ -946,16 +946,16 @@ def import_overlays(directory, files, name="", parentpath="", ovtype=""):
     """"""
 
     scn = bpy.context.scene
-    tb = scn.tb
+    nb = scn.nb
 
     try:
         parent = eval(parentpath)
     except (SyntaxError, NameError):
-        parent = tb_utils.active_tb_object()[0]
+        parent = nb_utils.active_nb_object()[0]
 #     else:
-#         obinfo = tb_utils.get_tb_objectinfo(parent.name)
-#         tb.objecttype = obinfo['type']
-#         exec("tb.index_%s = %s" % (obinfo['type'], obinfo['index']))
+#         obinfo = nb_utils.get_nb_objectinfo(parent.name)
+#         nb.objecttype = obinfo['type']
+#         exec("nb.index_%s = %s" % (obinfo['type'], obinfo['index']))
 
     parent_ob = bpy.data.objects[parent.name]
 
@@ -965,7 +965,7 @@ def import_overlays(directory, files, name="", parentpath="", ovtype=""):
     for f in files:
         fpath = os.path.join(directory, f)
 
-        importfun = eval("import_%s_%s" % (tb.objecttype, ovtype))
+        importfun = eval("import_%s_%s" % (nb.objecttype, ovtype))
 
         importfun(fpath, parent_ob, name=name)
 
@@ -977,13 +977,13 @@ def import_tracts_scalargroups(fpath, parent_ob, name=""):
     """Import scalar overlay on tract object."""
 
     # TODO: handle timeseries
-    tb_mat.create_vc_overlay_tract(parent_ob, fpath, name=name)
+    nb_mat.create_vc_overlay_tract(parent_ob, fpath, name=name)
 
 
 def import_surfaces_scalargroups(fpath, parent_ob, name=""):
     """Import timeseries overlay on surface object."""
 
-    tb_mat.create_vc_overlay(parent_ob, fpath, name=name)
+    nb_mat.create_vc_overlay(parent_ob, fpath, name=name)
 
 
 def import_surfaces_scalars(fpath, parent_ob, name=""):
@@ -993,9 +993,9 @@ def import_surfaces_scalars(fpath, parent_ob, name=""):
     """
 
     if fpath.endswith('.label'):  # but not treated as a label
-        tb_mat.create_vg_overlay(parent_ob, fpath, name=name, is_label=False)
+        nb_mat.create_vg_overlay(parent_ob, fpath, name=name, is_label=False)
     else:  # assumed scalar overlay
-        tb_mat.create_vc_overlay(parent_ob, fpath, name=name)
+        nb_mat.create_vc_overlay(parent_ob, fpath, name=name)
 
 
 def import_surfaces_labelgroups(fpath, parent_ob, name=""):
@@ -1005,21 +1005,21 @@ def import_surfaces_labelgroups(fpath, parent_ob, name=""):
     """
 
     if fpath.endswith('.label'):
-        tb_mat.create_vg_overlay(parent_ob, fpath, name=name, is_label=True)
+        nb_mat.create_vg_overlay(parent_ob, fpath, name=name, is_label=True)
     elif (fpath.endswith('.annot') |
           fpath.endswith('.gii') |
           fpath.endswith('.border')):
-        tb_mat.create_vg_annot(parent_ob, fpath, name=name)
+        nb_mat.create_vg_annot(parent_ob, fpath, name=name)
         # TODO: figure out from gifti if it is annot or label
     else:  # assumed scalar overlay type with integer labels??
-        tb_mat.create_vc_overlay(parent_ob, fpath, name=name)
+        nb_mat.create_vc_overlay(parent_ob, fpath, name=name)
 
 
 def import_surfaces_bordergroups(fpath, parent_ob, name=""):
     """Import label overlay on surface object."""
 
     if fpath.endswith('.border'):
-        tb_mat.create_border_curves(parent_ob, fpath, name=name)
+        nb_mat.create_border_curves(parent_ob, fpath, name=name)
     else:
         print("Only Connectome Workbench .border files supported.")
 
@@ -1028,13 +1028,13 @@ def import_voxelvolumes_scalargroups(fpath, parent_ob, name=""):  # deprecated
     """Import a scalar overlay on a voxelvolume."""
 
     scn = bpy.context.scene
-    tb = scn.tb
+    nb = scn.nb
 
     # TODO: handle invalid selections
     # TODO: handle timeseries / groups
     sformfile = ""
-    tb_ob = tb_utils.active_tb_object()[0]
-    parentpath = tb_ob.path_from_id()
+    nb_ob = nb_utils.active_nb_object()[0]
+    parentpath = nb_ob.path_from_id()
 
     directory = os.path.dirname(fpath)  # TODO
     filenames = [os.path.basename(fpath)]
@@ -1049,12 +1049,12 @@ def import_voxelvolumes_labelgroups(fpath, parent_ob, name=""):  # deprecated
     """Import a labelgroup overlay on a voxelvolume."""
 
     scn = bpy.context.scene
-    tb = scn.tb
+    nb = scn.nb
 
     # TODO: handle invalid selections
     sformfile = ""
-    tb_ob, _ = tb_utils.active_tb_object()
-    parentpath = tb_ob.path_from_id()
+    nb_ob, _ = nb_utils.active_nb_object()
+    parentpath = nb_ob.path_from_id()
 
     directory = os.path.dirname(fpath)  # TODO
     filenames = [os.path.basename(fpath)]
@@ -1099,7 +1099,7 @@ def read_surfscalar(fpath):
     """Read a surface scalar overlay file."""
 
     scn = bpy.context.scene
-    tb = scn.tb
+    nb = scn.nb
 
     # TODO: handle what happens on importing multiple objects
     # TODO: read more formats: e.g. .dpv, .dpf, ...
@@ -1110,8 +1110,8 @@ def read_surfscalar(fpath):
         for k in npzfile:
             scalars.append(npzfile[k])
     elif fpath.endswith('.gii'):
-        nib = tb_utils.validate_nibabel('.gii')
-        if tb.nibabel_valid:
+        nib = nb_utils.validate_nibabel('.gii')
+        if nb.nibabel_valid:
             gio = nib.gifti.giftiio
             img = gio.read(fpath)
             scalars = []
@@ -1120,14 +1120,14 @@ def read_surfscalar(fpath):
             scalars = np.array(scalars)
     elif fpath.endswith('dscalar.nii'):
         # CIFTI not yet working properly: in nibabel?
-        nib = tb_utils.validate_nibabel('dscalar.nii')
-        if tb.nibabel_valid:
+        nib = nb_utils.validate_nibabel('dscalar.nii')
+        if nb.nibabel_valid:
             gio = nib.gifti.giftiio
             nii = gio.read(fpath)
             scalars = np.squeeze(nii.get_data())
     else:  # I will try to read it as a freesurfer binary
-        nib = tb_utils.validate_nibabel('')
-        if tb.nibabel_valid:
+        nib = nb_utils.validate_nibabel('')
+        if nb.nibabel_valid:
             fsio = nib.freesurfer.io
             scalars = fsio.read_morph_data(fpath)
         else:
@@ -1142,11 +1142,11 @@ def read_surflabel(fpath, is_label=False):
     """Read a surface label overlay file."""
 
     scn = bpy.context.scene
-    tb = scn.tb
+    nb = scn.nb
 
     if fpath.endswith('.label'):
-        nib = tb_utils.validate_nibabel('.label')
-        if tb.nibabel_valid:
+        nib = nb_utils.validate_nibabel('.label')
+        if nb.nibabel_valid:
             fsio = nib.freesurfer.io
             label, scalars = fsio.read_label(fpath, read_scalars=True)
         else:
@@ -1164,10 +1164,10 @@ def read_surfannot(fpath):
     """Read a surface annotation file."""
 
     scn = bpy.context.scene
-    tb = scn.tb
+    nb = scn.nb
 
-    nib = tb_utils.validate_nibabel('.annot')
-    if tb.nibabel_valid:
+    nib = nb_utils.validate_nibabel('.annot')
+    if nb.nibabel_valid:
         if fpath.endswith(".annot"):
             fsio = nib.freesurfer.io
             labels, ctab, bnames = fsio.read_annot(fpath, orig_ids=False)
@@ -1210,10 +1210,10 @@ def read_surfannot_freesurfer(fpath):
     """Read a .annot surface annotation file."""
 
     scn = bpy.context.scene
-    tb = scn.tb
+    nb = scn.nb
 
-    nib = tb_utils.validate_nibabel('.annot')
-    if tb.nibabel_valid:
+    nib = nb_utils.validate_nibabel('.annot')
+    if nb.nibabel_valid:
         fsio = nib.freesurfer.io
         labels, ctab, bnames = fsio.read_annot(fpath, orig_ids=False)
         names = [name.decode('utf-8') for name in bnames]
@@ -1226,10 +1226,10 @@ def read_surfannot_gifti(fpath):
     """Read a .gii surface annotation file."""
 
     scn = bpy.context.scene
-    tb = scn.tb
+    nb = scn.nb
 
-    nib = tb_utils.validate_nibabel('.annot')
-    if tb.nibabel_valid:
+    nib = nb_utils.validate_nibabel('.annot')
+    if nb.nibabel_valid:
         gio = nib.gifti.giftiio
         img = gio.read(fpath)
         img.labeltable.get_labels_as_dict()
@@ -1394,13 +1394,13 @@ def voxelvolume_box(ob=None, dims=[256, 256, 256], type="verts"):
 
 def add_tract_to_collection(name, fpath, sformfile,
                             nsamples, weed_tract, interpolate_streamlines):
-    """Add tract to the TractBlender collection."""
+    """Add tract to the NeuroBlender collection."""
 
     scn = bpy.context.scene
-    tb = scn.tb
-    tb.objecttype = 'tracts'
+    nb = scn.nb
+    nb.objecttype = 'tracts'
 
-    tract = tb.tracts.add()
+    tract = nb.tracts.add()
 
     tract.name = name
     tract.filepath = fpath
@@ -1409,35 +1409,35 @@ def add_tract_to_collection(name, fpath, sformfile,
     tract.tract_weeded = weed_tract
     tract.streamlines_interpolated = interpolate_streamlines
 
-    tb.index_tracts = (len(tb.tracts)-1)
+    nb.index_tracts = (len(nb.tracts)-1)
 
     return tract
 
 def add_surface_to_collection(name, fpath, sformfile):
-    """Add surface to the TractBlender collection."""
+    """Add surface to the NeuroBlender collection."""
 
     scn = bpy.context.scene
-    tb = scn.tb
-    tb.objecttype = 'surfaces'
+    nb = scn.nb
+    nb.objecttype = 'surfaces'
 
-    surface = tb.surfaces.add()
+    surface = nb.surfaces.add()
 
     surface.name = name
     surface.filepath = fpath
     surface.sformfile = sformfile
 
-    tb.index_surfaces = (len(tb.surfaces)-1)
+    nb.index_surfaces = (len(nb.surfaces)-1)
 
     return surface
 
 def add_voxelvolume_to_collection(name, fpath, sformfile, datarange, dims, texdir=""):
-    """Add voxelvolume to the TractBlender collection."""
+    """Add voxelvolume to the NeuroBlender collection."""
 
     scn = bpy.context.scene
-    tb = scn.tb
-    tb.objecttype = 'voxelvolumes'
+    nb = scn.nb
+    nb.objecttype = 'voxelvolumes'
 
-    vvol = tb.voxelvolumes.add()
+    vvol = nb.voxelvolumes.add()
 
     vvol.name = name
     vvol.filepath = fpath
@@ -1446,21 +1446,21 @@ def add_voxelvolume_to_collection(name, fpath, sformfile, datarange, dims, texdi
     vvol.dimensions = dims
     vvol.texdir = texdir
 
-    tb.index_voxelvolumes = (len(tb.voxelvolumes)-1)
+    nb.index_voxelvolumes = (len(nb.voxelvolumes)-1)
 
     return vvol
 
 def add_scalargroup_to_collection(name, fpath, scalarrange=[0, 1],
                                   dimensions=[0, 0, 0, 0], texdir=""):
-    """Add scalargroup to the TractBlender collection."""
+    """Add scalargroup to the NeuroBlender collection."""
 
-    tb_ob = tb_utils.active_tb_object()[0]
+    nb_ob = nb_utils.active_nb_object()[0]
 
     scn = bpy.context.scene
-    tb = scn.tb
-    tb.overlaytype = 'scalargroups'
+    nb = scn.nb
+    nb.overlaytype = 'scalargroups'
 
-    scalargroup = tb_ob.scalargroups.add()
+    scalargroup = nb_ob.scalargroups.add()
 
     scalargroup.name = name
     scalargroup.filepath = fpath
@@ -1468,24 +1468,24 @@ def add_scalargroup_to_collection(name, fpath, scalarrange=[0, 1],
     scalargroup.dimensions = dimensions
     scalargroup.texdir = texdir
 
-    tb_ob.index_scalargroups = (len(tb_ob.scalargroups)-1)
+    nb_ob.index_scalargroups = (len(nb_ob.scalargroups)-1)
 
     return scalargroup
 
 def add_scalar_to_collection(scalargroup, name, fpath, scalarrange, matname="", texname="", tex_idx=0):
-    """Add scalar to the TractBlender collection."""
+    """Add scalar to the NeuroBlender collection."""
 
-    tb_ob = tb_utils.active_tb_object()[0]
+    nb_ob = nb_utils.active_nb_object()[0]
 
     scn = bpy.context.scene
-    tb = scn.tb
+    nb = scn.nb
 
     if scalargroup:
-        tb.overlaytype = 'scalargroups'
+        nb.overlaytype = 'scalargroups'
         par = scalargroup
     else:
-        tb.overlaytype = 'scalars'
-        par = tb_ob
+        nb.overlaytype = 'scalars'
+        par = nb_ob
 
     scalar = par.scalars.add()
 
@@ -1502,32 +1502,32 @@ def add_scalar_to_collection(scalargroup, name, fpath, scalarrange, matname="", 
 
 def add_labelgroup_to_collection(name, fpath,
                                  dimensions=[0, 0, 0, 0], texdir=""):
-    """Add labelgroup to the TractBlender collection."""
+    """Add labelgroup to the NeuroBlender collection."""
 
-    tb_ob = tb_utils.active_tb_object()[0]
+    nb_ob = nb_utils.active_nb_object()[0]
 
     scn = bpy.context.scene
-    tb = scn.tb
-    tb.overlaytype = 'labelgroups'
+    nb = scn.nb
+    nb.overlaytype = 'labelgroups'
 
-    labelgroup = tb_ob.labelgroups.add()
+    labelgroup = nb_ob.labelgroups.add()
 
     labelgroup.name = name
     labelgroup.filepath = fpath
     labelgroup.dimensions = dimensions
     labelgroup.texdir = texdir
 
-    tb_ob.index_labelgroups = (len(tb_ob.labelgroups)-1)
+    nb_ob.index_labelgroups = (len(nb_ob.labelgroups)-1)
 
     return labelgroup
 
 
 def add_label_to_collection(labelgroup, name, value, colour):
-    """Add label to the TractBlender collection."""
+    """Add label to the NeuroBlender collection."""
 
     scn = bpy.context.scene
-    tb = scn.tb
-    tb.overlaytype = 'labelgroups'
+    nb = scn.nb
+    nb.overlaytype = 'labelgroups'
 
     label = labelgroup.labels.add()
 
@@ -1540,30 +1540,30 @@ def add_label_to_collection(labelgroup, name, value, colour):
     return label
 
 def add_bordergroup_to_collection(name, fpath):
-    """Add bordergroup to the TractBlender collection."""
+    """Add bordergroup to the NeuroBlender collection."""
 
-    tb_ob = tb_utils.active_tb_object()[0]
+    nb_ob = nb_utils.active_nb_object()[0]
 
     scn = bpy.context.scene
-    tb = scn.tb
-    tb.overlaytype = 'bordergroups'
+    nb = scn.nb
+    nb.overlaytype = 'bordergroups'
 
-    bordergroup = tb_ob.bordergroups.add()
+    bordergroup = nb_ob.bordergroups.add()
 
     bordergroup.name = name
     bordergroup.filepath = fpath
 
-    tb_ob.index_bordergroups = (len(tb_ob.bordergroups)-1)
+    nb_ob.index_bordergroups = (len(nb_ob.bordergroups)-1)
 
     return bordergroup
 
 
 def add_border_to_collection(name, bordergroup, colour):
-    """Add border to the TractBlender collection."""
+    """Add border to the NeuroBlender collection."""
 
     scn = bpy.context.scene
-    tb = scn.tb
-    tb.overlaytype = 'bordergroups'
+    nb = scn.nb
+    nb.overlaytype = 'bordergroups'
 
     border = bordergroup.borders.add()
 
@@ -1577,12 +1577,12 @@ def add_border_to_collection(name, bordergroup, colour):
 
 
 def add_light_to_collection(name, preset=None):
-    """Add animation to the TractBlender collection."""
+    """Add animation to the NeuroBlender collection."""
 
     scn = bpy.context.scene
-    tb = scn.tb
+    nb = scn.nb
     if preset is None:
-        preset = tb.presets[tb.index_presets]
+        preset = nb.presets[nb.index_presets]
 
     light = preset.lights.add()
 
@@ -1594,12 +1594,12 @@ def add_light_to_collection(name, preset=None):
 
 
 def add_animation_to_collection(name, preset=None, is_rendered=True):
-    """Add animation to the TractBlender collection."""
+    """Add animation to the NeuroBlender collection."""
 
     scn = bpy.context.scene
-    tb = scn.tb
+    nb = scn.nb
     if preset is None:
-        preset = tb.presets[tb.index_presets]
+        preset = nb.presets[nb.index_presets]
 
     animation = preset.animations.add()
 
@@ -1612,16 +1612,16 @@ def add_animation_to_collection(name, preset=None, is_rendered=True):
 
 
 def add_campath_to_collection(name):
-    """Add animation to the TractBlender collection."""
+    """Add animation to the NeuroBlender collection."""
 
     scn = bpy.context.scene
-    tb = scn.tb
+    nb = scn.nb
 
-    campath = tb.campaths.add()
+    campath = nb.campaths.add()
 
     campath.name = name
 
-    tb.index_campaths = (len(tb.campaths)-1)
+    nb.index_campaths = (len(nb.campaths)-1)
 
     return campath
 
@@ -1672,7 +1672,7 @@ def read_streamlines_npz(tckfile):
 def read_streamlines_dpy(dpyfile):
     """Return all streamlines in a dipy .dpy tract file (uses dipy)."""
 
-    if tb_utils.validate_dipy('.trk'):
+    if nb_utils.validate_dipy('.trk'):
         dpr = Dpy(dpyfile, 'r')  # FIXME
         streamlines = dpr.read_tracks()
         dpr.close()
@@ -1683,8 +1683,8 @@ def read_streamlines_dpy(dpyfile):
 def read_streamlines_trk(trkfile):
     """Return all streamlines in a Trackvis .trk tract file (uses nibabel)."""
 
-    nib = tb_utils.validate_nibabel('.trk')
-    if bpy.context.scene.tb.nibabel_valid:
+    nib = nb_utils.validate_nibabel('.trk')
+    if bpy.context.scene.nb.nibabel_valid:
         tv = nib.trackvis
         streams, hdr = tv.read(trkfile)
         streamlines = [s[0] for s in streams]
@@ -2027,9 +2027,9 @@ def read_surfaces_gii(fpath, name, sformfile):
     # TODO: multiple objects import
 
     scn = bpy.context.scene
-    tb = scn.tb
+    nb = scn.nb
 
-    nib = tb_utils.validate_nibabel('.gifti')
+    nib = nb_utils.validate_nibabel('.gifti')
 
     gio = nib.gifti.giftiio
     img = gio.read(fpath)
@@ -2053,9 +2053,9 @@ def read_surfaces_fs(fpath, name, sformfile):
     """Import a surface from a FreeSurfer file."""
 
     scn = bpy.context.scene
-    tb = scn.tb
+    nb = scn.nb
 
-    nib = tb_utils.validate_nibabel('.gifti')
+    nib = nb_utils.validate_nibabel('.gifti')
 
     fsio = nib.freesurfer.io
     verts, faces = fsio.read_geometry(fpath)
@@ -2102,17 +2102,17 @@ def read_affine_matrix(filepath, fieldname='stack'):
     """Get the affine transformation matrix from the nifti or textfile."""
 
     scn = bpy.context.scene
-    tb = scn.tb
+    nb = scn.nb
 
     if not filepath:
         affine = Matrix()
     elif (filepath.endswith('.nii') | filepath.endswith('.nii.gz')):
-        nib = tb_utils.validate_nibabel('nifti')
-        if tb.nibabel_valid:
+        nib = nb_utils.validate_nibabel('nifti')
+        if nb.nibabel_valid:
             affine = nib.load(filepath).header.get_sform()
     elif filepath.endswith('.gii'):
-        nib = tb_utils.validate_nibabel('gifti')
-        if tb.nibabel_valid:
+        nib = nb_utils.validate_nibabel('gifti')
+        if nb.nibabel_valid:
             gio = nib.gifti.giftiio
             img = gio.read(filepath)
             xform = img.darrays[0].coordsys.xform

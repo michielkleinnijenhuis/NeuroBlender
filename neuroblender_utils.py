@@ -87,56 +87,56 @@ def move_to_layer(ob, layer):
         ob.layers[i] = (i == layer)
 
 
-def active_tb_object():
+def active_nb_object():
     """Identify the active object in the ImportPanel UIList."""
 
-    tb = bpy.context.scene.tb
-    ob_idx = eval("tb.index_%s" % tb.objecttype)
-    tb_ob = eval("tb.%s[%d]" % (tb.objecttype, ob_idx))
+    nb = bpy.context.scene.nb
+    ob_idx = eval("nb.index_%s" % nb.objecttype)
+    nb_ob = eval("nb.%s[%d]" % (nb.objecttype, ob_idx))
 
-    return tb_ob, ob_idx
+    return nb_ob, ob_idx
 
 
-def active_tb_overlay():
+def active_nb_overlay():
     """Identify the active overlay in the ImportPanel UIList."""
 
-    tb = bpy.context.scene.tb
-    ob_idx = eval("tb.index_%s" % tb.objecttype)
-    tb_ob = eval("tb.%s[%d]" % (tb.objecttype, ob_idx))
+    nb = bpy.context.scene.nb
+    ob_idx = eval("nb.index_%s" % nb.objecttype)
+    nb_ob = eval("nb.%s[%d]" % (nb.objecttype, ob_idx))
 
-    ov_idx = eval("tb_ob.index_%s" % tb.overlaytype)
-    tb_ov = eval("tb_ob.%s[%d]" % (tb.overlaytype, ov_idx))
+    ov_idx = eval("nb_ob.index_%s" % nb.overlaytype)
+    nb_ov = eval("nb_ob.%s[%d]" % (nb.overlaytype, ov_idx))
 
-    return tb_ov, ov_idx
+    return nb_ov, ov_idx
 
 
-def active_tb_overlayitem():
+def active_nb_overlayitem():
     """Identify the active overlay item in the ImportPanel UIList."""
 
-    tb = bpy.context.scene.tb
-    ob_idx = eval("tb.index_%s" % tb.objecttype)
-    tb_ob = eval("tb.%s[%d]" % (tb.objecttype, ob_idx))
+    nb = bpy.context.scene.nb
+    ob_idx = eval("nb.index_%s" % nb.objecttype)
+    nb_ob = eval("nb.%s[%d]" % (nb.objecttype, ob_idx))
 
-    ov_idx = eval("tb_ob.index_%s" % tb.overlaytype)
-    tb_ov = eval("tb_ob.%s[%d]" % (tb.overlaytype, ov_idx))
+    ov_idx = eval("nb_ob.index_%s" % nb.overlaytype)
+    nb_ov = eval("nb_ob.%s[%d]" % (nb.overlaytype, ov_idx))
 
-    it_type = tb.overlaytype.replace("groups", "s")
-    it_idx = eval("tb_ov.index_%s" % it_type)
-    tb_it = eval("tb_ov.%s[%d]" % (it_type, it_idx))
+    it_type = nb.overlaytype.replace("groups", "s")
+    it_idx = eval("nb_ov.index_%s" % it_type)
+    nb_it = eval("nb_ov.%s[%d]" % (it_type, it_idx))
 
-    return tb_it, it_idx
+    return nb_it, it_idx
 
 
-def get_tb_objectinfo(objectname):
+def get_nb_objectinfo(objectname):
     """"""
 
     scn = bpy.context.scene
-    tb = scn.tb
+    nb = scn.nb
 
     obtypes = ["tracts", "surfaces", "voxelvolumes"]
-    idxs = [tb.tracts.find(parent),
-            tb.surfaces.find(parent),
-            tb.voxelvolumes.find(parent)]
+    idxs = [nb.tracts.find(parent),
+            nb.surfaces.find(parent),
+            nb.voxelvolumes.find(parent)]
     obinfo['name'] = parent
     obinfo['type'] = obtypes[[i>-1 for i in idxs].index(True)]
     obinfo['idx'] = idxs[[i>-1 for i in idxs].index(True)]
@@ -179,10 +179,10 @@ def force_save(projectdir):
 # #On startup blender scans the scripts/startup/ directory
 # #for python modules and imports them
 # #For persistent loading of nibabel at blender startup:
-# >>> cp <path-to-TractBlender-addon>/import_nibabel_startup.py \
+# >>> cp <path-to-NeuroBlender-addon>/import_nibabel_startup.py \
 # <path-to-blender-startup-scripts>
 # E.g. on Mac these path would usually be something like:
-# ~/Library/Application Support/Blender/<version>/scripts/addons/TractBlender/
+# ~/Library/Application Support/Blender/<version>/scripts/addons/NeuroBlender/
 # and
 # /Applications/blender.app/Contents/Resources/<version>/scripts/startup/
 # ========================================================================== #
@@ -192,15 +192,15 @@ def validate_nibabel(ext):
     """Try to import nibabel."""
 
     scn = bpy.context.scene
-    tb = scn.tb
+    nb = scn.nb
 
-    add_path(tb.nibabel_path)
+    add_path(nb.nibabel_path)
     try:
         import nibabel as nib
-        tb.nibabel_valid = True
+        nb.nibabel_valid = True
         return nib
     except ImportError:
-        tb.nibabel_valid = False
+        nb.nibabel_valid = False
         raise
 #         return {'cannot read ' + ext + ': nibabel not found'}
 
@@ -208,9 +208,9 @@ def validate_nibabel(ext):
 def validate_dipy(ext):
     """Try to import dipy."""
 
-    tb = bpy.context.scene.tb
+    nb = bpy.context.scene.nb
 
-    add_path(tb.nibabel_path)
+    add_path(nb.nibabel_path)
     try:
         import dipy
         valid = True
@@ -239,8 +239,8 @@ def mkdir_p(path):
             raise
 
 
-def validate_tb_objects(collections):
-    """Validate that TractBlender objects can be found in Blender."""
+def validate_nb_objects(collections):
+    """Validate that NeuroBlender objects can be found in Blender."""
 
     itemtype = "object"
     for collection in collections:
@@ -250,18 +250,18 @@ def validate_tb_objects(collections):
             except KeyError:
                 print("The " + itemtype + " '" + item.name +
                       "' seems to have been removed or renamed " +
-                      "outside of TractBlender")
+                      "outside of NeuroBlender")
                 item.is_valid = False
             else:
                 item.is_valid = True
                 # descend into the object's vertexgroups
-                validate_tb_overlays(ob,
+                validate_nb_overlays(ob,
                                      [sg.scalars for sg in item.scalargroups] +
                                      [lg.labels for lg in item.labelgroups])
 
 
-def validate_tb_overlays(ob, collections):
-    """Validate that a TractBlender vertexgroup can be found in Blender."""
+def validate_nb_overlays(ob, collections):
+    """Validate that a NeuroBlender vertexgroup can be found in Blender."""
 
     itemtype = "vertexgroup"
     for collection in collections:
@@ -271,7 +271,7 @@ def validate_tb_overlays(ob, collections):
             except KeyError:
                 print("The " + itemtype + " '" + item.name +
                       "' seems to have been removed or renamed " +
-                      "outside of TractBlender")
+                      "outside of NeuroBlender")
                 item.is_valid = False
             else:
                 item.is_valid = True
