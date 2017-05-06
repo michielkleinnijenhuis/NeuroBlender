@@ -333,22 +333,25 @@ def create_vc_overlay(ob, fpath, name="", is_label=False):
     ca = [tb_ob.scalargroups]  # TODO: all other scalargroups etc
     name = tb_utils.check_name(name, fpath, ca)
     texdir = "//uvtex_%s" % name
-    scalargroup = tb_imp.add_scalargroup_to_collection(name, fpath, 
-                                                       timeseriesrange,
-                                                       texdir=texdir)
-    vg = set_vertex_group(ob, name, scalars=np.mean(timeseries, axis=0))
+    props = {"name": name,
+             "filepath": fpath,
+             "range": timeseriesrange,
+             "texdir": texdir}
+    scalargroup = tb_utils.add_item(tb_ob, "scalargroups", props)
+
+    vg = set_vertex_group(ob, "%s.volmean" % name,
+                          scalars=np.mean(timeseries, axis=0))
     mat = map_to_vertexcolours(ob, scalargroup, [vg])
 
     if timeseries.shape[0] == 1:
         scalargroup.icon = "FORCE_CHARGE"
-        tb_ov = tb_imp.add_scalar_to_collection(scalargroup, name, fpath,
-                                                timeseriesrange)
-    else:
-        for i, scalars in enumerate(timeseries):
-            tpname = "%s.vol%04d" % (name, i)
-            vg = set_vertex_group(ob, tpname, scalars=scalars)
-            tb_ov = tb_imp.add_scalar_to_collection(scalargroup, tpname, fpath,
-                                                    timeseriesrange)
+    for i, scalars in enumerate(timeseries):
+        tpname = "%s.vol%04d" % (name, i)
+        vg = set_vertex_group(ob, tpname, scalars=scalars)
+        props = {"name": tpname,
+                 "filepath": fpath,
+                 "range": timeseriesrange}
+        tb_ov = tb_utils.add_item(scalargroup, "scalars", props)
 
     abstexdir = bpy.path.abspath(texdir)
     if os.path.isdir(abstexdir):
@@ -370,7 +373,9 @@ def create_vg_annot(ob, fpath, name=""):
     tb_ob = tb_utils.active_tb_object()[0]
     ca = [tb_ob.labelgroups]  # TODO: all other labelgroups
     groupname = tb_utils.check_name(name, fpath, ca)
-    labelgroup = tb_imp.add_labelgroup_to_collection(groupname, fpath)
+    props = {"name": groupname,
+             "filepath": fpath}
+    labelgroup = tb_utils.add_item(tb_ob, "labelgroups", props)
     mat = make_material_overlay_cycles(groupname, groupname,
                                        ob, labelgroup)
     set_materials(ob.data, mat)
@@ -402,7 +407,10 @@ def create_vg_annot(ob, fpath, name=""):
             mat = make_material_basic_cycles(name, diffcol, mix=0.05)
             new_mats.append(mat)
 
-            tb_imp.add_label_to_collection(labelgroup, name, value, diffcol)
+            props = {"name": name,
+                     "value": value,
+                     "colour": diffcol}
+            tb_utils.add_item(labelgroup, "labels", props)
 
         pl = ob.data.polygon_layers_int["pl"]
         set_materials_to_polygonlayers(ob, pl, new_mats)
@@ -428,7 +436,10 @@ def create_vg_annot(ob, fpath, name=""):
             mat = make_material_basic_cycles(name, diffcol, mix=0.05)
             new_mats.append(mat)
 
-            tb_imp.add_label_to_collection(labelgroup, name, value, diffcol)
+            props = {"name": name,
+                     "value": int(value),
+                     "colour": diffcol}
+            tb_utils.add_item(labelgroup, "labels", props)
 
         set_materials_to_vertexgroups(ob, new_vgs, new_mats)
 
@@ -443,7 +454,10 @@ def create_border_curves(ob, fpath, name=""):
     bordergroup_ob = bpy.data.objects.new(groupname, object_data=None)
     bpy.context.scene.objects.link(bordergroup_ob)
     bordergroup_ob.parent = ob
-    bordergroup = tb_imp.add_bordergroup_to_collection(groupname, fpath)
+    props = {"name": groupname,
+             "filepath": fpath}
+    tb_ob = tb_utils.active_tb_object()[0]  # FIXME
+    bordergroup = tb_utils.add_item(tb_ob, "bordergroups", props)
 
     for i, border in enumerate(borderlist):
 
@@ -458,7 +472,11 @@ def create_border_curves(ob, fpath, name=""):
         bevel_resolution = 10
         iterations = 10
         factor = 0.5
-        tb_imp.add_border_to_collection(name, bordergroup, diffcol)
+
+        props = {"name": name,
+                 "group": bordergroup.name,
+                 "colour": diffcol}
+        tb_utils.add_item(bordergroup, "borders", props)
 
         curve = bpy.data.curves.new(name=name, type='CURVE')
         curve.dimensions = '3D'
@@ -510,7 +528,10 @@ def create_vg_overlay(ob, fpath, name="", is_label=False, trans=1):
         vg = set_vertex_group(ob, name, label, scalars)
 
         scalargroup = []
-        tb_ov = tb_imp.add_scalar_to_collection(scalargroup, name, fpath, scalarrange)
+        props = {"name": name,
+                 "filepath": fpath,
+                 "range": scalarrange}
+        tb_ov = tb_utils.add_item(scalargroup, "scalars", props)
 
         map_to_vertexcolours(ob, tb_ov, [vg], is_label)
 
@@ -518,7 +539,9 @@ def create_vg_overlay(ob, fpath, name="", is_label=False, trans=1):
         tb_ob = tb_utils.active_tb_object()[0]
         ca = [tb_ob.labelgroups]  # TODO: checkagainst all other labelgroups
         groupname = tb_utils.check_name(name, fpath, ca)
-        labelgroup = tb_imp.add_labelgroup_to_collection(groupname, fpath)
+        props = {"name": name,
+                 "filepath": fpath}
+        labelgroup = tb_utils.add_item(tb_ob, "labelgroups", props)
 
         ca = [ob.vertex_groups,
               bpy.data.materials]
@@ -531,7 +554,10 @@ def create_vg_overlay(ob, fpath, name="", is_label=False, trans=1):
         mat = make_material_basic_cycles(name, diffcol, mix=0.05)
         set_materials_to_vertexgroups(ob, [vg], [mat])
 
-        tb_imp.add_label_to_collection(labelgroup, name, value, diffcol)
+        props = {"name": name,
+                 "value": value,
+                 "colour": diffcol}
+        tb_ov = tb_utils.add_item(labelgroup, "labels", props)
 
 
 def set_vertex_group(ob, name, label=None, scalars=None):

@@ -294,4 +294,7 @@ def add_item(parent, childpath, props):
         else:
             item[k] = v
 
+    if 'name' in props:
+        item.name_mem = props['name']
+
     return item

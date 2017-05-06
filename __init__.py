@@ -266,8 +266,11 @@ class TractBlenderBasePanel(Panel):
             row.prop(tb_ob, "texdir")
 
             row = layout.row()
-            row.prop(tb_ob, "range",
-                     text="Datarange", emboss=False)
+            row.prop(tb_ob, "texformat")
+            row.enabled = False
+
+            row = layout.row()
+            row.prop(tb_ob, "range", text="Datarange", emboss=False)
             row.enabled = False
 
     def drawunit_material(self, layout, tb_ob):
@@ -702,8 +705,6 @@ class ObjectListL1(UIList):
                      translate=False, icon=item_icon)
 
             if bpy.context.scene.tb.advanced:
-                # TODO: display Ntracts for tracts
-                # TODO: display range for voxelvolumes
                 col = layout.column()
                 col.alignment = "RIGHT"
                 col.active = item.is_rendered
@@ -732,8 +733,6 @@ class ObjectListL2(UIList):
                      translate=False, icon=item_icon)
 
             if bpy.context.scene.tb.advanced:
-                # TODO: display range for scalars
-                # TODO: display Nitems for groups
                 col = layout.column()
                 col.alignment = "RIGHT"
                 col.active = item.is_rendered
@@ -817,11 +816,12 @@ class ObjectListPL(UIList):
             col.prop(item, "name", text="", emboss=False,
                      translate=False, icon=item_icon)
 
-            col = layout.column()
-            col.alignment = "RIGHT"
-            col.active = item.is_rendered
-            col.prop(item, "is_rendered", text="", emboss=False,
-                     translate=False, icon='SCENE')
+            if bpy.context.scene.tb.advanced:
+                col = layout.column()
+                col.alignment = "RIGHT"
+                col.active = item.is_rendered
+                col.prop(item, "is_rendered", text="", emboss=False,
+                         translate=False, icon='SCENE')
 
         elif self.layout_type in {'GRID'}:
             layout.alignment = 'CENTER'
@@ -844,11 +844,12 @@ class ObjectListAN(UIList):
             col.prop(item, "name", text="", emboss=False,
                      translate=False, icon=item_icon)
 
-            col = layout.column()
-            col.alignment = "RIGHT"
-            col.active = item.is_rendered
-            col.prop(item, "is_rendered", text="", emboss=False,
-                     translate=False, icon='SCENE')
+            if bpy.context.scene.tb.advanced:
+                col = layout.column()
+                col.alignment = "RIGHT"
+                col.active = item.is_rendered
+                col.prop(item, "is_rendered", text="", emboss=False,
+                         translate=False, icon='SCENE')
 
         elif self.layout_type in {'GRID'}:
             layout.alignment = 'CENTER'
@@ -1221,9 +1222,10 @@ class ObjectListOperations(Operator):
     def remove_vertexcoll(self, coll, name):
         """Remove vertexgroup or vertex_color attribute"""
 
-        item = coll.get(name)
-        if item is not None:
-            coll.remove(item)
+        mstring = '{}.vol....'.format(name)
+        for item in coll:
+            if re.match(mstring, item.name) is not None:
+                coll.remove(item)
 
 
 class MassIsRenderedL1(Menu):
@@ -4230,12 +4232,139 @@ def update_viewport():
             area.tag_redraw()
 
 
+def update_name(self, context):
+    """Update the name of a NeuroBlender collection item."""
+
+    scn = context.scene
+    tb = scn.tb
+
+    def rename_voxelvolume(vvol):
+        colls = [bpy.data.objects,
+                 bpy.data.meshes,
+                 bpy.data.materials,
+                 bpy.data.textures,
+                 bpy.data.images]
+        bpy.data.objects[vvol.name_mem+"SliceBox"].name = vvol.name+"SliceBox"
+        return colls
+
+    def rename_group(coll, group):
+        for item in group:
+            if item.name.startswith(coll.name_mem):
+                item_split = item.name.split('.')
+                if len(item_split) > 1:  # FIXME: there can be multiple dots in name
+                    newname = '.'.join([coll.name, item_split[-1]])
+                else:
+                    newname = coll.name
+                item.name = newname
+
+    dp_split = re.findall(r"[\w']+", self.path_from_id())
+    colltype = dp_split[-2]
+
+    if colltype == "tracts":
+        colls = [bpy.data.objects,
+                 bpy.data.curves,
+                 bpy.data.materials]
+
+    elif colltype == "surfaces":
+        # NOTE/TODO: ref to sphere
+        colls = [bpy.data.objects,
+                 bpy.data.meshes,
+                 bpy.data.materials]
+
+    elif colltype == "voxelvolumes":
+        colls = rename_voxelvolume(self)
+
+    elif colltype == "scalargroups":
+        parent = '.'.join(self.path_from_id().split('.')[:-1])
+        parent_coll = eval(parent)
+        parent_ob = bpy.data.objects[parent_coll.name]
+        if parent.startswith("tb.tracts"):
+            # FIXME: make sure collection name and matnames agree in the first place!
+            rename_group(self, bpy.data.materials)
+            colls = []
+        elif parent.startswith("tb.surfaces"):
+            rename_group(self, parent_ob.vertex_groups)
+            colls = [bpy.data.materials]
+        elif parent.startswith("tb.voxelvolumes"):
+            colls = rename_voxelvolume(self)
+        rename_group(self, self.scalars)
+
+    elif colltype == "labelgroups":
+        parent = '.'.join(self.path_from_id().split('.')[:-1])
+        if parent.startswith("tb.tracts"):
+            colls = []  # N/A
+        elif parent.startswith("tb.surfaces"):
+            colls = [bpy.data.materials]
+        elif parent.startswith("tb.voxelvolumes"):
+            colls = rename_voxelvolume(self)
+
+    elif colltype == "bordergroups":
+        colls = [bpy.data.objects]
+
+    elif colltype == "scalars":
+        colls = []  # irrelevant: name not referenced
+
+    elif colltype == "labels":
+        parent = '.'.join(self.path_from_id().split('.')[:-2])
+        parent_coll = eval(parent)
+        parent_ob = bpy.data.objects[parent_coll.name]
+        if parent.startswith("tb.tracts"):
+            colls = []  # N/A
+        elif parent.startswith("tb.surfaces"):
+            vg = parent_ob.vertex_groups.get(self.name_mem)
+            vg.name = self.name
+            colls = [bpy.data.materials]
+        elif parent.startswith("tb.voxelvolumes"):
+            colls = []  # irrelevant: name not referenced
+
+    elif colltype == "borders":
+        colls = [bpy.data.objects,
+                 bpy.data.curves,
+                 bpy.data.materials]
+
+    elif colltype == "presets":
+        colls = [bpy.data.objects]
+
+    elif colltype == "cameras":  # not implemented via Panels
+        colls = [bpy.data.objects,
+                 bpy.data.cameras]  # animations?
+
+    elif colltype == "lights":
+        colls = [bpy.data.objects,
+                 bpy.data.lamps]
+
+    elif colltype == "tables":  # not implemented via Panels
+        colls = [bpy.data.objects,
+                 bpy.data.meshes,
+                 bpy.data.materials]
+
+    elif colltype == "lights":
+        colls = [bpy.data.objects,
+                 bpy.data.lamps]
+
+    elif colltype == "campaths":  # not implemented via Panels
+        colls = [bpy.data.objects,
+                 bpy.data.curves]  # FollowPath constraints
+
+    else:
+        colls = []
+
+    for coll in colls:
+        coll[self.name_mem].name = self.name
+
+    self.name_mem = self.name
+
+
 class ColorRampProperties(PropertyGroup):
     """Custom properties of color ramps."""
 
     name = StringProperty(
         name="Name",
-        description="The name of the color stop.")
+        description="The name of the color stop",
+        update=update_name)
+    name_mem = StringProperty(
+        name="NameMem",
+        description="Memory for updating name")
     nn_position = FloatProperty(
         name="nn_position",
         description="The non-normalized position of the color stop",
@@ -4248,7 +4377,11 @@ class ScalarProperties(PropertyGroup):
 
     name = StringProperty(
         name="Name",
-        description="The name of the scalar overlay")
+        description="The name of the scalar overlay",
+        update=update_name)
+    name_mem = StringProperty(
+        name="NameMem",
+        description="Memory for updating name")
     filepath = StringProperty(
         name="Filepath",
         description="The filepath to the scalar overlay",
@@ -4358,7 +4491,11 @@ class LabelProperties(PropertyGroup):
 
     name = StringProperty(
         name="Name",
-        description="The name of the label overlay")
+        description="The name of the label overlay",
+        update=update_name)
+    name_mem = StringProperty(
+        name="NameMem",
+        description="Memory for updating name")
     icon = StringProperty(
         name="Icon",
         description="Icon for label overlays",
@@ -4396,7 +4533,11 @@ class BorderProperties(PropertyGroup):
 
     name = StringProperty(
         name="Name",
-        description="The name of the border overlay")
+        description="The name of the border overlay",
+        update=update_name)
+    name_mem = StringProperty(
+        name="NameMem",
+        description="Memory for updating name")
     icon = StringProperty(
         name="Icon",
         description="Icon for border overlays",
@@ -4434,7 +4575,11 @@ class ScalarGroupProperties(PropertyGroup):
 
     name = StringProperty(
         name="Name",
-        description="The name of the time series overlay")
+        description="The name of the time series overlay",
+        update=update_name)
+    name_mem = StringProperty(
+        name="NameMem",
+        description="Memory for updating name")
     filepath = StringProperty(
         name="Filepath",
         description="The filepath to the time series overlay",
@@ -4621,7 +4766,11 @@ class LabelGroupProperties(PropertyGroup):
 
     name = StringProperty(
         name="Name",
-        description="The name of the label overlay")
+        description="The name of the label overlay",
+        update=update_name)
+    name_mem = StringProperty(
+        name="NameMem",
+        description="Memory for updating name")
     filepath = StringProperty(
         name="Filepath",
         description="The filepath to the label overlay",
@@ -4759,7 +4908,11 @@ class BorderGroupProperties(PropertyGroup):
 
     name = StringProperty(
         name="Name",
-        description="The name of the border overlay")
+        description="The name of the border overlay",
+        update=update_name)
+    name_mem = StringProperty(
+        name="NameMem",
+        description="Memory for updating name")
     filepath = StringProperty(
         name="Filepath",
         description="The filepath to the border overlay",
@@ -4810,7 +4963,10 @@ class TractProperties(PropertyGroup):
     name = StringProperty(
         name="Name",
         description="Specify a name for the tract (default: filename)",
-        default="")
+        update=update_name)
+    name_mem = StringProperty(
+        name="NameMem",
+        description="Memory for updating name")
     filepath = StringProperty(
         name="Filepath",
         description="The filepath to the tract",
@@ -4923,7 +5079,10 @@ class SurfaceProperties(PropertyGroup):
     name = StringProperty(
         name="Name",
         description="Specify a name for the surface (default: filename)",
-        default="")
+        update=update_name)
+    name_mem = StringProperty(
+        name="NameMem",
+        description="Memory for updating name")
     filepath = StringProperty(
         name="Filepath",
         description="The filepath to the surface",
@@ -5033,7 +5192,10 @@ class VoxelvolumeProperties(PropertyGroup):
     name = StringProperty(
         name="Name",
         description="Specify a name for the voxelvolume (default: filename)",
-        default="")
+        update=update_name)
+    name_mem = StringProperty(
+        name="NameMem",
+        description="Memory for updating name")
     filepath = StringProperty(
         name="Filepath",
         description="The filepath to the voxelvolume",
@@ -5267,7 +5429,10 @@ class CameraProperties(PropertyGroup):
     name = StringProperty(
         name="Name",
         description="Specify a name for the camera",
-        default="")
+        update=update_name)
+    name_mem = StringProperty(
+        name="NameMem",
+        description="Memory for updating name")
     icon = StringProperty(
         name="Icon",
         description="Icon for preset",
@@ -5329,7 +5494,10 @@ class LightsProperties(PropertyGroup):
     name = StringProperty(
         name="Name",
         description="Specify a name for the lights",
-        default="")
+        update=update_name)
+    name_mem = StringProperty(
+        name="NameMem",
+        description="Memory for updating name")
     icon = StringProperty(
         name="Icon",
         description="Icon for preset",
@@ -5382,7 +5550,10 @@ class TableProperties(PropertyGroup):
     name = StringProperty(
         name="Name",
         description="Specify a name for the table",
-        default="")
+        update=update_name)
+    name_mem = StringProperty(
+        name="NameMem",
+        description="Memory for updating name")
     icon = StringProperty(
         name="Icon",
         description="Icon for preset",
@@ -5433,7 +5604,10 @@ class AnimationProperties(PropertyGroup):
     name = StringProperty(
         name="Name",
         description="Specify a name for the animation",
-        default="")
+        update=update_name)
+    name_mem = StringProperty(
+        name="NameMem",
+        description="Memory for updating name")
     icon = StringProperty(
         name="Icon",
         description="Icon for animation",
@@ -5587,7 +5761,10 @@ class CamPathProperties(PropertyGroup):
     name = StringProperty(
         name="Name",
         description="Specify a name for the camera path",
-        default="")
+        update=update_name)
+    name_mem = StringProperty(
+        name="NameMem",
+        description="Memory for updating name")
     icon = StringProperty(
         name="Icon",
         description="Icon for camera path",
@@ -5618,7 +5795,10 @@ class PresetProperties(PropertyGroup):
     name = StringProperty(
         name="Name",
         description="Specify a name for the preset",
-        default="")
+        update=update_name)
+    name_mem = StringProperty(
+        name="NameMem",
+        description="Memory for updating name")
 #     filepath = StringProperty(
 #         name="Filepath",
 #         description="The filepath to the preset")
