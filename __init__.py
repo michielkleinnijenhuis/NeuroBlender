@@ -937,7 +937,7 @@ class ObjectListOperations(Operator):
         scn = context.scene
         tb = scn.tb
 
-        collection, data = self.get_collection(context)
+        collection, data, tb_ob = self.get_collection(context)
 
         try:
             item = collection[self.index]
@@ -953,7 +953,7 @@ class ObjectListOperations(Operator):
                 exec("%s.index_%s -= 1" % (data, self.type))
             elif self.action.startswith('REMOVE'):
                 info = ['removed %s' % (collection[self.index].name)]
-                info += self.remove_items(tb, data, collection)
+                info += self.remove_items(tb, data, collection, tb_ob)
                 self.report({'INFO'}, '; '.join(info))
 
         if self.type == "voxelvolumes":
@@ -1043,15 +1043,16 @@ class ObjectListOperations(Operator):
         if not self.name:
             self.name = collection[self.index].name
 
-        return collection, data
+        tb_ob = eval('.'.join(self.data_path.split('.')[:2]))
 
-    def remove_items(self, tb, data, collection):
+        return collection, data, tb_ob
+
+    def remove_items(self, tb, data, collection, tb_ob):
         """Remove items from NeuroBlender."""
 
         info = []
 
         name = collection[self.index].name
-        tb_ob, ob_idx = tb_utils.active_tb_object()  # FIXME: fails on CLI call
 
         if self.action.endswith('_L1'):
             try:
