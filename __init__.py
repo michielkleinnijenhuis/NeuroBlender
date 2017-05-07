@@ -2333,10 +2333,10 @@ class NeuroBlenderScenePanel(Panel):
             row = layout.row()
             row.separator()
 
-            self.drawunit_tri(layout, "bounds", nb, preset)
             self.drawunit_tri(layout, "cameras", nb, preset)
             self.drawunit_tri(layout, "lights", nb, preset)
             self.drawunit_tri(layout, "tables", nb, preset)
+            self.drawunit_tri(layout, "bounds", nb, preset)
 
         row = layout.row()
         row.separator()
