@@ -3500,19 +3500,32 @@ class MakeNibabelPersistent(Operator):
         scn = context.scene
         nb = scn.nb
 
-        addon_dir = os.path.dirname(__file__)
-        nb_dir = os.path.dirname(addon_dir)
-        scripts_dir = os.path.dirname(os.path.dirname(os.path.dirname(bpy.__file__)))
-        startup_dir = os.path.join(scripts_dir, 'startup')
+        nb_dir = os.path.dirname(__file__)
         basename = 'external_sitepackages'
-        nibdir_txt = os.path.join(startup_dir, basename + '.txt')
+
+        # install external_sitepackages.py add-on (included in NeuroBlender)
+        es_fpath = os.path.join(nb_dir, basename + '.py')
+        bpy.ops.wm.addon_install(filepath=es_fpath)
+
+        # write external site-packages path to file in addon directory
+        addon_dir = os.path.dirname(nb_dir)
+        scripts_dir = os.path.dirname(addon_dir)
+        nb_settings_dir = os.path.join(scripts_dir, 'presets', 'neuroblender')
+        nb_utils.mkdir_p(nb_settings_dir)
+        nibdir_txt = os.path.join(addon_dir, basename + '.txt')
         with open(nibdir_txt, 'w') as f:
             f.write(scn.nb.nibabel_path)
-        es_fpath = os.path.join(addon_dir, basename + '.py')
-        copy(es_fpath, startup_dir)
 
-        infostring = 'added nibabel path "%s" to startup "%s"'
-        info = [infostring % (scn.nb.nibabel_path, startup_dir)]
+        nibdir_txt = os.path.join(addon_dir, basename + '.txt')
+        with open(nibdir_txt, 'w') as f:
+            f.write(scn.nb.nibabel_path)
+
+        # enable external_sitepackages.py add-on
+        bpy.ops.wm.addon_enable(module=basename)
+
+        infostring = 'persistently added nibabel path {} to sys.path'
+        info = infostring.format(scn.nb.nibabel_path)
+        self.report({'INFO'}, info)
 
         return {"FINISHED"}
 
