@@ -605,7 +605,7 @@ def set_animations():
 
 
 def clear_camera_path_animations(cam, anims, delete_indices):
-    """Remove camera trajectory animations."""
+    """Remove all camera trajectory animations."""
 
     del_anims = [anim for i, anim in enumerate(anims) if i in delete_indices]
     cam_anims = [anim for i, anim in enumerate(anims)
@@ -614,11 +614,17 @@ def clear_camera_path_animations(cam, anims, delete_indices):
                      (i not in delete_indices))]
 
     for anim in del_anims:
-        clear_CP_evaltime(anim)
-        clear_CP_followpath(anim)
-        remove_CP_followpath(cam, anim)
+        clear_camera_path_animation(cam, anim)
 
     update_cam_constraints(cam, cam_anims)
+
+
+def clear_camera_path_animation(cam, anim):
+    """Remove a camera trajectory animation."""
+
+    clear_CP_evaltime(anim)
+    clear_CP_followpath(anim)
+    remove_CP_followpath(cam, anim)
 
 
 def clear_CP_evaltime(anim):

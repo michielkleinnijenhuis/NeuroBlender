@@ -977,20 +977,21 @@ class ObjectListOperations(Operator):
         scn = context.scene
         nb = scn.nb
 
-        nb_ob = nb_utils.active_nb_object()[0]
-
         if self.action.endswith('_L1'):
+            nb_ob = nb_utils.active_nb_object()[0]
             self.type = nb.objecttype
             self.name = nb_ob.name
             self.index = eval("nb.%s.find(self.name)" % self.type)
             self.data_path = nb_ob.path_from_id()
         elif self.action.endswith('_L2'):
+            nb_ob = nb_utils.active_nb_object()[0]
             nb_ov = nb_utils.active_nb_overlay()[0]
             self.type = nb.overlaytype
             self.name = nb_ov.name
             self.index = eval("nb_ob.%s.find(self.name)" % self.type)
             self.data_path = nb_ov.path_from_id()
         elif self.action.endswith('_L3'):
+            nb_ob = nb_utils.active_nb_object()[0]
             nb_ov = nb_utils.active_nb_overlay()[0]
             nb_it = nb_utils.active_nb_overlayitem()[0]
             self.type = nb.overlaytype.replace("groups", "s")
@@ -1087,10 +1088,11 @@ class ObjectListOperations(Operator):
             else:
                 bpy.data.objects.remove(ob)
         elif self.action.endswith('_AN'):
-            cam = bpy.data.objects['Cam']
-            preset = eval("nb.presets[%d]" % nb.index_presets)
-            nb_rp.clear_camera_path_animations(cam, preset.animations,
-                                               [self.index])
+            nb_preset = eval("nb.presets[%d]" % nb.index_presets)
+            anim = nb_preset.animations[nb_preset.index_animations]
+            fun = eval("self.remove_animations_%s" % 
+                       anim.animationtype.lower())
+            fun(nb_preset.animations, self.index)
         else:
             nb_ov, ov_idx = nb_utils.active_nb_overlay()
             ob = bpy.data.objects[nb_ob.name]
@@ -1242,6 +1244,29 @@ class ObjectListOperations(Operator):
                         if dp.index("nb.voxelvolumes[") == 0:
                             newpath = dp[:idx] + "%d" % i + dp[idx + 1:]
                             tar.data_path = dp[:idx] + "%d" % i + dp[idx + 1:]
+
+    def remove_animations_camerapath(self, anims, index):
+        """Remove camera path animation."""
+
+        cam = bpy.data.objects['Cam']
+        nb_rp.clear_camera_path_animation(cam, anims[index])
+        cam_anims = [anim for i, anim in enumerate(anims)
+                     if ((anim.animationtype == "CameraPath") &
+                         (anim.is_rendered) &
+                         (i != index))]
+        nb_rp.update_cam_constraints(cam, cam_anims)
+
+    def remove_animations_slices(self, anims, index):
+        """Remove slice animation."""
+
+        anim = anims[index]
+        vvol = bpy.data.objects[anim.anim_voxelvolume]
+        vvol.animation_data_clear()
+
+    def remove_animations_timeseries(self, anims, index):
+        """Remove timeseries animation."""
+
+        pass  # TODO
 
 
 class MassIsRenderedL1(Menu):
@@ -4123,19 +4148,13 @@ def campaths_enum_update(self, context):
     cam = bpy.data.objects[nb_preset.cameras[0].name]
     anim = nb_preset.animations[nb_preset.index_animations]
 
-    if anim.animationtype == "CameraPath":
-        # overkill?
+    if anim.animationtype == "CameraPath": # FIXME: overkill?
         cam_anims = [anim for anim in nb_preset.animations
                      if ((anim.animationtype == "CameraPath") &
                          (anim.is_rendered))]
         nb_rp.clear_camera_path_animations(cam, nb_preset.animations,
                                            [nb_preset.index_animations])
         nb_rp.create_camera_path_animations(cam, cam_anims)
-
-    # This adds Follow Path on the bottom of the constraint stack
-#     nb_rp.campath_animation(anim, cam)
-
-#     scn.frame_set(anim.frame_start)
 
 
 def tracktype_enum_update(self, context):
@@ -4168,8 +4187,6 @@ def tracktype_enum_update(self, context):
     else:
         cns.forward_axis = 'TRACK_NEGATIVE_Y'
         cns.up_axis = 'UP_Z'
-
-#     scn.frame_set(anim.frame_start)
 
 
 def direction_toggle_update(self, context):
