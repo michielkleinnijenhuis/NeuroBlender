@@ -1456,12 +1456,11 @@ class ImportTracts(Operator, ImportHelper):
                                type=OperatorFileListElement)
     filter_glob = StringProperty(
         options={"HIDDEN"},
-        default="""*.vtk;
-                   *.bfloat;*.Bfloat;*.bdouble;*.Bdouble;
-                   *.tck;
-                   *.trk;
-                   *.npy;*.npz;
-                   *.dpy""")
+        default="*.vtk;" +
+                "*.bfloat;*.Bfloat;*.bdouble;*.Bdouble;" +
+                "*.tck;*.trk;" +
+                "*.npy;*.npz;*.dpy")
+        # NOTE: multiline comment not working here
 
     name = StringProperty(
         name="Name",
@@ -1607,10 +1606,11 @@ class ImportSurfaces(Operator, ImportHelper):
                                type=OperatorFileListElement)
     filter_glob = StringProperty(
         options={"HIDDEN"},
-        default="""*.obj;*.stl;
-                   *.gii;
-                   *.white;*.pial;*.inflated;*.sphere;*.orig;
-                   *.blend""")
+        default="*.obj;*.stl;" +
+                "*.gii;" +
+                "*.white;*.pial;*.inflated;*.sphere;*.orig;" +
+                "*.blend")
+        # NOTE: multiline comment not working here
 
     name = StringProperty(
         name="Name",
@@ -1757,9 +1757,10 @@ class ImportVoxelvolumes(Operator, ImportHelper):
     files = CollectionProperty(name="Filepath", type=OperatorFileListElement)
     filter_glob = StringProperty(
         options={"HIDDEN"},
-        default="""*.nii;*.nii.gz;*.img;*.hdr;
-                   *.h5;
-                   *.png;*.jpg;*.tif;*.tiff;""")
+        default="*.nii;*.nii.gz;*.img;*.hdr;" +
+                "*.h5;" +
+                "*.png;*.jpg;*.tif;*.tiff;")
+        # NOTE: multiline comment not working here
 
     name = StringProperty(
         name="Name",
