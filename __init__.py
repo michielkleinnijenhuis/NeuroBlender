@@ -18,7 +18,18 @@
 
 # <pep8 compliant>
 
+
 # =========================================================================== #
+
+
+"""The NeuroBlender main module.
+
+NeuroBlender is a Blender add-on to create artwork from neuroscientific data.
+"""
+
+
+# =========================================================================== #
+
 
 import bpy
 
@@ -63,9 +74,7 @@ bl_info = {
     "version": (0, 0, 6),
     "blender": (2, 78, 4),
     "location": "Properties -> Scene -> NeuroBlender",
-    "description": """"
-        This add-on focusses on visualising MRI data.
-        """,
+    "description": "Create artwork from neuroscientific data.",
     "warning": "",
     "wiki_url": "",
     "tracker_url": "",
@@ -944,30 +953,20 @@ class ObjectListOperations(Operator):
         except IndexError:
             pass
         else:
-            if (self.action.startswith('DOWN') and
+            if self.action.startswith('REMOVE'):
+                info = ['removed %s' % (collection[self.index].name)]
+                info += self.remove_items(nb, data, collection, nb_ob)
+                self.report({'INFO'}, '; '.join(info))
+            elif (self.action.startswith('DOWN') and
                 self.index < len(collection) - 1):
                 collection.move(self.index, self.index + 1)
                 exec("%s.index_%s += 1" % (data, self.type))
             elif self.action.startswith('UP') and self.index >= 1:
                 collection.move(self.index, self.index - 1)
                 exec("%s.index_%s -= 1" % (data, self.type))
-            elif self.action.startswith('REMOVE'):
-                info = ['removed %s' % (collection[self.index].name)]
-                info += self.remove_items(nb, data, collection, nb_ob)
-                self.report({'INFO'}, '; '.join(info))
 
         if self.type == "voxelvolumes":
-            # TODO: update the index to nb.voxelvolumes in all drivers
-            for i, vvol in enumerate(nb.voxelvolumes):
-                slicebox = bpy.data.objects[vvol.name+"SliceBox"]
-                for dr in slicebox.animation_data.drivers:
-                    for var in dr.driver.variables:
-                        for tar in var.targets:
-                            dp = tar.data_path
-                            idx = 16
-                            if dp.index("nb.voxelvolumes[") == 0:
-                                newpath = dp[:idx] + "%d" % i + dp[idx + 1:]
-                                tar.data_path = dp[:idx] + "%d" % i + dp[idx + 1:]
+            self.update_voxelvolume_drivers(nb)
 
         return {"FINISHED"}
 
@@ -1228,6 +1227,20 @@ class ObjectListOperations(Operator):
             if re.match(mstring, item.name) is not None:
                 coll.remove(item)
 
+    def update_voxelvolume_drivers(self, nb):
+        """Update the data path in the drivers of voxelvolumes slicers."""
+
+        for i, vvol in enumerate(nb.voxelvolumes):
+            slicebox = bpy.data.objects[vvol.name+"SliceBox"]
+            for dr in slicebox.animation_data.drivers:
+                for var in dr.driver.variables:
+                    for tar in var.targets:
+                        dp = tar.data_path
+                        idx = 16
+                        if dp.index("nb.voxelvolumes[") == 0:
+                            newpath = dp[:idx] + "%d" % i + dp[idx + 1:]
+                            tar.data_path = dp[:idx] + "%d" % i + dp[idx + 1:]
+
 
 class MassIsRenderedL1(Menu):
     bl_idname = "nb.mass_is_rendered_L1"
@@ -1415,8 +1428,12 @@ class ImportTracts(Operator, ImportHelper):
                                type=OperatorFileListElement)
     filter_glob = StringProperty(
         options={"HIDDEN"},
-        default="*.vtk;*.bfloat;*.Bfloat;*.bdouble;*.Bdouble;" +
-                "*.tck;*.trk;*.npy;*.npz;*.dpy")
+        default="""*.vtk;
+                   *.bfloat;*.Bfloat;*.bdouble;*.Bdouble;
+                   *.tck;
+                   *.trk;
+                   *.npy;*.npz;
+                   *.dpy""")
 
     name = StringProperty(
         name="Name",
@@ -1562,7 +1579,10 @@ class ImportSurfaces(Operator, ImportHelper):
                                type=OperatorFileListElement)
     filter_glob = StringProperty(
         options={"HIDDEN"},
-        default="*.obj;*.stl;*.gii;*.white;*.pial;*.inflated;*.sphere;*.orig;*.blend")
+        default="""*.obj;*.stl;
+                   *.gii;
+                   *.white;*.pial;*.inflated;*.sphere;*.orig;
+                   *.blend""")
 
     name = StringProperty(
         name="Name",
@@ -1640,21 +1660,30 @@ class ImportSurfaces(Operator, ImportHelper):
 
 
 def file_update(self, context):
-    ca = [bpy.data.meshes, bpy.data.materials, bpy.data.textures]
+    """Set the voxelvolume name according to the selected file."""
+
+    ca = [bpy.data.meshes,
+          bpy.data.materials,
+          bpy.data.textures]
     self.name = nb_utils.check_name(self.files[0].name, "", ca)
 
 
 def name_update(self, context):
+    """Set the texture directory to the voxelvolume name."""
+
     self.texdir = "//voltex_%s" % self.name
 
 
 def texdir_update(self, context):
+    """Evaluate if a valid texture directory exists."""
+
     self.has_valid_texdir = nb_imp.check_texdir(self.texdir,
                                                 self.texformat,
                                                 overwrite=False)
 
 
 def is_overlay_update(self, context):
+    """Switch the parentpath base/overlay."""
 
     if self.is_overlay:
         try:
@@ -1698,10 +1727,11 @@ class ImportVoxelvolumes(Operator, ImportHelper):
 
     directory = StringProperty(subtype="FILE_PATH")
     files = CollectionProperty(name="Filepath", type=OperatorFileListElement)
-#     files = CollectionProperty(type=ImportFilesCollection)
     filter_glob = StringProperty(
         options={"HIDDEN"},
-        default="*.nii;*.nii.gz;*.img;*.hdr;*.h5;*.png;*.jpg;*.tif;*.tiff;")
+        default="""*.nii;*.nii.gz;*.img;*.hdr;
+                   *.h5;
+                   *.png;*.jpg;*.tif;*.tiff;""")
 
     name = StringProperty(
         name="Name",
@@ -1792,7 +1822,8 @@ class ImportVoxelvolumes(Operator, ImportHelper):
         # FIXME: solve with update function
         if self.name_mode == "filename":
             voltexdir = [s for s in self.directory.split('/')
-                         if "voltex_" in s]  # FIXME: generalize to other namings
+                         if "voltex_" in s]
+              # FIXME: generalize to other namings
             if voltexdir:
                 self.name = voltexdir[0][7:]
             else:
@@ -1807,14 +1838,9 @@ class ImportVoxelvolumes(Operator, ImportHelper):
         row = layout.row()
         row.prop(self, "name")
 
-        try:
-            name = self.files[0].name
-        except:
-            pass
-        else:
-            if name.endswith('.h5'):
-                row = layout.row()
-                row.prop(self, "dataset", expand=False)
+        if self.files[0].name.endswith('.h5'):
+            row = layout.row()
+            row.prop(self, "dataset", expand=False)
 
         row = layout.row()
         row.prop(self, "vol_idx")
@@ -2848,7 +2874,8 @@ class NeuroBlenderAnimationPanel(Panel):
 
                 row = layout.row()
                 col = row.column()
-                col.prop(anim, "reverse", toggle=True, icon="ARROW_LEFTRIGHT", icon_only=True)
+                col.prop(anim, "reverse", toggle=True,
+                         icon="ARROW_LEFTRIGHT", icon_only=True)
                 col = row.column()
                 col.prop(anim, "campaths_enum", expand=False, text="")
                 col = row.column()
@@ -2878,7 +2905,8 @@ class NeuroBlenderAnimationPanel(Panel):
 
                 row = layout.row()
                 col = row.column()
-                col.prop(anim, "anim_voxelvolume", expand=False, text="Voxelvolume")
+                col.prop(anim, "anim_voxelvolume",
+                         expand=False, text="Voxelvolume")
                 col = row.column()
                 col.operator("nb.del_campath", icon='ZOOMOUT', text="")
                 col.enabled = False
@@ -2906,10 +2934,12 @@ class NeuroBlenderAnimationPanel(Panel):
 
                 row = layout.row()
                 col = row.column()
-                col.prop(anim, "timeseries_object", expand=False, text="Object")
+                col.prop(anim, "timeseries_object", expand=False,
+                         text="Object")
                 row = layout.row()
                 col = row.column()
-                col.prop(anim, "anim_timeseries", expand=False, text="Time series")
+                col.prop(anim, "anim_timeseries", expand=False,
+                         text="Time series")
 
                 sgs = nb_rp.find_ts_scalargroups(anim)
                 sg = sgs[anim.anim_timeseries]
@@ -3507,7 +3537,8 @@ class SaveBlend(Operator, ExportHelper):
     bl_options = {"REGISTER"}
 
     directory = StringProperty(subtype="FILE_PATH")
-    files = CollectionProperty(name="Filepath", type=OperatorFileListElement)
+    files = CollectionProperty(name="Filepath",
+                               type=OperatorFileListElement)
     filename_ext = StringProperty(subtype="NONE")
 
     def execute(self, context):
@@ -3535,6 +3566,7 @@ class Reload(Operator):
     path = StringProperty(
         name="path",
         description="The path to the NeuroBlender zip file",
+        # FIXME: remove hardcoded path
         default="/Users/michielk/workspace/NeuroBlender/NeuroBlender.zip")
 
     def execute(self, context):
@@ -3600,7 +3632,8 @@ def slices_update(self, context):
     ob.scale = self.slicethickness
 
     try:
-        scalar = self.scalars[self.index_scalars]  # FIXME: should this be scalargroups?
+        # FIXME: should this be scalargroups?
+        scalar = self.scalars[self.index_scalars]
     except:
         matname = self.name
         mat = bpy.data.materials[matname]
@@ -3655,8 +3688,10 @@ def rendertype_enum_update(self, context):
                     ts.offset = [0, 0, 0]
             elif mat.type == 'SURFACE':
                 for idx in range(0, 3):
-                    nb_imp.voxelvolume_slice_drivers_surface(self, ts, idx, "scale")
-                    nb_imp.voxelvolume_slice_drivers_surface(self, ts, idx, "offset")
+                    nb_imp.voxelvolume_slice_drivers_surface(self, ts,
+                                                              idx, "scale")
+                    nb_imp.voxelvolume_slice_drivers_surface(self, ts,
+                                                             idx, "offset")
 
 
 # FIXME: excessive to remove/add these drivers at every frame;
@@ -3677,7 +3712,8 @@ def rendertype_enum_handler(dummy):
         for labelgroup in vvol.labelgroups:
             rendertype_enum_update(labelgroup, bpy.context)
 
-bpy.app.handlers.frame_change_pre.append(rendertype_enum_handler)  # does this need to be post?
+bpy.app.handlers.frame_change_pre.append(rendertype_enum_handler)
+# does this need to be post?
 
 
 def is_yoked_bool_update(self, context):
@@ -3789,7 +3825,8 @@ def index_scalars_handler_func(dummy):
                     # FIXME: more flexible indexing
 
                 elif sg.path_from_id().startswith("nb.voxelvolumes"):
-                    index_scalars_update_vvolscalar_func(sg, scalar, nb.texmethod)
+                    index_scalars_update_vvolscalar_func(sg, scalar,
+                                                         nb.texmethod)
 
 
 bpy.app.handlers.frame_change_pre.append(index_scalars_handler_func)
@@ -3854,10 +3891,12 @@ def index_scalars_update_func(group=None):
                     splname = name + '_spl' + str(i).zfill(8)
                     spline.material_index = ob.material_slots.find(splname)
 
-        if group.path_from_id().startswith("nb.voxelvolumes"):  # FIXME: used texture slots
+        # FIXME: used texture slots
+        if group.path_from_id().startswith("nb.voxelvolumes"):
             if hasattr(group, 'scalars'):
 
-                index_scalars_update_vvolscalar_func(group, scalar, nb.texmethod)
+                index_scalars_update_vvolscalar_func(group, scalar,
+                                                     nb.texmethod)
 
 
 def index_scalars_update_vvolscalar_func(group, scalar, method=1):
@@ -4099,7 +4138,8 @@ def tracktype_enum_update(self, context):
     cnsTT = cam.constraints["TrackToCentre"]
     nb_rp.restrict_incluence_timeline(scn, cnsTT, timeline, group="TrackTo")
 
-    cns = cam.constraints["FollowPath" + anim.campaths_enum]  # TODO: if not yet executed/exists
+    # TODO: if not yet executed/exists
+    cns = cam.constraints["FollowPath" + anim.campaths_enum]
     cns.use_curve_follow = anim.tracktype == "TrackPath"
     if anim.tracktype == 'TrackPath':
         cns.forward_axis = 'TRACK_NEGATIVE_Z'
@@ -4208,7 +4248,9 @@ def timeseries_object_enum_callback(self, context):
     nb = scn.nb
 
     nb_obs = ["%s: %s" % (l, ob.name)
-              for l, coll in zip(['T', 'S', 'V'], [nb.tracts, nb.surfaces, nb.voxelvolumes])
+              for l, coll in zip(['T', 'S', 'V'], [nb.tracts,
+                                                   nb.surfaces,
+                                                   nb.voxelvolumes])
               for ob in coll if len(ob.scalargroups)]
     items = [(obname, obname, "List the objects", i)
              for i, obname in enumerate(nb_obs)]
@@ -4252,7 +4294,8 @@ def update_name(self, context):
         for item in group:
             if item.name.startswith(coll.name_mem):
                 item_split = item.name.split('.')
-                if len(item_split) > 1:  # FIXME: there can be multiple dots in name
+                # FIXME: there can be multiple dots in name
+                if len(item_split) > 1:
                     newname = '.'.join([coll.name, item_split[-1]])
                 else:
                     newname = coll.name
@@ -4280,7 +4323,7 @@ def update_name(self, context):
         parent_coll = eval(parent)
         parent_ob = bpy.data.objects[parent_coll.name]
         if parent.startswith("nb.tracts"):
-            # FIXME: make sure collection name and matnames agree in the first place!
+            # FIXME: make sure collection name and matnames agree!
             rename_group(self, bpy.data.materials)
             colls = []
         elif parent.startswith("nb.surfaces"):
@@ -5932,7 +5975,7 @@ class NeuroBlenderProperties(PropertyGroup):
         name="nibabel valid",
         description="Indicates whether nibabel has been detected",
         default=nib_valid)
-    nibabel_path = StringProperty(
+    nibabel_path = StringProperty(  # TODO: change to esp_path
         name="nibabel path",
         description=""""
             The path to the site-packages directory

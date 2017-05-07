@@ -18,27 +18,42 @@
 
 # <pep8 compliant>
 
-# ========================================================================== #
+
+# =========================================================================== #
+
+
+"""The NeuroBlender beautify functionality.
+
+This module's functions can be called to enhance the appearance
+of the objects loaded in with NeuroBlender.
+"""
+
+
+# =========================================================================== #
+
 
 import bpy
 
-# ========================================================================== #
-# geometry enhancements
-# ========================================================================== #
-
+# =========================================================================== #
 
 def beautify_brain(ob, importtype, beautify, argdict):
     """Beautify the object."""
 
     if beautify:
         try:
-            info = eval("beautify_%s(ob, argdict)" % importtype)
+            if importtype == 'tracts':
+                beautify_tracts(ob, argdict)
+            elif importtype == 'surfaces':
+                beautify_surfaces(ob, argdict)
+            elif importtype == 'voxelvolumes':
+                beautify_voxelvolumes(ob, argdict)
         except AttributeError:
             info = "no %s to beautify" % importtype
     else:
         info = "no beautification"
 
     return info
+
 
 def beautify_tracts(ob, argdict={"mode": "FULL",
                                  "depth": 0.5,
@@ -50,7 +65,7 @@ def beautify_tracts(ob, argdict={"mode": "FULL",
     ob.data.bevel_resolution = argdict["res"]
 
     info = "bevel: mode=%s; depth=%.3f; resolution=%3d" \
-           % (argdict["mode"], argdict["depth"], argdict["res"])
+            % (argdict["mode"], argdict["depth"], argdict["res"])
 
     return info
 
@@ -70,8 +85,8 @@ def beautify_surfaces(ob, argdict={"iterations": 10,
     mod.use_z = argdict["use_z"]
 
     info = "smooth: iterations=%3d; factor=%.3f; use_xyz=%s %s %s" \
-           % (argdict["iterations"], argdict["factor"], 
-              argdict["use_x"], argdict["use_y"], argdict["use_z"])
+            % (argdict["iterations"], argdict["factor"],
+               argdict["use_x"], argdict["use_y"], argdict["use_z"])
 
     return info
 
