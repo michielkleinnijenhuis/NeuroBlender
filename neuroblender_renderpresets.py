@@ -83,7 +83,8 @@ def scene_preset_init(name):
 
     camprops = {"name": "Cam",
                 "cam_view": [2.88675, 2.88675, 2.88675],
-                "cam_distance": 5}
+                "cam_distance": 5,
+                "trackobject": "Centre"}
     cam = create_camera(preset, centre, box, camprops)
     camprops["name"] = cam.name
 
@@ -131,6 +132,7 @@ def scene_preset_init(name):
                    "dims": dims, "box": box.name, "lightsempty": lights.name}
     nb_preset = nb_utils.add_item(nb, "presets", presetprops)
     nb_utils.add_item(nb_preset, "cameras", camprops)
+    nb_preset.cameras[0].trackobject = "Centre"  # force update function
     for lightprops in [lp_key, lp_fill, lp_back]:
         nb_utils.add_item(nb_preset, "lights", lightprops)
     nb_utils.add_item(nb_preset, "tables", tableprops)

@@ -2426,7 +2426,37 @@ class NeuroBlenderScenePanel(Panel):
             col = split.column(align=True)
             col.prop(cam_ob, "location", index=-1)
 
-            # consider more choices of camera properties (lens, clip, trackto)
+            row = layout.row()
+            row.separator()
+
+            row = layout.row()
+
+            split = row.split(percentage=0.55)
+            col = split.column(align=True)
+            col.label(text="Track object:")
+            col.prop(cam, "trackobject", text="")
+            if cam.trackobject == "None":
+                col.prop(cam_ob, "rotation_euler", index=2, text="tumble")
+
+            split = split.split(percentage=0.1)
+            col = split.column()
+            col.separator()
+
+            camdata = cam_ob.data
+            col = split.column(align=True)
+            col.label(text="Clipping:")
+            col.prop(camdata, "clip_start", text="Start")
+            col.prop(camdata, "clip_end", text="End")
+
+#             split = layout.split(percentage=0.66)
+# 
+#             camdata = cam_ob.data
+#             row = split.row(align=True)
+#             row.prop(camdata, "clip_start")
+#             row.prop(camdata, "clip_end")
+# 
+#             if cam.trackobject == "None":
+#                 split.prop(cam_ob, "rotation_euler", index=2, text="tumble")
 
     def drawunit_tri_lights(self, layout, nb, preset):
 
@@ -4333,6 +4363,37 @@ def texture_directory_update(self, context):
         pass  # TODO
 
 
+def trackobject_enum_callback(self, context):
+    """Populate the enum based on available options."""
+
+    items = [(ob.name, ob.name, "List all objects", i+1)
+             for i, ob in enumerate(bpy.data.objects)]
+    items.insert(0, ("None", "None", "None", 0))
+
+    return items
+
+
+def trackobject_enum_update(self, context):
+    """Update the camera."""
+
+    # TODO: evaluate against animations
+    scn = context.scene
+    nb = scn.nb
+
+    preset = nb.presets[nb.index_presets]
+    cam = bpy.data.objects[self.name]
+    cns = cam.constraints["TrackToCentre"]
+    if self.trackobject == "None":
+        cns.mute = True
+    else:
+        try:
+            cns.mute = False
+            cns.target = bpy.data.objects[self.trackobject]
+        except KeyError:
+            infostring = "Object {} not found: disabling tracking"
+            print(infostring.format(self.trackobject))
+
+
 def update_viewport():
     """Trigger viewport updates"""
 
@@ -5596,6 +5657,12 @@ class CameraProperties(PropertyGroup):
         default=5,
         min=0,
         update=cam_view_enum_XX_update)
+
+    trackobject = EnumProperty(
+        name="Track object",
+        description="Choose an object to track with the camera",
+        items=trackobject_enum_callback,
+        update=trackobject_enum_update)
 
 
 class LightsProperties(PropertyGroup):
