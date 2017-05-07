@@ -186,29 +186,39 @@ class NeuroBlenderBasePanel(Panel):
             icon = 'TRIA_RIGHT'
         row.prop(nb, prop, icon=icon, emboss=False)
 
+    def drawunit_tri_unwrap(self, layout, nb, nb_ob):
+
+        self.drawunit_unwrap(layout, nb_ob)
+
+    def drawunit_unwrap(self, layout, nb_ob):
+
+        row = layout.row()
+        row.prop(nb_ob, "sphere", text="")
+        row = layout.row()
+        row.operator("nb.unwrap_surface", text="Unwrap from sphere")
+
         row = layout.row()
         row.separator()
 
-    def drawunit_tri_transform(self, layout, nb, nb_ob):
+    def drawunit_tri_slices(self, layout, nb, nb_ob):
+
+        self.drawunit_slices(layout, nb_ob)
+
+    def drawunit_slices(self, layout, nb_ob, is_yoked=False):
 
         row = layout.row()
-        row.prop(nb_ob, "sformfile", text="")
+        col = row.column()
+        col.prop(nb_ob, "slicethickness", expand=True, text="Thickness")
+        col.enabled = not is_yoked
+        col = row.column()
+        col.prop(nb_ob, "sliceposition", expand=True, text="Position")
+        col.enabled = not is_yoked
+        col = row.column()
+        col.prop(nb_ob, "sliceangle", expand=True, text="Angle")
+        col.enabled = not is_yoked
 
-        if bpy.context.scene.nb.advanced:
-            ob = bpy.data.objects[nb_ob.name]
-            mw = ob.matrix_world
-            txts = ["srow_%s  %8.3f %8.3f %8.3f %8.3f" % (dim,
-                        mw[i][0], mw[i][1], mw[i][2], mw[i][3])
-                    for i, dim in enumerate('xyz')]
-            row = layout.row()
-            row.enabled = False
-            row.label(text=txts[0])
-            row = layout.row()
-            row.enabled = False
-            row.label(text=txts[1])
-            row = layout.row()
-            row.enabled = False
-            row.label(text=txts[2])
+        row = layout.row()
+        row.separator()
 
     def drawunit_tri_material(self, layout, nb, nb_ob):
 
@@ -222,67 +232,6 @@ class NeuroBlenderBasePanel(Panel):
         else:
 
             self.drawunit_material(layout, nb_ob)
-
-    def drawunit_rendertype(self, layout, nb_ob):
-
-        row = layout.row()
-        row.prop(nb_ob, "rendertype", expand=True)
-
-        row = layout.row()
-        row.separator()
-
-        if nb_ob.rendertype == "SURFACE":
-            mat = bpy.data.materials[nb_ob.name]
-            row = layout.row()
-            row.prop(mat, "alpha", text="SliceBox alpha")
-            # NOTE: more fun stuff under Material => Transparency
-
-    def drawunit_tri_unwrap(self, layout, nb, nb_ob):
-
-        self.drawunit_unwrap(layout, nb_ob)
-
-    def drawunit_tri_slices(self, layout, nb, nb_ob):
-
-        self.drawunit_slices(layout, nb_ob)
-
-    def drawunit_tri_info(self, layout, nb, nb_ob):
-
-        row = layout.row()
-        row.prop(nb_ob, "filepath")
-        row.enabled = False
-
-        if nb.objecttype == "tracts":
-
-            row = layout.row()
-            row.prop(nb_ob, "nstreamlines",
-                     text="Number of streamlines", emboss=False)
-            row.enabled = False
-
-            row = layout.row()
-            row.prop(nb_ob, "streamlines_interpolated",
-                     text="Interpolation factor", emboss=False)
-            row.enabled = False
-
-            row = layout.row()
-            row.prop(nb_ob, "tract_weeded",
-                     text="Tract weeding factor", emboss=False)
-            row.enabled = False
-
-        elif nb.objecttype == 'surfaces':
-            pass
-
-        elif nb.objecttype == 'voxelvolumes':
-
-            row = layout.row()
-            row.prop(nb_ob, "texdir")
-
-            row = layout.row()
-            row.prop(nb_ob, "texformat")
-            row.enabled = False
-
-            row = layout.row()
-            row.prop(nb_ob, "range", text="Datarange", emboss=False)
-            row.enabled = False
 
     def drawunit_material(self, layout, nb_ob):
 
@@ -302,6 +251,9 @@ class NeuroBlenderBasePanel(Panel):
             row.separator()
 
             self.drawunit_basic_cycles(layout, nb_ob)
+
+        row = layout.row()
+        row.separator()
 
     def drawunit_basic_blender(self, layout, nb_ob):
 
@@ -382,6 +334,8 @@ class NeuroBlenderBasePanel(Panel):
             ts = mat.texture_slots.get(nb_coll.name)
             row.prop(ts, "color")
 
+        row = layout.row()
+        row.separator()
 
     def drawunit_colourramp(self, layout, ramp, nb_coll=None, text=""):
 
@@ -447,28 +401,84 @@ class NeuroBlenderBasePanel(Panel):
             el.name = "colour stop " + str(i)
             el.nn_position = els[i].position * drange + dmin
 
-    def drawunit_slices(self, layout, nb_ob, is_yoked=False):
+    def drawunit_rendertype(self, layout, nb_ob):
 
         row = layout.row()
-        col = row.column()
-        col.prop(nb_ob, "slicethickness", expand=True, text="Thickness")
-        col.enabled = not is_yoked
-        col = row.column()
-        col.prop(nb_ob, "sliceposition", expand=True, text="Position")
-        col.enabled = not is_yoked
-        col = row.column()
-        col.prop(nb_ob, "sliceangle", expand=True, text="Angle")
-        col.enabled = not is_yoked
-
-    def drawunit_unwrap(self, layout, nb_ob):
+        row.prop(nb_ob, "rendertype", expand=True)
 
         row = layout.row()
         row.separator()
 
+        if nb_ob.rendertype == "SURFACE":
+            mat = bpy.data.materials[nb_ob.name]
+            row = layout.row()
+            row.prop(mat, "alpha", text="SliceBox alpha")
+            # NOTE: more fun stuff under Material => Transparency
+
+    def drawunit_tri_transform(self, layout, nb, nb_ob):
+
         row = layout.row()
-        row.prop(nb_ob, "sphere", text="")
+        row.prop(nb_ob, "sformfile", text="")
+
+        if bpy.context.scene.nb.advanced:
+            ob = bpy.data.objects[nb_ob.name]
+            mw = ob.matrix_world
+            txts = ["srow_%s  %8.3f %8.3f %8.3f %8.3f" % (dim,
+                        mw[i][0], mw[i][1], mw[i][2], mw[i][3])
+                    for i, dim in enumerate('xyz')]
+            row = layout.row()
+            row.enabled = False
+            row.label(text=txts[0])
+            row = layout.row()
+            row.enabled = False
+            row.label(text=txts[1])
+            row = layout.row()
+            row.enabled = False
+            row.label(text=txts[2])
+
+    def drawunit_tri_info(self, layout, nb, nb_ob):
+
         row = layout.row()
-        row.operator("nb.unwrap_surface", text="Unwrap from sphere")
+        row.prop(nb_ob, "filepath")
+        row.enabled = False
+
+        funstring = 'self.drawunit_info_{}(layout, nb, nb_ob)'
+        fun = funstring.format(nb.objecttype)
+        eval(fun)
+
+    def drawunit_info_tracts(self, layout, nb, nb_ob):
+
+        row = layout.row()
+        row.prop(nb_ob, "nstreamlines",
+                 text="Number of streamlines", emboss=False)
+        row.enabled = False
+
+        row = layout.row()
+        row.prop(nb_ob, "streamlines_interpolated",
+                 text="Interpolation factor", emboss=False)
+        row.enabled = False
+
+        row = layout.row()
+        row.prop(nb_ob, "tract_weeded",
+                 text="Tract weeding factor", emboss=False)
+        row.enabled = False
+
+    def drawunit_info_surfaces(self, layout, nb, nb_ob):
+
+        pass
+
+    def drawunit_info_voxelvolumes(self, layout, nb, nb_ob):
+
+        row = layout.row()
+        row.prop(nb_ob, "texdir")
+
+        row = layout.row()
+        row.prop(nb_ob, "texformat")
+        row.enabled = False
+
+        row = layout.row()
+        row.prop(nb_ob, "range", text="Datarange", emboss=False)
+        row.enabled = False
 
 
 class NeuroBlenderOverlayPanel(Panel):
