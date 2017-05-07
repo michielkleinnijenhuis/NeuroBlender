@@ -414,19 +414,9 @@ class NeuroBlenderBasePanel(Panel):
 
         if bpy.context.scene.nb.advanced:
             ob = bpy.data.objects[nb_ob.name]
-            mw = ob.matrix_world
-            txts = ["srow_%s  %8.3f %8.3f %8.3f %8.3f" % (dim,
-                        mw[i][0], mw[i][1], mw[i][2], mw[i][3])
-                    for i, dim in enumerate('xyz')]
             row = layout.row()
-            row.enabled = False
-            row.label(text=txts[0])
-            row = layout.row()
-            row.enabled = False
-            row.label(text=txts[1])
-            row = layout.row()
-            row.enabled = False
-            row.label(text=txts[2])
+            col = row.column()
+            col.prop(ob, "matrix_world")
 
     def drawunit_tri_info(self, layout, nb, nb_ob):
 
