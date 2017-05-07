@@ -50,8 +50,10 @@ from bpy.props import (BoolProperty,
                        IntProperty,
                        IntVectorProperty,
                        PointerProperty)
+from bl_operators.presets import AddPresetBase
 
 import os
+import sys
 from shutil import copy
 import numpy as np
 import mathutils
@@ -3443,91 +3445,96 @@ class NeuroBlenderSettingsPanel(Panel):
 
     def draw_nb_panel(self, layout, nb):
 
+        row = layout.row(align=True)
+        row.menu(OBJECT_MT_setting_presets.__name__,
+                 text=OBJECT_MT_setting_presets.bl_label)
+        row.operator(AddPresetSettingsDraw.bl_idname,
+                     text="", icon='ZOOMIN')
+        row.operator(AddPresetSettingsDraw.bl_idname,
+                     text="", icon='ZOOMOUT').remove_active = True
+
         row = layout.row()
-        row.prop(nb, "mode")
-        self.draw_nibabel(layout, nb)
-        row = layout.row()
-        row.prop(nb, "verbose")
-        row = layout.row()
-        row.prop(nb, "uv_resolution")
-        row = layout.row()
-        row.prop(nb, "texformat")
+        row.separator()
 
         row = layout.row()
         row.prop(nb, "projectdir")
 
         row = layout.row()
+        row.separator()
+
+        row = layout.row()
+        row.prop(nb, "esp_path")
+
+        row = layout.row()
+        row.separator()
+
+        row = layout.row()
+        row.prop(nb, "mode", expand=True)
+
+        row = layout.row()
+        row.separator()
+
+        row = layout.row()
+        row.prop(nb, "engine", expand=True)
+
+        row = layout.row()
+        row.separator()
+
+        box = layout.box()
+        row = box.row()
+        row.prop(nb, "texformat")
+        row = box.row()
         row.prop(nb, "texmethod")
+        row = box.row()
+        row.prop(nb, "uv_resolution")
 
         row = layout.row()
-        row.prop(nb, "engine")
+        row.separator()
 
         row = layout.row()
-        row.prop(nb, "advanced")
+        row.prop(nb, "advanced", toggle=True,
+                 text="Expanded options")
+
+        row = layout.row()
+        row.separator()
+
+        row = layout.row()
+        row.prop(nb, "verbose", toggle=True,
+                 text="Verbose reporting")
+
+        row = layout.row()
+        row.separator()
 
         row = layout.row()
         row.operator("nb.reload",
                      text="Reload NeuroBlender",
                      icon="RECOVER_LAST")
-        # TODO: etc
-
-    def draw_nibabel(self, layout, nb):
-
-        box = layout.box()
-        row = box.row()
-        row.prop(nb, "nibabel_use")
-        if nb.nibabel_use:
-            row.prop(nb, "nibabel_path")
-            row = box.row()
-            col = row.column()
-            col.prop(nb, "nibabel_valid")
-            col.enabled = False
-            col = row.column()
-            col.operator("nb.make_nibabel_persistent",
-                         text="Make persistent",
-                         icon="LOCKED")
-            col.enabled = nb.nibabel_valid
 
 
-class MakeNibabelPersistent(Operator):
-    bl_idname = "nb.make_nibabel_persistent"
-    bl_label = "Make nibabel persistent"
-    bl_description = "Add script to /scripts/startup/ that loads shadow-python"
-    bl_options = {"REGISTER"}
+# https://docs.blender.org/api/blender_python_api_2_77_0/bpy.types.Menu.html
+class OBJECT_MT_setting_presets(Menu):
+    bl_label = "Setting Presets"
+    preset_subdir = "neuroblender"
+    preset_operator = "script.execute_preset"
+    draw = Menu.draw_preset
 
-    def execute(self, context):
 
-        scn = context.scene
-        nb = scn.nb
+class AddPresetSettingsDraw(AddPresetBase, Operator):
+    bl_idname = "nb.setting_presets"
+    bl_label = "NeuroBlender setting presets"
+    preset_menu = "OBJECT_MT_setting_presets"
 
-        nb_dir = os.path.dirname(__file__)
-        basename = 'external_sitepackages'
-
-        # install external_sitepackages.py add-on (included in NeuroBlender)
-        es_fpath = os.path.join(nb_dir, basename + '.py')
-        bpy.ops.wm.addon_install(filepath=es_fpath)
-
-        # write external site-packages path to file in addon directory
-        addon_dir = os.path.dirname(nb_dir)
-        scripts_dir = os.path.dirname(addon_dir)
-        nb_settings_dir = os.path.join(scripts_dir, 'presets', 'neuroblender')
-        nb_utils.mkdir_p(nb_settings_dir)
-        nibdir_txt = os.path.join(addon_dir, basename + '.txt')
-        with open(nibdir_txt, 'w') as f:
-            f.write(scn.nb.nibabel_path)
-
-        nibdir_txt = os.path.join(addon_dir, basename + '.txt')
-        with open(nibdir_txt, 'w') as f:
-            f.write(scn.nb.nibabel_path)
-
-        # enable external_sitepackages.py add-on
-        bpy.ops.wm.addon_enable(module=basename)
-
-        infostring = 'persistently added nibabel path {} to sys.path'
-        info = infostring.format(scn.nb.nibabel_path)
-        self.report({'INFO'}, info)
-
-        return {"FINISHED"}
+    preset_defines = ["scn = bpy.context.scene"]
+    preset_values = ["scn.nb.projectdir",
+                     "scn.nb.esp_path",
+                     "scn.nb.mode",
+                     "scn.nb.engine",
+                     "scn.nb.texformat",
+                     "scn.nb.texmethod",
+                     "scn.nb.uv_resolution",
+                     "scn.nb.advanced",
+                     "scn.nb.verbose"]
+    preset_subdir = "neuroblender"
 
 
 class SwitchToMainScene(Operator):
@@ -3619,10 +3626,10 @@ def engine_driver():
                      scn, "render.engine")
 
 
-def nibabel_path_update(self, context):
-    """Check whether nibabel can be imported."""
+def esp_path_update(self, context):
+    """Add external site-packages path to sys.path."""
 
-    nb_utils.validate_nibabel("")
+    nb_utils.add_path(self.esp_path)
 
 
 def sformfile_update(self, context):
@@ -5955,22 +5962,45 @@ class PresetProperties(PropertyGroup):
 class NeuroBlenderProperties(PropertyGroup):
     """Properties for the NeuroBlender panel."""
 
-    try:
-        import nibabel as nib
-        nib_valid = True
-        nib_path = os.path.dirname(os.path.dirname(nib.__file__))
-    except:
-        nib_valid = False
-        nib_path = ""
-
     is_enabled = BoolProperty(
         name="Show/hide NeuroBlender",
         description="Show/hide the NeuroBlender panel contents",
         default=True)
-    verbose = BoolProperty(
-        name="Verbose",
-        description="Verbose reporting",
-        default=False)
+
+    projectdir = StringProperty(
+        name="Project directory",
+        description="The path to the NeuroBlender project",
+        subtype="DIR_PATH",
+        default=os.path.expanduser('~'))
+
+    try:
+        import nibabel as nib
+        nib_valid = True
+        nib_dir = os.path.dirname(nib.__file__)
+        esp_path = os.path.dirname(nib_dir)
+    except:
+        nib_valid = False
+        esp_path = ""
+
+    nibabel_valid = BoolProperty(
+        name="nibabel valid",
+        description="Indicates whether nibabel has been detected",
+        default=nib_valid)
+    esp_path = StringProperty(
+        name="External site-packages",
+        description=""""
+            The path to the site-packages directory
+            of an equivalent python version with nibabel installed
+            e.g. using:
+            >>> conda create --name blender python=3.5.1
+            >>> source activate blender
+            >>> pip install git+git://github.com/nipy/nibabel.git@master
+            on Mac this would be the directory:
+            <conda root dir>/envs/blender/lib/python3.5/site-packages
+            """,
+        default=esp_path,
+        subtype="DIR_PATH",
+        update=esp_path_update)
 
     mode = EnumProperty(
         name="mode",
@@ -5980,29 +6010,47 @@ class NeuroBlenderProperties(PropertyGroup):
         default="artistic",
         update=mode_enum_update)
 
-    nibabel_use = BoolProperty(
-        name="use nibabel",
-        description="Use nibabel to import nifti and gifti",
+    engine = EnumProperty(
+        name="engine",
+        description="""Engine to use for rendering""",
+        items=[("BLENDER_RENDER", "Blender Render",
+                "Blender Render: required for voxelvolumes", 0),
+#                ("BLENDER_GAME", "Blender Game", "Blender Game", 1),
+               ("CYCLES", "Cycles Render",
+                "Cycles Render: required for most overlays", 2)],
+        update=engine_update)
+
+    texformat = EnumProperty(
+        name="Volume texture file format",
+        description="Choose a format to save volume textures",
+        default="IMAGE_SEQUENCE",
+        items=[("IMAGE_SEQUENCE", "IMAGE_SEQUENCE", "IMAGE_SEQUENCE", 0),
+               ("STRIP", "STRIP", "STRIP", 1),
+               ("RAW_8BIT", "RAW_8BIT", "RAW_8BIT", 2)])
+    texmethod = IntProperty(
+        name="texmethod",
+        description="",
+        default=1,
+        min=1, max=4)
+    uv_resolution = IntProperty(
+        name="utexture resolution",
+        description="the resolution of baked textures",
+        default=4096,
+        min=1)
+    uv_bakeall = BoolProperty(
+        name="Bake all",
+        description="Bake single or all scalars in a group",
         default=True)
-    nibabel_valid = BoolProperty(
-        name="nibabel valid",
-        description="Indicates whether nibabel has been detected",
-        default=nib_valid)
-    nibabel_path = StringProperty(  # TODO: change to esp_path
-        name="nibabel path",
-        description=""""
-            The path to the site-packages directory
-            of an equivalent python version with nibabel installed
-            e.g. using:
-            >>> conda create --name blender2.77 python=3.5.1
-            >>> source activate blender2.77
-            >>> pip install git+git://github.com/nipy/nibabel.git@master
-            on Mac this would be the directory:
-            <conda root dir>/envs/blender2.77/lib/python3.5/site-packages
-            """,
-        default=nib_path,
-        subtype="DIR_PATH",
-        update=nibabel_path_update)
+
+    advanced = BoolProperty(
+        name="Advanced mode",
+        description="Advanced NeuroBlender layout",
+        default=False)
+
+    verbose = BoolProperty(
+        name="Verbose",
+        description="Verbose reporting",
+        default=False)
 
     show_transform = BoolProperty(
         name="Transform",
@@ -6154,47 +6202,6 @@ class NeuroBlenderProperties(PropertyGroup):
         description="switch between overlay types",
         items=overlay_enum_callback)
 
-    uv_resolution = IntProperty(
-        name="utexture resolution",
-        description="the resolution of baked textures",
-        default=4096,
-        min=1)
-    uv_bakeall = BoolProperty(
-        name="Bake all",
-        description="Bake single or all scalars in a group",
-        default=True)
-    texformat = EnumProperty(
-        name="Volume texture file format",
-        description="Choose a format to save volume textures",
-        default="IMAGE_SEQUENCE",
-        items=[("IMAGE_SEQUENCE", "IMAGE_SEQUENCE", "IMAGE_SEQUENCE", 0),
-               ("STRIP", "STRIP", "STRIP", 1),
-               ("RAW_8BIT", "RAW_8BIT", "RAW_8BIT", 2)])
-
-    projectdir = StringProperty(
-        name="Project directory",
-        description="The path to the NeuroBlender project",
-        subtype="DIR_PATH",
-        default=os.path.expanduser('~'))
-
-    texmethod = IntProperty(
-        name="texmethod",
-        description="",
-        default=1,
-        min=1, max=4)
-
-    engine = EnumProperty(
-        name="engine",
-        description="Engine to use for rendering:",
-        items=[("BLENDER_RENDER", "Blender Render", "Blender Render", 0),
-               ("BLENDER_GAME", "Blender Game", "Blender Game", 1),
-               ("CYCLES", "Cycles Render", "Cycles Render", 2)],
-        update=engine_update)
-
-    advanced = BoolProperty(
-        name="Advanced mode",
-        description="Advanced NeuroBlender layout",
-        default=False)
 
 # @persistent
 # def projectdir_update(dummy):

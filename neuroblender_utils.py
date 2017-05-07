@@ -194,7 +194,7 @@ def validate_nibabel(ext):
     scn = bpy.context.scene
     nb = scn.nb
 
-    add_path(nb.nibabel_path)
+    add_path(nb.esp_path)
     try:
         import nibabel as nib
         nb.nibabel_valid = True
@@ -210,7 +210,7 @@ def validate_dipy(ext):
 
     nb = bpy.context.scene.nb
 
-    add_path(nb.nibabel_path)
+    add_path(nb.esp_path)
     try:
         import dipy
         valid = True
