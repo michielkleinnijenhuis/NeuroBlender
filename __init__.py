@@ -875,9 +875,8 @@ class ObjectListCP(UIList):
         item_icon = "CANCEL"
         if self.layout_type in {'DEFAULT', 'COMPACT'}:
 
-            col = layout.column()
-            col.prop(item, "co", text="co", emboss=True,
-                     translate=False, icon=item_icon)
+            row = layout.row()
+            row.prop(item, "co", text="cp", emboss=True, icon=item_icon)
 
         elif self.layout_type in {'GRID'}:
             layout.alignment = 'CENTER'
@@ -2355,7 +2354,6 @@ class NeuroBlenderScenePanel(Panel):
             self.drawunit_tri(layout, "cameras", nb, preset)
             self.drawunit_tri(layout, "lights", nb, preset)
             self.drawunit_tri(layout, "tables", nb, preset)
-#             self.drawunit_tri(layout, "animations", nb, preset)
 
         row = layout.row()
         row.separator()
@@ -2407,7 +2405,8 @@ class NeuroBlenderScenePanel(Panel):
 
             row = layout.row()
 
-            col = row.column()
+            split = row.split(percentage=0.55)
+            col = split.column(align=True)
             col.label("Quick camera view:")
             row1 = col.row()
             row1.prop(cam, "cam_view_enum_LR", expand=True)
@@ -2418,14 +2417,12 @@ class NeuroBlenderScenePanel(Panel):
 
             col.prop(cam, "cam_distance", text="distance")
 
-            col = row.column()
-            col.label("")
-            row1 = col.row()
-            row1.prop(cam_ob, "location", index=0, text="X")
-            row1 = col.row()
-            row1.prop(cam_ob, "location", index=1, text="Y")
-            row1 = col.row()
-            row1.prop(cam_ob, "location", index=2, text="Z")
+            split = split.split(percentage=0.1)
+            col = split.column()
+            col.separator()
+
+            col = split.column(align=True)
+            col.prop(cam_ob, "location", index=-1)
 
             # consider more choices of camera properties (lens, clip, trackto)
 
@@ -2483,7 +2480,7 @@ class NeuroBlenderScenePanel(Panel):
 class ResetPresetCentre(Operator):
     bl_idname = "nb.reset_presetcentre"
     bl_label = "Reset preset centre"
-    bl_description = "Revert changes preset to preset centre"
+    bl_description = "Revert location changes to preset centre"
     bl_options = {"REGISTER"}
 
     def execute(self, context):
@@ -2845,35 +2842,24 @@ class NeuroBlenderAnimationPanel(Panel):
             self.drawunit_animations(layout, nb, preset)
 
         row = layout.row()
-        row.separator()
-        obs = [ob for ob in bpy.data.objects
-               if ob.type not in ["CAMERA", "LAMP", "EMPTY"]]
-        sobs = bpy.context.selected_objects
-        row = layout.row()
         row.operator("nb.set_animations",
                      text="Set animations",
                      icon="RENDER_ANIMATION")
 
     def drawunit_animations(self, layout, nb, preset):
 
-        row = layout.row()
-        # consider preset.frame_start and frame_end (min frame_start=1)
+        row = layout.row(align=True)
         row.prop(bpy.context.scene, "frame_start")
         row.prop(bpy.context.scene, "frame_end")
 
         row = layout.row()
         self.drawunit_UIList(layout, "AN", preset, "animations")
 
-        if len(preset.animations) > 0:
-
-            row = layout.row()
-            row.separator()
-
+        try:
             anim = preset.animations[preset.index_animations]
-
-            row = layout.row()
-            row.prop(anim, "name")
-
+        except IndexError:
+            pass
+        else:
             row = layout.row()
             row.separator()
 
@@ -2883,97 +2869,78 @@ class NeuroBlenderAnimationPanel(Panel):
             row = layout.row()
             row.separator()
 
-            row = layout.row()
-            row.prop(anim, "frame_start")
-            row.prop(anim, "frame_end")
-            row = layout.row()
-            row.prop(anim, "repetitions")
-            row.prop(anim, "offset")
+            self.drawunit_tri(layout, "timings", nb, preset)
 
-            row = layout.row()
-            row.separator()
+#             funstring = 'self.drawunit_tri(layout, "anim{}", nb, preset)'
+            funstring = 'self.drawunit_animation_{}(layout, nb, preset)'
+            fun = funstring.format(anim.animationtype.lower())
+            eval(fun)
 
-            if anim.animationtype == "CameraPath":
+    def drawunit_tri_timings(self, layout, nb, preset):
 
-                row = layout.row()
+        self.drawunit_animation_timings(layout, nb, preset)
 
-                row.label("Camera path:")
+    def drawunit_animation_timings(self, layout, nb, preset):
 
-                row = layout.row()
-                col = row.column()
-                col.prop(anim, "reverse", toggle=True,
-                         icon="ARROW_LEFTRIGHT", icon_only=True)
-                col = row.column()
-                col.prop(anim, "campaths_enum", expand=False, text="")
-                col = row.column()
-                col.operator("nb.del_campath", icon='ZOOMOUT', text="")
-                col.enabled = True
+        anim = preset.animations[preset.index_animations]
 
-                self.drawunit_tri(layout, "points", nb, anim)
+        row = layout.row(align=True)
+        row.prop(anim, "frame_start")
+        row.prop(anim, "frame_end")
 
-                self.drawunit_tri(layout, "newpath", nb, anim)
+        row = layout.row(align=True)
+        row.prop(anim, "repetitions")
+        row.prop(anim, "offset")
 
-                row = layout.row()
-                row.separator()
+    def drawunit_animation_camerapath(self, layout, nb, preset):
 
-                row = layout.row()
-                row.label("Camera tracking:")
-                row = layout.row()
-                row.prop(anim, "tracktype", expand=True)
-                nb_cam = preset.cameras[0]
-                cam_ob = bpy.data.objects[nb_cam.name]
-                row = layout.row()
-                row.prop(cam_ob, "rotation_euler", index=2, text="tumble")
-                cam = bpy.data.cameras[nb_cam.name]
-                row.prop(cam, "clip_start")
-                row.prop(cam, "clip_end")
+        self.drawunit_tri(layout, "camerapath", nb, preset)
+        self.drawunit_tri(layout, "tracking", nb, preset)
 
-            elif anim.animationtype == "Slices":
+    def drawunit_tri_camerapath(self, layout, nb, preset):
 
-                row = layout.row()
-                col = row.column()
-                col.prop(anim, "anim_voxelvolume",
-                         expand=False, text="Voxelvolume")
-                col = row.column()
-                col.operator("nb.del_campath", icon='ZOOMOUT', text="")
-                col.enabled = False
+        self.drawunit_camerapath(layout, nb, preset)
 
-                row = layout.row()
-                row.separator()
+    def drawunit_camerapath(self, layout, nb, preset):
 
-                row = layout.row()
-                row.prop(anim, "sliceproperty", expand=True)
+        anim = preset.animations[preset.index_animations]
+# 
+        row = layout.row()
+        col = row.column()
+        col.prop(anim, "reverse", toggle=True,
+                 icon="ARROW_LEFTRIGHT", icon_only=True)
+        col = row.column()
+        col.prop(anim, "campaths_enum", expand=False, text="")
+        col = row.column()
+        col.operator("nb.del_campath", icon='ZOOMOUT', text="")
+        col.enabled = True
 
-                row = layout.row()
-                row.separator()
+        box = layout.box()
+        self.drawunit_tri(box, "newpath", nb, anim)
+        if anim.campaths_enum:
+            self.drawunit_tri(box, "points", nb, anim)
 
-                row = layout.row()
-                row.prop(anim, "reverse", toggle=True)
+    def drawunit_tri_tracking(self, layout, nb, preset):
 
-                row = layout.row()
-                row.separator()
+        self.drawunit_tracking(layout, nb, preset)
 
-                row = layout.row()
-                row.prop(anim, "axis", expand=True)
+    def drawunit_tracking(self, layout, nb, preset):
 
+        anim = preset.animations[preset.index_animations]
 
-            elif anim.animationtype == "TimeSeries":
+        nb_cam = preset.cameras[0]
+        cam_ob = bpy.data.objects[nb_cam.name]
+        cam = bpy.data.cameras[nb_cam.name]
 
-                row = layout.row()
-                col = row.column()
-                col.prop(anim, "timeseries_object", expand=False,
-                         text="Object")
-                row = layout.row()
-                col = row.column()
-                col.prop(anim, "anim_timeseries", expand=False,
-                         text="Time series")
+        row = layout.row()
+        row.prop(anim, "tracktype", expand=True)
 
-                sgs = nb_rp.find_ts_scalargroups(anim)
-                sg = sgs[anim.anim_timeseries]
+        split = layout.split(percentage=0.33)
+        split.prop(cam_ob, "rotation_euler", index=2, text="tumble")
 
-                npoints = len(sg.scalars)
-                row = layout.row()
-                row.label("%d points in time series" % npoints)
+        row = split.row(align=True)
+        row.prop(cam, "clip_start")
+        row.prop(cam, "clip_end")
 
     def drawunit_tri_points(self, layout, nb, anim):
 
@@ -3022,6 +2989,62 @@ class NeuroBlenderAnimationPanel(Panel):
 
         row = layout.row()
         row.operator("nb.add_campath", text="Add trajectory")
+
+    def drawunit_animation_slices(self, layout, nb, preset):
+
+        self.drawunit_tri(layout, "animslices", nb, preset)
+
+    def drawunit_tri_animslices(self, layout, nb, preset):
+
+        anim = preset.animations[preset.index_animations]
+
+        row = layout.row()
+        col = row.column()
+        col.prop(anim, "reverse", toggle=True,
+                 icon="ARROW_LEFTRIGHT", icon_only=True)
+        col = row.column()
+        col.prop(anim, "anim_voxelvolume", expand=False, text="")
+        col = row.column()
+        col.operator("nb.del_campath", icon='ZOOMOUT', text="")
+        col.enabled = False
+
+        row = layout.row()
+        row.separator()
+
+        row = layout.row()
+        row.prop(anim, "sliceproperty", expand=True)
+
+        row = layout.row()
+        row.separator()
+
+        row = layout.row()
+        row.prop(anim, "axis", expand=True)
+
+    def drawunit_animation_timeseries(self, layout, nb, preset):
+
+        self.drawunit_tri(layout, "timeseries", nb, preset)
+
+    def drawunit_tri_timeseries(self, layout, nb, preset):
+
+        anim = preset.animations[preset.index_animations]
+
+        row = layout.row()
+        col = row.column()
+        col.prop(anim, "timeseries_object", expand=False,
+                 text="Object")
+
+        row = layout.row()
+        col = row.column()
+        col.prop(anim, "anim_timeseries", expand=False,
+                 text="Time series")
+
+        # FIXME: gives many errors on adding campath???
+#         sgs = nb_rp.find_ts_scalargroups(anim)
+#         sg = sgs[anim.anim_timeseries]
+# 
+#         npoints = len(sg.scalars)
+#         row = layout.row()
+#         row.label("%d points in time series" % npoints)
 
 
 class AddAnimation(Operator):
@@ -4241,12 +4264,15 @@ def timeseries_enum_callback(self, context):
 
     # FIXME: crash when commenting/uncommenting this
     aliases = {'T': 'tracts', 'S': 'surfaces', 'V': 'voxelvolumes'}
-    coll = eval('nb.%s' % aliases[self.timeseries_object[0]])
-    sgs = coll[self.timeseries_object[3:]].scalargroups
+    try:
+        coll = eval('nb.%s' % aliases[self.timeseries_object[0]])
+        sgs = coll[self.timeseries_object[3:]].scalargroups
+    except:
+        items = []
+    else:
 #     sgs = nb_rp.find_ts_scalargroups(self)
-
-    items = [(scalargroup.name, scalargroup.name, "List the timeseries", i)
-             for i, scalargroup in enumerate(sgs)]
+        items = [(scalargroup.name, scalargroup.name, "List the timeseries", i)
+                 for i, scalargroup in enumerate(sgs)]
 
     return items
 
@@ -6142,6 +6168,30 @@ class NeuroBlenderProperties(PropertyGroup):
         name="Animation",
         default=False,
         description="Show/hide the preset's animations")
+    show_timings = BoolProperty(
+        name="Timings",
+        default=True,
+        description="Show/hide the animation's timings")
+    show_animcamerapath = BoolProperty(
+        name="CameraPath",
+        default=True,
+        description="Show/hide the animation's camera path properties")
+    show_animslices = BoolProperty(
+        name="Slices",
+        default=True,
+        description="Show/hide the animation's slice properties")
+    show_timeseries = BoolProperty(
+        name="Time Series",
+        default=True,
+        description="Show/hide the animation's time series properties")
+    show_camerapath = BoolProperty(
+        name="CameraPath",
+        default=True,
+        description="Show/hide the animation's camera path properties")
+    show_tracking = BoolProperty(
+        name="Tracking",
+        default=False,
+        description="Show/hide the camera path's tracking properties")
     show_newpath = BoolProperty(
         name="New trajectory",
         default=False,
