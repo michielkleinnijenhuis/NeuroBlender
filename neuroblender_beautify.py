@@ -42,11 +42,11 @@ def beautify_brain(ob, importtype, beautify, argdict):
     if beautify:
         try:
             if importtype == 'tracts':
-                beautify_tracts(ob, argdict)
+                info = beautify_tracts(ob, argdict)
             elif importtype == 'surfaces':
-                beautify_surfaces(ob, argdict)
+                info = beautify_surfaces(ob, argdict)
             elif importtype == 'voxelvolumes':
-                beautify_voxelvolumes(ob, argdict)
+                info = beautify_voxelvolumes(ob, argdict)
         except AttributeError:
             info = "no %s to beautify" % importtype
     else:
