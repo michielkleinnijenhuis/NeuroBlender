@@ -4123,12 +4123,13 @@ def campaths_enum_update(self, context):
     cam = bpy.data.objects[nb_preset.cameras[0].name]
     anim = nb_preset.animations[nb_preset.index_animations]
 
-    if anim.animationtype == 'Trajectory':
+    if anim.animationtype == "CameraPath":
         # overkill?
         cam_anims = [anim for anim in nb_preset.animations
                      if ((anim.animationtype == "CameraPath") &
                          (anim.is_rendered))]
-        nb_rp.clear_camera_path_animations(cam, cam_anims)
+        nb_rp.clear_camera_path_animations(cam, nb_preset.animations,
+                                           [nb_preset.index_animations])
         nb_rp.create_camera_path_animations(cam, cam_anims)
 
     # This adds Follow Path on the bottom of the constraint stack

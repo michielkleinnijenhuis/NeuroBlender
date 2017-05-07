@@ -626,13 +626,13 @@ def clear_CP_evaltime(anim):
 
     actname = '{}Action'.format(anim.campaths_enum)
     try:
-        fcu = bpy.data.actions[actname].fcurves.find("eval_time")
         action = bpy.data.actions[actname]
+        fcu = action.fcurves.find("eval_time")
     except:
         pass
     else:
-        """ TODO: get rid of hacky mod removal:
-            it can fail when anim.frame_start is changed
+        """ FIXME: get rid of hacky mod removal:
+            it fails when anim.frame_start/end is changed
         """
         for mod in fcu.modifiers:
             if ((mod.frame_start == anim.frame_start) &
