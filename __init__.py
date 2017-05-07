@@ -182,9 +182,13 @@ class NeuroBlenderBasePanel(Panel):
         if eval("nb.%s" % prop):
             exec("self.drawunit_tri_%s(layout, nb, data)" % triflag)
             icon = 'TRIA_DOWN'
+            row.prop(nb, prop, icon=icon, emboss=False)
+
+            row = layout.row()
+            row.separator()
         else:
             icon = 'TRIA_RIGHT'
-        row.prop(nb, prop, icon=icon, emboss=False)
+            row.prop(nb, prop, icon=icon, emboss=False)
 
     def drawunit_tri_unwrap(self, layout, nb, nb_ob):
 
@@ -196,9 +200,6 @@ class NeuroBlenderBasePanel(Panel):
         row.prop(nb_ob, "sphere", text="")
         row = layout.row()
         row.operator("nb.unwrap_surface", text="Unwrap from sphere")
-
-        row = layout.row()
-        row.separator()
 
     def drawunit_tri_slices(self, layout, nb, nb_ob):
 
@@ -216,9 +217,6 @@ class NeuroBlenderBasePanel(Panel):
         col = row.column()
         col.prop(nb_ob, "sliceangle", expand=True, text="Angle")
         col.enabled = not is_yoked
-
-        row = layout.row()
-        row.separator()
 
     def drawunit_tri_material(self, layout, nb, nb_ob):
 
@@ -251,9 +249,6 @@ class NeuroBlenderBasePanel(Panel):
             row.separator()
 
             self.drawunit_basic_cycles(layout, nb_ob)
-
-        row = layout.row()
-        row.separator()
 
     def drawunit_basic_blender(self, layout, nb_ob):
 
@@ -333,9 +328,6 @@ class NeuroBlenderBasePanel(Panel):
             mat = bpy.data.materials[nb_coll.name]
             ts = mat.texture_slots.get(nb_coll.name)
             row.prop(ts, "color")
-
-        row = layout.row()
-        row.separator()
 
     def drawunit_colourramp(self, layout, ramp, nb_coll=None, text=""):
 
