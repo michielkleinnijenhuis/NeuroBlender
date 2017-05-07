@@ -4393,6 +4393,41 @@ def update_viewport():
             area.tag_redraw()
 
 
+def light_update(self, context):
+    """Update light."""
+
+    scn = context.scene
+    nb = scn.nb
+
+    light_ob = bpy.data.objects[self.name]
+
+    light_ob.hide = not self.is_rendered
+    light_ob.hide_render = not self.is_rendered
+
+    light = bpy.data.lamps[self.name]
+
+    light.type = self.type
+
+    if scn.render.engine == "CYCLES":
+        light.use_nodes = True
+        node = light.node_tree.nodes["Emission"]
+        node.inputs[1].default_value = self.strength
+    elif scn.render.engine == "BLENDER_RENDER":
+        light.energy = self.strength
+
+
+def table_update(self, context):
+    """Update table."""
+
+    scn = context.scene
+    nb = scn.nb
+
+    table = bpy.data.objects[self.name]
+
+    table.hide = not self.is_rendered
+    table.hide_render = not self.is_rendered
+
+
 def update_name(self, context):
     """Update the name of a NeuroBlender collection item."""
 
@@ -5677,7 +5712,8 @@ class LightsProperties(PropertyGroup):
     is_rendered = BoolProperty(
         name="Is Rendered",
         description="Indicates if the light is rendered",
-        default=True)
+        default=True,
+        update=light_update)
 
     type = EnumProperty(
         name="Light type",
@@ -5688,22 +5724,26 @@ class LightsProperties(PropertyGroup):
                ("SPOT", "SPOT", "SPOT", 4),
                ("HEMI", "HEMI", "HEMI", 5),
                ("AREA", "AREA", "AREA", 6)],
-        default="SPOT")
+        default="SPOT",
+        update=light_update)
     colour = FloatVectorProperty(
         name="Colour",
         description="Colour of the light",
         default=[1.0, 1.0, 1.0],
-        subtype="COLOR")
+        subtype="COLOR",
+        update=light_update)
     strength = FloatProperty(
         name="Strength",
         description="Strength of the light",
         default=1,
-        min=0)
+        min=0,
+        update=light_update)
     size = FloatVectorProperty(
         name="Size",
         description="Relative size of the plane light (to bounding box)",
         size=2,
-        default=[1.0, 1.0])
+        default=[1.0, 1.0],
+        update=light_update)
     location = FloatVectorProperty(
         name="Location",
         description="",
@@ -5733,7 +5773,8 @@ class TableProperties(PropertyGroup):
     is_rendered = BoolProperty(
         name="Is Rendered",
         description="Indicates if the overlay is rendered",
-        default=False)
+        default=False,
+        update=table_update)
     beautified = BoolProperty(
         name="Beautify",
         description="",
