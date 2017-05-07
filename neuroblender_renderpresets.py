@@ -705,6 +705,7 @@ def create_camera_path_animations(cam, anims):
 
     scn = bpy.context.scene
     nb = scn.nb
+
     nb_preset = nb.presets[nb.index_presets]
     centre = bpy.data.objects[nb_preset.centre]
     box = bpy.data.objects[nb_preset.box]
@@ -778,6 +779,8 @@ def animate_camera(cam, anim, campath):
 
     scn = bpy.context.scene
 
+    frame_current = scn.frame_current
+
     cnsname = "FollowPath{}".format(anim.campaths_enum)
     cns = add_constraint(cam, "FOLLOW_PATH", cnsname, campath, anim.tracktype)
     anim.cnsname = cns.name
@@ -803,6 +806,8 @@ def animate_camera(cam, anim, campath):
             cns.keyframe_insert("offset_factor")
             cns.keyframe_insert("forward_axis")
 
+    scn.frame_set(frame_current)
+
 
 def generate_timeline(scn, anims, trackcentre=False):
     """Generate a timeline for a set of animations."""
@@ -823,6 +828,8 @@ def generate_timeline(scn, anims, trackcentre=False):
 
 def restrict_trans_timeline(scn, cns, timeline, group=""):
     """Restrict the loc/rot in a constraint according to timeline."""
+
+    frame_current = scn.frame_current
 
     for prop in ["use_location_x", "use_location_y", "use_location_z",
                  "use_rotation_x", "use_rotation_y", "use_rotation_z"]:
@@ -848,9 +855,13 @@ def restrict_trans_timeline(scn, cns, timeline, group=""):
         exec("cns.%s = not timeline[scn.frame_end]" % prop)
         cns.keyframe_insert(prop, group=group)
 
+    scn.frame_set(frame_current)
+
 
 def restrict_incluence_timeline(scn, cns, timeline, group=""):
     """Restrict the influence of a constraint according to timeline."""
+
+    frame_current = scn.frame_current
 
     scn.frame_set(scn.frame_start)
     cns.influence = timeline[scn.frame_start]
@@ -867,11 +878,15 @@ def restrict_incluence_timeline(scn, cns, timeline, group=""):
     cns.influence = timeline[scn.frame_end]
     cns.keyframe_insert("influence", group=group)
 
+    scn.frame_set(frame_current)
+
 
 def restrict_incluence(cns, anim):
     """Restrict the influence of a constraint to the animation interval."""
 
     scn = bpy.context.scene
+
+    frame_current = scn.frame_current
 
     interval_head = [scn.frame_start, anim.frame_start - 1]
     interval_anim = [anim.frame_start, anim.frame_end]
@@ -883,6 +898,8 @@ def restrict_incluence(cns, anim):
             scn.frame_set(fr)
             cns.influence = val
             cns.keyframe_insert(data_path="influence", index=-1)
+
+    scn.frame_set(frame_current)
 
 
 def setup_animation_rendering(filepath="render/anim",
@@ -1069,6 +1086,8 @@ def animate_slicebox(vvol, anim=None, axis="Z", frame_start=1, frame_end=100,
 
     scn = bpy.context.scene
 
+    frame_current = scn.frame_current
+
     if 'X' in axis:
         idx = 0
     elif 'Y' in axis:
@@ -1113,6 +1132,8 @@ def animate_slicebox(vvol, anim=None, axis="Z", frame_start=1, frame_end=100,
         exec('vvol.%s[idx] = v' % prop.lower())
         vvol.keyframe_insert(data_path=prop.lower(), index=idx)
 
+    scn.frame_set(frame_current)
+
 
 def has_keyframe(ob, attr):
     """Check if a property has keyframes set."""
@@ -1148,6 +1169,8 @@ def animate_timeseries(anim):
     scn = bpy.context.scene
     nb = scn.nb
 
+    frame_current = scn.frame_current
+
     sgs = find_ts_scalargroups(anim)
     ts_name = anim.anim_timeseries
     sg = sgs[ts_name]
@@ -1175,6 +1198,8 @@ def animate_timeseries(anim):
             sg.index_scalars = v
             sg.keyframe_insert("index_scalars")
 
+    scn.frame_set(frame_current)
+
 
 def find_ts_scalargroups(anim):
     """"""
@@ -1195,62 +1220,69 @@ def find_ts_scalargroups(anim):
 
 
 def animate_ts_vvol():  # scratch
-        mat = bpy.data.materials[scalargroup.name]
 
-        tss = [(i, ts) for i, ts in enumerate(mat.texture_slots)
-               if ts is not None]
+    scn = bpy.context.scene
 
-        ntss = len(tss)
-        nframes = anim.frame_end - anim.frame_start
-        fptp = np.floor(nframes/ntss)
+    frame_current = scn.frame_current
 
-        interpolation = 'CONSTANT'  # 'CONSTANT' TODO: 'LINEAR' 'BEZIER'
-        fade_interval = np.floor(fptp / 3)
+    mat = bpy.data.materials[scalargroup.name]
 
-        props = {"density_factor": 'CONSTANT',
-                 "emission_factor": interpolation,
-                 "emission_color_factor": 'CONSTANT',
-                 "emit_factor": interpolation,
-                 "diffuse_color_factor": 'CONSTANT',
-                 "alpha_factor": 'CONSTANT'}
+    tss = [(i, ts) for i, ts in enumerate(mat.texture_slots)
+           if ts is not None]
+
+    ntss = len(tss)
+    nframes = anim.frame_end - anim.frame_start
+    fptp = np.floor(nframes/ntss)
+
+    interpolation = 'CONSTANT'  # 'CONSTANT' TODO: 'LINEAR' 'BEZIER'
+    fade_interval = np.floor(fptp / 3)
+
+    props = {"density_factor": 'CONSTANT',
+             "emission_factor": interpolation,
+             "emission_color_factor": 'CONSTANT',
+             "emit_factor": interpolation,
+             "diffuse_color_factor": 'CONSTANT',
+             "alpha_factor": 'CONSTANT'}
 
 #         # TODO
 #         interval_head = [scn.frame_start, anim.frame_start - 1]
 #         interval_anim = [anim.frame_start, anim.frame_end]
 #         interval_tail = [anim.frame_end + 1, scn.frame_end]
 
-        # can I just keyframe the time index? and let the update function do the work?
-        # yes, but this is only for on/off?
-        for i, ts in tss:
+    # can I just keyframe the time index? and let the update function do the work?
+    # yes, but this is only for on/off?
+    for i, ts in tss:
 
-            tp_start = i*fptp + 1
-            tp_end = tp_start + fptp
-            tp_in_start = tp_start - fade_interval
-            tp_in_end = tp_start + fade_interval
-            tp_out_start = tp_end - fade_interval
-            tp_out_end = tp_end + fade_interval
+        tp_start = i*fptp + 1
+        tp_end = tp_start + fptp
+        tp_in_start = tp_start - fade_interval
+        tp_in_end = tp_start + fade_interval
+        tp_out_start = tp_end - fade_interval
+        tp_out_end = tp_end + fade_interval
 
-            kfs_constant = {tp_start-1: 0, tp_start: 1,
-                            tp_end: 1, tp_end+1: 0}
-            kfs_linear = {tp_in_start: 0, tp_in_end: 1,
-                          tp_out_start: 1, tp_out_end: 0}
-            kfs_bezier = {tp_in_start: 0, tp_in_end: 1,
-                          tp_out_start: 1, tp_out_end: 0}
+        kfs_constant = {tp_start-1: 0, tp_start: 1,
+                        tp_end: 1, tp_end+1: 0}
+        kfs_linear = {tp_in_start: 0, tp_in_end: 1,
+                      tp_out_start: 1, tp_out_end: 0}
+        kfs_bezier = {tp_in_start: 0, tp_in_end: 1,
+                      tp_out_start: 1, tp_out_end: 0}
 
-            # insert the animation 
-            for prop, interp in props.items():
-                kfs = eval("kfs_%s" % interp.lower())
-                for k, v in kfs.items():
-                    scn.frame_set(k)
-                    exec('ts.%s = v' % prop)
-                    ts.keyframe_insert(data_path=prop)
+        # insert the animation 
+        for prop, interp in props.items():
+            kfs = eval("kfs_%s" % interp.lower())
+            for k, v in kfs.items():
+                scn.frame_set(k)
+                exec('ts.%s = v' % prop)
+                ts.keyframe_insert(data_path=prop)
 
-        anim = mat.animation_data
-        for fcu in anim.action.fcurves:
-            fcu.color_mode = 'AUTO_RAINBOW'
-            propname = fcu.data_path.split('.')[-1]
-            for kf in fcu.keyframe_points:
-                kf.interpolation = props[propname]
+    anim = mat.animation_data
+    for fcu in anim.action.fcurves:
+        fcu.color_mode = 'AUTO_RAINBOW'
+        propname = fcu.data_path.split('.')[-1]
+        for kf in fcu.keyframe_points:
+            kf.interpolation = props[propname]
+
+    scn.frame_set(frame_current)
 
 
 # ========================================================================== #

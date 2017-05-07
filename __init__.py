@@ -4135,7 +4135,7 @@ def campaths_enum_update(self, context):
     # This adds Follow Path on the bottom of the constraint stack
 #     nb_rp.campath_animation(anim, cam)
 
-    scn.frame_set(anim.frame_start)
+#     scn.frame_set(anim.frame_start)
 
 
 def tracktype_enum_update(self, context):
@@ -4169,7 +4169,7 @@ def tracktype_enum_update(self, context):
         cns.forward_axis = 'TRACK_NEGATIVE_Y'
         cns.up_axis = 'UP_Z'
 
-    scn.frame_set(anim.frame_start)
+#     scn.frame_set(anim.frame_start)
 
 
 def direction_toggle_update(self, context):
