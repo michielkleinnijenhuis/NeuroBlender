@@ -254,7 +254,7 @@ class NeuroBlenderBasePanel(Panel):
 
         mat = bpy.data.materials[nb_ob.name]
 
-        row = layout.row()
+        row = layout.row(align=True)
         row.prop(mat, "diffuse_color", text="")
         row.prop(mat, "alpha", text="Transparency")
         if hasattr(nb_ob, "colour"):
@@ -266,14 +266,11 @@ class NeuroBlenderBasePanel(Panel):
         colour = mat.node_tree.nodes["RGB"].outputs[0]
         trans = mat.node_tree.nodes["Transparency"].outputs[0]
 
-        row = layout.row()
+        row = layout.row(align=True)
         row.prop(colour, "default_value", text="")
         row.prop(trans, "default_value", text="Transparency")
         if hasattr(nb_ob, "colour"):
             row.operator("nb.revert_label", icon='BACK', text="")
-
-        row = layout.row()
-        row.separator()
 
         self.drawunit_basic_cycles_mix(layout, mat)
 
@@ -281,7 +278,7 @@ class NeuroBlenderBasePanel(Panel):
 
         nt = mat.node_tree
 
-        row = layout.row()
+        row = layout.row(align=True)
         row.prop(nt.nodes["Diffuse BSDF"].inputs[1],
                  "default_value", text="diffuse")
         row.prop(nt.nodes["Glossy BSDF"].inputs[1],
@@ -519,12 +516,9 @@ class NeuroBlenderOverlayPanel(Panel):
 
     def draw_nb_overlayprops(self, layout, nb, nb_ob, nb_ov):
 
-        if nb.objecttype == 'tracts':
-
-            pass
-
-        elif nb.objecttype == 'surfaces':
-
+        if nb.objecttype == "voxelvolumes":
+            self.drawunit_tri(layout, "overlay_slices", nb, nb_ov)
+        else:
             if nb.overlaytype == "scalargroups":
                 if len(nb_ov.scalars) > 1:
                     row = layout.row()
@@ -532,12 +526,8 @@ class NeuroBlenderOverlayPanel(Panel):
                                       nb_ov, "scalars",
                                       nb_ov, "index_scalars",
                                       rows=2, type="COMPACT")
-
-                self.drawunit_bake(layout)
-
-        elif nb.objecttype == "voxelvolumes":
-
-            self.drawunit_tri(layout, "overlay_slices", nb, nb_ov)
+                if nb.objecttype == 'surfaces':
+                    self.drawunit_bake(layout)
 
         if nb.overlaytype == "scalargroups":
             self.drawunit_tri(layout, "overlay_material", nb, nb_ov)
@@ -2401,11 +2391,11 @@ class NeuroBlenderScenePanel(Panel):
             split = row.split(percentage=0.55)
             col = split.column(align=True)
             col.label("Quick camera view:")
-            row1 = col.row()
+            row1 = col.row(align=True)
             row1.prop(cam, "cam_view_enum_LR", expand=True)
-            row1 = col.row()
+            row1 = col.row(align=True)
             row1.prop(cam, "cam_view_enum_AP", expand=True)
-            row1 = col.row()
+            row1 = col.row(align=True)
             row1.prop(cam, "cam_view_enum_IS", expand=True)
 
             col.prop(cam, "cam_distance", text="distance")
@@ -2452,10 +2442,10 @@ class NeuroBlenderScenePanel(Panel):
     def drawunit_tri_lights(self, layout, nb, preset):
 
         lights = bpy.data.objects[preset.lightsempty]
-        row = layout.row()
-        col = row.column()
+        row = layout.row(align=True)
+        col = row.column(align=True)
         col.prop(lights, "rotation_euler", index=2, text="Rotate rig (Z)")
-        col = row.column()
+        col = row.column(align=True)
         col.prop(lights, "scale", index=2, text="Scale rig (XYZ)")
 
         row = layout.row()
@@ -2469,19 +2459,22 @@ class NeuroBlenderScenePanel(Panel):
         light_ob = bpy.data.objects[light.name]
 
         row = layout.row()
-        col = row.column()
-        col.label("Quick lighting rig access:")
-        col.prop(light, "name")
+
+        split = row.split(percentage=0.55)
+        col = split.column(align=True)
+        col.label("Quick access:")
         col.prop(light, "type", text="")
         col.prop(light, "strength")
-
-        col = row.column()
-        col.prop(light_ob, "location")
-
-        row = layout.row()
         if light.type == "PLANE":
-            row = layout.row()
-            row.prop(light, "size")
+            row = col.row(align=True)
+            row.prop(light, "size", text="")
+
+        split = split.split(percentage=0.1)
+        col = split.column()
+        col.separator()
+
+        col = split.column(align=True)
+        col.prop(light_ob, "location")
 
     def drawunit_tri_tables(self, layout, nb, preset):
 
@@ -2492,10 +2485,8 @@ class NeuroBlenderScenePanel(Panel):
             tab = preset.tables.add()
             preset.index_tables = (len(preset.tables)-1)
         else:
-            tab_ob = bpy.data.objects[tab.name]
             row = layout.row()
-            row.prop(tab_ob, "hide", toggle=True)
-            row.prop(tab_ob, "hide_render", toggle=True)
+            row.prop(tab, "is_rendered", toggle=True)
             row = layout.row()
             self.drawunit_basic_cycles(layout, tab)
 
@@ -3682,6 +3673,7 @@ def engine_update(self, context):
             nb_mat.BR2CR(mat)
 
     scn.render.engine = nb.engine
+    # TODO: handle lights
 
 
 def engine_driver():
@@ -6231,7 +6223,7 @@ class NeuroBlenderProperties(PropertyGroup):
         description="Show/hide the group overlay's items")
     show_itemprops = BoolProperty(
         name="Item properties",
-        default=False,
+        default=True,
         description="Show/hide the properties of the item")
     show_additional = BoolProperty(
         name="Additional options",
@@ -6286,7 +6278,7 @@ class NeuroBlenderProperties(PropertyGroup):
         default=True,
         description="Show/hide the animation's time series properties")
     show_camerapath = BoolProperty(
-        name="CameraPath",
+        name="Camera trajectory",
         default=True,
         description="Show/hide the animation's camera path properties")
     show_tracking = BoolProperty(
