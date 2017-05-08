@@ -1847,9 +1847,14 @@ class ImportVoxelvolumes(Operator, ImportHelper):
         row = layout.row()
         row.prop(self, "name")
 
-        if self.files[0].name.endswith('.h5'):
-            row = layout.row()
-            row.prop(self, "dataset", expand=False)
+        try:
+            file = self.files[0]
+        except:
+            pass
+        else:
+            if file.name.endswith('.h5'):
+                row = layout.row()
+                row.prop(self, "dataset", expand=False)
 
         row = layout.row()
         row.prop(self, "vol_idx")
