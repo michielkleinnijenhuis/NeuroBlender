@@ -288,6 +288,9 @@ class NeuroBlenderBasePanel(Panel):
 
     def drawunit_texture(self, layout, tex, nb_coll=None, text=""):
 
+        scn = bpy.context.scene
+        nb = scn.nb
+
         if text:
             row = layout.row()
             row.label(text=text)
@@ -311,8 +314,10 @@ class NeuroBlenderBasePanel(Panel):
             row = layout.row()
             row.separator()
 
-            row = layout.row()
+            row = layout.row(align=True)
             row.prop(nb_coll, "colourmap_enum", expand=False)
+            row.prop(nb, "cr_keeprange", toggle=True,
+                     icon="ALIGN", icon_only=True)
 
             row = layout.row()
             row.separator()
@@ -4104,6 +4109,9 @@ def material_enum_update(self, context):
 def colourmap_enum_update(self, context):
     """Assign a new colourmap to the object."""
 
+    scn = context.scene
+    nb = scn.nb
+
     nb_ob = nb_utils.active_nb_object()[0]
     if hasattr(nb_ob, 'slicebox'):
         cr = bpy.data.textures[self.name].color_ramp
@@ -4116,8 +4124,7 @@ def colourmap_enum_update(self, context):
             cr = nt.nodes["ColorRamp"].color_ramp
 
     colourmap = self.colourmap_enum
-    nb_mat.switch_colourmap(cr, colourmap)
-
+    nb_mat.switch_colourmap(cr, colourmap, keeprange=nb.cr_keeprange)
 
 def cam_view_enum_XX_update(self, context):
     """Set the camview property from enum options."""
@@ -6368,6 +6375,11 @@ class NeuroBlenderProperties(PropertyGroup):
         description="switch between overlay types",
         items=overlay_enum_callback)
 
+    # TODO: move to elsewhere
+    cr_keeprange = BoolProperty(
+        name="Keep range",
+        description="Keep/discard the current range of the colour ramp",
+        default=True)
 
 # @persistent
 # def projectdir_update(dummy):

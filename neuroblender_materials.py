@@ -905,75 +905,108 @@ def load_surface_textures(name, directory, nframes):
         links.new(itex.outputs["Color"], srgb.inputs["Image"])
 
 
-def switch_colourmap(cr, colourmap="greyscale"):
-    """"""
+def switch_colourmap(cr, colourmap="greyscale", keeprange=True):
+    """Switch to a different colourmap."""
+
+    if keeprange:
+        crrange = [cr.elements[0].position, cr.elements[-1].position]
+    else:
+        crrange = [0, 1]
 
     if colourmap == "greyscale":
         cmdict = {"color_mode": "RGB",
                   "interpolation": "LINEAR",
                   "hue_interpolation": "FAR",
-                  "elements": [{"position": 0, "color": (0, 0, 0, 0)},
-                               {"position": 1, "color": (1, 1, 1, 1)}]}
+                  "elements": [{"position": crrange[0],
+                                "color": (0, 0, 0, 0)},
+                               {"position": crrange[1],
+                                "color": (1, 1, 1, 1)}]}
     elif colourmap == "jet":
         cmdict = {"color_mode": "HSV",
                   "interpolation": "LINEAR",
                   "hue_interpolation": "FAR",
-                  "elements": [{"position": 0, "color": (0, 0, 1, 0)},
-                               {"position": 1, "color": (1, 0, 0, 1)}]}
+                  "elements": [{"position": crrange[0],
+                                "color": (0, 0, 1, 0)},
+                               {"position": crrange[1],
+                                "color": (1, 0, 0, 1)}]}
     elif colourmap == "hsv":
         cmdict = {"color_mode": "HSV",
                   "interpolation": "LINEAR",
                   "hue_interpolation": "FAR",
-                  "elements": [{"position": 0, "color": (1, 0, 0.000, 0)},
-                               {"position": 1, "color": (1, 0, 0.001, 1)}]}
+                  "elements": [{"position": crrange[0],
+                                "color": (1, 0, 0.000, 0)},
+                               {"position": crrange[1],
+                                "color": (1, 0, 0.001, 1)}]}
     elif colourmap == "hot":
+        crdiff = crrange[1] - crrange[0]
         cmdict = {"color_mode": "RGB",
                   "interpolation": "LINEAR",
                   "hue_interpolation": "FAR",
-                  "elements": [{"position": 0.0000, "color": (0, 0, 0, 0.0000)},
-                               {"position": 0.3333, "color": (1, 0, 0, 0.3333)},
-                               {"position": 0.6667, "color": (1, 1, 0, 0.6667)},
-                               {"position": 1.0000, "color": (1, 1, 1, 1.0000)}]}
+                  "elements": [{"position": crrange[0],
+                                "color": (0, 0, 0, 0.0000)},
+                               {"position": crrange[0] + 0.3333 * crdiff,
+                                "color": (1, 0, 0, 0.3333)},
+                               {"position": crrange[0] + 0.6667 * crdiff,
+                                "color": (1, 1, 0, 0.6667)},
+                               {"position": crrange[1],
+                                "color": (1, 1, 1, 1.0000)}]}
     elif colourmap == "cool":
         cmdict = {"color_mode": "RGB",
                   "interpolation": "LINEAR",
                   "hue_interpolation": "FAR",
-                  "elements": [{"position": 0, "color": (0, 1, 1, 0)},
-                               {"position": 1, "color": (1, 0, 1, 1)}]}
+                  "elements": [{"position": crrange[0],
+                                "color": (0, 1, 1, 0)},
+                               {"position": crrange[1],
+                                "color": (1, 0, 1, 1)}]}
     elif colourmap == "spring":
         cmdict = {"color_mode": "RGB",
                   "interpolation": "LINEAR",
                   "hue_interpolation": "FAR",
-                  "elements": [{"position": 0, "color": (1, 0, 1, 0)},
-                               {"position": 1, "color": (1, 1, 0, 1)}]}
+                  "elements": [{"position": crrange[0],
+                                "color": (1, 0, 1, 0)},
+                               {"position": crrange[1],
+                                "color": (1, 1, 0, 1)}]}
     elif colourmap == "summer":
         cmdict = {"color_mode": "RGB",
                   "interpolation": "LINEAR",
                   "hue_interpolation": "FAR",
-                  "elements": [{"position": 0, "color": (0, 0.216, 0.133, 0)},
-                               {"position": 1, "color": (1, 1.000, 0.133, 1)}]}
+                  "elements": [{"position": crrange[0],
+                                "color": (0, 0.216, 0.133, 0)},
+                               {"position": crrange[1],
+                                "color": (1, 1.000, 0.133, 1)}]}
     elif colourmap == "autumn":
         cmdict = {"color_mode": "RGB",
                   "interpolation": "LINEAR",
                   "hue_interpolation": "FAR",
-                  "elements": [{"position": 0, "color": (1, 0, 0, 0)},
-                               {"position": 1, "color": (1, 1, 0, 1)}]}
+                  "elements": [{"position": crrange[0],
+                                "color": (1, 0, 0, 0)},
+                               {"position": crrange[1],
+                                "color": (1, 1, 0, 1)}]}
     elif colourmap == "winter":
         cmdict = {"color_mode": "RGB",
                   "interpolation": "LINEAR",
                   "hue_interpolation": "FAR",
-                  "elements": [{"position": 0, "color": (0, 0, 1.000, 0)},
-                               {"position": 1, "color": (0, 1, 0.216, 1)}]}
+                  "elements": [{"position": crrange[0],
+                                "color": (0, 0, 1.000, 0)},
+                               {"position": crrange[1],
+                                "color": (0, 1, 0.216, 1)}]}
     elif colourmap == "parula":
+        crdiff = crrange[1] - crrange[0]
         cmdict = {"color_mode": "RGB",
                   "interpolation": "LINEAR",
                   "hue_interpolation": "FAR",
-                  "elements": [{"position": 0.0, "color": (0.036, 0.023, 0.242, 0.0)},
-                               {"position": 0.2, "color": (0.005, 0.184, 0.708, 0.2)},
-                               {"position": 0.4, "color": (0.002, 0.402, 0.533, 0.4)},
-                               {"position": 0.6, "color": (0.195, 0.521, 0.202, 0.6)},
-                               {"position": 0.8, "color": (0.839, 0.485, 0.072, 0.8)},
-                               {"position": 1.0, "color": (0.947, 0.965, 0.004, 1.0)}]}
+                  "elements": [{"position": crrange[0],
+                                "color": (0.036, 0.023, 0.242, 0.0)},
+                               {"position": crrange[0] + 0.2 * crdiff,
+                                "color": (0.005, 0.184, 0.708, 0.2)},
+                               {"position": crrange[0] + 0.4 * crdiff,
+                                "color": (0.002, 0.402, 0.533, 0.4)},
+                               {"position": crrange[0] + 0.6 * crdiff,
+                                "color": (0.195, 0.521, 0.202, 0.6)},
+                               {"position": crrange[0] + 0.8 * crdiff,
+                                "color": (0.839, 0.485, 0.072, 0.8)},
+                               {"position": crrange[1],
+                                "color": (0.947, 0.965, 0.004, 1.0)}]}
 
     cr.color_mode = cmdict["color_mode"]
     cr.interpolation = cmdict["interpolation"]
