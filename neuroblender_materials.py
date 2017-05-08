@@ -134,6 +134,7 @@ def switch_mode_mat(mat, newmode):
         else:
             links.new(output, out.inputs["Surface"])
 
+
 def set_materials(me, mat):
     """Attach a material to a mesh.
 
@@ -856,9 +857,11 @@ def get_voxtex(mat, texdict, volname, item):
         if len(item.labels) < 33:
             generate_label_ramp(tex, item)
         else:  # too many labels: switching to continuous ramp
-            switch_colourmap(tex.color_ramp, "jet")
+            item.colourmap_enum = "jet"
     elif is_overlay:
-        switch_colourmap(tex.color_ramp, "jet")
+        item.colourmap_enum = "jet"
+    else:
+        item.colourmap_enum = "grey"
 
     return tex
 
@@ -903,123 +906,6 @@ def load_surface_textures(name, directory, nframes):
         itex.image_user.frame_duration = nframes
         itex.image = img
         links.new(itex.outputs["Color"], srgb.inputs["Image"])
-
-
-def switch_colourmap(cr, colourmap="greyscale", keeprange=True):
-    """Switch to a different colourmap."""
-
-    if keeprange:
-        crrange = [cr.elements[0].position, cr.elements[-1].position]
-    else:
-        crrange = [0, 1]
-
-    if colourmap == "greyscale":
-        cmdict = {"color_mode": "RGB",
-                  "interpolation": "LINEAR",
-                  "hue_interpolation": "FAR",
-                  "elements": [{"position": crrange[0],
-                                "color": (0, 0, 0, 0)},
-                               {"position": crrange[1],
-                                "color": (1, 1, 1, 1)}]}
-    elif colourmap == "jet":
-        cmdict = {"color_mode": "HSV",
-                  "interpolation": "LINEAR",
-                  "hue_interpolation": "FAR",
-                  "elements": [{"position": crrange[0],
-                                "color": (0, 0, 1, 0)},
-                               {"position": crrange[1],
-                                "color": (1, 0, 0, 1)}]}
-    elif colourmap == "hsv":
-        cmdict = {"color_mode": "HSV",
-                  "interpolation": "LINEAR",
-                  "hue_interpolation": "FAR",
-                  "elements": [{"position": crrange[0],
-                                "color": (1, 0, 0.000, 0)},
-                               {"position": crrange[1],
-                                "color": (1, 0, 0.001, 1)}]}
-    elif colourmap == "hot":
-        crdiff = crrange[1] - crrange[0]
-        cmdict = {"color_mode": "RGB",
-                  "interpolation": "LINEAR",
-                  "hue_interpolation": "FAR",
-                  "elements": [{"position": crrange[0],
-                                "color": (0, 0, 0, 0.0000)},
-                               {"position": crrange[0] + 0.3333 * crdiff,
-                                "color": (1, 0, 0, 0.3333)},
-                               {"position": crrange[0] + 0.6667 * crdiff,
-                                "color": (1, 1, 0, 0.6667)},
-                               {"position": crrange[1],
-                                "color": (1, 1, 1, 1.0000)}]}
-    elif colourmap == "cool":
-        cmdict = {"color_mode": "RGB",
-                  "interpolation": "LINEAR",
-                  "hue_interpolation": "FAR",
-                  "elements": [{"position": crrange[0],
-                                "color": (0, 1, 1, 0)},
-                               {"position": crrange[1],
-                                "color": (1, 0, 1, 1)}]}
-    elif colourmap == "spring":
-        cmdict = {"color_mode": "RGB",
-                  "interpolation": "LINEAR",
-                  "hue_interpolation": "FAR",
-                  "elements": [{"position": crrange[0],
-                                "color": (1, 0, 1, 0)},
-                               {"position": crrange[1],
-                                "color": (1, 1, 0, 1)}]}
-    elif colourmap == "summer":
-        cmdict = {"color_mode": "RGB",
-                  "interpolation": "LINEAR",
-                  "hue_interpolation": "FAR",
-                  "elements": [{"position": crrange[0],
-                                "color": (0, 0.216, 0.133, 0)},
-                               {"position": crrange[1],
-                                "color": (1, 1.000, 0.133, 1)}]}
-    elif colourmap == "autumn":
-        cmdict = {"color_mode": "RGB",
-                  "interpolation": "LINEAR",
-                  "hue_interpolation": "FAR",
-                  "elements": [{"position": crrange[0],
-                                "color": (1, 0, 0, 0)},
-                               {"position": crrange[1],
-                                "color": (1, 1, 0, 1)}]}
-    elif colourmap == "winter":
-        cmdict = {"color_mode": "RGB",
-                  "interpolation": "LINEAR",
-                  "hue_interpolation": "FAR",
-                  "elements": [{"position": crrange[0],
-                                "color": (0, 0, 1.000, 0)},
-                               {"position": crrange[1],
-                                "color": (0, 1, 0.216, 1)}]}
-    elif colourmap == "parula":
-        crdiff = crrange[1] - crrange[0]
-        cmdict = {"color_mode": "RGB",
-                  "interpolation": "LINEAR",
-                  "hue_interpolation": "FAR",
-                  "elements": [{"position": crrange[0],
-                                "color": (0.036, 0.023, 0.242, 0.0)},
-                               {"position": crrange[0] + 0.2 * crdiff,
-                                "color": (0.005, 0.184, 0.708, 0.2)},
-                               {"position": crrange[0] + 0.4 * crdiff,
-                                "color": (0.002, 0.402, 0.533, 0.4)},
-                               {"position": crrange[0] + 0.6 * crdiff,
-                                "color": (0.195, 0.521, 0.202, 0.6)},
-                               {"position": crrange[0] + 0.8 * crdiff,
-                                "color": (0.839, 0.485, 0.072, 0.8)},
-                               {"position": crrange[1],
-                                "color": (0.947, 0.965, 0.004, 1.0)}]}
-
-    cr.color_mode = cmdict["color_mode"]
-    cr.interpolation = cmdict["interpolation"]
-    cr.hue_interpolation = cmdict["hue_interpolation"]
-    cre = cr.elements
-    while len(cre) > 1:
-        cre.remove(cre[0])
-
-    cre[0].position = cmdict["elements"][0]["position"]
-    cre[0].color = cmdict["elements"][0]["color"]
-    for elem in cmdict["elements"][1:]:
-        el = cre.new(elem["position"])
-        el.color = elem["color"]
 
 
 # ========================================================================== #
@@ -1398,7 +1284,7 @@ def make_material_overlay_cycles(name, vcname, ob=None, nb_ov=None, img=None):
     vrgb.location = 100, 100
 
     if hasattr(nb_ov, 'nn_elements'):
-        switch_colourmap(vrgb.color_ramp, "jet")
+        nb_ov.colourmap_enum = 'jet'
         calc_nn_elpos(nb_ov, vrgb)
 
     srgb = nodes.new("ShaderNodeSeparateRGB")
@@ -1466,82 +1352,6 @@ def make_material_overlay_cycles(name, vcname, ob=None, nb_ov=None, img=None):
     links.new(srgb.outputs["R"], vrgb.inputs["Fac"])
     links.new(attr.outputs["Color"], srgb.inputs["Image"])
     links.new(tval.outputs["Value"], emit.inputs["Strength"])
-
-    return mat
-
-
-def make_material_uvoverlay_cycles(name, vcname, img):
-    """Create a Cycles material for colourramped vertexcolour rendering."""
-
-    scn = bpy.context.scene
-#     if not scn.render.engine == "CYCLES":
-#         scn.render.engine = "CYCLES"
-
-    mat = (bpy.data.materials.get(name) or
-           bpy.data.materials.new(name))
-    mat.use_nodes = True
-    mat.use_vertex_color_paint = True
-    mat.use_vertex_color_light = True
-
-    nodes = mat.node_tree.nodes
-    links = mat.node_tree.links
-
-    nodes.clear()
-    prefix = ""
-
-    out = nodes.new("ShaderNodeOutputMaterial")
-    out.label = "Material Output"
-    out.name = prefix + "Material Output"
-    out.location = 800, 0
-
-    mix1 = nodes.new("ShaderNodeMixShader")
-    mix1.label = "Mix Shader"
-    mix1.name = prefix + "Mix Shader"
-    mix1.inputs[0].default_value = 0.04
-    mix1.location = 600, 0
-
-    glos = nodes.new("ShaderNodeBsdfGlossy")
-    glos.label = "Glossy BSDF"
-    glos.name = prefix + "Glossy BSDF"
-    glos.inputs[1].default_value = 0.15
-    glos.distribution = "BECKMANN"
-    glos.location = 400, -100
-
-    diff = nodes.new("ShaderNodeBsdfDiffuse")
-    diff.label = "Diffuse BSDF"
-    diff.name = prefix + "Diffuse BSDF"
-    diff.location = 400, 100
-
-    vrgb = nodes.new("ShaderNodeValToRGB")
-    vrgb.label = "ColorRamp"
-    vrgb.name = prefix + "ColorRamp"
-    vrgb.location = 100, 100
-
-    set_colorramp_preset(vrgb, mat=mat, prefix='uv_')
-
-    srgb = nodes.new("ShaderNodeSeparateRGB")
-    srgb.label = "Separate RGB"
-    srgb.name = prefix + "Separate RGB"
-    srgb.location = -300, 100
-
-    itex = nodes.new("ShaderNodeTexImage")
-    itex.location = 600, 100
-    itex.name = prefix + "Image Texture"
-    itex.image = img
-    itex.label = "Image texture"
-
-    texc = nodes.new("ShaderNodeTexCoord")
-    texc.location = 800, 100
-    texc.name = prefix + "Texture Coordinate"
-    texc.label = "Texture Coordinate"
-
-    links.new(mix1.outputs["Shader"], out.inputs["Surface"])
-    links.new(glos.outputs["BSDF"], mix1.inputs[2])
-    links.new(diff.outputs["BSDF"], mix1.inputs[1])
-    links.new(vrgb.outputs["Color"], diff.inputs["Color"])
-    links.new(srgb.outputs["R"], vrgb.inputs["Fac"])
-    links.new(itex.outputs["Color"], srgb.inputs["Image"])
-    links.new(texc.outputs["UV"], itex.inputs["Vector"])
 
     return mat
 
@@ -1650,7 +1460,7 @@ def make_material_overlaytract_cycles_group(diffcol, mix=0.04):
     vrgb.name = "ColorRamp"
     vrgb.location = -100, 100
 
-    switch_colourmap(vrgb.color_ramp, "jet")
+    nb_ov.colourmap_enum = 'jet'
 
     srgb = nodes.new("ShaderNodeSeparateRGB")
     srgb.label = "Separate RGB"
@@ -1820,228 +1630,3 @@ def calc_nn_elpos(nb_ov, ramp):
         el.name = "colour stop " + str(i)
         el.nn_position = els[i].position * drange + dmin
 
-
-def set_colorramp_preset(node, cmapname="r2b", mat=None, prefix=''):
-    """Set a colourramp node to a preset."""
-
-    nb_ob = nb_utils.active_nb_object()[0]
-    scalarslist = nb_ob.scalars
-
-    elements = node.color_ramp.elements
-
-    for el in elements[1:]:
-        elements.remove(el)
-
-    if (cmapname == "fscurv") | (mat.name.endswith(".curv")):
-        i = 0
-        while prefix + scalarslist[i].name != mat.name:
-            i += 1
-        sr = scalarslist[i].range
-        positions = [(-sr[0]-0.2)/(sr[1]-sr[0]),
-                     (-sr[0]-0.0)/(sr[1]-sr[0]),
-                     (-sr[0]+0.2)/(sr[1]-sr[0])]
-        colors = [(1.0, 0.0, 0.0, 1.0),
-                  (0.5, 0.5, 0.5, 1.0),
-                  (0.0, 1.0, 0.0, 1.0)]
-    elif cmapname == "r2g":
-        positions = [0.0, 1.0]
-        colors = [(1.0, 0.0, 0.0, 1.0), (0.0, 1.0, 0.0, 1.0)]
-    elif cmapname == "r2b":
-        positions = [0.0, 1.0]
-        colors = [(1.0, 0.0, 0.0, 1.0), (0.0, 0.0, 1.0, 1.0)]
-    elif cmapname == "g2b":
-        positions = [0.0, 1.0]
-        colors = [(0.0, 1.0, 0.0, 1.0), (0.0, 0.0, 1.0, 1.0)]
-
-    # TODO: extend colourmaps
-#     node.color_ramp.color_mode = 'HSV'  # HSV, HSL / RGB
-#     # NEAR, FAR, CW, CCW / LINEAR, B_SPLINE, ...Z
-#     node.color_ramp.hue_interpolation = 'NEAR'
-
-    for p in positions[1:]:
-        elements.new(p)
-
-    elements.foreach_set("position", positions)
-    for i in range(len(colors)):
-        setattr(elements[i], "color", colors[i])
-#     elements.foreach_set("color", colors)  # FIXME!
-#     collection.foreach_set(seq, attr)
-#     # Python equivalent
-#     for i in range(len(seq)): setattr(collection[i], attr, seq[i])
-
-
-
-
-# ========================================================================== #
-# DEPRECATED and development functions
-# ========================================================================== #
-
-
-def map_to_uv(ob, uvname="", fpath="", img=None):
-    """"""
-
-    # need a unique name (same for "Vertex Colors" and "Material")
-    # TODO: but maybe not for 'directional'?
-    uvs = ob.data.uv_layers
-    uvname = nb_utils.check_name(uvname, fpath, checkagainst=uvs)
-    materials = bpy.data.materials
-    uvname = nb_utils.check_name(uvname, fpath, checkagainst=materials)
-
-    mat = make_material_uvoverlay_cycles(uvname, uvname, img)
-
-    set_materials(ob.data, mat)
-    uv = ob.data.uv_textures.new(uvname)
-    uv_map = ob.data.uv_layers.active.data
-    ob = assign_uv(ob, uv_map)
-
-
-def assign_uv(ob, uv_map):
-    """"""
-
-    me = ob.data
-    nverts = len(me.vertices)
-    imsize = np.ceil(np.sqrt(nverts))
-    for poly in me.polygons:
-        for idx in poly.loop_indices:
-            vi = ob.data.loops[idx].vertex_index
-            uvcoord = divmod(vi, imsize)
-            uvcoord = [(uvcoord[1] + 0.5)/imsize, (uvcoord[0] + 0.5)/imsize]
-            uv_map[idx].uv = mathutils.Vector(uvcoord)
-    me.update()
-
-    return ob
-
-
-def get_vc_material(ob, name, fpath, colourtype="", is_label=False):
-    """Return a Cycles material that reads the vertex colour attribute."""
-
-    materials = bpy.data.materials
-    if materials.get(name) is not None:  # mostly for 'directional'
-        mat = materials.get(name)
-    else:
-        if colourtype == "directional":
-          # TODO: check if normals can avoid vertex colour
-          # by accesing directly from cycles attribute node
-            name = colourtype + ob.type
-            name = nb_utils.check_name(name, "", checkagainst=materials)
-            mat = make_material_dirsurf_cycles(name)
-        elif is_label:  # NOTE: labels not handled with vertex colour anymore
-            mat = make_material_labels_cycles(name, name)
-        else:
-            mat = make_material_overlay_cycles(name, name)
-
-    return mat
-
-
-def get_vertexcolours(ob, name="", fpath=""):
-    """Create a new vertex_colors attribute."""
-
-    vcs = ob.data.vertex_colors
-    vertexcolours = vcs.new(name=name)
-#     name = nb_utils.check_name(name, fpath, checkagainst=vcs)
-    ob.data.vertex_colors.active = vertexcolours
-
-    return vertexcolours
-
-
-def map_rgb_value(scalar, colourmapping="r2k"):
-    """Map a scalar to RGB in a certain colour map."""
-
-    if colourmapping == "r2k":
-        rgb = (scalar, 0, 0)
-    elif colourmapping == "g2k":
-        rgb = (0, scalar, 0)
-    elif colourmapping == "b2k":
-        rgb = (0, 0, scalar)
-    elif colourmapping == "fscurv":  # direct r2g cmap centred on 0
-        if scalar < 0:
-            rgb = (-scalar, 0, 0)
-        if scalar >= 0:
-            rgb = (0, scalar, 0)
-
-    return rgb
-
-
-def vertexcolour_fromlabel(v, vgs, group_lookup, labels):
-    """"""
-
-    rgba = []
-    for g in v.groups:
-        if g.group in list(group_lookup.keys()):
-            i = 0
-            while labels[i].name != group_lookup[g.group]:
-                i += 1
-            rgba.append(labels[i].colour)
-#             TODO: do this with key-value?
-
-    if not rgba:
-        rgba = [0.5, 0.5, 0.5, 1.0]
-    else:
-        # TODO: proper handling of multiple labels
-        rgba = np.array(rgba)
-        if rgba.ndim > 1:
-            rgba = np.mean(rgba, axis=0)
-        else:
-            rgba = rgba
-
-    return tuple(rgba[0:3])
-
-
-def make_material_labels_cycles(name, vcname):
-    """Create a Cycles material for vertexcolour rendering."""
-
-    scn = bpy.context.scene
-#     if not scn.render.engine == "CYCLES":
-#         scn.render.engine = "CYCLES"
-
-    mat = (bpy.data.materials.get(name) or
-           bpy.data.materials.new(name))
-    mat.use_nodes = True
-    mat.use_vertex_color_paint = True
-    mat.use_vertex_color_light = True
-
-    nodes = mat.node_tree.nodes
-    links = mat.node_tree.links
-
-    nodes.clear()
-    prefix = ""
-
-    node = nodes.new("ShaderNodeOutputMaterial")
-    node.label = "Material Output"
-    node.name = prefix + "Material Output"
-    node.location = 800, 0
-
-    node = nodes.new("ShaderNodeMixShader")
-    node.label = "Mix Shader"
-    node.name = prefix + "Mix Shader"
-    node.inputs[0].default_value = 0.04
-    node.location = 600, 0
-
-    node = nodes.new("ShaderNodeBsdfGlossy")
-    node.label = "Glossy BSDF"
-    node.name = prefix + "Glossy BSDF"
-    node.inputs[1].default_value = 0.15
-    node.distribution = "BECKMANN"
-    node.location = 400, -100
-
-    node = nodes.new("ShaderNodeBsdfDiffuse")
-    node.label = "Diffuse BSDF"
-    node.name = prefix + "Diffuse BSDF"
-    node.location = 400, 100
-
-    node = nodes.new("ShaderNodeAttribute")
-    node.location = 200, 100
-    node.name = prefix + "Attribute"
-    node.attribute_name = vcname
-    node.label = "Attribute"
-
-    links.new(nodes[prefix + "Mix Shader"].outputs["Shader"],
-              nodes[prefix + "Material Output"].inputs["Surface"])
-    links.new(nodes[prefix + "Glossy BSDF"].outputs["BSDF"],
-              nodes[prefix + "Mix Shader"].inputs[2])
-    links.new(nodes[prefix + "Diffuse BSDF"].outputs["BSDF"],
-              nodes[prefix + "Mix Shader"].inputs[1])
-    links.new(nodes[prefix + "Attribute"].outputs["Color"],
-              nodes[prefix + "Diffuse BSDF"].inputs["Color"])
-
-    return mat
