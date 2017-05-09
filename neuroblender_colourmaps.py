@@ -367,6 +367,14 @@ class ColorRampProperties(PropertyGroup):
         default=0,
         precision=4)
 
+    def calc_nn_position(self, position, range):
+        """Calculate the non-normalized positions of elements."""
+
+        dmin = range[0]
+        dmax = range[1]
+        drange = dmax-dmin
+        self.nn_position = position * drange + dmin
+
 
 def colourmap_enum_callback(self, context):
     """Populate the enum based on available options."""
@@ -442,6 +450,7 @@ def colourmap_enum_update(self, context):
                                      menu_idname=menu_idname,
                                      cr_path=cr_path)
 
+
 def managecmap_update(self, context):
     """Generate/delete dummy objects to manage colour maps."""
 
@@ -500,4 +509,28 @@ def managecmap_update(self, context):
 
     else:
         del_dummies(name)
+
+
+def calc_nn_elpos(nb_ov, ramp):
+    """Calculate the non-normalized positions of elements."""
+
+    def equalize_elements(nnels, n_els):
+        """Prepare the listobject for displaying n_new elements."""
+
+        n_nnels = len(nnels)
+
+        if n_els > n_nnels:
+            for _ in range(n_els - n_nnels):
+                nnels.add()
+        elif n_els < n_nnels:
+            for _ in range(n_nnels - n_els):
+                nnels.remove(0)
+
+    els = ramp.color_ramp.elements
+    nnels = nb_ov.nn_elements
+
+    equalize_elements(nnels, len(els))
+
+    for i, el in enumerate(nnels):
+        el.calc_nn_position(els[i].position, nb_ov.range)
 

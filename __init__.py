@@ -355,7 +355,7 @@ class NeuroBlenderBasePanel(Panel):
             row = layout.row()
             row.label(text="non-normalized colour stop positions:")
 
-            self.calc_nn_elpos(nb_coll, ramp)
+            nb_cm.calc_nn_elpos(nb_coll, ramp)
             row = layout.row()
             row.enabled = False
             row.template_list("ObjectListCR", "",
@@ -381,26 +381,6 @@ class NeuroBlenderBasePanel(Panel):
                     row.prop(nb_coll, "textlabel_colour", text="Textlabels")
                     row.prop(nb_coll, "textlabel_placement", text="")
                     row.prop(nb_coll, "textlabel_size", text="size")
-
-    def calc_nn_elpos(self, nb_ov, ramp):
-
-        # TODO: solve with drivers
-        els = ramp.color_ramp.elements
-        nnels = nb_ov.nn_elements
-        n_els = len(els)
-        n_nnels = len(nnels)
-        if n_els > n_nnels:
-            for _ in range(n_els-n_nnels):
-                nnels.add()
-        elif n_els < n_nnels:
-            for _ in range(n_nnels-n_els):
-                nnels.remove(0)
-        dmin = nb_ov.range[0]
-        dmax = nb_ov.range[1]
-        drange = dmax-dmin
-        for i, el in enumerate(nnels):
-            el.name = "colour stop " + str(i)
-            el.nn_position = els[i].position * drange + dmin
 
     def drawunit_rendertype(self, layout, nb_ob):
 
@@ -492,7 +472,6 @@ class NeuroBlenderOverlayPanel(Panel):
     drawunit_texture = NeuroBlenderBasePanel.drawunit_texture
     drawunit_colourmap = NeuroBlenderBasePanel.drawunit_colourmap
     drawunit_colourramp = NeuroBlenderBasePanel.drawunit_colourramp
-    calc_nn_elpos = NeuroBlenderBasePanel.calc_nn_elpos
     drawunit_slices = NeuroBlenderBasePanel.drawunit_slices
 
     def draw_nb_panel(self, layout, nb):

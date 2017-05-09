@@ -1606,27 +1606,3 @@ def make_nodegroup_mapframes(name="MapFramesGroup"):
 
     return group
 
-
-def calc_nn_elpos(nb_ov, ramp):
-    """Calculate the non-normalized positions of elements."""
-
-    # TODO: solve with drivers
-    els = ramp.color_ramp.elements
-    nnels = nb_ov.nn_elements
-    n_els = len(els)
-    n_nnels = len(nnels)
-
-    if n_els > n_nnels:
-        for _ in range(n_els-n_nnels):
-            nnels.add()
-    elif n_els < n_nnels:
-        for _ in range(n_nnels-n_els):
-            nnels.remove(0)
-
-    dmin = nb_ov.range[0]
-    dmax = nb_ov.range[1]
-    drange = dmax-dmin
-    for i, el in enumerate(nnels):
-        el.name = "colour stop " + str(i)
-        el.nn_position = els[i].position * drange + dmin
-
