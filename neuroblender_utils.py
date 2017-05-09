@@ -26,6 +26,7 @@ import os
 import sys
 import errno
 import tempfile
+import re
 
 # ========================================================================== #
 # general utilities
@@ -298,3 +299,127 @@ def add_item(parent, childpath, props):
         item.name_mem = props['name']
 
     return item
+
+
+def update_name(self, context):
+    """Update the name of a NeuroBlender collection item."""
+
+    scn = context.scene
+    nb = scn.nb
+
+    def rename_voxelvolume(vvol):
+        colls = [bpy.data.objects,
+                 bpy.data.meshes,
+                 bpy.data.materials,
+                 bpy.data.textures,
+                 bpy.data.images]
+        bpy.data.objects[vvol.name_mem+"SliceBox"].name = vvol.name+"SliceBox"
+        return colls
+
+    def rename_group(coll, group):
+        for item in group:
+            if item.name.startswith(coll.name_mem):
+                item_split = item.name.split('.')
+                # FIXME: there can be multiple dots in name
+                if len(item_split) > 1:
+                    newname = '.'.join([coll.name, item_split[-1]])
+                else:
+                    newname = coll.name
+                item.name = newname
+
+    dp_split = re.findall(r"[\w']+", self.path_from_id())
+    colltype = dp_split[-2]
+
+    if colltype == "tracts":
+        colls = [bpy.data.objects,
+                 bpy.data.curves,
+                 bpy.data.materials]
+
+    elif colltype == "surfaces":
+        # NOTE/TODO: ref to sphere
+        colls = [bpy.data.objects,
+                 bpy.data.meshes,
+                 bpy.data.materials]
+
+    elif colltype == "voxelvolumes":
+        colls = rename_voxelvolume(self)
+
+    elif colltype == "scalargroups":
+        parent = '.'.join(self.path_from_id().split('.')[:-1])
+        parent_coll = eval(parent)
+        parent_ob = bpy.data.objects[parent_coll.name]
+        if parent.startswith("nb.tracts"):
+            # FIXME: make sure collection name and matnames agree!
+            rename_group(self, bpy.data.materials)
+            colls = []
+        elif parent.startswith("nb.surfaces"):
+            rename_group(self, parent_ob.vertex_groups)
+            colls = [bpy.data.materials]
+        elif parent.startswith("nb.voxelvolumes"):
+            colls = rename_voxelvolume(self)
+        rename_group(self, self.scalars)
+
+    elif colltype == "labelgroups":
+        parent = '.'.join(self.path_from_id().split('.')[:-1])
+        if parent.startswith("nb.tracts"):
+            colls = []  # N/A
+        elif parent.startswith("nb.surfaces"):
+            colls = [bpy.data.materials]
+        elif parent.startswith("nb.voxelvolumes"):
+            colls = rename_voxelvolume(self)
+
+    elif colltype == "bordergroups":
+        colls = [bpy.data.objects]
+
+    elif colltype == "scalars":
+        colls = []  # irrelevant: name not referenced
+
+    elif colltype == "labels":
+        parent = '.'.join(self.path_from_id().split('.')[:-2])
+        parent_coll = eval(parent)
+        parent_ob = bpy.data.objects[parent_coll.name]
+        if parent.startswith("nb.tracts"):
+            colls = []  # N/A
+        elif parent.startswith("nb.surfaces"):
+            vg = parent_ob.vertex_groups.get(self.name_mem)
+            vg.name = self.name
+            colls = [bpy.data.materials]
+        elif parent.startswith("nb.voxelvolumes"):
+            colls = []  # irrelevant: name not referenced
+
+    elif colltype == "borders":
+        colls = [bpy.data.objects,
+                 bpy.data.curves,
+                 bpy.data.materials]
+
+    elif colltype == "presets":
+        colls = [bpy.data.objects]
+
+    elif colltype == "cameras":  # not implemented via Panels
+        colls = [bpy.data.objects,
+                 bpy.data.cameras]  # animations?
+
+    elif colltype == "lights":
+        colls = [bpy.data.objects,
+                 bpy.data.lamps]
+
+    elif colltype == "tables":  # not implemented via Panels
+        colls = [bpy.data.objects,
+                 bpy.data.meshes,
+                 bpy.data.materials]
+
+    elif colltype == "lights":
+        colls = [bpy.data.objects,
+                 bpy.data.lamps]
+
+    elif colltype == "campaths":  # not implemented via Panels
+        colls = [bpy.data.objects,
+                 bpy.data.curves]  # FollowPath constraints
+
+    else:
+        colls = []
+
+    for coll in colls:
+        coll[self.name_mem].name = self.name
+
+    self.name_mem = self.name
