@@ -65,8 +65,8 @@ from . import neuroblender_colourmaps as nb_cm
 from . import neuroblender_renderpresets as nb_rp
 from . import neuroblender_beautify as nb_beau
 from . import neuroblender_utils as nb_utils
-from . import external_sitepackages as ext_sp
-
+from NeuroBlender.neuroblender_materials import (material_update,
+                                                 material_enum_update)
 
 # =========================================================================== #
 

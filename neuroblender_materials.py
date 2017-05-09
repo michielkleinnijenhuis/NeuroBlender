@@ -1606,3 +1606,18 @@ def make_nodegroup_mapframes(name="MapFramesGroup"):
 
     return group
 
+
+def material_update(self, context):
+    """Assign a new preset material to the object."""
+
+    mat = bpy.data.materials[self.name]
+    if context.scene.nb.engine.startswith("BLENDER"):
+        nb_mat.CR2BR(mat)
+
+
+def material_enum_update(self, context):
+    """Assign a new preset material to the object."""
+
+    mat = bpy.data.materials[self.name]
+    nb_mat.link_innode(mat, self.colourtype)
+
