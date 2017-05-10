@@ -69,8 +69,10 @@ else:
                            IntVectorProperty,
                            PointerProperty)
     from bpy.app.handlers import persistent
-    from bpy_extras.io_utils import ImportHelper, ExportHelper
-    from bl_operators.presets import AddPresetBase, ExecutePreset
+    from bpy_extras.io_utils import (ImportHelper,
+                                     ExportHelper)
+    from bl_operators.presets import (AddPresetBase,
+                                      ExecutePreset)
 
     from . import (animations as nb_an,
                    base as nb_ba,
@@ -80,6 +82,7 @@ else:
                    materials as nb_ma,
                    overlays as nb_ol,
                    panels as nb_pa,
+                   properties as nb_pr,
                    renderpresets as nb_rp,
                    scenepresets as nb_sp,
                    settings as nb_se,
@@ -740,445 +743,6 @@ class SaveBlend(Operator, ExportHelper):
         return {"RUNNING_MODAL"}
 
 
-def overlay_enum_callback(self, context):
-    """Populate the enum based on available options."""
-
-    items = []
-    items.append(("scalargroups", "scalars",
-                  "List the scalar overlays", 0))
-    if self.objecttype != 'tracts':
-        items.append(("labelgroups", "labels",
-                      "List the label overlays", 1))
-    if self.objecttype == 'surfaces':
-        items.append(("bordergroups", "borders",
-                      "List the border overlays", 2))
-
-    return items
-
-
-def engine_update(self, context):
-    """Update materials when switching between engines."""
-
-    scn = context.scene
-    nb = scn.nb
-
-    for mat in bpy.data.materials:
-        mat.use_nodes = nb.engine == "CYCLES"
-        if nb.engine.startswith("BLENDER"):
-            nb_ma.CR2BR(mat)
-        else:
-            nb_ma.BR2CR(mat)
-
-    scn.render.engine = nb.engine
-    # TODO: handle lights
-
-
-def engine_driver():
-
-    scn = bpy.context.scene
-    nb = scn.nb
-
-    driver = nb.driver_add("engine", -1).driver
-    driver.type = 'AVERAGE'
-
-    nb_rp.create_var(driver, "type", 'SINGLE_PROP', 'SCENE', scn, "render.engine")
-
-
-def esp_path_update(self, context):
-    """Add external site-packages path to sys.path."""
-
-    nb_ut.add_path(self.esp_path)
-
-
-def mode_enum_update(self, context):
-    """Perform actions for updating mode."""
-
-    scn = context.scene
-    nb = scn.nb
-
-    for mat in bpy.data.materials:
-        nb_ma.switch_mode_mat(mat, self.mode)
-
-    try:
-        nb_preset = nb.presets[self.index_presets]
-        nb_cam = nb_preset.cameras[0]
-        light_obs = [bpy.data.objects.get(light.name)
-                     for light in nb_preset.lights]
-        table_obs = [bpy.data.objects.get(table.name)
-                     for table in nb_preset.tables]
-    except:
-        pass
-    else:
-        nb_rp.switch_mode_preset(light_obs, table_obs, nb.mode, nb_cam.cam_view)
-
-    # TODO: switch colourbars
-
-
-def managecmap_update(self, context):
-    """Generate/delete dummy objects to manage colour maps."""
-
-    scn = context.scene
-    nb = scn.nb
-
-    def gen_dummies(name="manage_colourmaps"):
-
-        cube = nb_im.voxelvolume_box_ob([2,2,2], "SliceBox")
-        cube.hide = cube.hide_render = True
-        cube.name = cube.data.name = name
-        bpy.data.materials.new(name)
-        mat = bpy.data.materials.get(name)
-        mat.volume.density = 0
-
-        bpy.data.textures.new(name, type='DISTORTED_NOISE')
-        tex = bpy.data.textures.get(name)
-        tex.use_preview_alpha = True
-        tex.use_color_ramp = True
-
-        texslot = mat.texture_slots.add()
-        texslot.texture = tex
-
-        texslot.use_map_density = True
-        texslot.texture_coords = 'ORCO'
-        texslot.use_map_emission = True
-
-        cube.data.materials.append(mat)
-
-    def del_dummies(name="manage_colourmaps"):
-
-        tex = bpy.data.textures.get(name)
-        bpy.data.textures.remove(tex)
-        mat = bpy.data.materials.get(name)
-        bpy.data.materials.remove(mat)
-        me = bpy.data.meshes.get(name)
-        bpy.data.meshes.remove(me)
-
-    name="manage_colourmaps"
-
-    if self.show_manage_colourmaps:
-        gen_dummies(name)
-
-        # FIXME: this is unsafe
-        cr_parentpath = "bpy.data.textures['{}']".format(name)
-        cr_path = '{}.color_ramp'.format(cr_parentpath)
-        context.scene.nb.cr_path = cr_path
-
-        # load preset
-        cr_path = '{}.color_ramp'.format(cr_parentpath)
-        nb.cr_path = cr_path
-        menu_idname = "OBJECT_MT_colourmap_presets"
-
-        preset_class = getattr(bpy.types, menu_idname)
-        preset_class.bl_label = bpy.path.display_name(basename(filepath))
-
-    else:
-        del_dummies(name)
-
-
-
-
-
-class NeuroBlenderProperties(PropertyGroup):
-    """Properties for the NeuroBlender panel."""
-
-    is_enabled = BoolProperty(
-        name="Show/hide NeuroBlender",
-        description="Show/hide the NeuroBlender panel contents",
-        default=True)
-
-    projectdir = StringProperty(
-        name="Project directory",
-        description="The path to the NeuroBlender project",
-        subtype="DIR_PATH",
-        default=os.path.expanduser('~'))
-
-    try:
-        import nibabel as nib
-        nib_valid = True
-        nib_dir = os.path.dirname(nib.__file__)
-        esp_path = os.path.dirname(nib_dir)
-    except:
-        nib_valid = False
-        esp_path = ""
-
-    nibabel_valid = BoolProperty(
-        name="nibabel valid",
-        description="Indicates whether nibabel has been detected",
-        default=nib_valid)
-    esp_path = StringProperty(
-        name="External site-packages",
-        description=""""
-            The path to the site-packages directory
-            of an equivalent python version with nibabel installed
-            e.g. using:
-            >>> conda create --name blender python=3.5.1
-            >>> source activate blender
-            >>> pip install git+git://github.com/nipy/nibabel.git@master
-            on Mac this would be the directory:
-            <conda root dir>/envs/blender/lib/python3.5/site-packages
-            """,
-        default=esp_path,
-        subtype="DIR_PATH",
-        update=esp_path_update)
-
-    mode = EnumProperty(
-        name="mode",
-        description="switch between NeuroBlender modes",
-        items=[("artistic", "artistic", "artistic", 1),
-               ("scientific", "scientific", "scientific", 2)],
-        default="artistic",
-        update=mode_enum_update)
-
-    engine = EnumProperty(
-        name="engine",
-        description="""Engine to use for rendering""",
-        items=[("BLENDER_RENDER", "Blender Render",
-                "Blender Render: required for voxelvolumes", 0),
-               ("CYCLES", "Cycles Render",
-                "Cycles Render: required for most overlays", 2)],
-        update=engine_update)
-
-    texformat = EnumProperty(
-        name="Volume texture file format",
-        description="Choose a format to save volume textures",
-        default="IMAGE_SEQUENCE",
-        items=[("IMAGE_SEQUENCE", "IMAGE_SEQUENCE", "IMAGE_SEQUENCE", 0),
-               ("STRIP", "STRIP", "STRIP", 1),
-               ("RAW_8BIT", "RAW_8BIT", "RAW_8BIT", 2)])
-    texmethod = IntProperty(
-        name="texmethod",
-        description="",
-        default=1,
-        min=1, max=4)
-    uv_resolution = IntProperty(
-        name="utexture resolution",
-        description="the resolution of baked textures",
-        default=4096,
-        min=1)
-    uv_bakeall = BoolProperty(
-        name="Bake all",
-        description="Bake single or all scalars in a group",
-        default=True)
-
-    advanced = BoolProperty(
-        name="Advanced mode",
-        description="Advanced NeuroBlender layout",
-        default=False)
-
-    verbose = BoolProperty(
-        name="Verbose",
-        description="Verbose reporting",
-        default=False)
-
-    show_transform = BoolProperty(
-        name="Transform",
-        default=False,
-        description="Show/hide the object's transform options")
-    show_material = BoolProperty(
-        name="Material",
-        default=False,
-        description="Show/hide the object's materials options")
-    show_slices = BoolProperty(
-        name="Slices",
-        default=False,
-        description="Show/hide the object's slice options")
-    show_info = BoolProperty(
-        name="Info",
-        default=False,
-        description="Show/hide the object's info")
-    show_overlay_material = BoolProperty(
-        name="Overlay material",
-        default=False,
-        description="Show/hide the object's overlay material")
-    show_overlay_slices = BoolProperty(
-        name="Overlay slices",
-        default=False,
-        description="Show/hide the object's overlay slices")
-    show_overlay_info = BoolProperty(
-        name="Overlay info",
-        default=False,
-        description="Show/hide the overlay's info")
-    show_items = BoolProperty(
-        name="Items",
-        default=False,
-        description="Show/hide the group overlay's items")
-    show_itemprops = BoolProperty(
-        name="Item properties",
-        default=True,
-        description="Show/hide the properties of the item")
-    show_additional = BoolProperty(
-        name="Additional options",
-        default=False,
-        description="Show/hide the object's additional options")
-    show_bounds = BoolProperty(
-        name="Bounds",
-        default=False,
-        description="Show/hide the preset's centre and dimensions")
-    show_cameras = BoolProperty(
-        name="Camera",
-        default=False,
-        description="Show/hide the preset's camera properties")
-    show_lights = BoolProperty(
-        name="Lights",
-        default=False,
-        description="Show/hide the preset's lights properties")
-    show_key = BoolProperty(
-        name="Key",
-        default=False,
-        description="Show/hide the Key light properties")
-    show_back = BoolProperty(
-        name="Back",
-        default=False,
-        description="Show/hide the Back light properties")
-    show_fill = BoolProperty(
-        name="Fill",
-        default=False,
-        description="Show/hide the Fill light properties")
-    show_tables = BoolProperty(
-        name="Table",
-        default=False,
-        description="Show/hide the preset's table properties")
-    show_animations = BoolProperty(
-        name="Animation",
-        default=False,
-        description="Show/hide the preset's animations")
-    show_timings = BoolProperty(
-        name="Timings",
-        default=True,
-        description="Show/hide the animation's timings")
-    show_animcamerapath = BoolProperty(
-        name="CameraPath",
-        default=True,
-        description="Show/hide the animation's camera path properties")
-    show_animslices = BoolProperty(
-        name="Slices",
-        default=True,
-        description="Show/hide the animation's slice properties")
-    show_timeseries = BoolProperty(
-        name="Time Series",
-        default=True,
-        description="Show/hide the animation's time series properties")
-    show_camerapath = BoolProperty(
-        name="Camera trajectory",
-        default=True,
-        description="Show/hide the animation's camera path properties")
-    show_tracking = BoolProperty(
-        name="Tracking",
-        default=False,
-        description="Show/hide the camera path's tracking properties")
-    show_newpath = BoolProperty(
-        name="New trajectory",
-        default=False,
-        description="Show/hide the camera trajectory generator")
-    show_points = BoolProperty(
-        name="Points",
-        default=False,
-        description="Show/hide the camera path points")
-    show_unwrap = BoolProperty(
-        name="Unwrap",
-        default=False,
-        description="Show/hide the unwrapping options")
-    show_manage_colourmaps = BoolProperty(
-        name="Manage colour maps",
-        default=False,
-        description="Show/hide the colour map management",
-        update=managecmap_update)
-
-    tracts = CollectionProperty(
-        type=nb_ba.TractProperties,
-        name="tracts",
-        description="The collection of loaded tracts")
-    index_tracts = IntProperty(
-        name="tract index",
-        description="index of the tracts collection",
-        default=0,
-        min=0)
-    surfaces = CollectionProperty(
-        type=nb_ba.SurfaceProperties,
-        name="surfaces",
-        description="The collection of loaded surfaces")
-    index_surfaces = IntProperty(
-        name="surface index",
-        description="index of the surfaces collection",
-        default=0,
-        min=0)
-    voxelvolumes = CollectionProperty(
-        type=nb_ba.VoxelvolumeProperties,
-        name="voxelvolumes",
-        description="The collection of loaded voxelvolumes")
-    index_voxelvolumes = IntProperty(
-        name="voxelvolume index",
-        description="index of the voxelvolumes collection",
-        default=0,
-        min=0)
-
-    presets = CollectionProperty(
-        type=nb_sp.PresetProperties,
-        name="presets",
-        description="The collection of presets")
-    index_presets = IntProperty(
-        name="preset index",
-        description="index of the presets",
-        default=0,
-        min=0)
-    presets_enum = EnumProperty(
-        name="presets",
-        description="switch between presets",
-        items=nb_sp.presets_enum_callback,
-        update=nb_sp.presets_enum_update)
-
-    campaths = CollectionProperty(
-        type=nb_an.CamPathProperties,
-        name="camera paths",
-        description="The collection of camera paths")
-    index_campaths = IntProperty(
-        name="camera path index",
-        description="index of the camera paths collection",
-        default=0,
-        min=0)
-
-    objecttype = EnumProperty(
-        name="object type",
-        description="switch between object types",
-        items=[("tracts", "tracts", "List the tracts", 1),
-               ("surfaces", "surfaces", "List the surfaces", 2),
-               ("voxelvolumes", "voxelvolumes", "List the voxelvolumes", 3)],
-        default="tracts")
-    overlaytype = EnumProperty(
-        name="overlay type",
-        description="switch between overlay types",
-        items=overlay_enum_callback)
-
-    # TODO: move to elsewhere
-    cr_keeprange = BoolProperty(
-        name="Keep range",
-        description="Keep/discard the current range of the colour ramp",
-        default=True)
-
-    cr_path = StringProperty(
-        name="CR path")
-
-# @persistent
-# def projectdir_update(dummy):
-#     """"""
-#
-#     scn = bpy.context.scene
-#     nb = scn.nb
-#
-# #     nb.projectdir = os.path.
-#
-# bpy.app.handlers.load_post(projectdir_update)
-
-# @persistent
-# def engine_driver_handler(dummy):
-#     """"""
-#
-#     engine_driver()
-#
-# bpy.app.handlers.load_post.append(engine_driver_handler)
-
-# =========================================================================== #
-
-
 classes = (
 
     nb_pa.NeuroBlenderBasePanel,
@@ -1186,6 +750,24 @@ classes = (
     nb_pa.NeuroBlenderScenePanel,
     nb_pa.NeuroBlenderAnimationPanel,
     nb_pa.NeuroBlenderSettingsPanel,
+
+    nb_pr.CameraProperties,
+    nb_pr.LightsProperties,
+    nb_pr.TableProperties,
+    nb_pr.CamPathProperties,
+    nb_pr.AnimationProperties,
+    nb_pr.PresetProperties,
+    nb_pr.ColorRampProperties,
+    nb_pr.ScalarProperties,
+    nb_pr.LabelProperties,
+    nb_pr.BorderProperties,
+    nb_pr.ScalarGroupProperties,
+    nb_pr.LabelGroupProperties,
+    nb_pr.BorderGroupProperties,
+    nb_pr.TractProperties,
+    nb_pr.SurfaceProperties,
+    nb_pr.VoxelvolumeProperties,
+    nb_pr.NeuroBlenderProperties,
 
     nb_an.SetAnimations,
     nb_an.AddAnimation,
@@ -1196,15 +778,12 @@ classes = (
     nb_an.ObjectListCP,
     nb_an.MassIsRenderedAN,
     nb_an.MassIsRenderedCP,
-    nb_an.AnimationProperties,
-    nb_an.CamPathProperties,
 
     nb_cm.OBJECT_MT_colourmap_presets,
     nb_cm.ExecutePreset_CR,
     nb_cm.AddPresetNeuroBlenderColourmap,
     nb_cm.ResetColourmaps,
     nb_cm.ObjectListCR,
-    nb_cm.ColorRampProperties,
 
     nb_se.OBJECT_MT_setting_presets,
     nb_se.AddPresetNeuroBlenderSettings,
@@ -1218,33 +797,20 @@ classes = (
     nb_sp.ScenePreset,
     nb_sp.ObjectListPL,
     nb_sp.MassIsRenderedPL,
-    nb_sp.CameraProperties,
-    nb_sp.LightsProperties,
-    nb_sp.TableProperties,
-    nb_sp.PresetProperties,
 
-    nb_ol.ImportScalarGroups,
-    nb_ol.ImportLabelGroups,
-    nb_ol.ImportBorderGroups,
     nb_ol.RevertLabel,
     nb_ol.WeightPaintMode,
     nb_ol.VertexWeight2VertexColors,
     nb_ol.VertexWeight2UV,
     nb_ol.UnwrapSurface,
     nb_ol.ObjectListTS,
-    nb_ol.ScalarProperties,
-    nb_ol.LabelProperties,
-    nb_ol.BorderProperties,
-    nb_ol.ScalarGroupProperties,
-    nb_ol.LabelGroupProperties,
-    nb_ol.BorderGroupProperties,
 
-    nb_ba.ImportTracts,
-    nb_ba.ImportSurfaces,
-    nb_ba.ImportVoxelvolumes,
-    nb_ba.TractProperties,
-    nb_ba.SurfaceProperties,
-    nb_ba.VoxelvolumeProperties,
+    nb_im.ImportScalarGroups,
+    nb_im.ImportLabelGroups,
+    nb_im.ImportBorderGroups,
+    nb_im.ImportTracts,
+    nb_im.ImportSurfaces,
+    nb_im.ImportVoxelvolumes,
 
     ObjectListL1,
     ObjectListL2,
@@ -1256,22 +822,15 @@ classes = (
     MassSelect,
     SwitchToMainScene,
     SaveBlend,
-    NeuroBlenderProperties
     )
 
 def register():
-
-#     bpy.utils.register_module(__name__, verbose=True)
-    for cls in classes:
-        bpy.utils.register_class(cls)
-    bpy.types.Scene.nb = PointerProperty(type=NeuroBlenderProperties)
+    bpy.utils.register_module(__name__)
+    bpy.types.Scene.nb = PointerProperty(type=nb_pr.NeuroBlenderProperties)
 
 
 def unregister():  # TODO: unregister handlers
-
-#     bpy.utils.unregister_module(__name__)
-    for cls in classes:
-        bpy.utils.unregister_class(cls)
+    bpy.utils.unregister_module(__name__)
     del bpy.types.Scene.nb
 
 if __name__ == "__main__":

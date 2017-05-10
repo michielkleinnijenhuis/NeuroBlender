@@ -28,17 +28,7 @@ import random
 import numpy as np
 import mathutils
 
-from . import animations as nb_an
-from . import base as nb_ba
-from . import beautify as nb_be
-from . import colourmaps as nb_cm
 from . import imports as nb_im
-# from . import materials as nb_ma
-from . import overlays as nb_ol
-from . import panels as nb_pa
-from . import renderpresets as nb_rp
-from . import scenepresets as nb_sp
-from . import settings as nb_se
 from . import utils as nb_ut
 
 # from .utils import (check_name,
@@ -296,7 +286,8 @@ def create_vc_overlay_tract(ob, fpath, name="", is_label=False):
 
     ob.data.use_uv_as_generated = True
     diffcol = [0.0, 0.0, 0.0, 1.0]
-    group = make_material_overlaytract_cycles_group(diffcol, mix=0.04)
+    group = make_material_overlaytract_cycles_group(diffcol, mix=0.04,
+                                                    nb_ov=scalargroup)
 
     for j, (scalar, scalarrange) in enumerate(zip(scalargroup_data,
                                                   scalarranges)):
@@ -1419,7 +1410,7 @@ def make_material_overlaytract_cycles_withgroup(name, img, group):
     return mat
 
 
-def make_material_overlaytract_cycles_group(diffcol, mix=0.04):
+def make_material_overlaytract_cycles_group(diffcol, mix=0.04, nb_ov=None):
     """Create a basic Cycles material.
 
     The material mixes difffuse, transparent and glossy.
@@ -1626,18 +1617,3 @@ def make_nodegroup_mapframes(name="MapFramesGroup"):
 #     links.new(tang.outputs["Tangent"], srgb.inputs["Image"])
 
     return group
-
-
-def material_update(self, context):
-    """Assign a new preset material to the object."""
-
-    mat = bpy.data.materials[self.name]
-    if context.scene.nb.engine.startswith("BLENDER"):
-        CR2BR(mat)
-
-
-def material_enum_update(self, context):
-    """Assign a new preset material to the object."""
-
-    mat = bpy.data.materials[self.name]
-    link_innode(mat, self.colourtype)

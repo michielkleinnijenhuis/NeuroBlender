@@ -33,45 +33,12 @@ This module implements NeuroBlender configuration.
 
 
 import bpy
-
-from bpy.app.handlers import persistent
-from bpy_extras.io_utils import ImportHelper, ExportHelper
-from bpy.types import (Panel,
-                       Operator,
-                       OperatorFileListElement,
-                       PropertyGroup,
-                       UIList,
+from bpy.types import (Operator,
                        Menu)
-from bpy.props import (BoolProperty,
-                       StringProperty,
-                       CollectionProperty,
-                       EnumProperty,
-                       FloatVectorProperty,
-                       FloatProperty,
-                       IntProperty,
-                       IntVectorProperty,
-                       PointerProperty)
-from bl_operators.presets import AddPresetBase, ExecutePreset
-
-import os
-import sys
-from shutil import copy
-import numpy as np
-import mathutils
-import re
+from bpy.props import StringProperty
+from bl_operators.presets import AddPresetBase
 
 from . import animations as nb_an
-from . import base as nb_ba
-from . import beautify as nb_be
-from . import colourmaps as nb_cm
-from . import imports as nb_im
-from . import materials as nb_ma
-from . import overlays as nb_ol
-from . import panels as nb_pa
-from . import renderpresets as nb_rp
-from . import scenepresets as nb_sp
-# from . import settings as nb_se
-from . import utils as nb_ut
 
 # from .materials import (CR2BR,
 #                         BR2CR,
@@ -133,4 +100,3 @@ class Reload(Operator):
         bpy.ops.wm.addon_enable(module=self.name)
 
         return {"FINISHED"}
-

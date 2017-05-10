@@ -20,28 +20,29 @@
 
 # ========================================================================== #
 
-import bpy
-
 import os
 from glob import glob
 import numpy as np
 from mathutils import Vector, Matrix
 from random import sample
-import random
 import xml.etree.ElementTree
 import pickle
 
-from . import animations as nb_an
-from . import base as nb_ba
+import bpy
+from bpy.types import (Operator,
+                       OperatorFileListElement)
+from bpy.props import (BoolProperty,
+                       StringProperty,
+                       CollectionProperty,
+                       EnumProperty,
+                       FloatVectorProperty,
+                       FloatProperty,
+                       IntProperty)
+from bpy_extras.io_utils import ImportHelper
+
 from . import beautify as nb_be
-from . import colourmaps as nb_cm
-# from . import imports as nb_im
 from . import materials as nb_ma
-from . import overlays as nb_ol
-from . import panels as nb_pa
 from . import renderpresets as nb_rp
-from . import scenepresets as nb_sp
-from . import settings as nb_se
 from . import utils as nb_ut
 
 # from .materials import (get_voxmat,
@@ -66,6 +67,579 @@ from . import utils as nb_ut
 # ========================================================================== #
 # brain data import functions
 # ========================================================================== #
+
+
+class ImportTracts(Operator, ImportHelper):
+    bl_idname = "nb.import_tracts"
+    bl_label = "Import tracts"
+    bl_description = "Import tracts as curves"
+    bl_options = {"REGISTER", "UNDO", "PRESET"}
+
+    directory = StringProperty(subtype="FILE_PATH")
+    files = CollectionProperty(name="Filepath",
+                               type=OperatorFileListElement)
+    filter_glob = StringProperty(
+        options={"HIDDEN"},
+        default="*.vtk;" +
+                "*.bfloat;*.Bfloat;*.bdouble;*.Bdouble;" +
+                "*.tck;*.trk;" +
+                "*.npy;*.npz;*.dpy")
+        # NOTE: multiline comment not working here
+
+    name = StringProperty(
+        name="Name",
+        description="Specify a name for the object (default: filename)",
+        default="")
+    parentpath = StringProperty(
+        name="Parentpath",
+        description="The path to the parent of the object",
+        default="nb")
+    interpolate_streamlines = FloatProperty(
+        name="Interpolate streamlines",
+        description="Interpolate the individual streamlines",
+        default=1.,
+        min=0.,
+        max=1.)
+    weed_tract = FloatProperty(
+        name="Tract weeding",
+        description="Retain a random selection of streamlines",
+        default=1.,
+        min=0.,
+        max=1.)
+
+    beautify = BoolProperty(
+        name="Beautify",
+        description="Apply initial bevel on streamlines",
+        default=True)
+    colourtype = EnumProperty(
+        name="",
+        description="Apply this tract colour method",
+        default="primary6",
+        items=[("none", "none", "none", 1),
+               ("golden_angle", "golden_angle", "golden_angle", 2),
+               ("primary6", "primary6", "primary6", 3),
+               ("random", "random", "random", 4),
+               ("directional", "directional", "directional", 5),
+               ("pick", "pick", "pick", 6)])
+    colourpicker = FloatVectorProperty(
+        name="",
+        description="Pick a colour for the tract(s)",
+        default=[1.0, 0.0, 0.0],
+        subtype="COLOR")
+    transparency = FloatProperty(
+        name="Transparency",
+        description="Set the transparency",
+        default=1.,
+        min=0.,
+        max=1.)
+
+    def execute(self, context):
+
+        importtype = "tracts"
+        impdict = {"weed_tract": self.weed_tract,
+                   "interpolate_streamlines": self.interpolate_streamlines}
+        beaudict = {"mode": "FULL",
+                    "depth": 0.5,
+                    "res": 10}
+
+        self.import_objects(importtype, impdict, beaudict)
+
+        return {"FINISHED"}
+
+    def import_objects(self, importtype, impdict, beaudict):
+
+        scn = bpy.context.scene
+        nb = scn.nb
+
+        importfun = eval("import_%s" % importtype[:-1])
+
+        filenames = [file.name for file in self.files]
+        if not filenames:
+            filenames = os.listdir(self.directory)
+
+        for f in filenames:
+            fpath = os.path.join(self.directory, f)
+
+            ca = [bpy.data.objects, bpy.data.meshes,
+                  bpy.data.materials, bpy.data.textures]
+            name = nb_ut.check_name(self.name, fpath, ca)
+
+            obs, info_imp, info_geom = importfun(fpath, name, "", impdict)
+
+            for ob in obs:
+                try:
+                    self.beautify
+                except:  # force updates on voxelvolumes
+                    nb.index_voxelvolumes = nb.index_voxelvolumes
+#                     item.rendertype = item.rendertype  # FIXME
+                else:
+                    info_mat = nb_ma.materialise(ob,
+                                                 self.colourtype,
+                                                 self.colourpicker,
+                                                 self.transparency)
+                    info_beau = nb_be.beautify_brain(ob,
+                                                     importtype,
+                                                     self.beautify,
+                                                     beaudict)
+
+            info = info_imp
+            if nb.verbose:
+                info = info + "\nname: '%s'\npath: '%s'\n" % (name, fpath)
+                info = info + "%s\n%s\n%s" % (info_geom, info_mat, info_beau)
+
+            self.report({'INFO'}, info)
+
+    def draw(self, context):
+        layout = self.layout
+
+        row = self.layout.row()
+        row.prop(self, "name")
+        row = self.layout.row()
+        row.prop(self, "interpolate_streamlines")
+        row = self.layout.row()
+        row.prop(self, "weed_tract")
+
+        row = self.layout.row()
+        row.separator()
+        row = self.layout.row()
+        row.prop(self, "beautify")
+        row = self.layout.row()
+        row.label(text="Colour: ")
+        row = self.layout.row()
+        row.prop(self, "colourtype")
+        row = self.layout.row()
+        if self.colourtype == "pick":
+            row.prop(self, "colourpicker")
+        row = self.layout.row()
+        row.prop(self, "transparency")
+
+    def invoke(self, context, event):
+        context.window_manager.fileselect_add(self)
+
+        return {"RUNNING_MODAL"}
+
+
+class ImportSurfaces(Operator, ImportHelper):
+    bl_idname = "nb.import_surfaces"
+    bl_label = "Import surfaces"
+    bl_description = "Import surfaces as mesh data"
+    bl_options = {"REGISTER", "UNDO", "PRESET"}
+
+    directory = StringProperty(subtype="FILE_PATH")
+    files = CollectionProperty(name="Filepath",
+                               type=OperatorFileListElement)
+    filter_glob = StringProperty(
+        options={"HIDDEN"},
+        default="*.obj;*.stl;" +
+                "*.gii;" +
+                "*.white;*.pial;*.inflated;*.sphere;*.orig;" +
+                "*.blend")
+        # NOTE: multiline comment not working here
+
+    name = StringProperty(
+        name="Name",
+        description="Specify a name for the object (default: filename)",
+        default="")
+    parentpath = StringProperty(
+        name="Parentpath",
+        description="The path to the parent of the object",
+        default="nb")
+    beautify = BoolProperty(
+        name="Beautify",
+        description="Apply initial smoothing on surfaces",
+        default=True)
+    colourtype = EnumProperty(
+        name="",
+        description="Apply this surface colour method",
+        default="primary6",
+        items=[("none", "none", "none", 1),
+               ("golden_angle", "golden_angle", "golden_angle", 2),
+               ("primary6", "primary6", "primary6", 3),
+               ("random", "random", "random", 4),
+               ("directional", "directional", "directional", 5),
+               ("pick", "pick", "pick", 6)])
+    colourpicker = FloatVectorProperty(
+        name="",
+        description="Pick a colour for the tract(s)",
+        default=[1.0, 0.0, 0.0],
+        subtype="COLOR")
+    transparency = FloatProperty(
+        name="Transparency",
+        description="Set the transparency",
+        default=1.,
+        min=0.,
+        max=1.)
+
+    import_objects = ImportTracts.import_objects
+
+    def execute(self, context):
+
+        importtype = "surfaces"
+        impdict = {}
+        beaudict = {"iterations": 10,
+                    "factor": 0.5,
+                    "use_x": True,
+                    "use_y": True,
+                    "use_z": True}
+
+        self.import_objects(importtype, impdict, beaudict)
+
+        return {"FINISHED"}
+
+    def draw(self, context):
+        layout = self.layout
+
+        row = self.layout.row()
+        row.prop(self, "name")
+
+        row = self.layout.row()
+        row.prop(self, "beautify")
+
+        row = self.layout.row()
+        row.label(text="Colour: ")
+        row = self.layout.row()
+        row.prop(self, "colourtype")
+        row = self.layout.row()
+        if self.colourtype == "pick":
+            row.prop(self, "colourpicker")
+        row = self.layout.row()
+        row.prop(self, "transparency")
+
+    def invoke(self, context, event):
+        context.window_manager.fileselect_add(self)
+
+        return {"RUNNING_MODAL"}
+
+
+def file_update(self, context):
+    """Set the voxelvolume name according to the selected file."""
+
+    ca = [bpy.data.meshes,
+          bpy.data.materials,
+          bpy.data.textures]
+    self.name = nb_ut.check_name(self.files[0].name, "", ca)
+
+
+def vvol_name_update(self, context):
+    """Set the texture directory to the voxelvolume name."""
+
+    self.texdir = "//voltex_%s" % self.name
+
+
+def texdir_update(self, context):
+    """Evaluate if a valid texture directory exists."""
+
+    self.has_valid_texdir = check_texdir(self.texdir,
+                                         self.texformat,
+                                         overwrite=False)
+
+
+def is_overlay_update(self, context):
+    """Switch the parentpath base/overlay."""
+
+    if self.is_overlay:
+        try:
+            nb_ob = nb_ut.active_nb_object()[0]
+        except IndexError:
+            pass  # no nb_obs found
+        else:
+            self.parentpath = nb_ob.path_from_id()
+    else:
+        self.parentpath = context.scene.nb.path_from_id()
+
+
+def h5_dataset_callback(self, context):
+    """Populate the enum based on available options."""
+
+    names = []
+
+    def h5_dataset_add(name, obj):
+        if isinstance(obj.id, h5py.h5d.DatasetID):
+            names.append(name)
+
+    try:
+        import h5py
+        f = h5py.File(os.path.join(self.directory, self.files[0].name), 'r')
+    except:
+        items = [("no data", "no data", "not a valid h5", 0)]
+    else:
+        f.visititems(h5_dataset_add)
+        f.close()
+        items = [(name, name, "List the datatree", i)
+                 for i, name in enumerate(names)]
+
+        return items
+
+
+class ImportVoxelvolumes(Operator, ImportHelper):
+    bl_idname = "nb.import_voxelvolumes"
+    bl_label = "Import voxelvolumes"
+    bl_description = "Import voxelvolumes to textures"
+    bl_options = {"REGISTER", "UNDO", "PRESET"}
+
+    directory = StringProperty(subtype="FILE_PATH")
+    files = CollectionProperty(name="Filepath", type=OperatorFileListElement)
+    filter_glob = StringProperty(
+        options={"HIDDEN"},
+        default="*.nii;*.nii.gz;*.img;*.hdr;" +
+                "*.h5;" +
+                "*.png;*.jpg;*.tif;*.tiff;")
+        # NOTE: multiline comment not working here
+
+    name = StringProperty(
+        name="Name",
+        description="Specify a name for the object (default: filename)",
+        default="voxelvolume",
+        update=vvol_name_update)
+    parentpath = StringProperty(
+        name="Parentpath",
+        description="The path to the parent of the object",
+        default="nb")
+    name_mode = EnumProperty(
+        name="nm",
+        description="...",
+        default="filename",
+        items=[("filename", "filename", "filename", 0),
+               ("custom", "custom", "custom", 1)])
+    is_overlay = BoolProperty(
+        name="Is overlay",
+        description="...",
+        default=False,
+        update=is_overlay_update)
+    is_label = BoolProperty(
+        name="Is label",
+        description="...",
+        default=False)
+    sformfile = StringProperty(
+        name="sformfile",
+        description="",
+        default="",
+        subtype="FILE_PATH")
+    has_valid_texdir = BoolProperty(
+        name="has_valid_texdir",
+        description="...",
+        default=False)
+    texdir = StringProperty(
+        name="Texture directory",
+        description="The directory with textures",
+        subtype="DIR_PATH",
+        default="//",
+        update=texdir_update)
+    texformat = EnumProperty(
+        name="Volume texture file format",
+        description="Choose a format to save volume textures",
+        default="IMAGE_SEQUENCE",
+        items=[("IMAGE_SEQUENCE", "IMAGE_SEQUENCE", "IMAGE_SEQUENCE", 0),
+               ("STRIP", "STRIP", "STRIP", 1),
+               ("RAW_8BIT", "RAW_8BIT", "RAW_8BIT", 2)],
+        update=texdir_update)
+    overwrite = BoolProperty(
+        name="overwrite",
+        description="Overwrite existing texture directory",
+        default=False)
+    dataset = EnumProperty(
+        name="Dataset",
+        description="The the name of the hdf5 dataset",
+        items=h5_dataset_callback)
+    vol_idx = IntProperty(
+        name="Volume index",
+        description="The index of the volume to import (-1 for all)",
+        default=-1)
+
+    import_objects = ImportTracts.import_objects
+
+    def execute(self, context):
+
+        importtype = "voxelvolumes"
+        impdict = {"is_overlay": self.is_overlay,
+                   "is_label": self.is_label,
+                   "parentpath": self.parentpath,
+                   "texdir": self.texdir,
+                   "texformat": self.texformat,
+                   "overwrite": self.overwrite,
+                   "dataset": self.dataset,
+                   "vol_idx": self.vol_idx}
+        beaudict = {}
+
+        self.import_objects(importtype, impdict, beaudict)
+
+        return {"FINISHED"}
+
+    def draw(self, context):
+
+        scn = context.scene
+        nb = scn.nb
+
+        layout = self.layout
+
+        # FIXME: solve with update function
+        if self.name_mode == "filename":
+            voltexdir = [s for s in self.directory.split('/')
+                         if "voltex_" in s]
+              # FIXME: generalize to other namings
+            if voltexdir:
+                self.name = voltexdir[0][7:]
+            else:
+                try:
+                    self.name = self.files[0].name
+                except IndexError:
+                    pass
+
+        row = layout.row()
+        row.prop(self, "name_mode", expand=True)
+
+        row = layout.row()
+        row.prop(self, "name")
+
+        try:
+            file = self.files[0]
+        except:
+            pass
+        else:
+            if file.name.endswith('.h5'):
+                row = layout.row()
+                row.prop(self, "dataset", expand=False)
+
+        row = layout.row()
+        row.prop(self, "vol_idx")
+
+        row = layout.row()
+        row.prop(self, "sformfile")
+
+        row = layout.row()
+        col = row.column()
+        col.prop(self, "is_overlay")
+        col = row.column()
+        col.prop(self, "is_label")
+        col.enabled = self.is_overlay
+        row = layout.row()
+        row.prop(self, "parentpath")
+        row.enabled = self.is_overlay
+
+        row = layout.row()
+        row.prop(self, "texdir")
+        row = layout.row()
+        row.prop(self, "texformat")
+        row = layout.row()
+        row.prop(self, "has_valid_texdir")
+        row.enabled = False
+        row = layout.row()
+        row.prop(self, "overwrite")
+        row.enabled = self.has_valid_texdir
+
+    def invoke(self, context, event):
+
+        if self.parentpath.startswith("nb.voxelvolumes"):
+            self.is_overlay = True
+
+        if context.scene.nb.overlaytype == "labelgroups":
+            self.is_label = True
+
+        self.name = self.name
+        context.window_manager.fileselect_add(self)
+
+        return {"RUNNING_MODAL"}
+
+
+class ImportScalarGroups(Operator, ImportHelper):
+    bl_idname = "nb.import_scalargroups"
+    bl_label = "Import time series overlay"
+    bl_description = "Import time series overlay to vertexweights/colours"
+    bl_options = {"REGISTER", "UNDO", "PRESET"}
+
+    directory = StringProperty(subtype="FILE_PATH")
+    files = CollectionProperty(name="Filepath",
+                               type=OperatorFileListElement)
+
+    name = StringProperty(
+        name="Name",
+        description="Specify a name for the object (default: filename)",
+        default="")
+    parentpath = StringProperty(
+        name="Parentpath",
+        description="The path to the parent of the object",
+        default="")
+    texdir = StringProperty(
+        name="Texture directory",
+        description="Directory with textures for this scalargroup",
+        default="",
+        subtype="DIR_PATH")  # TODO
+
+    def execute(self, context):
+        filenames = [file.name for file in self.files]
+        import_overlays(self.directory, filenames,
+                        self.name, self.parentpath, "scalargroups")
+
+        return {"FINISHED"}
+
+    def invoke(self, context, event):
+        context.window_manager.fileselect_add(self)
+
+        return {"RUNNING_MODAL"}
+
+
+class ImportLabelGroups(Operator, ImportHelper):
+    bl_idname = "nb.import_labelgroups"
+    bl_label = "Import label overlay"
+    bl_description = "Import label overlay to vertexgroups/colours"
+    bl_options = {"REGISTER", "UNDO", "PRESET"}
+
+    directory = StringProperty(subtype="FILE_PATH")
+    files = CollectionProperty(name="Filepath",
+                               type=OperatorFileListElement)
+
+    name = StringProperty(
+        name="Name",
+        description="Specify a name for the object (default: filename)",
+        default="")
+    parentpath = StringProperty(
+        name="Parentpath",
+        description="The path to the parent of the object",
+        default="")
+
+    def execute(self, context):
+        filenames = [file.name for file in self.files]
+        import_overlays(self.directory, filenames,
+                        self.name, self.parentpath, "labelgroups")
+
+        return {"FINISHED"}
+
+    def invoke(self, context, event):
+        context.window_manager.fileselect_add(self)
+
+        return {"RUNNING_MODAL"}
+
+
+class ImportBorderGroups(Operator, ImportHelper):
+    bl_idname = "nb.import_bordergroups"
+    bl_label = "Import bordergroup overlay"
+    bl_description = "Import bordergroup overlay to curves"
+    bl_options = {"REGISTER", "UNDO", "PRESET"}
+
+    directory = StringProperty(subtype="FILE_PATH")
+    files = CollectionProperty(name="Filepath",
+                               type=OperatorFileListElement)
+
+    name = StringProperty(
+        name="Name",
+        description="Specify a name for the object (default: filename)",
+        default="")
+    parentpath = StringProperty(
+        name="Parentpath",
+        description="The path to the parent of the object",
+        default="")
+
+    def execute(self, context):
+        filenames = [file.name for file in self.files]
+        import_overlays(self.directory, filenames,
+                        self.name, self.parentpath, "bordergroups")
+
+        return {"FINISHED"}
+
+    def invoke(self, context, event):
+        context.window_manager.fileselect_add(self)
+
+        return {"RUNNING_MODAL"}
 
 
 def import_tract(fpath, name, sformfile="",
