@@ -34,7 +34,21 @@ of the objects loaded in with NeuroBlender.
 
 import bpy
 
+from . import animations as nb_an
+from . import base as nb_ba
+# from . import beautify as nb_be
+from . import colourmaps as nb_cm
+from . import imports as nb_im
+from . import materials as nb_ma
+from . import overlays as nb_ol
+from . import panels as nb_pa
+from . import renderpresets as nb_rp
+from . import scenepresets as nb_sp
+from . import settings as nb_se
+from . import utils as nb_ut
+
 # =========================================================================== #
+
 
 def beautify_brain(ob, importtype, beautify, argdict):
     """Beautify the object."""

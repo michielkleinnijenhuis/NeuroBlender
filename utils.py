@@ -27,6 +27,20 @@ import sys
 import errno
 import tempfile
 import re
+import random
+
+from . import animations as nb_an
+from . import base as nb_ba
+from . import beautify as nb_be
+from . import colourmaps as nb_cm
+from . import imports as nb_im
+from . import materials as nb_ma
+from . import overlays as nb_ol
+from . import panels as nb_pa
+from . import renderpresets as nb_rp
+from . import scenepresets as nb_sp
+from . import settings as nb_se
+# from . import utils as nb_ut
 
 # ========================================================================== #
 # general utilities
@@ -128,7 +142,7 @@ def active_nb_overlayitem():
     return nb_it, it_idx
 
 
-def get_nb_objectinfo(objectname):
+def get_nb_objectinfo(parent):
     """"""
 
     scn = bpy.context.scene
@@ -138,11 +152,13 @@ def get_nb_objectinfo(objectname):
     idxs = [nb.tracts.find(parent),
             nb.surfaces.find(parent),
             nb.voxelvolumes.find(parent)]
+    obinfo = {}
     obinfo['name'] = parent
     obinfo['type'] = obtypes[[i>-1 for i in idxs].index(True)]
     obinfo['idx'] = idxs[[i>-1 for i in idxs].index(True)]
 
     return obinfo
+
 
 def validate_texture_path(voxelvolume):
     """"""

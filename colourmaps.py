@@ -40,13 +40,28 @@ import bpy
 from bpy.props import (StringProperty,
                        FloatProperty)
 from bpy.types import (Menu,
+                       UIList,
                        Operator,
                        PropertyGroup)
 from bl_operators.presets import (AddPresetBase,
                                   ExecutePreset)
 
-from . import neuroblender_utils as nb_utils
-from . import neuroblender_import as nb_imp
+from . import animations as nb_an
+from . import base as nb_ba
+from . import beautify as nb_be
+# from . import colourmaps as nb_cm
+from . import imports as nb_im
+from . import materials as nb_ma
+from . import overlays as nb_ol
+from . import panels as nb_pa
+from . import renderpresets as nb_rp
+from . import scenepresets as nb_sp
+from . import settings as nb_se
+from . import utils as nb_ut
+
+# from .utils import (update_name,
+#                     active_nb_object)
+# from .imports import voxelvolume_box_ob
 
 # =========================================================================== #
 
@@ -351,13 +366,158 @@ class ResetColourmaps(Operator):
             el.color = elem["color"]
 
 
+class ObjectListCR(UIList):
+
+    def draw_item(self, context, layout, data, item, icon,
+                  active_data, active_propname, index):
+
+        item_icon = "FULLSCREEN_ENTER"
+
+        if self.layout_type in {'DEFAULT', 'COMPACT'}:
+            col = layout.column()
+            col.prop(item, "name", text="", emboss=False,
+                     translate=False, icon=item_icon)
+            col = layout.column()
+            col.prop(item, "nn_position", text="")
+        elif self.layout_type in {'GRID'}:
+            layout.alignment = 'CENTER'
+            layout.prop(text="", icon=item_icon)
+
+
+def update_name(self, context):
+    """Update the name of a NeuroBlender collection item."""
+
+    scn = context.scene
+    nb = scn.nb
+
+    def rename_voxelvolume(vvol):
+        colls = [bpy.data.objects,
+                 bpy.data.meshes,
+                 bpy.data.materials,
+                 bpy.data.textures,
+                 bpy.data.images]
+        bpy.data.objects[vvol.name_mem+"SliceBox"].name = vvol.name+"SliceBox"
+        return colls
+
+    def rename_group(coll, group):
+        for item in group:
+            if item.name.startswith(coll.name_mem):
+                item_split = item.name.split('.')
+                # FIXME: there can be multiple dots in name
+                if len(item_split) > 1:
+                    newname = '.'.join([coll.name, item_split[-1]])
+                else:
+                    newname = coll.name
+                item.name = newname
+
+    dp_split = re.findall(r"[\w']+", self.path_from_id())
+    colltype = dp_split[-2]
+
+    if colltype == "tracts":
+        colls = [bpy.data.objects,
+                 bpy.data.curves,
+                 bpy.data.materials]
+
+    elif colltype == "surfaces":
+        # NOTE/TODO: ref to sphere
+        colls = [bpy.data.objects,
+                 bpy.data.meshes,
+                 bpy.data.materials]
+
+    elif colltype == "voxelvolumes":
+        colls = rename_voxelvolume(self)
+
+    elif colltype == "scalargroups":
+        parent = '.'.join(self.path_from_id().split('.')[:-1])
+        parent_coll = eval(parent)
+        parent_ob = bpy.data.objects[parent_coll.name]
+        if parent.startswith("nb.tracts"):
+            # FIXME: make sure collection name and matnames agree!
+            rename_group(self, bpy.data.materials)
+            colls = []
+        elif parent.startswith("nb.surfaces"):
+            rename_group(self, parent_ob.vertex_groups)
+            colls = [bpy.data.materials]
+        elif parent.startswith("nb.voxelvolumes"):
+            colls = rename_voxelvolume(self)
+        rename_group(self, self.scalars)
+
+    elif colltype == "labelgroups":
+        parent = '.'.join(self.path_from_id().split('.')[:-1])
+        if parent.startswith("nb.tracts"):
+            colls = []  # N/A
+        elif parent.startswith("nb.surfaces"):
+            colls = [bpy.data.materials]
+        elif parent.startswith("nb.voxelvolumes"):
+            colls = rename_voxelvolume(self)
+
+    elif colltype == "bordergroups":
+        colls = [bpy.data.objects]
+
+    elif colltype == "scalars":
+        colls = []  # irrelevant: name not referenced
+
+    elif colltype == "labels":
+        parent = '.'.join(self.path_from_id().split('.')[:-2])
+        parent_coll = eval(parent)
+        parent_ob = bpy.data.objects[parent_coll.name]
+        if parent.startswith("nb.tracts"):
+            colls = []  # N/A
+        elif parent.startswith("nb.surfaces"):
+            vg = parent_ob.vertex_groups.get(self.name_mem)
+            vg.name = self.name
+            colls = [bpy.data.materials]
+        elif parent.startswith("nb.voxelvolumes"):
+            colls = []  # irrelevant: name not referenced
+
+    elif colltype == "borders":
+        colls = [bpy.data.objects,
+                 bpy.data.curves,
+                 bpy.data.materials]
+
+    elif colltype == "presets":
+        colls = [bpy.data.objects]
+
+    elif colltype == "cameras":  # not implemented via Panels
+        colls = [bpy.data.objects,
+                 bpy.data.cameras]  # animations?
+
+    elif colltype == "lights":
+        colls = [bpy.data.objects,
+                 bpy.data.lamps]
+
+    elif colltype == "tables":  # not implemented via Panels
+        colls = [bpy.data.objects,
+                 bpy.data.meshes,
+                 bpy.data.materials]
+
+    elif colltype == "lights":
+        colls = [bpy.data.objects,
+                 bpy.data.lamps]
+
+    elif colltype == "campaths":  # not implemented via Panels
+        colls = [bpy.data.objects,
+                 bpy.data.curves]  # FollowPath constraints
+
+    else:
+        colls = []
+
+    for coll in colls:
+        coll[self.name_mem].name = self.name
+
+    self.name_mem = self.name
+
+
+
+
+
 class ColorRampProperties(PropertyGroup):
     """Custom properties of color ramps."""
 
     name = StringProperty(
         name="Name",
         description="The name of the color stop",
-        update=nb_utils.update_name)
+        update=update_name)
     name_mem = StringProperty(
         name="NameMem",
         description="Memory for updating name")
@@ -399,7 +559,7 @@ def colourmap_enum_callback(self, context):
     mapnames = [os.path.splitext(os.path.basename(f))[0]
                 for i, f in enumerate(files)]
 
-    pref_order = ["grey", "jet", "hsv", "hot", "cool", 
+    pref_order = ["grey", "jet", "hsv", "hot", "cool",
                   "spring", "summer", "autumn", "winter",
                   "parula"]
     mapnames = order_cmaps(mapnames, pref_order)
@@ -418,7 +578,7 @@ def colourmap_enum_update(self, context):
     scn = context.scene
     nb = scn.nb
 
-    nb_ob = nb_utils.active_nb_object()[0]
+    nb_ob = nb_ut.active_nb_object()[0]
     if hasattr(nb_ob, 'slicebox'):
         cr = bpy.data.textures[self.name].color_ramp
         cr_parentpath = 'bpy.data.textures["{}"]'.format(self.name)
@@ -451,66 +611,6 @@ def colourmap_enum_update(self, context):
                                      cr_path=cr_path)
 
 
-def managecmap_update(self, context):
-    """Generate/delete dummy objects to manage colour maps."""
-
-    scn = context.scene
-    nb = scn.nb
-
-    def gen_dummies(name="manage_colourmaps"):
-
-        cube = nb_imp.voxelvolume_box_ob([2,2,2], "SliceBox")
-        cube.hide = cube.hide_render = True
-        cube.name = cube.data.name = name
-        bpy.data.materials.new(name)
-        mat = bpy.data.materials.get(name)
-        mat.volume.density = 0
-
-        bpy.data.textures.new(name, type='DISTORTED_NOISE')
-        tex = bpy.data.textures.get(name)
-        tex.use_preview_alpha = True
-        tex.use_color_ramp = True
-
-        texslot = mat.texture_slots.add()
-        texslot.texture = tex
-
-        texslot.use_map_density = True
-        texslot.texture_coords = 'ORCO'
-        texslot.use_map_emission = True
-
-        cube.data.materials.append(mat)
-
-    def del_dummies(name="manage_colourmaps"):
-
-        tex = bpy.data.textures.get(name)
-        bpy.data.textures.remove(tex)
-        mat = bpy.data.materials.get(name)
-        bpy.data.materials.remove(mat)
-        me = bpy.data.meshes.get(name)
-        bpy.data.meshes.remove(me)
-
-    name="manage_colourmaps"
-
-    if self.show_manage_colourmaps:
-        gen_dummies(name)
-
-        # FIXME: this is unsafe
-        cr_parentpath = "bpy.data.textures['{}']".format(name)
-        cr_path = '{}.color_ramp'.format(cr_parentpath)
-        context.scene.nb.cr_path = cr_path
-
-        # load preset
-        cr_path = '{}.color_ramp'.format(cr_parentpath)
-        nb.cr_path = cr_path
-        menu_idname = "OBJECT_MT_colourmap_presets"
-
-        preset_class = getattr(bpy.types, menu_idname)
-        preset_class.bl_label = bpy.path.display_name(basename(filepath))
-
-    else:
-        del_dummies(name)
-
-
 def calc_nn_elpos(nb_ov, ramp):
     """Calculate the non-normalized positions of elements."""
 
@@ -533,4 +633,3 @@ def calc_nn_elpos(nb_ov, ramp):
 
     for i, el in enumerate(nnels):
         el.calc_nn_position(els[i].position, nb_ov.range)
-

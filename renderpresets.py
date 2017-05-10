@@ -26,10 +26,29 @@ import os
 import numpy as np
 from mathutils import Vector
 
-from . import neuroblender_import as nb_imp
-from . import neuroblender_materials as nb_mat
-from . import neuroblender_utils as nb_utils
+from . import animations as nb_an
+from . import base as nb_ba
+from . import beautify as nb_be
+from . import colourmaps as nb_cm
+from . import imports as nb_im
+from . import materials as nb_ma
+from . import overlays as nb_ol
+from . import panels as nb_pa
+# from . import renderpresets as nb_rp
+from . import scenepresets as nb_sp
+from . import settings as nb_se
+from . import utils as nb_ut
 
+# from .imports import prep_nifti
+# from .materials import (reset_materialslots,
+#                         assign_materialslots_to_faces,
+#                         make_material_emit_cycles,
+#                         set_materials,
+#                         make_material_basic_cycles,
+#                         load_surface_textures,
+#                         assign_vc)  # make_material_emit_internal
+# from .utils import (add_item,
+#                     move_to_layer)
 
 # ========================================================================== #
 # function to prepare a suitable setup for rendering the scene
@@ -130,12 +149,12 @@ def scene_preset_init(name):
     """add newly created objects to collections"""
     presetprops = {"name": name, "centre": centre.name,
                    "dims": dims, "box": box.name, "lightsempty": lights.name}
-    nb_preset = nb_utils.add_item(nb, "presets", presetprops)
-    nb_utils.add_item(nb_preset, "cameras", camprops)
+    nb_preset = nb_ut.add_item(nb, "presets", presetprops)
+    nb_ut.add_item(nb_preset, "cameras", camprops)
     nb_preset.cameras[0].trackobject = "Centre"  # force update function
     for lightprops in [lp_key, lp_fill, lp_back]:
-        nb_utils.add_item(nb_preset, "lights", lightprops)
-    nb_utils.add_item(nb_preset, "tables", tableprops)
+        nb_ut.add_item(nb_preset, "lights", lightprops)
+    nb_ut.add_item(nb_preset, "tables", tableprops)
 
     """switch to view"""
     bpy.ops.nb.switch_to_main()
@@ -188,7 +207,7 @@ def scene_preset(name="Brain", layer=10):
 #     preset_obs = preset_obs + list(cbars.children)
 
     for ob in preset_obs:
-        nb_utils.move_to_layer(ob, layer)
+        nb_ut.move_to_layer(ob, layer)
     scn.layers[layer] = True
 
     switch_mode_preset(list(lights.children), [table],
@@ -270,9 +289,9 @@ def renderselections_surfaces(nb_obs):
                                                   vgs, mat_idxs)
 
         vgs_idxs = [g.index for g in vgs]
-        nb_mat.reset_materialslots(ob)  # TODO: also for tracts?
+        nb_ma.reset_materialslots(ob)  # TODO: also for tracts?
         if vgs is not None:
-            nb_mat.assign_materialslots_to_faces(ob, vgs, mat_idxs)
+            nb_ma.assign_materialslots_to_faces(ob, vgs, mat_idxs)
 
         for bg in nb_ob.bordergroups:
             for b in bg.borders:
@@ -401,15 +420,15 @@ def validate_voxelvolume_textures(nb):
     for vv in nb.voxelvolumes:
         fp = bpy.data.textures[vv.name].voxel_data.filepath
         if not os.path.isfile(fp):
-            fp = nb_imp.prep_nifti(vv.filepath, vv.name, False)[0]
+            fp = nb_im.prep_nifti(vv.filepath, vv.name, False)[0]
         for vs in vv.scalars:
             fp = bpy.data.textures[vs.name].voxel_data.filepath
             if not os.path.isfile(fp):
-                fp = nb_imp.prep_nifti(vs.filepath, vs.name, False)[0]
+                fp = nb_im.prep_nifti(vs.filepath, vs.name, False)[0]
         for vl in vv.labelgroups:
             fp = bpy.data.textures[vl.name].voxel_data.filepath
             if not os.path.isfile(fp):
-                fp = nb_imp.prep_nifti(vl.filepath, vl.name, True)[0]
+                fp = nb_im.prep_nifti(vl.filepath, vl.name, True)[0]
 
 
 def get_render_objects(nb):
@@ -428,7 +447,7 @@ def get_brainbounds(obs):
 
     if not obs:
         print("""
-              no objects selected for render: 
+              no objects selected for render:
               setting location and dimensions to default.
               """)
         centre_location = [0, 0, 0]
@@ -984,8 +1003,8 @@ def create_light(preset, centre, box, lights, lightprops):
         light = create_plane(name)
         light.scale = [scale[0]*2, scale[1]*2, 1]
         emission = {'colour': colour, 'strength': strength}
-        mat = nb_mat.make_material_emit_cycles(light.name, emission)
-        nb_mat.set_materials(light.data, mat)
+        mat = nb_ma.make_material_emit_cycles(light.name, emission)
+        nb_ma.set_materials(light.data, mat)
     else:
         lamp = bpy.data.lamps.new(name, type)
         light = bpy.data.objects.new(lamp.name, object_data=lamp)
@@ -1022,9 +1041,9 @@ def create_light_old(name, braincentre, dims, scale, loc, emission):
     ob.scale = [dims[0]*scale[0], dims[1]*scale[1], 1]
     ob.location = (dims[0] * loc[0], dims[1] * loc[1], dims[2] * loc[2])
     add_constraint(ob, "TRACK_TO", "TrackToBrainCentre", braincentre)
-    mat = nb_mat.make_material_emit_cycles(name, emission)
-#     mat = nb_mat.make_material_emit_internal(name, emission, True)
-    nb_mat.set_materials(ob.data, mat)
+    mat = nb_ma.make_material_emit_cycles(name, emission)
+#     mat = make_material_emit_internal(name, emission, True)
+    nb_ma.set_materials(ob.data, mat)
 
     return ob
 
@@ -1060,8 +1079,8 @@ def create_table(preset, centre, tableprops):
     ob.location = tableprops["location"]
 
     diffcol = [0.5, 0.5, 0.5, 1.0]
-    mat = nb_mat.make_material_basic_cycles(ob.name, diffcol, mix=0.8)
-    nb_mat.set_materials(ob.data, mat)
+    mat = nb_ma.make_material_basic_cycles(ob.name, diffcol, mix=0.8)
+    nb_ma.set_materials(ob.data, mat)
 
     ob.parent = centre
 #     add_constraint(ob, "CHILD_OF", "Child Of", centre)
@@ -1134,7 +1153,7 @@ def animate_slicebox(vvol, anim=None, axis="Z", frame_start=1, frame_end=100,
 #         scn.frame_set(k)
 #         vvol.keyframe_delete(data_path=prop.lower(), index=idx)
 
-    # insert the animation 
+    # insert the animation
     for k, v in kfs.items():
         scn.frame_set(k)
         exec('vvol.%s[idx] = v' % prop.lower())
@@ -1189,7 +1208,7 @@ def animate_timeseries(anim):
     if anim.timeseries_object.startswith("S: "):
 
         # TODO: this is for per-frame jumps of texture
-        nb_mat.load_surface_textures(ts_name, sg.texdir, nscalars)
+        nb_ma.load_surface_textures(ts_name, sg.texdir, nscalars)
 
     elif anim.timeseries_object.startswith("V: "):
 
@@ -1198,7 +1217,7 @@ def animate_timeseries(anim):
         fptp = np.floor(nframes/nscalars)
 
         kfs = {anim.frame_start-1: 0,
-               anim.frame_start: 0, 
+               anim.frame_start: 0,
                anim.frame_end: nscalars - 1,
                anim.frame_end+1: nscalars - 1}
         for k, v in kfs.items():
@@ -1275,7 +1294,7 @@ def animate_ts_vvol():  # scratch
         kfs_bezier = {tp_in_start: 0, tp_in_end: 1,
                       tp_out_start: 1, tp_out_end: 0}
 
-        # insert the animation 
+        # insert the animation
         for prop, interp in props.items():
             kfs = eval("kfs_%s" % interp.lower())
             for k, v in kfs.items():
@@ -1355,7 +1374,7 @@ def create_colourbar(cbars, cr_ob, type):
         vcs = cbar.data.vertex_colors
         vc = vcs.new(cr_ob.name)
         cbar.data.vertex_colors.active = vc
-        cbar = nb_mat.assign_vc(cbar, vc, [vg])
+        cbar = nb_ma.assign_vc(cbar, vc, [vg])
     elif type.startswith('voxelvolumes'):
         mat = bpy.data.materials[cr_ob.name].copy()
         tex = bpy.data.textures[cr_ob.name].copy()
@@ -1364,12 +1383,11 @@ def create_colourbar(cbars, cr_ob, type):
         mat.texture_slots[0].texture = tex
         # this does not show the original colorramp
 
-    nb_mat.set_materials(cbar.data, mat)
+    nb_ma.set_materials(cbar.data, mat)
 
     # colour = list(cr_ob.textlabel_colour) + [1.]
     # emission = {'colour': colour, 'strength': 1}
-    # labmat = nb_mat.make_material_emit_cycles(cr_ob.name + "cbartext",
-    #                                           emission)
+    # labmat = nb_ma.make_material_emit_cycles(cr_ob.name + "cbartext", emission)
     # add_colourbar_labels(cbar_name+"_label", cr_ob, cbar, labmat)  # FIXME
 
 
@@ -1519,7 +1537,7 @@ def add_colourbar_labels(presetname, cr_ob, parent_ob, labmat,
         text.location[0] = elpos * width  # - text.dimensions[0] / 2  # FIXME
         if cr_ob.textlabel_placement == "out":
             text.location[1] = -text.scale[0]
-        nb_mat.set_materials(text.data, labmat)
+        nb_ma.set_materials(text.data, labmat)
 
 
 # def create_colourbar_old(name="Colourbar", width=0.5, height=0.1):

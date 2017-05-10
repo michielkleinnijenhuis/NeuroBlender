@@ -28,8 +28,29 @@ import random
 import numpy as np
 import mathutils
 
-from . import neuroblender_utils as nb_utils
-from . import neuroblender_import as nb_imp
+from . import animations as nb_an
+from . import base as nb_ba
+from . import beautify as nb_be
+from . import colourmaps as nb_cm
+from . import imports as nb_im
+# from . import materials as nb_ma
+from . import overlays as nb_ol
+from . import panels as nb_pa
+from . import renderpresets as nb_rp
+from . import scenepresets as nb_sp
+from . import settings as nb_se
+from . import utils as nb_ut
+
+# from .utils import (check_name,
+#                     active_nb_object,
+#                     add_item)
+# from .imports import (read_tractscalar,
+#                       read_surfscalar,
+#                       read_surflabel,
+#                       normalize_data,
+#                       read_borders,
+#                       read_surfannot,
+#                       make_polyline_ob_vi)
 
 # =========================================================================== #
 # material assignment
@@ -177,7 +198,7 @@ def make_material_vc_blender(name, fpath=""):
     """
 
     ca = [bpy.data.materials]
-    name = nb_utils.check_name(name, fpath, ca)
+    name = nb_ut.check_name(name, fpath, ca)
     mat = bpy.data.materials.new(name)
     mat.use_vertex_color_paint = True
     mat.use_vertex_color_light = True
@@ -246,7 +267,7 @@ def create_vc_overlay_tract(ob, fpath, name="", is_label=False):
     """Create scalar overlay for a tract object."""
 
     # TODO: implement reading of groups
-    nn_scalargroup_data = nb_imp.read_tractscalar(fpath)
+    nn_scalargroup_data = nb_im.read_tractscalar(fpath)
     groupmin = float('Inf')
     groupmax = -float('Inf')
     scalarranges = []
@@ -265,13 +286,13 @@ def create_vc_overlay_tract(ob, fpath, name="", is_label=False):
                          for streamline in scalar_data]
                         for scalar_data in nn_scalargroup_data]
 
-    nb_ob = nb_utils.active_nb_object()[0]
+    nb_ob = nb_ut.active_nb_object()[0]
     ca = [nb_ob.scalargroups]
-    name = nb_utils.check_name(name, fpath, ca)
+    name = nb_ut.check_name(name, fpath, ca)
     sgprops = {"name": name,
                "filepath": fpath,
                "range": scalargrouprange}
-    scalargroup = nb_utils.add_item(nb_ob, "scalargroups", sgprops)
+    scalargroup = nb_ut.add_item(nb_ob, "scalargroups", sgprops)
 
     ob.data.use_uv_as_generated = True
     diffcol = [0.0, 0.0, 0.0, 1.0]
@@ -282,18 +303,18 @@ def create_vc_overlay_tract(ob, fpath, name="", is_label=False):
         # TODO: check against all other scalargroups etc
         ca = [sg.scalars for sg in nb_ob.scalargroups]
         tpname = "%s.vol%04d" % (name, j)
-        scalarname = nb_utils.check_name(tpname, fpath, ca)
+        scalarname = nb_ut.check_name(tpname, fpath, ca)
         sprops = {"name": scalarname,
                   "filepath": fpath,
                   "range": scalarrange}
-        nb_scalar = nb_utils.add_item(scalargroup, "scalars", sprops)
+        nb_scalar = nb_ut.add_item(scalargroup, "scalars", sprops)
 
         for i, (spline, streamline) in enumerate(zip(ob.data.splines, scalar)):
 
             # TODO: implement name check that checks for the prefix 'name'
             splname = nb_scalar.name + '_spl' + str(i).zfill(8)
             ca = [bpy.data.images, bpy.data.materials]
-            splname = nb_utils.check_name(splname, fpath, ca, maxlen=52)
+            splname = nb_ut.check_name(splname, fpath, ca, maxlen=52)
 
             img = create_overlay_tract_img(splname, streamline)
 
@@ -326,19 +347,19 @@ def set_curve_weights(ob, name, label=None, scalars=None):
 def create_vc_overlay(ob, fpath, name="", is_label=False):
     """Create scalar overlay for a surface object."""
 
-    timeseries = nb_imp.read_surfscalar(fpath)
+    timeseries = nb_im.read_surfscalar(fpath)
 
-    timeseries, timeseriesrange = nb_imp.normalize_data(timeseries)
+    timeseries, timeseriesrange = nb_im.normalize_data(timeseries)
 
-    nb_ob = nb_utils.active_nb_object()[0]
+    nb_ob = nb_ut.active_nb_object()[0]
     ca = [nb_ob.scalargroups]  # TODO: all other scalargroups etc
-    name = nb_utils.check_name(name, fpath, ca)
+    name = nb_ut.check_name(name, fpath, ca)
     texdir = "//uvtex_%s" % name
     props = {"name": name,
              "filepath": fpath,
              "range": timeseriesrange,
              "texdir": texdir}
-    scalargroup = nb_utils.add_item(nb_ob, "scalargroups", props)
+    scalargroup = nb_ut.add_item(nb_ob, "scalargroups", props)
 
     vg = set_vertex_group(ob, "%s.volmean" % name,
                           scalars=np.mean(timeseries, axis=0))
@@ -352,7 +373,7 @@ def create_vc_overlay(ob, fpath, name="", is_label=False):
         props = {"name": tpname,
                  "filepath": fpath,
                  "range": timeseriesrange}
-        nb_ov = nb_utils.add_item(scalargroup, "scalars", props)
+        nb_ov = nb_ut.add_item(scalargroup, "scalars", props)
 
     abstexdir = bpy.path.abspath(texdir)
     if os.path.isdir(abstexdir):
@@ -371,12 +392,12 @@ def create_vg_annot(ob, fpath, name=""):
     (this can be found in commit c3b6d66)
     """
 
-    nb_ob = nb_utils.active_nb_object()[0]
+    nb_ob = nb_ut.active_nb_object()[0]
     ca = [nb_ob.labelgroups]  # TODO: all other labelgroups
-    groupname = nb_utils.check_name(name, fpath, ca)
+    groupname = nb_ut.check_name(name, fpath, ca)
     props = {"name": groupname,
              "filepath": fpath}
-    labelgroup = nb_utils.add_item(nb_ob, "labelgroups", props)
+    labelgroup = nb_ut.add_item(nb_ob, "labelgroups", props)
     mat = make_material_overlay_cycles(groupname, groupname,
                                        ob, labelgroup)
     set_materials(ob.data, mat)
@@ -390,7 +411,7 @@ def create_vg_annot(ob, fpath, name=""):
     attr.attribute_name = groupname
 
     if fpath.endswith('.border'):
-        borderlist = nb_imp.read_borders(fpath)
+        borderlist = nb_im.read_borders(fpath)
         create_polygon_layer_int(ob, borderlist)
         # (for each border?, will be expensive: do one for every file now)
         # this already takes a long time...
@@ -400,7 +421,7 @@ def create_vg_annot(ob, fpath, name=""):
 
             ca = [ob.data.polygon_layers_int,
                   bpy.data.materials]
-            name = nb_utils.check_name(border['name'], "", ca)
+            name = nb_ut.check_name(border['name'], "", ca)
 
             value = i + 1
             diffcol = list(border['rgb']) + [1.0]
@@ -411,13 +432,13 @@ def create_vg_annot(ob, fpath, name=""):
             props = {"name": name,
                      "value": value,
                      "colour": diffcol}
-            nb_utils.add_item(labelgroup, "labels", props)
+            nb_ut.add_item(labelgroup, "labels", props)
 
         pl = ob.data.polygon_layers_int["pl"]
         set_materials_to_polygonlayers(ob, pl, new_mats)
 
     else:
-        labels, ctab, names = nb_imp.read_surfannot(fpath)
+        labels, ctab, names = nb_im.read_surfannot(fpath)
 
         new_vgs = []
         new_mats = []
@@ -425,7 +446,7 @@ def create_vg_annot(ob, fpath, name=""):
 
             ca = [ob.vertex_groups,
                   bpy.data.materials]
-            name = nb_utils.check_name(labelname, "", ca)
+            name = nb_ut.check_name(labelname, "", ca)
 
             label = np.where(labels == i)[0]
             value = ctab[i, 4]
@@ -440,7 +461,7 @@ def create_vg_annot(ob, fpath, name=""):
             props = {"name": name,
                      "value": int(value),
                      "colour": diffcol}
-            nb_utils.add_item(labelgroup, "labels", props)
+            nb_ut.add_item(labelgroup, "labels", props)
 
         set_materials_to_vertexgroups(ob, new_vgs, new_mats)
 
@@ -448,23 +469,23 @@ def create_vg_annot(ob, fpath, name=""):
 def create_border_curves(ob, fpath, name=""):
     """Import an border file and create curves."""
 
-    borderlist = nb_imp.read_borders(fpath)
+    borderlist = nb_im.read_borders(fpath)
 
     ca = [bpy.data.objects]
-    groupname = nb_utils.check_name(name, fpath, ca)
+    groupname = nb_ut.check_name(name, fpath, ca)
     bordergroup_ob = bpy.data.objects.new(groupname, object_data=None)
     bpy.context.scene.objects.link(bordergroup_ob)
     bordergroup_ob.parent = ob
     props = {"name": groupname,
              "filepath": fpath}
-    nb_ob = nb_utils.active_nb_object()[0]  # FIXME
-    bordergroup = nb_utils.add_item(nb_ob, "bordergroups", props)
+    nb_ob = nb_ut.active_nb_object()[0]  # FIXME
+    bordergroup = nb_ut.add_item(nb_ob, "bordergroups", props)
 
     for i, border in enumerate(borderlist):
 
         ca = [bpy.data.objects,
               bpy.data.materials]
-        name = nb_utils.check_name(border['name'], "", ca)
+        name = nb_ut.check_name(border['name'], "", ca)
 
         diffcol = list(border['rgb']) + [1.0]
         mat = make_material_basic_cycles(name, diffcol, mix=0.05)
@@ -477,13 +498,13 @@ def create_border_curves(ob, fpath, name=""):
         props = {"name": name,
                  "group": bordergroup.name,
                  "colour": diffcol}
-        nb_utils.add_item(bordergroup, "borders", props)
+        nb_ut.add_item(bordergroup, "borders", props)
 
         curve = bpy.data.curves.new(name=name, type='CURVE')
         curve.dimensions = '3D'
         curveob = bpy.data.objects.new(name, curve)
         bpy.context.scene.objects.link(curveob)
-        nb_imp.make_polyline_ob_vi(curve, ob, border['verts'][:, 0])
+        nb_im.make_polyline_ob_vi(curve, ob, border['verts'][:, 0])
         curveob.data.fill_mode = 'FULL'
         curveob.data.bevel_depth = bevel_depth
         curveob.data.bevel_resolution = bevel_resolution
@@ -516,15 +537,15 @@ def create_vg_overlay(ob, fpath, name="", is_label=False, trans=1):
     a scalar-type overlay will be generated.
     """
 
-    label, scalars = nb_imp.read_surflabel(fpath, is_label)
+    label, scalars = nb_im.read_surflabel(fpath, is_label)
 
     if scalars is not None:
         ca = [ob.vertex_groups,
               ob.data.vertex_colors,
               bpy.data.materials]
-        name = nb_utils.check_name(name, fpath, ca)
+        name = nb_ut.check_name(name, fpath, ca)
 
-        vgscalars, scalarrange = nb_imp.normalize_data(scalars)
+        vgscalars, scalarrange = nb_im.normalize_data(scalars)
 
         vg = set_vertex_group(ob, name, label, scalars)
 
@@ -532,21 +553,21 @@ def create_vg_overlay(ob, fpath, name="", is_label=False, trans=1):
         props = {"name": name,
                  "filepath": fpath,
                  "range": scalarrange}
-        nb_ov = nb_utils.add_item(scalargroup, "scalars", props)
+        nb_ov = nb_ut.add_item(scalargroup, "scalars", props)
 
         map_to_vertexcolours(ob, nb_ov, [vg], is_label)
 
     else:
-        nb_ob = nb_utils.active_nb_object()[0]
+        nb_ob = nb_ut.active_nb_object()[0]
         ca = [nb_ob.labelgroups]  # TODO: checkagainst all other labelgroups
-        groupname = nb_utils.check_name(name, fpath, ca)
+        groupname = nb_ut.check_name(name, fpath, ca)
         props = {"name": name,
                  "filepath": fpath}
-        labelgroup = nb_utils.add_item(nb_ob, "labelgroups", props)
+        labelgroup = nb_ut.add_item(nb_ob, "labelgroups", props)
 
         ca = [ob.vertex_groups,
               bpy.data.materials]
-        name = nb_utils.check_name(name, fpath, ca)
+        name = nb_ut.check_name(name, fpath, ca)
         vg = set_vertex_group(ob, name, label, scalars)
 
         values = [label.value for label in labelgroup.labels] or [0]
@@ -558,7 +579,7 @@ def create_vg_overlay(ob, fpath, name="", is_label=False, trans=1):
         props = {"name": name,
                  "value": value,
                  "colour": diffcol}
-        nb_ov = nb_utils.add_item(labelgroup, "labels", props)
+        nb_ov = nb_ut.add_item(labelgroup, "labels", props)
 
 
 def set_vertex_group(ob, name, label=None, scalars=None):
@@ -711,7 +732,7 @@ def map_to_vertexcolours(ob, nb_ov, vgs=None, is_label=False, colourtype=""):
     set_materials_to_vertexgroups(ob, vgs=None, mats=[mat])
 
 #     set_materials_to_vertexgroups(ob, vgs, [mat])
-# 
+#
 #     vcs = ob.data.vertex_colors
 #     vc = vcs.new(name=name)
 #     ob.data.vertex_colors.active = vc
@@ -913,7 +934,7 @@ def load_surface_textures(name, directory, nframes):
 # ========================================================================== #
 
 
-def make_material_basic_cycles(name, diff_col, mix=0.04, 
+def make_material_basic_cycles(name, diff_col, mix=0.04,
                                diff_rn=0.1, diff_ingroup=None):
     """Create a basic Cycles material.
 
@@ -1285,7 +1306,7 @@ def make_material_overlay_cycles(name, vcname, ob=None, nb_ov=None, img=None):
 
     if hasattr(nb_ov, 'nn_elements'):
         nb_ov.colourmap_enum = 'jet'
-        calc_nn_elpos(nb_ov, vrgb)
+        # calc_nn_elpos(nb_ov, vrgb)
 
     srgb = nodes.new("ShaderNodeSeparateRGB")
     srgb.label = "Separate RGB"
@@ -1538,61 +1559,61 @@ def make_nodegroup_mapframes(name="MapFramesGroup"):
 
     group = bpy.data.node_groups.new(name, "ShaderNodeTree")
     group.outputs.new("NodeSocketColor", "Vector")
-# 
+#
 #     nodes = group.nodes
 #     links = group.links
-# 
+#
 #     nodes.clear()
 #     prefix = ""
-# 
+#
 #     output_node = nodes.new("NodeGroupOutput")
 #     output_node.location = (-200, 0)
-# 
+#
 #     crgb = nodes.new("ShaderNodeCombineRGB")
 #     crgb.label = "Combine RGB"
 #     crgb.name = prefix + "Combine RGB"
 #     crgb.location = -400, 0
 #     crgb.hide = True
-# 
+#
 #     invt = nodes.new("ShaderNodeInvert")
 #     invt.label = "Invert"
 #     invt.name = prefix + "Invert"
 #     invt.location = -600, -150
 #     invt.hide = True
-# 
+#
 #     math1 = nodes.new("ShaderNodeMath")
 #     math1.label = "Add"
 #     math1.name = prefix + "MathAdd"
 #     math1.operation = 'ADD'
 #     math1.location = -800, -150
 #     math1.hide = True
-# 
+#
 #     math2 = nodes.new("ShaderNodeMath")
 #     math2.label = "Absolute"
 #     math2.name = prefix + "MathAbs2"
 #     math2.operation = 'ABSOLUTE'
 #     math2.location = -1000, -50
 #     math2.hide = True
-# 
+#
 #     math3 = nodes.new("ShaderNodeMath")
 #     math3.label = "Absolute"
 #     math3.name = prefix + "MathAbs1"
 #     math3.operation = 'ABSOLUTE'
 #     math3.location = -1000, 0
 #     math3.hide = True
-# 
+#
 #     srgb = nodes.new("ShaderNodeSeparateRGB")
 #     srgb.label = "Separate RGB"
 #     srgb.name = prefix + "Separate RGB"
 #     srgb.location = -1200, 0
 #     srgb.hide = True
-# 
+#
 #     tang = nodes.new("ShaderNodeTangent")
 #     tang.label = "Tangent"
 #     tang.name = prefix + "Tangent"
 #     tang.direction_type = 'UV_MAP'
 #     tang.location = -1400, 0
-# 
+#
 #     links.new(crgb.outputs["Image"], output_node.inputs[0])
 #     links.new(invt.outputs["Color"], crgb.inputs[2])
 #     links.new(math2.outputs["Value"], crgb.inputs[1])
@@ -1612,12 +1633,11 @@ def material_update(self, context):
 
     mat = bpy.data.materials[self.name]
     if context.scene.nb.engine.startswith("BLENDER"):
-        nb_mat.CR2BR(mat)
+        CR2BR(mat)
 
 
 def material_enum_update(self, context):
     """Assign a new preset material to the object."""
 
     mat = bpy.data.materials[self.name]
-    nb_mat.link_innode(mat, self.colourtype)
-
+    link_innode(mat, self.colourtype)
