@@ -19,17 +19,11 @@
 # <pep8 compliant>
 
 
-# =========================================================================== #
-
-
-"""The NeuroBlender base geometry module.
+"""The NeuroBlender overlays module.
 
 NeuroBlender is a Blender add-on to create artwork from neuroscientific data.
-This module implements the importing geometry into NeuroBlender.
+This module implements operations on overlays.
 """
-
-
-# =========================================================================== #
 
 
 import os
@@ -42,30 +36,8 @@ from bpy.props import (StringProperty,
                        IntProperty)
 from bpy_extras.io_utils import ExportHelper
 
-from . import materials as nb_ma
-from . import utils as nb_ut
-
-# from .base import (slices_update,
-#                    texture_directory_update)
-# from .imports import (import_overlays,
-#                       voxelvolume_slice_drivers_yoke,
-#                       material_update)
-# from .materials import (assign_vc,
-#                         make_material_bake_cycles,
-#                         mat_is_yoked_bool_update)
-# from .colourmaps import (ColorRampProperties,
-#                          colourmap_enum_callback,
-#                          colourmap_enum_update)
-# from .renderpresets import find_ts_scalargroups
-# from .utils import (active_nb_object,
-#                     active_nb_overlay,
-#                     active_nb_overlayitem,
-#                     force_save,
-#                     mkdir_p,
-#                     update_name)
-# from .settings import rendertype_enum_update
-
-# =========================================================================== #
+from . import (materials as nb_ma,
+               utils as nb_ut)
 
 
 class RevertLabel(Operator):

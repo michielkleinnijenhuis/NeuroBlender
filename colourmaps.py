@@ -19,17 +19,11 @@
 # <pep8 compliant>
 
 
-# =========================================================================== #
-
-
 """The NeuroBlender colourmap module.
 
 NeuroBlender is a Blender add-on to create artwork from neuroscientific data.
-This module implements the colourmap system for NeuroBlender.
+This module implements the colourmap system.
 """
-
-
-# =========================================================================== #
 
 
 import bpy
@@ -39,9 +33,6 @@ from bpy.types import (Menu,
                        Operator)
 from bl_operators.presets import (AddPresetBase,
                                   ExecutePreset)
-
-
-# =========================================================================== #
 
 
 class OBJECT_MT_colourmap_presets(Menu):

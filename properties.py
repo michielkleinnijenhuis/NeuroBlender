@@ -19,18 +19,12 @@
 # <pep8 compliant>
 
 
-# =========================================================================== #
-
-
 """The NeuroBlender properties module.
 
 NeuroBlender is a Blender add-on to create artwork from neuroscientific data.
-This module implements all of NeuroBlender's property classes,
+This module implements all of NeuroBlender's custom property classes,
 as well as there callback and update functions.
 """
-
-
-# =========================================================================== #
 
 import os
 import re
@@ -53,8 +47,6 @@ from . import (imports as nb_im,
                materials as nb_ma,
                renderpresets as nb_rp,
                utils as nb_ut)
-
-# =========================================================================== #
 
 
 # ========================================================================== #
@@ -2612,15 +2604,6 @@ class VoxelvolumeProperties(PropertyGroup):
         description="The name of the scalar overlay")
 
 
-# =========================================================================== #
-
-# os
-# managecmap_update,
-# presets_enum_callback, presets_enum_update
-# esp_path_update, mode_enum_update, engine_update
-# overlay_enum_callback
-# TractProperties, SurfaceProperties, VoxelvolumeProperties
-# PresetProperties, CamPathProperties
 class NeuroBlenderProperties(PropertyGroup):
     """Properties for the NeuroBlender panel."""
 

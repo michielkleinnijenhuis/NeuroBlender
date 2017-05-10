@@ -19,16 +19,10 @@
 # <pep8 compliant>
 
 
-# =========================================================================== #
-
-
 """The NeuroBlender main module.
 
 NeuroBlender is a Blender add-on to create artwork from neuroscientific data.
 """
-
-
-# =========================================================================== #
 
 
 import os
@@ -88,27 +82,6 @@ else:
                    settings as nb_se,
                    utils as nb_ut)
 
-# from .colourmaps import managecmap_update
-# from .scenepresets import (PresetProperties,
-#                            presets_enum_callback,
-#                            presets_enum_update)
-# from .settings import (esp_path_update,
-#                        mode_enum_update,
-#                        engine_update)
-# from .renderpresets import (clear_camera_path_animation,
-#                             update_cam_constraints)
-# from .utils import (active_nb_object,
-#                     active_nb_overlay,
-#                     active_nb_overlayitem)
-# from .animations import CamPathProperties
-# from .overlays import overlay_enum_callback
-# from .base import (TractProperties,
-#                    SurfaceProperties,
-#                    VoxelvolumeProperties)
-
-
-# =========================================================================== #
-
 
 bl_info = {
     "name": "NeuroBlender",
@@ -121,9 +94,6 @@ bl_info = {
     "wiki_url": "",
     "tracker_url": "",
     "category": "Import-Export"}
-
-
-# =========================================================================== #
 
 
 class ObjectListL1(UIList):
@@ -743,87 +713,6 @@ class SaveBlend(Operator, ExportHelper):
         return {"RUNNING_MODAL"}
 
 
-classes = (
-
-    nb_pa.NeuroBlenderBasePanel,
-    nb_pa.NeuroBlenderOverlayPanel,
-    nb_pa.NeuroBlenderScenePanel,
-    nb_pa.NeuroBlenderAnimationPanel,
-    nb_pa.NeuroBlenderSettingsPanel,
-
-    nb_pr.CameraProperties,
-    nb_pr.LightsProperties,
-    nb_pr.TableProperties,
-    nb_pr.CamPathProperties,
-    nb_pr.AnimationProperties,
-    nb_pr.PresetProperties,
-    nb_pr.ColorRampProperties,
-    nb_pr.ScalarProperties,
-    nb_pr.LabelProperties,
-    nb_pr.BorderProperties,
-    nb_pr.ScalarGroupProperties,
-    nb_pr.LabelGroupProperties,
-    nb_pr.BorderGroupProperties,
-    nb_pr.TractProperties,
-    nb_pr.SurfaceProperties,
-    nb_pr.VoxelvolumeProperties,
-    nb_pr.NeuroBlenderProperties,
-
-    nb_an.SetAnimations,
-    nb_an.AddAnimation,
-    nb_an.AddCamPoint,
-    nb_an.AddCamPath,
-    nb_an.DelCamPath,
-    nb_an.ObjectListAN,
-    nb_an.ObjectListCP,
-    nb_an.MassIsRenderedAN,
-    nb_an.MassIsRenderedCP,
-
-    nb_cm.OBJECT_MT_colourmap_presets,
-    nb_cm.ExecutePreset_CR,
-    nb_cm.AddPresetNeuroBlenderColourmap,
-    nb_cm.ResetColourmaps,
-    nb_cm.ObjectListCR,
-
-    nb_se.OBJECT_MT_setting_presets,
-    nb_se.AddPresetNeuroBlenderSettings,
-    nb_se.Reload,
-
-    nb_sp.ResetPresetCentre,
-    nb_sp.ResetPresetDims,
-    nb_sp.AddPreset,
-    nb_sp.DelPreset,
-    nb_sp.AddLight,
-    nb_sp.ScenePreset,
-    nb_sp.ObjectListPL,
-    nb_sp.MassIsRenderedPL,
-
-    nb_ol.RevertLabel,
-    nb_ol.WeightPaintMode,
-    nb_ol.VertexWeight2VertexColors,
-    nb_ol.VertexWeight2UV,
-    nb_ol.UnwrapSurface,
-    nb_ol.ObjectListTS,
-
-    nb_im.ImportScalarGroups,
-    nb_im.ImportLabelGroups,
-    nb_im.ImportBorderGroups,
-    nb_im.ImportTracts,
-    nb_im.ImportSurfaces,
-    nb_im.ImportVoxelvolumes,
-
-    ObjectListL1,
-    ObjectListL2,
-    ObjectListL3,
-    ObjectListOperations,
-    MassIsRenderedL1,
-    MassIsRenderedL2,
-    MassIsRenderedL3,
-    MassSelect,
-    SwitchToMainScene,
-    SaveBlend,
-    )
-
 def register():
     bpy.utils.register_module(__name__)
     bpy.types.Scene.nb = PointerProperty(type=nb_pr.NeuroBlenderProperties)
@@ -832,6 +721,7 @@ def register():
 def unregister():  # TODO: unregister handlers
     bpy.utils.unregister_module(__name__)
     del bpy.types.Scene.nb
+
 
 if __name__ == "__main__":
     register()

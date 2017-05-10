@@ -18,7 +18,13 @@
 
 # <pep8 compliant>
 
-# ========================================================================== #
+
+"""The NeuroBlender imports module.
+
+NeuroBlender is a Blender add-on to create artwork from neuroscientific data.
+This module implements importing data into NeuroBlender.
+"""
+
 
 import os
 from glob import glob
@@ -40,33 +46,10 @@ from bpy.props import (BoolProperty,
                        IntProperty)
 from bpy_extras.io_utils import ImportHelper
 
-from . import beautify as nb_be
-from . import materials as nb_ma
-from . import renderpresets as nb_rp
-from . import utils as nb_ut
-
-# from .materials import (get_voxmat,
-#                         get_voxtex,
-#                         set_materials,
-#                         get_golden_angle_colour,
-#                         create_vc_overlay_tract,
-#                         create_vc_overlay,
-#                         create_vg_overlay,
-#                         create_vg_annot,
-#                         create_border_curves)
-# from .renderpresets import create_var
-# from .utils import (add_item,
-#                     move_to_layer,
-#                     force_save,
-#                     mkdir_p,
-#                     active_nb_object,
-#                     validate_nibabel,
-#                     validate_dipy)  # get_nb_objectinfo
-
-
-# ========================================================================== #
-# brain data import functions
-# ========================================================================== #
+from . import (beautify as nb_be,
+               materials as nb_ma,
+               renderpresets as nb_rp,
+               utils as nb_ut)
 
 
 class ImportTracts(Operator, ImportHelper):

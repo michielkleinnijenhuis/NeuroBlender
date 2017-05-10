@@ -19,9 +19,6 @@
 # <pep8 compliant>
 
 
-# =========================================================================== #
-
-
 """The NeuroBlender panels module.
 
 NeuroBlender is a Blender add-on to create artwork from neuroscientific data.
@@ -29,13 +26,7 @@ This module implements drawing the NeuroBlender panels.
 """
 
 
-# =========================================================================== #
-
-
 import bpy
-
-
-# =========================================================================== #
 
 
 class NeuroBlenderBasePanel(bpy.types.Panel):
@@ -650,8 +641,8 @@ class NeuroBlenderOverlayPanel(bpy.types.Panel):
             row.prop(nb_ov, "texdir")
 
             row = layout.row()
-            row.prop(nb_ov, "range")
 #             row.enabled = False
+            row.prop(nb_ov, "range")
 
 
 class NeuroBlenderScenePanel(bpy.types.Panel):

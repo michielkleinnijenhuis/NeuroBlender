@@ -18,28 +18,24 @@
 
 # <pep8 compliant>
 
-# =========================================================================== #
 
-import bpy
+"""The NeuroBlender renderpresets module.
+
+NeuroBlender is a Blender add-on to create artwork from neuroscientific data.
+This module implements preparations for rendering the scene.
+"""
+
 
 import os
 import numpy as np
 from mathutils import Vector
 
-from . import imports as nb_im
-from . import materials as nb_ma
-from . import utils as nb_ut
+import bpy
 
-# from .imports import prep_nifti
-# from .materials import (reset_materialslots,
-#                         assign_materialslots_to_faces,
-#                         make_material_emit_cycles,
-#                         set_materials,
-#                         make_material_basic_cycles,
-#                         load_surface_textures,
-#                         assign_vc)  # make_material_emit_internal
-# from .utils import (add_item,
-#                     move_to_layer)
+from . import (imports as nb_im,
+               materials as nb_ma,
+               utils as nb_ut)
+
 
 # ========================================================================== #
 # function to prepare a suitable setup for rendering the scene

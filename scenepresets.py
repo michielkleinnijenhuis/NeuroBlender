@@ -19,17 +19,11 @@
 # <pep8 compliant>
 
 
-# =========================================================================== #
-
-
 """The NeuroBlender scene presets module.
 
 NeuroBlender is a Blender add-on to create artwork from neuroscientific data.
-This module implements the scene building system for NeuroBlender.
+This module implements the scene building system.
 """
-
-
-# =========================================================================== #
 
 import mathutils
 
@@ -43,22 +37,8 @@ from bpy.props import (StringProperty,
                        FloatProperty,
                        IntProperty)
 
-from . import renderpresets as nb_rp
-from . import utils as nb_ut
-
-# from .renderpresets import (get_render_objects,
-#                             get_brainbounds,
-#                             scene_preset_init,
-#                             create_light,
-#                             scene_preset)  # create_table, cam_view_update
-# from .utils import (check_name,
-#                     add_item,
-#                     update_name)
-# from .animations import AnimationProperties
-# from .materials import (material_update,
-#                         material_enum_update)
-
-# =========================================================================== #
+from . import (renderpresets as nb_rp,
+               utils as nb_ut)
 
 
 class ResetPresetCentre(Operator):

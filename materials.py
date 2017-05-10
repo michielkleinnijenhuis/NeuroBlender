@@ -18,9 +18,13 @@
 
 # <pep8 compliant>
 
-# =========================================================================== #
 
-import bpy
+"""The NeuroBlender materials module.
+
+NeuroBlender is a Blender add-on to create artwork from neuroscientific data.
+This module implements the manipulation of materials.
+"""
+
 
 import os
 from glob import glob
@@ -28,19 +32,11 @@ import random
 import numpy as np
 import mathutils
 
-from . import imports as nb_im
-from . import utils as nb_ut
+import bpy
 
-# from .utils import (check_name,
-#                     active_nb_object,
-#                     add_item)
-# from .imports import (read_tractscalar,
-#                       read_surfscalar,
-#                       read_surflabel,
-#                       normalize_data,
-#                       read_borders,
-#                       read_surfannot,
-#                       make_polyline_ob_vi)
+from . import (imports as nb_im,
+               utils as nb_ut)
+
 
 # =========================================================================== #
 # material assignment

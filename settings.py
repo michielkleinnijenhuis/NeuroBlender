@@ -19,17 +19,11 @@
 # <pep8 compliant>
 
 
-# =========================================================================== #
-
-
 """The NeuroBlender settings module.
 
 NeuroBlender is a Blender add-on to create artwork from neuroscientific data.
-This module implements NeuroBlender configuration.
+This module implements the NeuroBlender configuration.
 """
-
-
-# =========================================================================== #
 
 
 import bpy
@@ -40,18 +34,9 @@ from bl_operators.presets import AddPresetBase
 
 from . import animations as nb_an
 
-# from .materials import (CR2BR,
-#                         BR2CR,
-#                         switch_mode_mat)
-# from .renderpresets import (create_var,
-#                             switch_mode_preset)
-# from .utils import add_path
 
-# =========================================================================== #
-
-
-# https://docs.blender.org/api/blender_python_api_2_77_0/bpy.types.Menu.html
 class OBJECT_MT_setting_presets(Menu):
+# https://docs.blender.org/api/blender_python_api_2_77_0/bpy.types.Menu.html
     bl_label = "NeuroBlender Settings Presets"
     bl_description = "Load a NeuroBlender Settings Preset"
     preset_subdir = "neuroblender"

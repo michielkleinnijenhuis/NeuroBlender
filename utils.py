@@ -18,7 +18,12 @@
 
 # <pep8 compliant>
 
-# ========================================================================== #
+
+"""The NeuroBlender utilities module.
+
+NeuroBlender is a Blender add-on to create artwork from neuroscientific data.
+This module hosts generally useful functions.
+"""
 
 
 import os

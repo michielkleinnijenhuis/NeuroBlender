@@ -19,17 +19,11 @@
 # <pep8 compliant>
 
 
-# =========================================================================== #
-
-
 """The NeuroBlender animations module.
 
 NeuroBlender is a Blender add-on to create artwork from neuroscientific data.
-This module implements simple animations in NeuroBlender.
+This module implements simple animations.
 """
-
-
-# =========================================================================== #
 
 
 import numpy as np
@@ -44,24 +38,9 @@ from bpy.props import (StringProperty,
                        FloatVectorProperty,
                        IntProperty)
 
-from . import imports as nb_im
-from . import renderpresets as nb_rp
-from . import utils as nb_ut
-
-# from .imports import (add_animation_to_collection,
-#                       make_polyline_ob,
-#                       add_campath_to_collection)
-# from .renderpresets import (set_animations,
-#                             clear_camera_path_animations,
-#                             create_camera_path_animations,
-#                             generate_timeline,
-#                             restrict_incluence_timeline,
-#                             calculate_coefficients)  # find_ts_scalargroups
-# from .utils import (check_name,
-#                     update_name)
-
-
-# =========================================================================== #
+from . import (imports as nb_im,
+               renderpresets as nb_rp,
+               utils as nb_ut)
 
 
 class SetAnimations(Operator):

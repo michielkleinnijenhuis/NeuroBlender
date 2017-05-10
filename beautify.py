@@ -19,22 +19,11 @@
 # <pep8 compliant>
 
 
-# =========================================================================== #
-
-
 """The NeuroBlender beautify functionality.
 
-This module's functions can be called to enhance the appearance
-of the objects loaded in with NeuroBlender.
+NeuroBlender is a Blender add-on to create artwork from neuroscientific data.
+This module implements basic enhancement of the objects' appearance.
 """
-
-
-# =========================================================================== #
-
-
-
-
-# =========================================================================== #
 
 
 def beautify_brain(ob, importtype, beautify, argdict):
