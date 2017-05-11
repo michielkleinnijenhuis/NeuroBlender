@@ -179,7 +179,7 @@ class NeuroBlenderBasePanel(bpy.types.Panel):
         scn = bpy.context.scene
         nb = scn.nb
 
-        if nb.settingsprops.engine.startswith("BLENDER"):
+        if nb.settingprops.engine.startswith("BLENDER"):
 
             self.drawunit_basic_blender(layout, nb_ob)
 
@@ -599,7 +599,7 @@ class NeuroBlenderOverlayPanel(bpy.types.Panel):
 
         else:
 
-            if nb.settingsprops.engine.startswith("BLENDER"):
+            if nb.settingprops.engine.startswith("BLENDER"):
                 self.drawunit_basic_blender(layout, nb_ov)
             else:
                 self.drawunit_basic_cycles(layout, nb_ov)

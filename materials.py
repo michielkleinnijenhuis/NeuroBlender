@@ -1003,9 +1003,9 @@ def make_material_basic_cycles(name, diff_col, mix=0.04,
     tval.location = -200, 100
     # TODO: set min/max to 0/1
 
-    if nb.settingsprops.mode == "scientific":
+    if nb.settingprops.mode == "scientific":
         links.new(emit.outputs["Emission"], out.inputs["Surface"])
-    elif nb.settingsprops.mode == "artistic":
+    elif nb.settingprops.mode == "artistic":
         links.new(mix1.outputs["Shader"], out.inputs["Surface"])
     links.new(mix2.outputs["Shader"], mix1.inputs[1])
     links.new(mix2.outputs["Shader"], emit.inputs["Color"])
@@ -1349,9 +1349,9 @@ def make_material_overlay_cycles(name, vcname, ob=None, nb_ov=None, img=None):
 #     # remove driver
 #     diffuse.inputs[1].driver_remove("default_value")
 
-    if nb.settingsprops.mode == "scientific":
+    if nb.settingprops.mode == "scientific":
         links.new(emit.outputs["Emission"], out.inputs["Surface"])
-    elif nb.settingsprops.mode == "artistic":
+    elif nb.settingprops.mode == "artistic":
         links.new(mix1.outputs["Shader"], out.inputs["Surface"])
     links.new(glos.outputs["BSDF"], mix1.inputs[2])
     links.new(diff.outputs["BSDF"], mix1.inputs[1])

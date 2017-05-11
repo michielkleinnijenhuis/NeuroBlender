@@ -211,7 +211,7 @@ def mode_enum_update(self, context):
         pass
     else:
         nb_rp.switch_mode_preset(light_obs, table_obs,
-                                 nb.settingsprops.mode, nb_cam.cam_view)
+                                 nb.settingprops.mode, nb_cam.cam_view)
 
 
 def managecmap_update(self, context):
@@ -967,7 +967,7 @@ def material_update(self, context):
     nb = scn.nb
 
     mat = bpy.data.materials[self.name]
-    if nb.settingsprops.engine.startswith("BLENDER"):
+    if nb.settingprops.engine.startswith("BLENDER"):
         nb_ma.CR2BR(mat)
 
 
