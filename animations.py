@@ -82,7 +82,8 @@ class AddAnimation(Operator):
 
         ca = [preset.animations for preset in nb.presets]
         name = nb_ut.check_name(self.name, "", ca, forcefill=True)
-        nb_im.add_animation_to_collection(name)
+        animprops = {"name": name}
+        nb_ut.add_item(preset, "animations", animprops)
 
         nb_preset = nb.presets[nb.index_presets]  # FIXME: self
         infostring = 'added animation "%s" in preset "%s"'
@@ -242,7 +243,8 @@ class AddCamPath(Operator):
         if campath is not None:
             campath.hide_render = True
             campath.parent = bpy.data.objects[preset.name]
-            nb_im.add_campath_to_collection(name)
+            cpprops = {"name": name}
+            nb_ut.add_item(nb, "campaths", cpprops)
             infostring = 'added camera path "%s" to preset "%s"'
             info = [infostring % (name, preset.name)] + info
 
