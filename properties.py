@@ -243,10 +243,9 @@ def managecmap_update(self, context):
         # load preset
         cr_path = '{}.color_ramp'.format(cr_parentpath)
         nb.cr_path = cr_path
-        menu_idname = "OBJECT_MT_colourmap_presets"
 
-        preset_class = getattr(bpy.types, menu_idname)
-        preset_class.bl_label = bpy.path.display_name(basename(filepath))
+        preset_class = getattr(bpy.types, "OBJECT_MT_colourmap_presets")
+        preset_class.bl_label = bpy.path.display_name("Colourmap Presets")
 
     else:
         del_dummies(name)

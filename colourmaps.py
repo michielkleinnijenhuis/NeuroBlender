@@ -67,7 +67,6 @@ class ExecutePreset_CR(ExecutePreset, Operator):
         from os.path import basename, splitext
         filepath = self.filepath
 
-
         cre, crrange = self.get_elements(context)
         n_new = self.get_number_of_elements()
         self.equalize_elements(cre, n_new)
@@ -182,7 +181,7 @@ class AddPresetNeuroBlenderColourmap(AddPresetBase, Operator):
                          "cr.interpolation",
                          "cr.hue_interpolation"]
 
-        for i, el in enumerate(cre):
+        for i, _ in enumerate(cre):
             preset_values.append("cre[{}].position".format(i))
             preset_values.append("cre[{}].color".format(i))
 

@@ -37,6 +37,7 @@ from bpy.props import (StringProperty,
 from bpy_extras.io_utils import ExportHelper
 
 from . import (materials as nb_ma,
+               properties as nb_pr,
                utils as nb_ut)
 
 
@@ -89,7 +90,7 @@ class WeightPaintMode(Operator):
 
         bpy.ops.object.mode_set(mode="WEIGHT_PAINT")
 
-        index_scalars_update_func()
+        nb_pr.index_scalars_update_func()
 
         return {"FINISHED"}
 

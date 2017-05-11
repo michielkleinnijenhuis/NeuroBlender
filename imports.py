@@ -46,8 +46,7 @@ from bpy.props import (BoolProperty,
                        IntProperty)
 from bpy_extras.io_utils import ImportHelper
 
-from . import (beautify as nb_be,
-               materials as nb_ma,
+from . import (materials as nb_ma,
                renderpresets as nb_rp,
                utils as nb_ut)
 
@@ -63,11 +62,11 @@ class ImportTracts(Operator, ImportHelper):
                                type=OperatorFileListElement)
     filter_glob = StringProperty(
         options={"HIDDEN"},
+        # NOTE: multiline comment not working here
         default="*.vtk;" +
                 "*.bfloat;*.Bfloat;*.bdouble;*.Bdouble;" +
                 "*.tck;*.trk;" +
                 "*.npy;*.npz;*.dpy")
-        # NOTE: multiline comment not working here
 
     name = StringProperty(
         name="Name",
@@ -129,12 +128,43 @@ class ImportTracts(Operator, ImportHelper):
 
         return {"FINISHED"}
 
+    def draw(self, context):
+
+        layout = self.layout
+
+        row = layout.row()
+        row.prop(self, "name")
+        row = layout.row()
+        row.prop(self, "interpolate_streamlines")
+        row = layout.row()
+        row.prop(self, "weed_tract")
+
+        row = layout.row()
+        row.separator()
+        row = layout.row()
+        row.prop(self, "beautify")
+        row = layout.row()
+        row.label(text="Colour: ")
+        row = layout.row()
+        row.prop(self, "colourtype")
+        row = layout.row()
+        if self.colourtype == "pick":
+            row.prop(self, "colourpicker")
+        row = layout.row()
+        row.prop(self, "transparency")
+
+    def invoke(self, context, event):
+
+        context.window_manager.fileselect_add(self)
+
+        return {"RUNNING_MODAL"}
+
     def import_objects(self, importtype, impdict, beaudict):
 
         scn = bpy.context.scene
         nb = scn.nb
 
-        importfun = eval("import_%s" % importtype[:-1])
+        importfun = eval("self.import_%s" % importtype[:-1])
 
         filenames = [file.name for file in self.files]
         if not filenames:
@@ -150,20 +180,19 @@ class ImportTracts(Operator, ImportHelper):
             obs, info_imp, info_geom = importfun(fpath, name, "", impdict)
 
             for ob in obs:
-                try:
-                    self.beautify
-                except:  # force updates on voxelvolumes
-                    nb.index_voxelvolumes = nb.index_voxelvolumes
-#                     item.rendertype = item.rendertype  # FIXME
-                else:
+                if importtype in ('tracts', 'surfaces'):
                     info_mat = nb_ma.materialise(ob,
                                                  self.colourtype,
                                                  self.colourpicker,
                                                  self.transparency)
-                    info_beau = nb_be.beautify_brain(ob,
-                                                     importtype,
-                                                     self.beautify,
-                                                     beaudict)
+                    info_beau = self.beautify_brain(ob,
+                                                    importtype,
+                                                    self.beautify,
+                                                    beaudict)
+                elif importtype == 'voxelvolumes':
+                    # force updates on voxelvolumes
+                    nb.index_voxelvolumes = nb.index_voxelvolumes
+#                     item.rendertype = item.rendertype  # FIXME
 
             info = info_imp
             if nb.verbose:
@@ -172,34 +201,137 @@ class ImportTracts(Operator, ImportHelper):
 
             self.report({'INFO'}, info)
 
-    def draw(self, context):
-        layout = self.layout
+    def import_tract(self, fpath, name, sformfile="",
+                     argdict={"weed_tract": 1.,
+                              "interpolate_streamlines": 1.}):
+        """Import a tract object.
 
-        row = self.layout.row()
-        row.prop(self, "name")
-        row = self.layout.row()
-        row.prop(self, "interpolate_streamlines")
-        row = self.layout.row()
-        row.prop(self, "weed_tract")
+        This imports the streamlines found in the specified file and
+        joins the individual streamlines into one 'Curve' object.
+        Valid formats include:
+        - .bfloat/.Bfloat/.bdouble/.Bdouble (Camino)
+          http://camino.cs.ucl.ac.uk/index.php?n=Main.Fileformats
+        - .tck (MRtrix)
+          http://jdtournier.github.io/mrtrix-0.2/appendix/mrtrix.html
+        - .vtk (vtk polydata (ASCII); from MRtrix's 'tracks2vtk' command)
+          http://www.vtk.org/wp-content/uploads/2015/04/file-formats.pdf
+        - .trk (TrackVis; via nibabel)
+        - .dpy (dipy; via dipy)
+        - .npy (2d numpy arrays [Npointsx3]; single streamline per file)
+        - .npz (zipped archive of Nstreamlines .npy files)
+          http://docs.scipy.org/doc/numpy-1.10.0/reference/generated/numpy.savez.html
 
-        row = self.layout.row()
-        row.separator()
-        row = self.layout.row()
-        row.prop(self, "beautify")
-        row = self.layout.row()
-        row.label(text="Colour: ")
-        row = self.layout.row()
-        row.prop(self, "colourtype")
-        row = self.layout.row()
-        if self.colourtype == "pick":
-            row.prop(self, "colourpicker")
-        row = self.layout.row()
-        row.prop(self, "transparency")
+        'weed_tract' thins tracts by randomly selecting streamlines.
+        'interpolate_streamlines' keeps every nth point of the streamlines
+        (int(1/interpolate_streamlines)).
+        'sformfile' sets matrix_world to affine transformation.
 
-    def invoke(self, context, event):
-        context.window_manager.fileselect_add(self)
+        """
 
-        return {"RUNNING_MODAL"}
+        scn = bpy.context.scene
+        nb = scn.nb
+
+        weed_tract = argdict["weed_tract"]
+        interp_sl = argdict["interpolate_streamlines"]
+
+        outcome = "failed"
+        ext = os.path.splitext(fpath)[1]
+
+        try:
+            funcall = "read_streamlines_{}(fpath)".format(ext[1:])
+            streamlines = eval(funcall)
+
+        except NameError:
+            reason = "file format '{}' not supported".format(ext)
+            info = "import {}: {}".format(outcome, reason)
+            return [], info, "no geometry loaded"
+        except (IOError, FileNotFoundError):
+            reason = "file '{}' not valid".format(fpath)
+            info = "import {}: {}".format(outcome, reason)
+            return [], info, "no geometry loaded"
+
+        except:
+            reason = "unknown import error"
+            info = "import {}: {}".format(outcome, reason)
+            raise
+
+        curve = bpy.data.curves.new(name=name, type='CURVE')
+        curve.dimensions = '3D'
+        ob = bpy.data.objects.new(name, curve)
+        bpy.context.scene.objects.link(ob)
+
+        nsamples = int(len(streamlines) * weed_tract)
+        streamlines_sample = sample(range(len(streamlines)), nsamples)
+        # TODO: remember 'sample' for scalars import?
+        # TODO: weed tract at reading stage where possible?
+
+        for i, streamline in enumerate(streamlines):
+            if i in streamlines_sample:
+                if interp_sl < 1.:
+                    subs_sl = int(1/interp_sl)
+                    streamline = np.array(streamline)[1::subs_sl, :]
+    #                 TODO: interpolation
+    #                 from scipy import interpolate
+    #                 x = interpolate.splprep(list(np.transpose(streamline)))
+                make_polyline_ob(curve, streamline)
+
+        # TODO: handle cases where transform info is included in tractfile
+        affine = read_affine_matrix(sformfile)
+        ob.matrix_world = affine
+
+        props = {"name": name,
+                 "filepath": fpath,
+                 "sformfile": sformfile,
+                 "nstreamlines": nsamples,
+                 "tract_weeded": weed_tract,
+                 "streamines_interpolated": interp_sl}
+        nb_ut.add_item(nb, "tracts", props)
+
+        nb_ut.move_to_layer(ob, 0)
+        scn.layers[0] = True
+
+        scn.objects.active = ob
+        ob.select = True
+
+        outcome = "successful"
+        info = "import {}".format(outcome)
+        info_tf = "transform: {}\n".format(affine)
+        info_dc = """decimate:
+                     weeding={}; interpolation={}""".format(weed_tract, interp_sl)
+
+        return [ob], info, info_tf + info_dc
+
+    def beautify_brain(self, ob, importtype, beautify, argdict):
+        """Beautify the object."""
+
+        if beautify:
+            try:
+                if importtype == 'tracts':
+                    info = self.beautify_tracts(ob, argdict)
+                elif importtype == 'surfaces':
+                    info = self.beautify_surfaces(ob, argdict)
+                elif importtype == 'voxelvolumes':
+                    info = self.beautify_voxelvolumes(ob, argdict)
+            except AttributeError:
+                info = "no %s to beautify" % importtype
+        else:
+            info = "no beautification"
+
+        return info
+
+    def beautify_tracts(self, ob, argdict={"mode": "FULL",
+                                           "depth": 0.5,
+                                           "res": 10}):
+        """Bevel the streamlines."""
+
+        ob.data.fill_mode = argdict["mode"]
+        ob.data.bevel_depth = argdict["depth"]
+        ob.data.bevel_resolution = argdict["res"]
+
+        info = "bevel: mode=%s; depth=%.3f; resolution=%3d" \
+            % (argdict["mode"], argdict["depth"], argdict["res"])
+
+        return info
 
 
 class ImportSurfaces(Operator, ImportHelper):
@@ -213,11 +345,11 @@ class ImportSurfaces(Operator, ImportHelper):
                                type=OperatorFileListElement)
     filter_glob = StringProperty(
         options={"HIDDEN"},
+        # NOTE: multiline comment not working here
         default="*.obj;*.stl;" +
                 "*.gii;" +
                 "*.white;*.pial;*.inflated;*.sphere;*.orig;" +
                 "*.blend")
-        # NOTE: multiline comment not working here
 
     name = StringProperty(
         name="Name",
@@ -254,6 +386,7 @@ class ImportSurfaces(Operator, ImportHelper):
         max=1.)
 
     import_objects = ImportTracts.import_objects
+    beautify_brain = ImportTracts.beautify_brain
 
     def execute(self, context):
 
@@ -292,6 +425,92 @@ class ImportSurfaces(Operator, ImportHelper):
         context.window_manager.fileselect_add(self)
 
         return {"RUNNING_MODAL"}
+
+    def import_surface(self, fpath, name, sformfile="", argdict={}):
+        """Import a surface object.
+
+        This imports the surfaces found in the specified file.
+        Valid formats include:
+        - .gii (via nibabel)
+        - .white/.pial/.inflated/.sphere/.orig (FreeSurfer)
+        - .obj
+        - .stl
+        - .blend
+
+        'sformfile' sets matrix_world to affine transformation.
+
+        """
+
+        scn = bpy.context.scene
+        nb = scn.nb
+
+        outcome = "failed"
+        ext = os.path.splitext(fpath)[1]
+
+        try:
+            funcall = "read_surfaces_{}(fpath, name, sformfile)".format(ext[1:])
+            surfaces = eval(funcall)
+
+        except NameError:
+            reason = "file format '{}' not supported".format(ext)
+            info = "import {}: {}".format(outcome, reason)
+            return [], info, "no geometry loaded"
+        except (IOError, FileNotFoundError):
+            reason = "file '{}' not valid".format(fpath)
+            info = "import {}: {}".format(outcome, reason)
+            return [], info, "no geometry loaded"
+        except ImportError:
+            reason = "nibabel not found"
+            info = "import {}: {}".format(outcome, reason)
+            return [], info, "no geometry loaded"
+
+        except:
+            reason = "unknown import error"
+            info = "import {}: {}".format(outcome, reason)
+            raise
+
+        for surf in surfaces:
+
+            ob, affine, sformfile = surf
+
+            ob.matrix_world = affine
+
+            props = {"name": name,
+                     "filepath": fpath,
+                     "sformfile": sformfile}
+            nb_ut.add_item(nb, "surfaces", props)
+
+            nb_ut.move_to_layer(ob, 1)
+            scn.layers[1] = True
+
+        scn.objects.active = ob
+        ob.select = True
+
+        outcome = "successful"
+        info = "import {}".format(outcome)
+        info_tf = "transform: {}".format(affine)
+
+        return [surf[0] for surf in surfaces] , info, info_tf
+
+        def beautify_surfaces(self, ob, argdict={"iterations": 10,
+                                                 "factor": 0.5,
+                                                 "use_x": True,
+                                                 "use_y": True,
+                                                 "use_z": True}):
+            """Smooth the surface mesh."""
+
+            mod = ob.modifiers.new("smooth", type='SMOOTH')
+            mod.iterations = argdict["iterations"]
+            mod.factor = argdict["factor"]
+            mod.use_x = argdict["use_x"]
+            mod.use_y = argdict["use_y"]
+            mod.use_z = argdict["use_z"]
+
+            info = "smooth: iterations=%3d; factor=%.3f; use_xyz=%s %s %s" \
+                % (argdict["iterations"], argdict["factor"],
+                   argdict["use_x"], argdict["use_y"], argdict["use_z"])
+
+            return info
 
 
 def file_update(self, context):
@@ -364,10 +583,10 @@ class ImportVoxelvolumes(Operator, ImportHelper):
     files = CollectionProperty(name="Filepath", type=OperatorFileListElement)
     filter_glob = StringProperty(
         options={"HIDDEN"},
+        # NOTE: multiline comment not working here
         default="*.nii;*.nii.gz;*.img;*.hdr;" +
                 "*.h5;" +
                 "*.png;*.jpg;*.tif;*.tiff;")
-        # NOTE: multiline comment not working here
 
     name = StringProperty(
         name="Name",
@@ -430,6 +649,7 @@ class ImportVoxelvolumes(Operator, ImportHelper):
         default=-1)
 
     import_objects = ImportTracts.import_objects
+    beautify_brain = ImportTracts.beautify_brain
 
     def execute(self, context):
 
@@ -522,6 +742,112 @@ class ImportVoxelvolumes(Operator, ImportHelper):
         context.window_manager.fileselect_add(self)
 
         return {"RUNNING_MODAL"}
+
+    def import_voxelvolume(self, fpath, name, sformfile="", texdict={
+            "is_overlay": False, "is_label": False,
+            "parentpath": "", "sformfile": "",
+            "texdir": "", "texformat": "IMAGE_SEQUENCE",
+            "overwrite": False, "dataset": 'stack',
+            "vol_idx":-1}):
+        """Import a voxelvolume.
+
+        This imports the volumes found in the specified file.
+        Valid formats include:
+        - .nii(.gz)/.img/.hdr (via nibabel)
+        - .h5 (with h5py)
+        - Blender/NeuroBlender directory tree (IMAGE_SEQUENCE or 8BIT_RAW .raw)
+        -- ...
+        -- ...
+
+        'sformfile' sets matrix_world to affine transformation.
+
+        """
+
+        scn = bpy.context.scene
+        nb = scn.nb
+
+        texdict["fpath"] = fpath
+        texdict["name"] = name
+        texdict["sformfile"] = sformfile
+        is_overlay = texdict["is_overlay"]
+        is_label = texdict["is_label"]
+        texdir = texdict["texdir"]
+        texformat = texdict["texformat"]
+
+        # prep texture directory
+        if not bpy.data.is_saved:
+            nb_ut.force_save(nb.projectdir)
+        abstexdir = bpy.path.abspath(texdir)
+        nb_ut.mkdir_p(abstexdir)
+
+        outcome = "failed"
+        ext = os.path.splitext(fpath)[1]
+
+        texdict = load_texdir(texdict)
+
+        item = add_to_collections(texdict)
+
+        mat = nb_ma.get_voxmat(name)
+        tex = nb_ma.get_voxtex(mat, texdict, 'vol0000', item)
+
+        if is_label:
+            for volnr, label in enumerate(item.labels):
+                pass
+        elif is_overlay:
+            item.rendertype = "SURFACE"
+            for scalar in item.scalars:
+                volname = scalar.name[-7:]  # FIXME: this is not secure
+                pfdict = {"IMAGE_SEQUENCE": os.path.join(volname, '0000.png'),
+                          "STRIP": volname + '.png',
+                          "8BIT_RAW": volname + '.raw_8bit'}
+                scalarpath = os.path.join(texdir, texformat, pfdict[texformat])
+                scalar.filepath = scalarpath
+                scalar.matname = mat.name
+                scalar.texname = tex.name
+                if nb.texmethod == 4:
+                    tex = nb_ma.get_voxtex(mat, texdict, volname, scalar)
+
+        # create the voxelvolume object
+    #     ob = voxelvolume_object_bool(name, texdict['dims'], texdict['affine'])
+        ob, sbox = voxelvolume_object_slicebox(item, texdict)
+
+        # single texture slot for simple switching
+        texslot = mat.texture_slots.add()
+        texslot.texture = tex
+        texslot.use_map_density = True
+        texslot.texture_coords = 'ORCO'
+        texslot.use_map_emission = True
+
+        voxelvolume_rendertype_driver(mat, item)
+
+        nb_ma.set_materials(ob.data, mat)
+
+        if is_overlay:
+            nb_ob = eval(texdict["parentpath"])
+            ob.parent = bpy.data.objects[nb_ob.name]
+            item.index_scalars = 0  # induce switch
+            bpy.ops.object.mode_set(mode='EDIT')  # TODO: more elegant update
+            bpy.ops.object.mode_set(mode='OBJECT')
+
+        nb_ut.move_to_layer(ob, 2)
+        nb_ut.move_to_layer(sbox, 2)
+        scn.layers[2] = True
+
+        scn.render.engine = "BLENDER_RENDER"
+
+        outcome = "successful"
+        info = "import {}".format(outcome)
+        info_tf = "transform: {}".format(texdict["affine"])
+        # more info ...
+
+        return [ob], info, info_tf
+
+        def beautify_voxelvolumes(self, ob, argdict={}):
+            """Particlise the voxelvolume."""
+
+            info = ""  # TODO
+
+            return info
 
 
 class ImportScalarGroups(Operator, ImportHelper):
@@ -624,273 +950,6 @@ class ImportBorderGroups(Operator, ImportHelper):
 
         return {"RUNNING_MODAL"}
 
-
-def import_tract(fpath, name, sformfile="",
-                 argdict={"weed_tract": 1.,
-                          "interpolate_streamlines": 1.}):
-    """Import a tract object.
-
-    This imports the streamlines found in the specified file and
-    joins the individual streamlines into one 'Curve' object.
-    Valid formats include:
-    - .bfloat/.Bfloat/.bdouble/.Bdouble (Camino)
-      http://camino.cs.ucl.ac.uk/index.php?n=Main.Fileformats
-    - .tck (MRtrix)
-      http://jdtournier.github.io/mrtrix-0.2/appendix/mrtrix.html
-    - .vtk (vtk polydata (ASCII); from MRtrix's 'tracks2vtk' command)
-      http://www.vtk.org/wp-content/uploads/2015/04/file-formats.pdf
-    - .trk (TrackVis; via nibabel)
-    - .dpy (dipy; via dipy)
-    - .npy (2d numpy arrays [Npointsx3]; single streamline per file)
-    - .npz (zipped archive of Nstreamlines .npy files)
-      http://docs.scipy.org/doc/numpy-1.10.0/reference/generated/numpy.savez.html
-
-    'weed_tract' thins tracts by randomly selecting streamlines.
-    'interpolate_streamlines' keeps every nth point of the streamlines
-    (int(1/interpolate_streamlines)).
-    'sformfile' sets matrix_world to affine transformation.
-
-    """
-
-    scn = bpy.context.scene
-    nb = scn.nb
-
-    weed_tract = argdict["weed_tract"]
-    interp_sl = argdict["interpolate_streamlines"]
-
-    outcome = "failed"
-    ext = os.path.splitext(fpath)[1]
-
-    try:
-        funcall = "read_streamlines_{}(fpath)".format(ext[1:])
-        streamlines = eval(funcall)
-
-    except NameError:
-        reason = "file format '{}' not supported".format(ext)
-        info = "import {}: {}".format(outcome, reason)
-        return [], info, "no geometry loaded"
-    except (IOError, FileNotFoundError):
-        reason = "file '{}' not valid".format(fpath)
-        info = "import {}: {}".format(outcome, reason)
-        return [], info, "no geometry loaded"
-
-    except:
-        reason = "unknown import error"
-        info = "import {}: {}".format(outcome, reason)
-        raise
-
-    curve = bpy.data.curves.new(name=name, type='CURVE')
-    curve.dimensions = '3D'
-    ob = bpy.data.objects.new(name, curve)
-    bpy.context.scene.objects.link(ob)
-
-    nsamples = int(len(streamlines) * weed_tract)
-    streamlines_sample = sample(range(len(streamlines)), nsamples)
-    # TODO: remember 'sample' for scalars import?
-    # TODO: weed tract at reading stage where possible?
-
-    for i, streamline in enumerate(streamlines):
-        if i in streamlines_sample:
-            if interp_sl < 1.:
-                subs_sl = int(1/interp_sl)
-                streamline = np.array(streamline)[1::subs_sl, :]
-#                 TODO: interpolation
-#                 from scipy import interpolate
-#                 x = interpolate.splprep(list(np.transpose(streamline)))
-            make_polyline_ob(curve, streamline)
-
-    # TODO: handle cases where transform info is included in tractfile
-    affine = read_affine_matrix(sformfile)
-    ob.matrix_world = affine
-
-    props = {"name": name,
-             "filepath": fpath,
-             "sformfile": sformfile,
-             "nstreamlines": nsamples,
-             "tract_weeded": weed_tract,
-             "streamines_interpolated": interp_sl}
-    nb_ut.add_item(nb, "tracts", props)
-
-    nb_ut.move_to_layer(ob, 0)
-    scn.layers[0] = True
-
-    scn.objects.active = ob
-    ob.select = True
-
-    outcome = "successful"
-    info = "import {}".format(outcome)
-    info_tf = "transform: {}\n".format(affine)
-    info_dc = """decimate:
-                 weeding={}; interpolation={}""".format(weed_tract, interp_sl)
-
-    return [ob], info, info_tf + info_dc
-
-
-def import_surface(fpath, name, sformfile="", argdict={}):
-    """Import a surface object.
-
-    This imports the surfaces found in the specified file.
-    Valid formats include:
-    - .gii (via nibabel)
-    - .white/.pial/.inflated/.sphere/.orig (FreeSurfer)
-    - .obj
-    - .stl
-    - .blend
-
-    'sformfile' sets matrix_world to affine transformation.
-
-    """
-
-    scn = bpy.context.scene
-    nb = scn.nb
-
-    outcome = "failed"
-    ext = os.path.splitext(fpath)[1]
-
-    try:
-        funcall = "read_surfaces_{}(fpath, name, sformfile)".format(ext[1:])
-        surfaces = eval(funcall)
-
-    except NameError:
-        reason = "file format '{}' not supported".format(ext)
-        info = "import {}: {}".format(outcome, reason)
-        return [], info, "no geometry loaded"
-    except (IOError, FileNotFoundError):
-        reason = "file '{}' not valid".format(fpath)
-        info = "import {}: {}".format(outcome, reason)
-        return [], info, "no geometry loaded"
-    except ImportError:
-        reason = "nibabel not found"
-        info = "import {}: {}".format(outcome, reason)
-        return [], info, "no geometry loaded"
-
-    except:
-        reason = "unknown import error"
-        info = "import {}: {}".format(outcome, reason)
-        raise
-
-    for surf in surfaces:
-
-        ob, affine, sformfile = surf
-
-        ob.matrix_world = affine
-
-        props = {"name": name,
-                 "filepath": fpath,
-                 "sformfile": sformfile}
-        nb_ut.add_item(nb, "surfaces", props)
-
-        nb_ut.move_to_layer(ob, 1)
-        scn.layers[1] = True
-
-    scn.objects.active = ob
-    ob.select = True
-
-    outcome = "successful"
-    info = "import {}".format(outcome)
-    info_tf = "transform: {}".format(affine)
-
-    return [surf[0] for surf in surfaces] , info, info_tf
-
-
-def import_voxelvolume(fpath, name, sformfile="", texdict={
-        "is_overlay": False, "is_label": False,
-        "parentpath": "", "sformfile": "",
-        "texdir": "", "texformat": "IMAGE_SEQUENCE",
-        "overwrite": False, "dataset": 'stack',
-        "vol_idx":-1}):
-    """Import a voxelvolume.
-
-    This imports the volumes found in the specified file.
-    Valid formats include:
-    - .nii(.gz)/.img/.hdr (via nibabel)
-    - .h5 (with h5py)
-    - Blender/NeuroBlender directory tree (IMAGE_SEQUENCE or 8BIT_RAW .raw)
-    -- ...
-    -- ...
-
-    'sformfile' sets matrix_world to affine transformation.
-
-    """
-
-    scn = bpy.context.scene
-    nb = scn.nb
-
-    texdict["fpath"] = fpath
-    texdict["name"] = name
-    texdict["sformfile"] = sformfile
-    is_overlay = texdict["is_overlay"]
-    is_label = texdict["is_label"]
-    texdir = texdict["texdir"]
-    texformat = texdict["texformat"]
-
-    # prep texture directory
-    if not bpy.data.is_saved:
-        nb_ut.force_save(nb.projectdir)
-    abstexdir = bpy.path.abspath(texdir)
-    nb_ut.mkdir_p(abstexdir)
-
-    outcome = "failed"
-    ext = os.path.splitext(fpath)[1]
-
-    texdict = load_texdir(texdict)
-
-    item = add_to_collections(texdict)
-
-    mat = nb_ma.get_voxmat(name)
-    tex = nb_ma.get_voxtex(mat, texdict, 'vol0000', item)
-
-    if is_label:
-        for volnr, label in enumerate(item.labels):
-            pass
-    elif is_overlay:
-        item.rendertype = "SURFACE"
-        for scalar in item.scalars:
-            volname = scalar.name[-7:]  # FIXME: this is not secure
-            pfdict = {"IMAGE_SEQUENCE": os.path.join(volname, '0000.png'),
-                      "STRIP": volname + '.png',
-                      "8BIT_RAW": volname + '.raw_8bit'}
-            scalarpath = os.path.join(texdir, texformat, pfdict[texformat])
-            scalar.filepath = scalarpath
-            scalar.matname = mat.name
-            scalar.texname = tex.name
-            if nb.texmethod == 4:
-                tex = nb_ma.get_voxtex(mat, texdict, volname, scalar)
-
-    # create the voxelvolume object
-#     ob = voxelvolume_object_bool(name, texdict['dims'], texdict['affine'])
-    ob, sbox = voxelvolume_object_slicebox(item, texdict)
-
-    # single texture slot for simple switching
-    texslot = mat.texture_slots.add()
-    texslot.texture = tex
-    texslot.use_map_density = True
-    texslot.texture_coords = 'ORCO'
-    texslot.use_map_emission = True
-
-    voxelvolume_rendertype_driver(mat, item)
-
-    nb_ma.set_materials(ob.data, mat)
-
-    if is_overlay:
-        nb_ob = eval(texdict["parentpath"])
-        ob.parent = bpy.data.objects[nb_ob.name]
-        item.index_scalars = 0  # induce switch
-        bpy.ops.object.mode_set(mode='EDIT')  # TODO: more elegant update
-        bpy.ops.object.mode_set(mode='OBJECT')
-
-    nb_ut.move_to_layer(ob, 2)
-    nb_ut.move_to_layer(sbox, 2)
-    scn.layers[2] = True
-
-    scn.render.engine = "BLENDER_RENDER"
-
-    outcome = "successful"
-    info = "import {}".format(outcome)
-    info_tf = "transform: {}".format(texdict["affine"])
-    # more info ...
-
-    return [ob], info, info_tf
 
 
 def check_texdir(texdir, texformat, overwrite=False, vol_idx=-1):

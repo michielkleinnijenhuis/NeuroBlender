@@ -981,7 +981,7 @@ def make_material_basic_cycles(name, diff_col, mix=0.04,
     trans = nodes.new("ShaderNodeBsdfTransparent")
     trans.label = "Transparent BSDF"
     trans.name = prefix + "Transparent BSDF"
-    trans.location = 0, 00
+    trans.location = 0, 0
 
     diff = nodes.new("ShaderNodeBsdfDiffuse")
     diff.label = "Diffuse BSDF"
@@ -1058,8 +1058,8 @@ def make_nodegroup_rgba(name="RGBAGroup", colour=[1, 1, 1, 1]):
     rgb.outputs[0].default_value = colour
     rgb.location = 0, 0
 
-    links.new(rgba.outputs["Color"], output_node.inputs[0])
-    links.new(rgba.outputs["Color"].default_value[3], output_node.inputs[1])
+    links.new(rgb.outputs["Color"], output_node.inputs[0])
+    links.new(rgb.outputs["Color"].default_value[3], output_node.inputs[1])
 
     return group
 

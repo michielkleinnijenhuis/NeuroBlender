@@ -35,8 +35,6 @@ import mathutils
 if "bpy" in locals():
     import imp
     imp.reload(nb_an)
-    imp.reload(nb_ba)
-    imp.reload(nb_be)
     imp.reload(nb_cm)
     imp.reload(nb_im)
     imp.reload(nb_ma)
@@ -47,30 +45,18 @@ if "bpy" in locals():
     imp.reload(nb_ut)
 else:
     import bpy
-    from bpy.types import (Panel,
-                           Operator,
+    from bpy.types import (Operator,
                            OperatorFileListElement,
-                           PropertyGroup,
                            UIList,
                            Menu)
-    from bpy.props import (BoolProperty,
-                           StringProperty,
+    from bpy.props import (StringProperty,
                            CollectionProperty,
                            EnumProperty,
-                           FloatVectorProperty,
-                           FloatProperty,
                            IntProperty,
-                           IntVectorProperty,
                            PointerProperty)
-    from bpy.app.handlers import persistent
-    from bpy_extras.io_utils import (ImportHelper,
-                                     ExportHelper)
-    from bl_operators.presets import (AddPresetBase,
-                                      ExecutePreset)
+    from bpy_extras.io_utils import ExportHelper
 
     from . import (animations as nb_an,
-                   base as nb_ba,
-                   beautify as nb_be,
                    colourmaps as nb_cm,
                    imports as nb_im,
                    materials as nb_ma,
@@ -195,7 +181,7 @@ class ObjectListOperations(Operator):
     bl_label = "Objectlist operations"
     bl_options = {"REGISTER", "UNDO"}
 
-    action = bpy.props.EnumProperty(
+    action = EnumProperty(
         items=(('UP_L1', "UpL1", ""),
                ('DOWN_L1', "DownL1", ""),
                ('REMOVE_L1', "RemoveL1", ""),
@@ -240,7 +226,7 @@ class ObjectListOperations(Operator):
         collection, data, nb_ob = self.get_collection(context)
 
         try:
-            item = collection[self.index]
+            collection[self.index]
         except IndexError:
             pass
         else:
@@ -305,9 +291,6 @@ class ObjectListOperations(Operator):
         return self.execute(context)
 
     def get_collection(self, context):
-
-        scn = context.scene
-        nb = scn.nb
 
         try:
             self.data_path = eval("%s.path_from_id()" % self.data_path)
@@ -383,7 +366,6 @@ class ObjectListOperations(Operator):
                        anim.animationtype.lower())
             fun(nb_preset.animations, self.index)
         else:
-            nb_ov, ov_idx = nb_ut.active_nb_overlay()
             ob = bpy.data.objects[nb_ob.name]
             fun = eval("self.remove_%s_%s" % (nb.objecttype, self.type))
             fun(collection[self.index], ob)
@@ -421,7 +403,7 @@ class ObjectListOperations(Operator):
         """Remove scalar overlay from tract."""
 
         for scalar in scalargroup.scalars:
-            for i, spline in enumerate(ob.data.splines):
+            for i, _ in enumerate(ob.data.splines):
                 splname = scalar.name + '_spl' + str(i).zfill(8)
                 self.remove_material(ob, splname)
                 self.remove_image(ob, splname)
@@ -531,7 +513,6 @@ class ObjectListOperations(Operator):
                         dp = tar.data_path
                         idx = 16
                         if dp.index("nb.voxelvolumes[") == 0:
-                            newpath = dp[:idx] + "%d" % i + dp[idx + 1:]
                             tar.data_path = dp[:idx] + "%d" % i + dp[idx + 1:]
 
     def remove_animations_camerapath(self, anims, index):
@@ -621,7 +602,7 @@ class MassSelect(Operator):
     bl_description = "Select/Deselect/Invert rendered objects/overlays"
     bl_options = {"REGISTER"}
 
-    action = bpy.props.EnumProperty(
+    action = EnumProperty(
         items=(('SELECT_L1', "Select_L1", ""),
                ('DESELECT_L1', "Deselect_L1", ""),
                ('INVERT_L1', "Invert_L1", ""),
