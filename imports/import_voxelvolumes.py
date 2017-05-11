@@ -474,6 +474,73 @@ class ImportVoxelvolumes(Operator, ImportHelper):
         Labelvolumes: negative labels are ignored (i.e. set to 0)
         """
 
+        # TODO: make these available outside prep_nifti namespace
+        def write_to_image_sequence(absimdir, data, dims):
+            """Write data to a stack of slices."""
+
+            scn = bpy.context.scene
+            ff = scn.render.image_settings.file_format
+            cm = scn.render.image_settings.color_mode
+            cd = scn.render.image_settings.color_depth
+
+            scn.render.image_settings.file_format = 'PNG'
+            scn.render.image_settings.color_mode = 'BW'
+            scn.render.image_settings.color_depth = '16'
+
+            for volnr, vol in enumerate(data):
+                voldir = os.path.join(absimdir, 'vol%04d' % volnr)
+                nb_ut.mkdir_p(voldir)
+                vol = np.reshape(vol, [dims[2], -1])
+                img = bpy.data.images.new("img", width=dims[0], height=dims[1])
+                for slcnr, slc in enumerate(vol):
+                    pixels = []
+                    for pix in slc:
+                        pixels.append([pix, pix, pix, float(pix != 0)])
+                    pixels = [chan for px in pixels for chan in px]
+                    img.pixels = pixels
+                    slcname = str(slcnr).zfill(4) + ".png"
+                    filepath = os.path.join(voldir, slcname)
+                    img.filepath_raw = bpy.path.abspath(filepath)
+                    img.file_format = 'PNG'
+#                     img.save()
+                    img.save_render(img.filepath_raw)
+
+            scn.render.image_settings.file_format = ff
+            scn.render.image_settings.color_mode = cm
+            scn.render.image_settings.color_depth = cd
+
+            return img
+
+        def write_to_strip(absimdir, data, dims):
+            """Write data to an image strip."""
+
+            img = bpy.data.images.new("img", width=dims[2]*dims[1], height=dims[0])
+            for volnr, vol in enumerate(data):
+                vol = np.reshape(vol, [-1, 1])
+                pixels = []
+                for pix in vol:
+                    pixels.append([pix, pix, pix, float(pix != 0)])
+                pixels = [chan for px in pixels for chan in px]
+                img.pixels = pixels
+                img.filepath = os.path.join(absimdir, 'vol%04d.png' % volnr)
+                img.file_format = 'PNG'
+                img.save()
+
+            return img
+
+        def write_to_raw_8bit(absimdir, data, dims):
+            """Write data to a 8bit_raw volume."""
+
+            data *= 255
+            for volnr, vol in enumerate(data):
+                filepath = os.path.join(absimdir, 'vol%04d.8bit_raw' % volnr)
+                with open(filepath, "wb") as f:
+                    f.write(bytes(vol.astype('uint8')))
+                img = bpy.data.images.load(filepath)
+                img.filepath = filepath
+
+            return img
+
         scn = bpy.context.scene
         nb = scn.nb
 
@@ -527,7 +594,7 @@ class ImportVoxelvolumes(Operator, ImportHelper):
         nb_ut.mkdir_p(absimdir)
 
         data = np.transpose(data)
-        fun = eval("self.write_to_%s" % texformat.lower())
+        fun = eval("write_to_%s" % texformat.lower())
         img = fun(absimdir, data, dims)
 
         texdict.update({'img': img,
@@ -536,75 +603,6 @@ class ImportVoxelvolumes(Operator, ImportHelper):
                         'labels': labels})
 
         return texdict
-
-    @staticmethod
-    def write_to_image_sequence(absimdir, data, dims):
-        """"""
-
-        scn = bpy.context.scene
-        ff = scn.render.image_settings.file_format
-        cm = scn.render.image_settings.color_mode
-        cd = scn.render.image_settings.color_depth
-
-        scn.render.image_settings.file_format = 'PNG'
-        scn.render.image_settings.color_mode = 'BW'
-        scn.render.image_settings.color_depth = '16'
-
-        for volnr, vol in enumerate(data):
-            voldir = os.path.join(absimdir, 'vol%04d' % volnr)
-            nb_ut.mkdir_p(voldir)
-            vol = np.reshape(vol, [dims[2], -1])
-            img = bpy.data.images.new("img", width=dims[0], height=dims[1])
-            for slcnr, slc in enumerate(vol):
-                pixels = []
-                for pix in slc:
-                    pixels.append([pix, pix, pix, float(pix != 0)])
-                pixels = [chan for px in pixels for chan in px]
-                img.pixels = pixels
-                slcname = str(slcnr).zfill(4) + ".png"
-                filepath = os.path.join(voldir, slcname)
-                img.filepath_raw = bpy.path.abspath(filepath)
-                img.file_format = 'PNG'
-    #             img.save()
-                img.save_render(img.filepath_raw)
-
-        scn.render.image_settings.file_format = ff
-        scn.render.image_settings.color_mode = cm
-        scn.render.image_settings.color_depth = cd
-
-        return img
-
-    @staticmethod
-    def write_to_strip(absimdir, data, dims):
-        """"""
-
-        img = bpy.data.images.new("img", width=dims[2]*dims[1], height=dims[0])
-        for volnr, vol in enumerate(data):
-            vol = np.reshape(vol, [-1, 1])
-            pixels = []
-            for pix in vol:
-                pixels.append([pix, pix, pix, float(pix != 0)])
-            pixels = [chan for px in pixels for chan in px]
-            img.pixels = pixels
-            img.filepath = os.path.join(absimdir, 'vol%04d.png' % volnr)
-            img.file_format = 'PNG'
-            img.save()
-
-        return img
-
-    @staticmethod
-    def write_to_raw_8bit(absimdir, data, dims):
-        """"""
-
-        data *= 255
-        for volnr, vol in enumerate(data):
-            filepath = os.path.join(absimdir, 'vol%04d.8bit_raw' % volnr)
-            with open(filepath, "wb") as f:
-                f.write(bytes(vol.astype('uint8')))
-            img = bpy.data.images.load(filepath)
-            img.filepath = filepath
-
-        return img
 
     @staticmethod
     def image_sequence_length(filepath):
