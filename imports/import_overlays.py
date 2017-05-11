@@ -218,7 +218,7 @@ class ImportOverlays(Operator, ImportHelper):
                 scalars.append(npzfile[k])
         elif fpath.endswith('.gii'):
             nib = nb_ut.validate_nibabel('.gii')
-            if nb.nibabel_valid:
+            if nb.settingprops.nibabel_valid:
                 gio = nib.gifti.giftiio
                 img = gio.read(fpath)
                 scalars = []
@@ -228,13 +228,13 @@ class ImportOverlays(Operator, ImportHelper):
         elif fpath.endswith('dscalar.nii'):
             # CIFTI not yet working properly: in nibabel?
             nib = nb_ut.validate_nibabel('dscalar.nii')
-            if nb.nibabel_valid:
+            if nb.settingprops.nibabel_valid:
                 gio = nib.gifti.giftiio
                 nii = gio.read(fpath)
                 scalars = np.squeeze(nii.get_data())
         else:  # I will try to read it as a freesurfer binary
             nib = nb_ut.validate_nibabel('')
-            if nb.nibabel_valid:
+            if nb.settingprops.nibabel_valid:
                 fsio = nib.freesurfer.io
                 scalars = fsio.read_morph_data(fpath)
             else:
@@ -253,7 +253,7 @@ class ImportOverlays(Operator, ImportHelper):
 
         if fpath.endswith('.label'):
             nib = nb_ut.validate_nibabel('.label')
-            if nb.nibabel_valid:
+            if nb.settingprops.nibabel_valid:
                 fsio = nib.freesurfer.io
                 label, scalars = fsio.read_label(fpath, read_scalars=True)
             else:
@@ -274,7 +274,7 @@ class ImportOverlays(Operator, ImportHelper):
         nb = scn.nb
 
         nib = nb_ut.validate_nibabel('.annot')
-        if nb.nibabel_valid:
+        if nb.settingprops.nibabel_valid:
             if fpath.endswith(".annot"):
                 fsio = nib.freesurfer.io
                 labels, ctab, bnames = fsio.read_annot(fpath, orig_ids=False)
@@ -320,7 +320,7 @@ class ImportOverlays(Operator, ImportHelper):
         nb = scn.nb
 
         nib = nb_ut.validate_nibabel('.annot')
-        if nb.nibabel_valid:
+        if nb.settingprops.nibabel_valid:
             fsio = nib.freesurfer.io
             labels, ctab, bnames = fsio.read_annot(fpath, orig_ids=False)
             names = [name.decode('utf-8') for name in bnames]
@@ -336,7 +336,7 @@ class ImportOverlays(Operator, ImportHelper):
         nb = scn.nb
 
         nib = nb_ut.validate_nibabel('.annot')
-        if nb.nibabel_valid:
+        if nb.settingprops.nibabel_valid:
             gio = nib.gifti.giftiio
             img = gio.read(fpath)
             img.labeltable.get_labels_as_dict()

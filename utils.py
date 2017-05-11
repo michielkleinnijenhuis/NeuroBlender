@@ -212,10 +212,10 @@ def validate_nibabel(ext):
     add_path(nb.settingprops.esp_path)
     try:
         import nibabel as nib
-        nb.nibabel_valid = True
+        nb.settingprops.nibabel_valid = True
         return nib
     except ImportError:
-        nb.nibabel_valid = False
+        nb.settingprops.nibabel_valid = False
         raise
 #         return {'cannot read ' + ext + ': nibabel not found'}
 
@@ -330,11 +330,11 @@ def read_affine_matrix(filepath, fieldname='stack'):
         affine = Matrix()
     elif filepath.endswith('.nii') | filepath.endswith('.nii.gz'):
         nib = validate_nibabel('nifti')
-        if nb.nibabel_valid:
+        if nb.settingprops.nibabel_valid:
             affine = nib.load(filepath).header.get_sform()
     elif filepath.endswith('.gii'):
         nib = validate_nibabel('gifti')
-        if nb.nibabel_valid:
+        if nb.settingprops.nibabel_valid:
             gio = nib.gifti.giftiio
             img = gio.read(filepath)
             xform = img.darrays[0].coordsys.xform

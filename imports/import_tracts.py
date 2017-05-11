@@ -327,7 +327,7 @@ class ImportTracts(Operator, ImportHelper):
         """Return all streamlines in a Trackvis .trk tract file."""
 
         nib = nb_ut.validate_nibabel('.trk')
-        if bpy.context.scene.nb.nibabel_valid:
+        if bpy.context.scene.nb.settingprops.nibabel_valid:
             tv = nib.trackvis
             streams, _ = tv.read(fpath)
             streamlines = [s[0] for s in streams]
