@@ -34,7 +34,6 @@ import bpy
 
 from . import (materials as nb_ma,
                utils as nb_ut)
-from .imports import imports as nb_im
 
 
 # ========================================================================== #
@@ -404,18 +403,19 @@ def switch_mode_preset(lights, tables, newmode, cam_view):
 def validate_voxelvolume_textures(nb):
     """"Validate or update the texture files for voxelvolumes."""
 
+    ivv = bpy.types.NB_OT_import_voxelvolumes
     for vv in nb.voxelvolumes:
         fp = bpy.data.textures[vv.name].voxel_data.filepath
         if not os.path.isfile(fp):
-            fp = nb_im.prep_nifti(vv.filepath, vv.name, False)[0]
+            fp = ivv.prep_nifti(vv.filepath, vv.name, False)[0]
         for vs in vv.scalars:
             fp = bpy.data.textures[vs.name].voxel_data.filepath
             if not os.path.isfile(fp):
-                fp = nb_im.prep_nifti(vs.filepath, vs.name, False)[0]
+                fp = ivv.prep_nifti(vs.filepath, vs.name, False)[0]
         for vl in vv.labelgroups:
             fp = bpy.data.textures[vl.name].voxel_data.filepath
             if not os.path.isfile(fp):
-                fp = nb_im.prep_nifti(vl.filepath, vl.name, True)[0]
+                fp = ivv.prep_nifti(vl.filepath, vl.name, True)[0]
 
 
 def get_render_objects(nb):

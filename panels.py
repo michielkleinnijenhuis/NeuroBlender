@@ -96,9 +96,11 @@ class NeuroBlenderBasePanel(bpy.types.Panel):
                           rows=2)
         col = row.column(align=True)
         if addopt:
-            if ((uilistlevel == "L2") and
-                    data.path_from_id().startswith("nb.voxelvolumes")):
-                obtype = "voxelvolumes"
+            if uilistlevel == "L2":
+                if data.path_from_id().startswith("nb.voxelvolumes"):
+                    obtype = "voxelvolumes"
+                else:
+                    obtype = "overlays"
             col.operator("nb.import_" + obtype,
                          icon='ZOOMIN',
                          text="").parentpath = data.path_from_id()

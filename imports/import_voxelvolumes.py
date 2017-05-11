@@ -44,7 +44,7 @@ from bpy_extras.io_utils import ImportHelper
 from .. import (materials as nb_ma,
                 renderpresets as nb_rp,
                 utils as nb_ut)
-from . import import_tracts as nb_it
+
 
 def file_update(self, context):
     """Set the voxelvolume name according to the selected file."""
@@ -464,7 +464,8 @@ class ImportVoxelvolumes(Operator, ImportHelper):
 
         return texdict
 
-    def prep_nifti(self, texdict):
+    @staticmethod
+    def prep_nifti(texdict):
         """Write data in a nifti file to a NeuroBlender volume texture.
 
         The nifti is read with nibabel with [z,y,x] layout, and is either

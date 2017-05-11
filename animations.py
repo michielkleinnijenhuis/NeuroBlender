@@ -40,7 +40,6 @@ from bpy.props import (StringProperty,
 
 from . import (renderpresets as nb_rp,
                utils as nb_ut)
-from .imports import imports as nb_im
 
 
 class SetAnimations(Operator):

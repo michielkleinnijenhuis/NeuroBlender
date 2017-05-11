@@ -35,7 +35,6 @@ import mathutils
 import bpy
 
 from . import utils as nb_ut
-from .imports import imports as nb_im
 
 
 # =========================================================================== #
@@ -253,7 +252,8 @@ def create_vc_overlay_tract(ob, fpath, name="", is_label=False):
     """Create scalar overlay for a tract object."""
 
     # TODO: implement reading of groups
-    nn_scalargroup_data = nb_im.read_tractscalar(fpath)
+    iol = bpy.types.NB_OT_import_overlays
+    nn_scalargroup_data = iol.read_tractscalar(fpath)
     groupmin = float('Inf')
     groupmax = -float('Inf')
     scalarranges = []
@@ -334,7 +334,8 @@ def set_curve_weights(ob, name, label=None, scalars=None):
 def create_vc_overlay(ob, fpath, name="", is_label=False):
     """Create scalar overlay for a surface object."""
 
-    timeseries = nb_im.read_surfscalar(fpath)
+    iol = bpy.types.NB_OT_import_overlays
+    timeseries = iol.read_surfscalar(fpath)
 
     timeseries, timeseriesrange = nb_ut.normalize_data(timeseries)
 
@@ -398,7 +399,8 @@ def create_vg_annot(ob, fpath, name=""):
     attr.attribute_name = groupname
 
     if fpath.endswith('.border'):
-        borderlist = nb_im.read_borders(fpath)
+        iol = bpy.types.NB_OT_import_overlays
+        borderlist = iol.read_borders(fpath)
         create_polygon_layer_int(ob, borderlist)
         # (for each border?, will be expensive: do one for every file now)
         # this already takes a long time...
@@ -425,7 +427,8 @@ def create_vg_annot(ob, fpath, name=""):
         set_materials_to_polygonlayers(ob, pl, new_mats)
 
     else:
-        labels, ctab, names = nb_im.read_surfannot(fpath)
+        iol = bpy.types.NB_OT_import_overlays
+        labels, ctab, names = iol.read_surfannot(fpath)
 
         new_vgs = []
         new_mats = []
@@ -456,7 +459,8 @@ def create_vg_annot(ob, fpath, name=""):
 def create_border_curves(ob, fpath, name=""):
     """Import an border file and create curves."""
 
-    borderlist = nb_im.read_borders(fpath)
+    iol = bpy.types.NB_OT_import_overlays
+    borderlist = iol.read_borders(fpath)
 
     ca = [bpy.data.objects]
     groupname = nb_ut.check_name(name, fpath, ca)
@@ -525,7 +529,8 @@ def create_vg_overlay(ob, fpath, name="", is_label=False, trans=1):
     a scalar-type overlay will be generated.
     """
 
-    label, scalars = nb_im.read_surflabel(fpath, is_label)
+    iol = bpy.types.NB_OT_import_overlays
+    label, scalars = iol.read_surflabel(fpath, is_label)
 
     if scalars is not None:
         ca = [ob.vertex_groups,

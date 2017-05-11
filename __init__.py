@@ -66,10 +66,10 @@ else:
                    scenepresets as nb_sp,
                    settings as nb_se,
                    utils as nb_ut)
-    from .imports import (imports as nb_im,
-                          import_tracts as nb_it,
+    from .imports import (import_tracts as nb_it,
                           import_surfaces as nb_is,
-                          import_voxelvolumes as nb_iv)
+                          import_voxelvolumes as nb_iv,
+                          import_overlays as nb_im)
 
 
 bl_info = {
@@ -101,7 +101,7 @@ class ObjectListL1(UIList):
             col.prop(item, "name", text="", emboss=False,
                      translate=False, icon=item_icon)
 
-            if bpy.context.scene.nb.settingprops.advanced:
+            if context.scene.nb.settingprops.advanced:
                 col = layout.column()
                 col.alignment = "RIGHT"
                 col.active = item.is_rendered
@@ -129,7 +129,7 @@ class ObjectListL2(UIList):
             col.prop(item, "name", text="", emboss=False,
                      translate=False, icon=item_icon)
 
-            if bpy.context.scene.nb.settingprops.advanced:
+            if context.scene.nb.settingprops.advanced:
                 col = layout.column()
                 col.alignment = "RIGHT"
                 col.active = item.is_rendered
@@ -157,7 +157,7 @@ class ObjectListL3(UIList):
             col.prop(item, "name", text="", emboss=False,
                      translate=False, icon=item_icon)
 
-            if bpy.context.scene.nb.settingprops.advanced:
+            if context.scene.nb.settingprops.advanced:
                 col = layout.column()
                 col.alignment = "RIGHT"
                 col.enabled = False
