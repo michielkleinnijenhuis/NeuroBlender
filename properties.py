@@ -1026,7 +1026,7 @@ def colourmap_enum_callback(self, context):
 
         return mapnames_ordered
 
-    cmap_dir = os.path.join("presets","neuroblender_cmaps")
+    cmap_dir = os.path.join("presets", "neuroblender_colourmaps")
     preset_path = bpy.utils.user_resource('SCRIPTS', cmap_dir, create=False)
     files = glob(os.path.join(preset_path, '*.py'))
 
@@ -1076,7 +1076,7 @@ def colourmap_enum_update(self, context):
     nb.cr_path = cr_path
     menu_idname = "OBJECT_MT_colourmap_presets"
 
-    cmap_dir = os.path.join("presets","neuroblender_cmaps")
+    cmap_dir = os.path.join("presets","neuroblender_colourmaps")
     preset_path = bpy.utils.user_resource('SCRIPTS', cmap_dir, create=False)
     filepath = os.path.join(preset_path, '{}.py'.format(colourmap))
 

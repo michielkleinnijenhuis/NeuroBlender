@@ -1140,10 +1140,7 @@ class ImportVoxelvolumes(Operator, ImportHelper):
         elif is_overlay:
             item.colourmap_enum = "jet"
         else:
-            try:  # FIXME
-                item.colourmap_enum = "grey"
-            except:
-                pass
+            item.colourmap_enum = "grey"
 
         return tex
 
