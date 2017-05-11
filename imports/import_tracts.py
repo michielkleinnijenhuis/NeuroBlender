@@ -71,6 +71,11 @@ class ImportTracts(Operator, ImportHelper):
         name="Parentpath",
         description="The path to the parent of the object",
         default="nb")
+    sformfile = StringProperty(
+        name="sformfile",
+        description="",
+        default="",
+        subtype="FILE_PATH")
     interpolate_streamlines = FloatProperty(
         name="Interpolate streamlines",
         description="Interpolate the individual streamlines",
@@ -112,41 +117,13 @@ class ImportTracts(Operator, ImportHelper):
 
     def execute(self, context):
 
-        impdict = {"weed_tract": self.weed_tract,
-                   "interpolate_streamlines": self.interpolate_streamlines}
-        beaudict = {"mode": "FULL",
-                    "depth": 0.5,
-                    "res": 10}
-
         filenames = [f.name for f in self.files]
         if not filenames:
             filenames = os.listdir(self.directory)
 
         for f in filenames:
             fpath = os.path.join(self.directory, f)
-
-            ca = [bpy.data.objects,
-                  bpy.data.meshes,
-                  bpy.data.materials,
-                  bpy.data.textures]
-            name = nb_ut.check_name(self.name, fpath, ca)
-
-            obs, info_imp, info_geom = self.import_tract(fpath,
-                                                         name,
-                                                         "",
-                                                         impdict)
-
-            for ob in obs:
-                info_mat = nb_ma.materialise(ob,
-                                             self.colourtype,
-                                             self.colourpicker,
-                                             self.transparency)
-                info_beau = self.beautification(ob, beaudict)
-
-            info = info_imp
-            if nb.settingprops.verbose:
-                info = info + "\nname: '%s'\npath: '%s'\n" % (name, fpath)
-                info = info + "%s\n%s\n%s" % (info_geom, info_mat, info_beau)
+            info = self.import_tract(context, fpath)
             self.report({'INFO'}, info)
 
         return {"FINISHED"}
@@ -182,9 +159,7 @@ class ImportTracts(Operator, ImportHelper):
 
         return {"RUNNING_MODAL"}
 
-    def import_tract(self, fpath, name, sformfile="",
-                     argdict={"weed_tract": 1.,
-                              "interpolate_streamlines": 1.}):
+    def import_tract(self, context, fpath):
         """Import a tract object.
 
         This imports the streamlines found in the specified file and
@@ -209,27 +184,30 @@ class ImportTracts(Operator, ImportHelper):
 
         """
 
-        scn = bpy.context.scene
+        scn = context.scene
         nb = scn.nb
 
-        weed_tract = argdict["weed_tract"]
-        interp_sl = argdict["interpolate_streamlines"]
+        ca = [bpy.data.objects,
+              bpy.data.meshes,
+              bpy.data.materials,
+              bpy.data.textures]
+        name = nb_ut.check_name(self.name, fpath, ca)
 
         outcome = "failed"
         ext = os.path.splitext(fpath)[1]
 
         try:
-            funcall = "self.read_streamlines_{}(fpath)".format(ext[1:])
-            streamlines = eval(funcall)
+            fun = "self.read_streamlines_{}".format(ext[1:])
+            streamlines = eval('{}(fpath)'.format(fun))
 
         except NameError:
             reason = "file format '{}' not supported".format(ext)
             info = "import {}: {}".format(outcome, reason)
-            return [], info, "no geometry loaded"
+            return info
         except (IOError, FileNotFoundError):
             reason = "file '{}' not valid".format(fpath)
             info = "import {}: {}".format(outcome, reason)
-            return [], info, "no geometry loaded"
+            return info
 
         except:
             reason = "unknown import error"
@@ -239,17 +217,17 @@ class ImportTracts(Operator, ImportHelper):
         curve = bpy.data.curves.new(name=name, type='CURVE')
         curve.dimensions = '3D'
         ob = bpy.data.objects.new(name, curve)
-        bpy.context.scene.objects.link(ob)
+        scn.objects.link(ob)
 
-        nsamples = int(len(streamlines) * weed_tract)
+        nsamples = int(len(streamlines) * self.weed_tract)
         streamlines_sample = sample(range(len(streamlines)), nsamples)
         # TODO: remember 'sample' for scalars import?
         # TODO: weed tract at reading stage where possible?
 
         for i, streamline in enumerate(streamlines):
             if i in streamlines_sample:
-                if interp_sl < 1.:
-                    subs_sl = int(1/interp_sl)
+                if self.interpolate_streamlines < 1.:
+                    subs_sl = int(1/self.interpolate_streamlines)
                     streamline = np.array(streamline)[1::subs_sl, :]
     #                 TODO: interpolation
     #                 from scipy import interpolate
@@ -257,15 +235,15 @@ class ImportTracts(Operator, ImportHelper):
                 nb_ut.make_polyline(curve, streamline)
 
         # TODO: handle cases where transform info is included in tractfile
-        affine = nb_ut.read_affine_matrix(sformfile)
+        affine = nb_ut.read_affine_matrix(self.sformfile)
         ob.matrix_world = affine
 
         props = {"name": name,
                  "filepath": fpath,
-                 "sformfile": sformfile,
+                 "sformfile": self.sformfile,
                  "nstreamlines": nsamples,
-                 "tract_weeded": weed_tract,
-                 "streamines_interpolated": interp_sl}
+                 "tract_weeded": self.weed_tract,
+                 "streamines_interpolated": self.interpolate_streamlines}
         nb_ut.add_item(nb, "tracts", props)
 
         nb_ut.move_to_layer(ob, 0)
@@ -274,14 +252,29 @@ class ImportTracts(Operator, ImportHelper):
         scn.objects.active = ob
         ob.select = True
 
-        outcome = "successful"
-        info = "import {}".format(outcome)
-        info_tf = "transform: {}\n".format(affine)
-        info_dc = """decimate:
-                     weeding={}; interpolation={}""".format(weed_tract,
-                                                            interp_sl)
+        info_mat = nb_ma.materialise(ob,
+                                     self.colourtype,
+                                     self.colourpicker,
+                                     self.transparency)
+        beaudict = {"mode": "FULL",
+                    "depth": 0.5,
+                    "res": 10}
+        info_beau = self.beautification(ob, beaudict)
 
-        return [ob], info, info_tf + info_dc
+        info = "import successful"
+        if nb.settingprops.verbose:
+            info = """{}name: '{}'
+                        path: '{}'
+                        transform: {}
+                        decimate:
+                            weeding: {}
+                            interpolation: {}
+                            {}\n{}""".format(info, name, fpath, affine,
+                                             self.weed_tract,
+                                             self.interpolate_streamlines,
+                                             info_mat, info_beau)
+
+        return info
 
     def read_streamlines_npy(self, fpath):
         """Read a [Npointsx3] streamline from a *.npy file."""

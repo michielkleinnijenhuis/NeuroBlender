@@ -150,6 +150,10 @@ class ImportVoxelvolumes(Operator, ImportHelper):
         description="",
         default="",
         subtype="FILE_PATH")
+    beautify = BoolProperty(
+        name="Beautify",
+        description="Apply initial smoothing on surfaces",
+        default=True)
     has_valid_texdir = BoolProperty(
         name="has_valid_texdir",
         description="...",
@@ -189,7 +193,8 @@ class ImportVoxelvolumes(Operator, ImportHelper):
 
         for f in filenames:
             fpath = os.path.join(self.directory, f)
-            self.import_voxelvolume(context, fpath)
+            info = self.import_voxelvolume(context, fpath)
+            self.report({'INFO'}, info)
 
         return {"FINISHED"}
 
@@ -310,7 +315,8 @@ class ImportVoxelvolumes(Operator, ImportHelper):
         abstexdir = bpy.path.abspath(self.texdir)
         nb_ut.mkdir_p(abstexdir)
 
-#         outcome = "failed"  # TODO: error handling
+        # TODO: error handling
+#         outcome = "failed"
 #         ext = os.path.splitext(fpath)[1]
 
         texdict = self.load_texdir(texdict)
@@ -370,12 +376,14 @@ class ImportVoxelvolumes(Operator, ImportHelper):
         nb.index_voxelvolumes = nb.index_voxelvolumes
 #         item.rendertype = item.rendertype  # FIXME
 
-        outcome = "successful"
-        info = "import {}".format(outcome)
+        affine = texdict["affine"]
+        info = "import successful"
         if nb.settingprops.verbose:
-            info = info + "\nname: '%s'\npath: '%s'\n" % (name, fpath)
-            info = info + 'transform: {}'.format(texdict["affine"])
-        self.report({'INFO'}, info)
+            info = """{}\nname: '{}'
+                      {}\npath: '{}'
+                      {}\ntransform: {}""".format(info, name, fpath, affine)
+
+        return info
 
     def load_texdir(self, texdict):
         """Load a volume texture previously generated in NeuroBlender."""

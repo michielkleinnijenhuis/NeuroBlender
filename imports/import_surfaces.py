@@ -41,7 +41,8 @@ from bpy.props import (BoolProperty,
                        FloatProperty)
 from bpy_extras.io_utils import ImportHelper
 
-from .. import utils as nb_ut
+from .. import (materials as nb_ma,
+                utils as nb_ut)
 
 
 class ImportSurfaces(Operator, ImportHelper):
@@ -69,6 +70,11 @@ class ImportSurfaces(Operator, ImportHelper):
         name="Parentpath",
         description="The path to the parent of the object",
         default="nb")
+    sformfile = StringProperty(
+        name="sformfile",
+        description="",
+        default="",
+        subtype="FILE_PATH")
     beautify = BoolProperty(
         name="Beautify",
         description="Apply initial smoothing on surfaces",
@@ -97,42 +103,13 @@ class ImportSurfaces(Operator, ImportHelper):
 
     def execute(self, context):
 
-        impdict = {}
-        beaudict = {"iterations": 10,
-                    "factor": 0.5,
-                    "use_x": True,
-                    "use_y": True,
-                    "use_z": True}
-
         filenames = [f.name for f in self.files]
         if not filenames:
             filenames = os.listdir(self.directory)
 
         for f in filenames:
             fpath = os.path.join(self.directory, f)
-
-            ca = [bpy.data.objects,
-                  bpy.data.meshes,
-                  bpy.data.materials,
-                  bpy.data.textures]
-            name = nb_ut.check_name(self.name, fpath, ca)
-
-            obs, info_imp, info_geom = self.import_surface(fpath,
-                                                           name,
-                                                           "",
-                                                           impdict)
-
-            for ob in obs:
-                info_mat = nb_ma.materialise(ob,
-                                             self.colourtype,
-                                             self.colourpicker,
-                                             self.transparency)
-                info_beau = self.beautification(ob, beaudict)
-
-            info = info_imp
-            if nb.settingprops.verbose:
-                info = info + "\nname: '%s'\npath: '%s'\n" % (name, fpath)
-                info = info + "%s\n%s\n%s" % (info_geom, info_mat, info_beau)
+            info = self.import_surface(context, fpath)
             self.report({'INFO'}, info)
 
         return {"FINISHED"}
@@ -163,7 +140,7 @@ class ImportSurfaces(Operator, ImportHelper):
 
         return {"RUNNING_MODAL"}
 
-    def import_surface(self, fpath, name, sformfile="", argdict={}):
+    def import_surface(self, context, fpath):
         """Import a surface object.
 
         This imports the surfaces found in the specified file.
@@ -178,28 +155,34 @@ class ImportSurfaces(Operator, ImportHelper):
 
         """
 
-        scn = bpy.context.scene
+        scn = context.scene
         nb = scn.nb
+
+        ca = [bpy.data.objects,
+              bpy.data.meshes,
+              bpy.data.materials,
+              bpy.data.textures]
+        name = nb_ut.check_name(self.name, fpath, ca)
 
         outcome = "failed"
         ext = os.path.splitext(fpath)[1]
 
         try:
-            funcall = "self.read_surfaces_{}(fpath, name, sformfile)".format(ext[1:])
-            surfaces = eval(funcall)
+            fun = "self.read_surfaces_{}".format(ext[1:])
+            surfaces = eval('{}(fpath, name, self.sformfile)'.format(fun))
 
         except NameError:
             reason = "file format '{}' not supported".format(ext)
             info = "import {}: {}".format(outcome, reason)
-            return [], info, "no geometry loaded"
+            return info
         except (IOError, FileNotFoundError):
             reason = "file '{}' not valid".format(fpath)
             info = "import {}: {}".format(outcome, reason)
-            return [], info, "no geometry loaded"
+            return info
         except ImportError:
             reason = "nibabel not found"
             info = "import {}: {}".format(outcome, reason)
-            return [], info, "no geometry loaded"
+            return info
 
         except:
             reason = "unknown import error"
@@ -223,11 +206,26 @@ class ImportSurfaces(Operator, ImportHelper):
         scn.objects.active = ob
         ob.select = True
 
-        outcome = "successful"
-        info = "import {}".format(outcome)
-        info_tf = "transform: {}".format(affine)
+        info_mat = nb_ma.materialise(ob,
+                                     self.colourtype,
+                                     self.colourpicker,
+                                     self.transparency)
+        beaudict = {"iterations": 10,
+                    "factor": 0.5,
+                    "use_x": True,
+                    "use_y": True,
+                    "use_z": True}
+        info_beau = self.beautification(ob, beaudict)
 
-        return [surf[0] for surf in surfaces] , info, info_tf
+        info = "import successful"
+        if nb.settingprops.verbose:
+            info = """{}\nname: '{}'
+                        \npath: '{}'
+                        \ntransform: {}
+                        \n{}\n{}""".format(info, name, fpath, affine,
+                                           info_mat, info_beau)
+
+        return info
 
     def read_surfaces_obj(self, fpath, name, sformfile):
         """Import a surface from a .obj file."""
@@ -318,7 +316,7 @@ class ImportSurfaces(Operator, ImportHelper):
         for ob in data_to.objects:
             if ob is not None:
                 bpy.context.scene.objects.link(ob)
-                surfaces.append((ob, ob.matrix_world, ''))
+                surfaces.append((ob, ob.matrix_world, sformfile))
 
         return surfaces
 
