@@ -59,6 +59,9 @@ class ExecutePreset_CR(ExecutePreset, Operator):
         options={'SKIP_SAVE'},
         default="OBJECT_MT_colourmap_presets"  # FIXME: not as default
         )
+    cr_path = StringProperty(name="CR path",
+        description="Data path to colour ramp",
+        options={'SKIP_SAVE'})
 
     def execute(self, context):
         from os.path import basename, splitext
