@@ -562,15 +562,15 @@ def h5_dataset_callback(self, context):
     try:
         import h5py
         f = h5py.File(os.path.join(self.directory, self.files[0].name), 'r')
-    except:
-        items = [("no data", "no data", "not a valid h5", 0)]
+    except (OSError, TypeError) as e:
+        items = [("dataset", "no dataset available", str(e), 0)]
     else:
         f.visititems(h5_dataset_add)
         f.close()
         items = [(name, name, "List the datatree", i)
                  for i, name in enumerate(names)]
 
-        return items
+    return items
 
 
 class ImportVoxelvolumes(Operator, ImportHelper):
