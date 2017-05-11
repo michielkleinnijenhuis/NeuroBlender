@@ -82,6 +82,7 @@ class AddAnimation(Operator):
 
         ca = [preset.animations for preset in nb.presets]
         name = nb_ut.check_name(self.name, "", ca, forcefill=True)
+        preset = nb.presets[nb.index_presets]
         animprops = {"name": name}
         nb_ut.add_item(preset, "animations", animprops)
 
