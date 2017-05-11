@@ -34,8 +34,8 @@ import mathutils
 
 import bpy
 
-from . import (imports as nb_im,
-               utils as nb_ut)
+from . import utils as nb_ut
+from .imports import imports as nb_im
 
 
 # =========================================================================== #
@@ -336,7 +336,7 @@ def create_vc_overlay(ob, fpath, name="", is_label=False):
 
     timeseries = nb_im.read_surfscalar(fpath)
 
-    timeseries, timeseriesrange = nb_im.normalize_data(timeseries)
+    timeseries, timeseriesrange = nb_ut.normalize_data(timeseries)
 
     nb_ob = nb_ut.active_nb_object()[0]
     ca = [nb_ob.scalargroups]  # TODO: all other scalargroups etc
@@ -491,7 +491,8 @@ def create_border_curves(ob, fpath, name=""):
         curve.dimensions = '3D'
         curveob = bpy.data.objects.new(name, curve)
         bpy.context.scene.objects.link(curveob)
-        nb_im.make_polyline_ob_vi(curve, ob, border['verts'][:, 0])
+        clist = [ob.data.vertices[vi].co[:3] for vi in border['verts'][:, 0]]
+        nb_ut.make_polyline(curve, clist)
         curveob.data.fill_mode = 'FULL'
         curveob.data.bevel_depth = bevel_depth
         curveob.data.bevel_resolution = bevel_resolution
@@ -532,7 +533,7 @@ def create_vg_overlay(ob, fpath, name="", is_label=False, trans=1):
               bpy.data.materials]
         name = nb_ut.check_name(name, fpath, ca)
 
-        vgscalars, scalarrange = nb_im.normalize_data(scalars)
+        vgscalars, scalarrange = nb_ut.normalize_data(scalars)
 
         vg = set_vertex_group(ob, name, label, scalars)
 
@@ -869,7 +870,10 @@ def get_voxtex(mat, texdict, volname, item):
     elif is_overlay:
         item.colourmap_enum = "jet"
     else:
-        item.colourmap_enum = "grey"
+        try:
+            item.colourmap_enum = "grey"
+        except:
+            pass
 
     return tex
 

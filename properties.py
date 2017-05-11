@@ -44,11 +44,11 @@ from bpy.props import (BoolProperty,
                        PointerProperty)
 from bpy.app.handlers import persistent
 
-from . import (imports as nb_im,
-               materials as nb_ma,
+from . import (materials as nb_ma,
                properties as nb_pr,
                renderpresets as nb_rp,
                utils as nb_ut)
+from .imports import imports as nb_im
 
 
 # ========================================================================== #
@@ -788,7 +788,7 @@ def sformfile_update(self, context):
         pass
     else:
         sformfile = bpy.path.abspath(self.sformfile)
-        affine = nb_im.read_affine_matrix(sformfile)
+        affine = nb_ut.read_affine_matrix(sformfile)
         ob.matrix_world = affine
 
 

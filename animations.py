@@ -38,9 +38,9 @@ from bpy.props import (StringProperty,
                        FloatVectorProperty,
                        IntProperty)
 
-from . import (imports as nb_im,
-               renderpresets as nb_rp,
+from . import (renderpresets as nb_rp,
                utils as nb_ut)
+from .imports import imports as nb_im
 
 
 class SetAnimations(Operator):
@@ -355,7 +355,7 @@ class AddCamPath(Operator):
             scn.objects.link(ob)
 
             streamline = [point.co[0:3] for point in spline.points]
-            nb_im.make_polyline_ob(curve, streamline)
+            nb_ut.make_polyline(curve, streamline)
             ob.matrix_world = nb_ob.matrix_world
             ob.select = True
             bpy.context.scene.objects.active = ob

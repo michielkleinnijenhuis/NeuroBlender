@@ -32,9 +32,9 @@ from mathutils import Vector
 
 import bpy
 
-from . import (imports as nb_im,
-               materials as nb_ma,
+from . import (materials as nb_ma,
                utils as nb_ut)
+from .imports import imports as nb_im
 
 
 # ========================================================================== #

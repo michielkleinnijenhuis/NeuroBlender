@@ -58,7 +58,6 @@ else:
 
     from . import (animations as nb_an,
                    colourmaps as nb_cm,
-                   imports as nb_im,
                    materials as nb_ma,
                    overlays as nb_ol,
                    panels as nb_pa,
@@ -67,6 +66,10 @@ else:
                    scenepresets as nb_sp,
                    settings as nb_se,
                    utils as nb_ut)
+    from .imports import (imports as nb_im,
+                          import_tracts as nb_it,
+                          import_surfaces as nb_is,
+                          import_voxelvolumes as nb_iv)
 
 
 bl_info = {

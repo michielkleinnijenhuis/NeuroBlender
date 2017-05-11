@@ -31,6 +31,10 @@ import sys
 import errno
 import tempfile
 import random
+from glob import glob
+
+import numpy as np
+from mathutils import Matrix
 
 import bpy
 
@@ -41,7 +45,8 @@ import bpy
 
 
 def check_name(name, fpath, checkagainst,
-               nzfill=3, forcefill=False, maxlen=40, firstfill=0):
+               nzfill=3, forcefill=False,
+               maxlen=40, firstfill=0):
     """Make sure a unique name is given."""
 
     # if unspecified, derive a name from the filename
@@ -147,8 +152,8 @@ def get_nb_objectinfo(parent):
             nb.voxelvolumes.find(parent)]
     obinfo = {}
     obinfo['name'] = parent
-    obinfo['type'] = obtypes[[i>-1 for i in idxs].index(True)]
-    obinfo['idx'] = idxs[[i>-1 for i in idxs].index(True)]
+    obinfo['type'] = obtypes[[i > -1 for i in idxs].index(True)]
+    obinfo['idx'] = idxs[[i > -1 for i in idxs].index(True)]
 
     return obinfo
 
@@ -235,7 +240,7 @@ def add_path(aux_path):
 
     sys_paths = sys.path
     check_result = [s for s in sys_paths if aux_path in s]
-    if (check_result == []):
+    if not check_result:
         sys.path.append(aux_path)
 
 
@@ -277,7 +282,7 @@ def validate_nb_overlays(ob, collections):
     for collection in collections:
         for item in collection:
             try:
-                vg = ob.vertex_groups[item.name]
+                ob.vertex_groups[item.name]
             except KeyError:
                 print("The " + itemtype + " '" + item.name +
                       "' seems to have been removed or renamed " +
@@ -308,3 +313,147 @@ def add_item(parent, childpath, props):
         item.name_mem = props['name']
 
     return item
+
+
+# ========================================================================== #
+# geometry spatial transformations
+# ========================================================================== #
+
+
+def read_affine_matrix(filepath, fieldname='stack'):
+    """Get the affine transformation matrix from the nifti or textfile."""
+
+    scn = bpy.context.scene
+    nb = scn.nb
+
+    if not filepath:
+        affine = Matrix()
+    elif filepath.endswith('.nii') | filepath.endswith('.nii.gz'):
+        nib = validate_nibabel('nifti')
+        if nb.nibabel_valid:
+            affine = nib.load(filepath).header.get_sform()
+    elif filepath.endswith('.gii'):
+        nib = validate_nibabel('gifti')
+        if nb.nibabel_valid:
+            gio = nib.gifti.giftiio
+            img = gio.read(filepath)
+            xform = img.darrays[0].coordsys.xform
+            if len(xform) == 16:
+                xform = np.reshape(xform, [4, 4])
+            affine = Matrix(xform)
+    elif filepath.endswith('.h5'):
+        affine = h5_affine(filepath, fieldname)
+    elif filepath.endswith('.npy'):
+        affine = np.load(filepath)
+    else:
+        affine = np.loadtxt(filepath)
+        # TODO: check if matrix if valid
+#         if affine.shape is not (4,4):
+#             return {'cannot calculate transform: \
+#                     invalid affine transformation matrix'}
+
+    return Matrix(affine)
+
+
+def h5_affine(fpath, fieldname):
+    """Read an 'affine' matrix from h5 element sizes."""
+
+    try:
+        import h5py
+    except ImportError:
+        raise  # TODO: error to indicate how to set up h5py
+    else:
+#         h5_path = fpath.split('.h5')
+#         f = h5py.File(h5_fpath[0] + '.h5', 'r')
+        f = h5py.File(fpath, 'r')
+        in2out = h5_in2out(f[fieldname])
+
+        affine = [[1, 0, 0, 0],
+                  [0, 1, 0, 0],
+                  [0, 0, 1, 0],
+                  [0, 0, 0, 1]]
+        try:
+            element_size_um = [f[fieldname].attrs['element_size_um'][i]
+                               for i in in2out]
+        except:
+            pass
+        else:
+            affine[0][0] = element_size_um[0]
+            affine[1][1] = element_size_um[1]
+            affine[2][2] = element_size_um[2]
+
+        return affine
+
+
+def h5_in2out(inds):
+    """Permute dimension labels to Fortran order."""
+
+    outlayout = 'xyzct'[0:inds.ndim]
+    try:
+        inlayout = [d.label for d in inds.dims]
+    except:
+        inlayout = 'xyzct'[0:inds.ndim]
+
+    in2out = [inlayout.index(l) for l in outlayout]
+
+    return in2out
+
+
+def make_polyline(curvedata, clist):
+    """Create a 3D curve from a list of points."""
+
+    polyline = curvedata.splines.new('POLY')
+    polyline.points.add(len(clist)-1)
+    for num in range(len(clist)):
+        x, y, z = clist[num]
+        polyline.points[num].co = (x, y, z, 1)
+    polyline.order_u = len(polyline.points)-1
+    polyline.use_endpoint_u = True
+
+
+def normalize_data(data):
+    """Normalize data between 0 and 1."""
+
+    data = data.astype('float64')
+    datamin = np.amin(data)
+    datamax = np.amax(data)
+    data -= datamin
+    data *= 1/(datamax-datamin)
+
+    return data, [datamin, datamax]
+
+
+def validate_texdir(texdir, texformat, overwrite=False, vol_idx=-1):
+    """Check whether path is in a valid NeuroBlender volume texture."""
+
+    if overwrite:
+        return False
+
+    abstexdir = bpy.path.abspath(texdir)
+    if not os.path.isdir(abstexdir):
+        return False
+
+    for pf in ('affine', 'dims', 'datarange', 'labels'):
+        f = os.path.join(abstexdir, "{}.npy".format(pf))
+        if not os.path.isfile(f):
+            return False
+
+    absimdir = os.path.join(abstexdir, texformat)
+    if not os.path.isdir(absimdir):
+        return False
+
+    if vol_idx != -1:
+        absvoldir = os.path.join(absimdir, 'vol%04d' % vol_idx)
+        if not os.path.isdir(absvoldir):
+            return False
+    else:
+        absvoldir = os.path.join(absimdir, 'vol%04d' % 0)
+        if not os.path.isdir(absvoldir):
+            return False
+        # TODO: see if all vols are there
+
+    nfiles = len(glob(os.path.join(absimdir, '*')))
+    if not nfiles:
+        return False
+
+    return True
