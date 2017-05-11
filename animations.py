@@ -505,7 +505,7 @@ class ObjectListAN(UIList):
             col.prop(item, "name", text="", emboss=False,
                      translate=False, icon=item_icon)
 
-            if bpy.context.scene.nb.advanced:
+            if bpy.context.scene.nb.settingprops.advanced:
                 col = layout.column()
                 col.alignment = "RIGHT"
                 col.active = item.is_rendered

@@ -30,18 +30,64 @@ import bpy
 from bpy.types import (Operator,
                        Menu)
 from bpy.props import StringProperty
-from bl_operators.presets import AddPresetBase
+from bl_operators.presets import (AddPresetBase,
+                                  ExecutePreset)
 
 from . import animations as nb_an
 
 
 class OBJECT_MT_setting_presets(Menu):
-# https://docs.blender.org/api/blender_python_api_2_77_0/bpy.types.Menu.html
+    # https://docs.blender.org/api/blender_python_api_2_77_0/bpy.types.Menu.html
     bl_label = "NeuroBlender Settings Presets"
     bl_description = "Load a NeuroBlender Settings Preset"
-    preset_subdir = "neuroblender"
-    preset_operator = "script.execute_preset"
+    preset_subdir = "neuroblender_settings"
+    preset_operator = "script.execute_preset_se"
     draw = Menu.draw_preset
+
+
+class ExecutePreset_SE(ExecutePreset, Operator):
+    """Execute a preset"""
+    bl_idname = "script.execute_preset_se"
+    bl_label = "NeuroBlender Settings Presets"
+    bl_description = "Load a NeuroBlender Settings Preset"
+
+    filepath = StringProperty(
+        subtype='FILE_PATH',
+        options={'SKIP_SAVE'},
+        )
+    menu_idname = StringProperty(
+        name="Menu ID Name",
+        description="ID name of the menu this was called from",
+        options={'SKIP_SAVE'},
+        default="OBJECT_MT_setting_presets"  # FIXME: not as default
+        )
+
+    def execute(self, context):
+        from os.path import basename, splitext
+        filepath = self.filepath
+
+        # change the menu title to the most recently chosen option
+        preset_class = getattr(bpy.types, self.menu_idname)
+        preset_class.bl_label = bpy.path.display_name(basename(filepath))
+        nb = bpy.context.scene.nb
+        nb.settingprops.sp_presetlabel = preset_class.bl_label
+
+        ext = splitext(filepath)[1].lower()
+
+        # execute the preset using script.python_file_run
+        if ext == ".py":
+            bpy.ops.script.python_file_run(filepath=filepath)
+        elif ext == ".xml":
+            import rna_xml
+            rna_xml.xml_file_run(context,
+                                 filepath,
+                                 preset_class.preset_xml_map)
+        else:
+            self.report({'ERROR'}, "unknown filetype: %r" % ext)
+            return {'CANCELLED'}
+
+        return {'FINISHED'}
+
 
 
 class AddPresetNeuroBlenderSettings(AddPresetBase, Operator):
@@ -50,17 +96,18 @@ class AddPresetNeuroBlenderSettings(AddPresetBase, Operator):
     bl_description = "Add/Delete a NeuroBlender Settings Preset"
     preset_menu = "OBJECT_MT_setting_presets"
 
-    preset_defines = ["scn = bpy.context.scene"]
-    preset_values = ["scn.nb.projectdir",
-                     "scn.nb.esp_path",
-                     "scn.nb.mode",
-                     "scn.nb.engine",
-                     "scn.nb.texformat",
-                     "scn.nb.texmethod",
-                     "scn.nb.uv_resolution",
-                     "scn.nb.advanced",
-                     "scn.nb.verbose"]
-    preset_subdir = "neuroblender"
+    preset_defines = ["scn = bpy.context.scene",
+                      "nb = scn.nb"]
+    preset_values = ["nb.settingprops.projectdir",
+                     "nb.settingprops.esp_path",
+                     "nb.settingprops.mode",
+                     "nb.settingprops.engine",
+                     "nb.settingprops.texformat",
+                     "nb.settingprops.texmethod",
+                     "nb.settingprops.uv_resolution",
+                     "nb.settingprops.advanced",
+                     "nb.settingprops.verbose"]
+    preset_subdir = "neuroblender_settings"
 
 
 class Reload(Operator):

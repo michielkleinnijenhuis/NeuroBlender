@@ -40,11 +40,13 @@ from bpy.props import (BoolProperty,
                        FloatVectorProperty,
                        FloatProperty,
                        IntProperty,
-                       IntVectorProperty)
+                       IntVectorProperty,
+                       PointerProperty)
 from bpy.app.handlers import persistent
 
 from . import (imports as nb_im,
                materials as nb_ma,
+               properties as nb_pr,
                renderpresets as nb_rp,
                utils as nb_ut)
 
@@ -94,7 +96,6 @@ bpy.app.handlers.frame_change_pre.append(rendertype_enum_handler)
 # does this need to be post?
 
 
-
 @persistent
 def index_scalars_handler(dummy):
     """"""
@@ -124,9 +125,29 @@ def index_scalars_handler(dummy):
 
                 elif sg.path_from_id().startswith("nb.voxelvolumes"):
                     index_scalars_update_vvolscalar_func(sg, scalar,
-                                                         nb.texmethod)
+                                                         nb.settingprops.texmethod)
 
 bpy.app.handlers.frame_change_pre.append(index_scalars_handler)
+
+
+@persistent
+def init_settings_handler(dummy):
+    """Force update on NeuroBlender settings."""
+
+    scn = bpy.context.scene
+    nb = scn.nb
+
+    nb.settingprops.projectdir = nb.settingprops.projectdir
+    nb.settingprops.esp_path = nb.settingprops.esp_path
+    nb.settingprops.mode = nb.settingprops.mode
+    nb.settingprops.engine = nb.settingprops.engine
+    nb.settingprops.texformat = nb.settingprops.texformat
+    nb.settingprops.texmethod = nb.settingprops.texmethod
+    nb.settingprops.uv_resolution = nb.settingprops.uv_resolution
+    nb.settingprops.advanced = nb.settingprops.advanced
+    nb.settingprops.verbose = nb.settingprops.verbose
+
+bpy.app.handlers.load_post.append(init_settings_handler)
 
 
 # ========================================================================== #
@@ -141,13 +162,13 @@ def engine_update(self, context):
     nb = scn.nb
 
     for mat in bpy.data.materials:
-        mat.use_nodes = nb.engine == "CYCLES"
-        if nb.engine.startswith("BLENDER"):
+        mat.use_nodes = nb.settingprops.engine == "CYCLES"
+        if nb.settingprops.engine.startswith("BLENDER"):
             nb_ma.CR2BR(mat)
         else:
             nb_ma.BR2CR(mat)
 
-    scn.render.engine = nb.engine
+    scn.render.engine = nb.settingprops.engine
     # TODO: handle lights
 
 
@@ -189,7 +210,8 @@ def mode_enum_update(self, context):
     except:
         pass
     else:
-        nb_rp.switch_mode_preset(light_obs, table_obs, nb.mode, nb_cam.cam_view)
+        nb_rp.switch_mode_preset(light_obs, table_obs,
+                                 nb.settingsprops.mode, nb_cam.cam_view)
 
 
 def managecmap_update(self, context):
@@ -614,7 +636,7 @@ def index_scalars_update_func(group=None):
             if hasattr(group, 'scalars'):
 
                 index_scalars_update_vvolscalar_func(group, scalar,
-                                                     nb.texmethod)
+                                                     nb.settingprops.texmethod)
 
 
 def index_scalars_update_vvolscalar_func(group, scalar, method=1):
@@ -941,8 +963,11 @@ def name_update(self, context):
 def material_update(self, context):
     """Assign a new preset material to the object."""
 
+    scn = context.scene
+    nb = scn.nb
+
     mat = bpy.data.materials[self.name]
-    if context.scene.nb.engine.startswith("BLENDER"):
+    if nb.settingsprops.engine.startswith("BLENDER"):
         nb_ma.CR2BR(mat)
 
 
@@ -1081,6 +1106,99 @@ def mat_is_yoked_bool_update(self, context):
 # ========================================================================== #
 # NeuroBlender custom properties
 # ========================================================================== #
+
+
+class SettingsProperties(PropertyGroup):
+    """Properties for the NeuroBlender settings."""
+
+    sp_presetlabel = StringProperty(
+        name="SP label",
+        default="")
+
+    projectdir = StringProperty(
+        name="Project directory",
+        description="The path to the NeuroBlender project",
+        subtype="DIR_PATH",
+        default=os.path.expanduser('~'))
+
+    try:
+        import nibabel as nib
+        nib_valid = True
+        nib_dir = os.path.dirname(nib.__file__)
+        esp_path = os.path.dirname(nib_dir)
+    except:
+        nib_valid = False
+        esp_path = ""
+
+    nibabel_valid = BoolProperty(
+        name="nibabel valid",
+        description="Indicates whether nibabel has been detected",
+        default=nib_valid)
+
+    esp_path = StringProperty(
+        name="External site-packages",
+        description=""""
+            The path to the site-packages directory
+            of an equivalent python version with nibabel installed
+            e.g. using:
+            >>> conda create --name blender python=3.5.1
+            >>> source activate blender
+            >>> pip install git+git://github.com/nipy/nibabel.git@master
+            on Mac this would be the directory:
+            <conda root dir>/envs/blender/lib/python3.5/site-packages
+            """,
+        default=esp_path,
+        subtype="DIR_PATH",
+        update=esp_path_update)
+
+    mode = EnumProperty(
+        name="mode",
+        description="switch between NeuroBlender modes",
+        items=[("artistic", "artistic", "artistic", 1),
+               ("scientific", "scientific", "scientific", 2)],
+        default="artistic",
+        update=mode_enum_update)
+
+    engine = EnumProperty(
+        name="engine",
+        description="""Engine to use for rendering""",
+        items=[("BLENDER_RENDER", "Blender Render",
+                "Blender Render: required for voxelvolumes", 0),
+               ("CYCLES", "Cycles Render",
+                "Cycles Render: required for most overlays", 2)],
+        update=engine_update)
+
+    texformat = EnumProperty(
+        name="Volume texture file format",
+        description="Choose a format to save volume textures",
+        default="IMAGE_SEQUENCE",
+        items=[("IMAGE_SEQUENCE", "IMAGE_SEQUENCE", "IMAGE_SEQUENCE", 0),
+               ("STRIP", "STRIP", "STRIP", 1),
+               ("RAW_8BIT", "RAW_8BIT", "RAW_8BIT", 2)])
+    texmethod = IntProperty(
+        name="texmethod",
+        description="",
+        default=1,
+        min=1, max=4)
+    uv_resolution = IntProperty(
+        name="utexture resolution",
+        description="the resolution of baked textures",
+        default=4096,
+        min=1)
+    uv_bakeall = BoolProperty(
+        name="Bake all",
+        description="Bake single or all scalars in a group",
+        default=True)
+
+    advanced = BoolProperty(
+        name="Advanced mode",
+        description="Advanced NeuroBlender layout",
+        default=False)
+
+    verbose = BoolProperty(
+        name="Verbose",
+        description="Verbose reporting",
+        default=False)
 
 
 class CameraProperties(PropertyGroup):
@@ -2611,89 +2729,7 @@ class NeuroBlenderProperties(PropertyGroup):
         description="Show/hide the NeuroBlender panel contents",
         default=True)
 
-    projectdir = StringProperty(
-        name="Project directory",
-        description="The path to the NeuroBlender project",
-        subtype="DIR_PATH",
-        default=os.path.expanduser('~'))
-
-    try:
-        import nibabel as nib
-        nib_valid = True
-        nib_dir = os.path.dirname(nib.__file__)
-        esp_path = os.path.dirname(nib_dir)
-    except:
-        nib_valid = False
-        esp_path = ""
-
-    nibabel_valid = BoolProperty(
-        name="nibabel valid",
-        description="Indicates whether nibabel has been detected",
-        default=nib_valid)
-    esp_path = StringProperty(
-        name="External site-packages",
-        description=""""
-            The path to the site-packages directory
-            of an equivalent python version with nibabel installed
-            e.g. using:
-            >>> conda create --name blender python=3.5.1
-            >>> source activate blender
-            >>> pip install git+git://github.com/nipy/nibabel.git@master
-            on Mac this would be the directory:
-            <conda root dir>/envs/blender/lib/python3.5/site-packages
-            """,
-        default=esp_path,
-        subtype="DIR_PATH",
-        update=esp_path_update)
-
-    mode = EnumProperty(
-        name="mode",
-        description="switch between NeuroBlender modes",
-        items=[("artistic", "artistic", "artistic", 1),
-               ("scientific", "scientific", "scientific", 2)],
-        default="artistic",
-        update=mode_enum_update)
-
-    engine = EnumProperty(
-        name="engine",
-        description="""Engine to use for rendering""",
-        items=[("BLENDER_RENDER", "Blender Render",
-                "Blender Render: required for voxelvolumes", 0),
-               ("CYCLES", "Cycles Render",
-                "Cycles Render: required for most overlays", 2)],
-        update=engine_update)
-
-    texformat = EnumProperty(
-        name="Volume texture file format",
-        description="Choose a format to save volume textures",
-        default="IMAGE_SEQUENCE",
-        items=[("IMAGE_SEQUENCE", "IMAGE_SEQUENCE", "IMAGE_SEQUENCE", 0),
-               ("STRIP", "STRIP", "STRIP", 1),
-               ("RAW_8BIT", "RAW_8BIT", "RAW_8BIT", 2)])
-    texmethod = IntProperty(
-        name="texmethod",
-        description="",
-        default=1,
-        min=1, max=4)
-    uv_resolution = IntProperty(
-        name="utexture resolution",
-        description="the resolution of baked textures",
-        default=4096,
-        min=1)
-    uv_bakeall = BoolProperty(
-        name="Bake all",
-        description="Bake single or all scalars in a group",
-        default=True)
-
-    advanced = BoolProperty(
-        name="Advanced mode",
-        description="Advanced NeuroBlender layout",
-        default=False)
-
-    verbose = BoolProperty(
-        name="Verbose",
-        description="Verbose reporting",
-        default=False)
+    settingprops = PointerProperty(type=nb_pr.SettingsProperties)
 
     show_transform = BoolProperty(
         name="Transform",
@@ -2883,6 +2919,10 @@ class NeuroBlenderProperties(PropertyGroup):
     cr_path = StringProperty(
         name="CR path")
 
+    cm_presetlabel = StringProperty(
+        name="CM label",
+        default="Grey")
+
 # @persistent
 # def projectdir_update(dummy):
 #     """"""
@@ -2890,7 +2930,7 @@ class NeuroBlenderProperties(PropertyGroup):
 #     scn = bpy.context.scene
 #     nb = scn.nb
 #
-# #     nb.projectdir = os.path.
+# #     nb.settingprops.projectdir = os.path.
 #
 # bpy.app.handlers.load_post(projectdir_update)
 

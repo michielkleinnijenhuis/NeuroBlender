@@ -198,7 +198,7 @@ def scene_preset(name="Brain", layer=10):
     scn.layers[layer] = True
 
     switch_mode_preset(list(lights.children), [table],
-                       nb.mode, nb_cam.cam_view)
+                       nb.settingsprops.mode, nb_cam.cam_view)
 
     # get object lists
     obs = bpy.data.objects

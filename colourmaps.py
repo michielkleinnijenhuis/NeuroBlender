@@ -38,7 +38,7 @@ from bl_operators.presets import (AddPresetBase,
 class OBJECT_MT_colourmap_presets(Menu):
     bl_label = "Colourmap Presets"
     bl_description = "Choose a NeuroBlender Colourmap Preset"
-    preset_subdir = "neuroblender_cmaps"
+    preset_subdir = "neuroblender_colourmaps"
     preset_operator = "script.execute_preset_cr"
     draw = Menu.draw_preset
 
@@ -50,18 +50,15 @@ class ExecutePreset_CR(ExecutePreset, Operator):
     bl_description = "Load a NeuroBlender Colourmap Preset"
 
     filepath = StringProperty(
-            subtype='FILE_PATH',
-            options={'SKIP_SAVE'},
-            )
+        subtype='FILE_PATH',
+        options={'SKIP_SAVE'},
+        )
     menu_idname = StringProperty(
-             name="Menu ID Name",
-            description="ID name of the menu this was called from",
-            options={'SKIP_SAVE'},
-            default="OBJECT_MT_colourmap_presets"  # FIXME: not as default
-            )
-    cr_path = StringProperty(name="CR path",
-            description="Data path to colour ramp",
-            options={'SKIP_SAVE'})
+        name="Menu ID Name",
+        description="ID name of the menu this was called from",
+        options={'SKIP_SAVE'},
+        default="OBJECT_MT_colourmap_presets"  # FIXME: not as default
+        )
 
     def execute(self, context):
         from os.path import basename, splitext
@@ -74,6 +71,8 @@ class ExecutePreset_CR(ExecutePreset, Operator):
         # change the menu title to the most recently chosen option
         preset_class = getattr(bpy.types, self.menu_idname)
         preset_class.bl_label = bpy.path.display_name(basename(filepath))
+        nb = bpy.context.scene.nb
+        nb.cm_presetlabel = preset_class.bl_label
 
         ext = splitext(filepath)[1].lower()
 
@@ -151,7 +150,7 @@ class AddPresetNeuroBlenderColourmap(AddPresetBase, Operator):
     bl_description = "Add/Delete a NeuroBlender Colourmap Preset"
     preset_menu = "OBJECT_MT_colourmap_presets"
 
-    preset_subdir = "neuroblender_cmaps"
+    preset_subdir = "neuroblender_colourmaps"
 
     @property
     def preset_defines(self):

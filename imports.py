@@ -195,7 +195,7 @@ class ImportTracts(Operator, ImportHelper):
 #                     item.rendertype = item.rendertype  # FIXME
 
             info = info_imp
-            if nb.verbose:
+            if nb.settingprops.verbose:
                 info = info + "\nname: '%s'\npath: '%s'\n" % (name, fpath)
                 info = info + "%s\n%s\n%s" % (info_geom, info_mat, info_beau)
 
@@ -776,7 +776,7 @@ class ImportVoxelvolumes(Operator, ImportHelper):
 
         # prep texture directory
         if not bpy.data.is_saved:
-            nb_ut.force_save(nb.projectdir)
+            nb_ut.force_save(nb.settingprops.projectdir)
         abstexdir = bpy.path.abspath(texdir)
         nb_ut.mkdir_p(abstexdir)
 
@@ -804,7 +804,7 @@ class ImportVoxelvolumes(Operator, ImportHelper):
                 scalar.filepath = scalarpath
                 scalar.matname = mat.name
                 scalar.texname = tex.name
-                if nb.texmethod == 4:
+                if nb.settingprops.texmethod == 4:
                     tex = nb_ma.get_voxtex(mat, texdict, volname, scalar)
 
         # create the voxelvolume object

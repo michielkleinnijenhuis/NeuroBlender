@@ -75,7 +75,7 @@ class NeuroBlenderBasePanel(bpy.types.Panel):
 
             self.drawunit_tri(layout, "transform", nb, nb_ob)
 
-            if nb.advanced:
+            if nb.settingprops.advanced:
                 self.drawunit_tri(layout, "info", nb, nb_ob)
 
     def drawunit_switch_to_main(self, layout, nb):
@@ -106,7 +106,7 @@ class NeuroBlenderBasePanel(bpy.types.Panel):
                      icon='ZOOMOUT',
                      text="").action = 'REMOVE_' + uilistlevel
 
-        if bpy.context.scene.nb.advanced:
+        if bpy.context.scene.nb.settingprops.advanced:
             col.menu("nb.mass_is_rendered_" + uilistlevel,
                      icon='DOWNARROW_HLT',
                      text="")
@@ -179,7 +179,7 @@ class NeuroBlenderBasePanel(bpy.types.Panel):
         scn = bpy.context.scene
         nb = scn.nb
 
-        if nb.engine.startswith("BLENDER"):
+        if nb.settingsprops.engine.startswith("BLENDER"):
 
             self.drawunit_basic_blender(layout, nb_ob)
 
@@ -288,7 +288,7 @@ class NeuroBlenderBasePanel(bpy.types.Panel):
         row = layout.row()
         layout.template_color_ramp(ramp, "color_ramp", expand=True)
 
-        if ((nb_coll is not None) and bpy.context.scene.nb.advanced):
+        if ((nb_coll is not None) and bpy.context.scene.nb.settingprops.advanced):
 
             row = layout.row()
             row.separator()
@@ -365,7 +365,7 @@ class NeuroBlenderBasePanel(bpy.types.Panel):
         row = layout.row()
         row.prop(nb_ob, "sformfile", text="")
 
-        if bpy.context.scene.nb.advanced:
+        if bpy.context.scene.nb.settingprops.advanced:
             ob = bpy.data.objects[nb_ob.name]
             row = layout.row()
             col = row.column()
@@ -489,7 +489,7 @@ class NeuroBlenderOverlayPanel(bpy.types.Panel):
         else:
             self.drawunit_tri(layout, "items", nb, nb_ov)
 
-        if nb.advanced:
+        if nb.settingprops.advanced:
             self.drawunit_tri(layout, "overlay_info", nb, nb_ov)
 
     def drawunit_bake(self, layout):
@@ -599,7 +599,7 @@ class NeuroBlenderOverlayPanel(bpy.types.Panel):
 
         else:
 
-            if nb.engine.startswith("BLENDER"):
+            if nb.settingsprops.engine.startswith("BLENDER"):
                 self.drawunit_basic_blender(layout, nb_ov)
             else:
                 self.drawunit_basic_cycles(layout, nb_ov)
@@ -1078,61 +1078,57 @@ class NeuroBlenderSettingsPanel(bpy.types.Panel):
 
     def draw_nb_panel(self, layout, nb):
 
-        row = layout.row(align=True)
-        row.menu('OBJECT_MT_setting_presets',
-                 text="NeuroBlender Settings Presets")
-        row.operator("nb.setting_presets",
-                     text="", icon='ZOOMIN')
-        row.operator("nb.setting_presets",
-                     text="", icon='ZOOMOUT').remove_active = True
+        settingprops = nb.settingprops
+
+        self.drawunit_settings_preset(layout)
 
         row = layout.row()
         row.separator()
 
         row = layout.row()
-        row.prop(nb, "projectdir")
+        row.prop(settingprops, "projectdir")
 
         row = layout.row()
         row.separator()
 
         row = layout.row()
-        row.prop(nb, "esp_path")
+        row.prop(settingprops, "esp_path")
 
         row = layout.row()
         row.separator()
 
         row = layout.row()
-        row.prop(nb, "mode", expand=True)
+        row.prop(settingprops, "mode", expand=True)
 
         row = layout.row()
         row.separator()
 
         row = layout.row()
-        row.prop(nb, "engine", expand=True)
+        row.prop(settingprops, "engine", expand=True)
 
         row = layout.row()
         row.separator()
 
         box = layout.box()
         row = box.row()
-        row.prop(nb, "texformat")
+        row.prop(settingprops, "texformat")
         row = box.row()
-        row.prop(nb, "texmethod")
+        row.prop(settingprops, "texmethod")
         row = box.row()
-        row.prop(nb, "uv_resolution")
+        row.prop(settingprops, "uv_resolution")
 
         row = layout.row()
         row.separator()
 
         row = layout.row()
-        row.prop(nb, "advanced", toggle=True,
+        row.prop(settingprops, "advanced", toggle=True,
                  text="Expanded options")
 
         row = layout.row()
         row.separator()
 
         row = layout.row()
-        row.prop(nb, "verbose", toggle=True,
+        row.prop(settingprops, "verbose", toggle=True,
                  text="Verbose reporting")
 
         row = layout.row()
@@ -1148,20 +1144,27 @@ class NeuroBlenderSettingsPanel(bpy.types.Panel):
 
         self.drawunit_tri(layout, "manage_colourmaps", nb, data=None)
 
+    def drawunit_settings_preset(self, layout):
+
+        menu_name = 'OBJECT_MT_setting_presets'
+        label = bpy.context.scene.nb.settingprops.sp_presetlabel
+        preset_op_name = "nb.setting_presets"
+
+        self.drawunit_presetmenu(layout, menu_name, label, preset_op_name)
+
     def drawunit_tri_manage_colourmaps(self, layout, nb, data):
 
         self.drawunit_manage_colourmaps(layout, nb)
 
     def drawunit_manage_colourmaps(self, layout, nb):
 
-        name = 'manage_colourmaps'
+        menu_name = 'OBJECT_MT_colourmap_presets'
+        label = bpy.context.scene.nb.cm_presetlabel
+        preset_op_name = "nb.colourmap_presets"
 
-        row = layout.row(align=True)
-        row.menu('OBJECT_MT_colourmap_presets', text="Colourmap Presets")
-        row.operator("nb.colourmap_presets",
-                     text="", icon='ZOOMIN')
-        row.operator("nb.colourmap_presets",
-                     text="", icon='ZOOMOUT').remove_active = True
+        self.drawunit_presetmenu(layout, menu_name, label, preset_op_name)
+
+        name = 'manage_colourmaps'
 
         try:
             mat = bpy.data.materials[name]
@@ -1175,3 +1178,11 @@ class NeuroBlenderSettingsPanel(bpy.types.Panel):
             layout.template_preview(tex, parent=mat, slot=ts)
             layout.separator()
             layout.operator("nb.reset_colourmaps")
+
+    def drawunit_presetmenu(self, layout, menu_name, label, preset_op):
+
+        row = layout.row(align=True)
+        row.menu(menu_name, text=label)
+        # FIXME: change the label on create or remove
+        row.operator(preset_op, text="", icon='ZOOMIN')
+        row.operator(preset_op, text="", icon='ZOOMOUT').remove_active = True

@@ -201,7 +201,7 @@ class VertexWeight2UV(Operator, ExportHelper):
 
         # prep directory
         if not bpy.data.is_saved:
-            nb_ut.force_save(nb.projectdir)
+            nb_ut.force_save(nb.settingprops.projectdir)
         if not group.texdir:
             group.texdir = "//uvtex_%s" % group.name
         nb_ut.mkdir_p(bpy.path.abspath(group.texdir))
@@ -226,7 +226,8 @@ class VertexWeight2UV(Operator, ExportHelper):
         ami = surf.active_material_index
         matnames = [ms.name for ms in surf.material_slots]
         surf.data.materials.clear()
-        img = self.create_baking_material(surf, nb.uv_resolution, "bake_vcol")
+        img = self.create_baking_material(surf, nb.settingprops.uv_resolution,
+                                          "bake_vcol")
 
         # select the item(s) to bake
         dp_split = re.findall(r"[\w']+", self.data_path)
