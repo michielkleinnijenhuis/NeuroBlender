@@ -112,15 +112,42 @@ class ImportTracts(Operator, ImportHelper):
 
     def execute(self, context):
 
-        importtype = "tracts"
-        importfun = self.import_tract
         impdict = {"weed_tract": self.weed_tract,
                    "interpolate_streamlines": self.interpolate_streamlines}
         beaudict = {"mode": "FULL",
                     "depth": 0.5,
                     "res": 10}
 
-        self.import_objects(importfun, importtype, impdict, beaudict)
+        filenames = [f.name for f in self.files]
+        if not filenames:
+            filenames = os.listdir(self.directory)
+
+        for f in filenames:
+            fpath = os.path.join(self.directory, f)
+
+            ca = [bpy.data.objects,
+                  bpy.data.meshes,
+                  bpy.data.materials,
+                  bpy.data.textures]
+            name = nb_ut.check_name(self.name, fpath, ca)
+
+            obs, info_imp, info_geom = self.import_tract(fpath,
+                                                         name,
+                                                         "",
+                                                         impdict)
+
+            for ob in obs:
+                info_mat = nb_ma.materialise(ob,
+                                             self.colourtype,
+                                             self.colourpicker,
+                                             self.transparency)
+                info_beau = self.beautification(ob, beaudict)
+
+            info = info_imp
+            if nb.settingprops.verbose:
+                info = info + "\nname: '%s'\npath: '%s'\n" % (name, fpath)
+                info = info + "%s\n%s\n%s" % (info_geom, info_mat, info_beau)
+            self.report({'INFO'}, info)
 
         return {"FINISHED"}
 
@@ -154,45 +181,6 @@ class ImportTracts(Operator, ImportHelper):
         context.window_manager.fileselect_add(self)
 
         return {"RUNNING_MODAL"}
-
-    def import_objects(self, importfun, importtype, impdict, beaudict):
-
-        scn = bpy.context.scene
-        nb = scn.nb
-
-        filenames = [f.name for f in self.files]
-        if not filenames:
-            filenames = os.listdir(self.directory)
-
-        for f in filenames:
-            fpath = os.path.join(self.directory, f)
-
-            ca = [bpy.data.objects,
-                  bpy.data.meshes,
-                  bpy.data.materials,
-                  bpy.data.textures]
-            name = nb_ut.check_name(self.name, fpath, ca)
-
-            obs, info_imp, info_geom = importfun(fpath, name, "", impdict)
-
-            for ob in obs:
-                if importtype in ('tracts', 'surfaces'):
-                    info_mat = nb_ma.materialise(ob,
-                                                 self.colourtype,
-                                                 self.colourpicker,
-                                                 self.transparency)
-                    info_beau = self.beautification(ob, beaudict)
-                elif importtype == 'voxelvolumes':
-                    # force updates on voxelvolumes
-                    nb.index_voxelvolumes = nb.index_voxelvolumes
-#                     item.rendertype = item.rendertype  # FIXME
-
-            info = info_imp
-            if nb.settingprops.verbose:
-                info = info + "\nname: '%s'\npath: '%s'\n" % (name, fpath)
-                info = info + "%s\n%s\n%s" % (info_geom, info_mat, info_beau)
-
-            self.report({'INFO'}, info)
 
     def import_tract(self, fpath, name, sformfile="",
                      argdict={"weed_tract": 1.,

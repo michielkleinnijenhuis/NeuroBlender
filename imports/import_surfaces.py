@@ -42,7 +42,6 @@ from bpy.props import (BoolProperty,
 from bpy_extras.io_utils import ImportHelper
 
 from .. import utils as nb_ut
-from . import import_tracts as nb_it
 
 
 class ImportSurfaces(Operator, ImportHelper):
@@ -96,12 +95,8 @@ class ImportSurfaces(Operator, ImportHelper):
         min=0.,
         max=1.)
 
-    import_objects = nb_it.ImportTracts.import_objects
-
     def execute(self, context):
 
-        importtype = "surfaces"
-        importfun = self.import_surface
         impdict = {}
         beaudict = {"iterations": 10,
                     "factor": 0.5,
@@ -109,7 +104,36 @@ class ImportSurfaces(Operator, ImportHelper):
                     "use_y": True,
                     "use_z": True}
 
-        self.import_objects(importfun, importtype, impdict, beaudict)
+        filenames = [f.name for f in self.files]
+        if not filenames:
+            filenames = os.listdir(self.directory)
+
+        for f in filenames:
+            fpath = os.path.join(self.directory, f)
+
+            ca = [bpy.data.objects,
+                  bpy.data.meshes,
+                  bpy.data.materials,
+                  bpy.data.textures]
+            name = nb_ut.check_name(self.name, fpath, ca)
+
+            obs, info_imp, info_geom = self.import_surface(fpath,
+                                                           name,
+                                                           "",
+                                                           impdict)
+
+            for ob in obs:
+                info_mat = nb_ma.materialise(ob,
+                                             self.colourtype,
+                                             self.colourpicker,
+                                             self.transparency)
+                info_beau = self.beautification(ob, beaudict)
+
+            info = info_imp
+            if nb.settingprops.verbose:
+                info = info + "\nname: '%s'\npath: '%s'\n" % (name, fpath)
+                info = info + "%s\n%s\n%s" % (info_geom, info_mat, info_beau)
+            self.report({'INFO'}, info)
 
         return {"FINISHED"}
 

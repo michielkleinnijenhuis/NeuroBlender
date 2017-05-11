@@ -45,10 +45,8 @@ from bpy.props import (BoolProperty,
 from bpy.app.handlers import persistent
 
 from . import (materials as nb_ma,
-               properties as nb_pr,
                renderpresets as nb_rp,
                utils as nb_ut)
-from .imports import imports as nb_im
 
 
 # ========================================================================== #
@@ -222,7 +220,8 @@ def managecmap_update(self, context):
 
     def gen_dummies(name="manage_colourmaps"):
 
-        cube = nb_im.voxelvolume_box_ob([2,2,2], "SliceBox")
+        ivv = bpy.types.NB_OT_import_voxelvolumes
+        cube = ivv.voxelvolume_box_ob([2, 2, 2], "SliceBox")
         cube.hide = cube.hide_render = True
         cube.name = cube.data.name = name
         bpy.data.materials.new(name)
@@ -821,7 +820,8 @@ def is_yoked_bool_update(self, context):
     for prop in ['slicethickness', 'sliceposition', 'sliceangle']:
         for idx in range(0, 3):
             if self.is_yoked:
-                nb_im.voxelvolume_slice_drivers_yoke(nb_ob, self, prop, idx)
+                ivv = bpy.types.NB_OT_import_voxelvolumes
+                ivv.voxelvolume_slice_drivers_yoke(nb_ob, self, prop, idx)
             else:
                 self.driver_remove(prop, idx)
 
@@ -1002,8 +1002,11 @@ def rendertype_enum_update(self, context):
                     ts.offset = [0, 0, 0]
             elif mat.type == 'SURFACE':
                 for idx in range(0, 3):
-                    nb_im.voxelvolume_slice_drivers_surface(self, ts, idx, "scale")
-                    nb_im.voxelvolume_slice_drivers_surface(self, ts, idx, "offset")
+                    ivv = bpy.types.NB_OT_import_voxelvolumes
+                    ivv.voxelvolume_slice_drivers_surface(self, ts,
+                                                          idx, "scale")
+                    ivv.voxelvolume_slice_drivers_surface(self, ts,
+                                                          idx, "offset")
 
 
 def colourmap_enum_callback(self, context):

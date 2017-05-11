@@ -181,23 +181,15 @@ class ImportVoxelvolumes(Operator, ImportHelper):
         description="The index of the volume to import (-1 for all)",
         default=-1)
 
-    import_objects = nb_it.ImportTracts.import_objects
-
     def execute(self, context):
 
-        importtype = "voxelvolumes"
-        importfun = self.import_voxelvolume
-        impdict = {"is_overlay": self.is_overlay,
-                   "is_label": self.is_label,
-                   "parentpath": self.parentpath,
-                   "texdir": self.texdir,
-                   "texformat": self.texformat,
-                   "overwrite": self.overwrite,
-                   "dataset": self.dataset,
-                   "vol_idx": self.vol_idx}
-        beaudict = {}
+        filenames = [f.name for f in self.files]
+        if not filenames:
+            filenames = os.listdir(self.directory)
 
-        self.import_objects(importfun, importtype, impdict, beaudict)
+        for f in filenames:
+            fpath = os.path.join(self.directory, f)
+            self.import_voxelvolume(context, fpath)
 
         return {"FINISHED"}
 
@@ -276,12 +268,7 @@ class ImportVoxelvolumes(Operator, ImportHelper):
 
         return {"RUNNING_MODAL"}
 
-    def import_voxelvolume(self, fpath, name, sformfile="", texdict={
-            "is_overlay": False, "is_label": False,
-            "parentpath": "", "sformfile": "",
-            "texdir": "", "texformat": "IMAGE_SEQUENCE",
-            "overwrite": False, "dataset": 'stack',
-            "vol_idx": -1}):
+    def import_voxelvolume(self, context, fpath):  # TODO: separate op?
         """Import a voxelvolume.
 
         This imports the volumes found in the specified file.
@@ -296,53 +283,63 @@ class ImportVoxelvolumes(Operator, ImportHelper):
 
         """
 
-        scn = bpy.context.scene
+        scn = context.scene
         nb = scn.nb
 
-        texdict["fpath"] = fpath
-        texdict["name"] = name
-        texdict["sformfile"] = sformfile
-        is_overlay = texdict["is_overlay"]
-        is_label = texdict["is_label"]
-        texdir = texdict["texdir"]
-        texformat = texdict["texformat"]
+        ca = [bpy.data.objects,
+              bpy.data.meshes,
+              bpy.data.materials,
+              bpy.data.textures]
+        name = nb_ut.check_name(self.name, fpath, ca)
+
+        texdict = {"fpath": fpath,
+                   "name": name,
+                   "sformfile": self.sformfile,
+                   "is_overlay": self.is_overlay,
+                   "is_label": self.is_label,
+                   "parentpath": self.parentpath,
+                   "texdir": self.texdir,
+                   "texformat": self.texformat,
+                   "overwrite": self.overwrite,
+                   "dataset": self.dataset,
+                   "vol_idx": self.vol_idx}
 
         # prep texture directory
         if not bpy.data.is_saved:
             nb_ut.force_save(nb.settingprops.projectdir)
-        abstexdir = bpy.path.abspath(texdir)
+        abstexdir = bpy.path.abspath(self.texdir)
         nb_ut.mkdir_p(abstexdir)
 
-        outcome = "failed"
-        ext = os.path.splitext(fpath)[1]
+#         outcome = "failed"  # TODO: error handling
+#         ext = os.path.splitext(fpath)[1]
 
         texdict = self.load_texdir(texdict)
 
         item = self.add_to_collections(texdict)
 
-        mat = nb_ma.get_voxmat(name)
-        tex = nb_ma.get_voxtex(mat, texdict, 'vol0000', item)
+        mat = self.get_voxmat(name)
+        tex = self.get_voxtex(context, texdict, 'vol0000', item)
 
-        if is_label:
+        if self.is_label:
             for volnr, label in enumerate(item.labels):
-                pass
-        elif is_overlay:
+                pass  # TODO
+        elif self.is_overlay:
             item.rendertype = "SURFACE"
             for scalar in item.scalars:
                 volname = scalar.name[-7:]  # FIXME: this is not secure
                 pfdict = {"IMAGE_SEQUENCE": os.path.join(volname, '0000.png'),
                           "STRIP": volname + '.png',
                           "8BIT_RAW": volname + '.raw_8bit'}
-                scalarpath = os.path.join(texdir, texformat, pfdict[texformat])
+                scalarpath = os.path.join(self.texdir, self.texformat,
+                                          pfdict[self.texformat])
                 scalar.filepath = scalarpath
                 scalar.matname = mat.name
                 scalar.texname = tex.name
                 if nb.settingprops.texmethod == 4:
-                    tex = nb_ma.get_voxtex(mat, texdict, volname, scalar)
+                    tex = self.get_voxtex(context, texdict, volname, scalar)
 
         # create the voxelvolume object
-#         ob = voxelvolume_object_bool(name, texdict['dims'],
-#                                      texdict['affine'])
+#         ob = voxelvolume_object_bool(name, texdict['dims'], texdict['affine'])
         ob, sbox = self.voxelvolume_object_slicebox(item, texdict)
 
         # single texture slot for simple switching
@@ -356,8 +353,8 @@ class ImportVoxelvolumes(Operator, ImportHelper):
 
         nb_ma.set_materials(ob.data, mat)
 
-        if is_overlay:
-            nb_ob = eval(texdict["parentpath"])
+        if self.is_overlay:
+            nb_ob = eval(self.parentpath)
             ob.parent = bpy.data.objects[nb_ob.name]
             item.index_scalars = 0  # induce switch
             bpy.ops.object.mode_set(mode='EDIT')  # TODO: more elegant update
@@ -369,12 +366,16 @@ class ImportVoxelvolumes(Operator, ImportHelper):
 
         scn.render.engine = "BLENDER_RENDER"
 
+        # force updates on voxelvolumes
+        nb.index_voxelvolumes = nb.index_voxelvolumes
+#         item.rendertype = item.rendertype  # FIXME
+
         outcome = "successful"
         info = "import {}".format(outcome)
-        info_tf = "transform: {}".format(texdict["affine"])
-        # more info ...
-
-        return [ob], info, info_tf
+        if nb.settingprops.verbose:
+            info = info + "\nname: '%s'\npath: '%s'\n" % (name, fpath)
+            info = info + 'transform: {}'.format(texdict["affine"])
+        self.report({'INFO'}, info)
 
     def load_texdir(self, texdict):
         """Load a volume texture previously generated in NeuroBlender."""
@@ -909,7 +910,8 @@ class ImportVoxelvolumes(Operator, ImportHelper):
                              scn, data_path)
             driver.expression = "2*(1/slc_th-1) * slc_pos - (1/slc_th-1)"
 
-    def voxelvolume_rendertype_driver(self, mat, item):
+    @staticmethod
+    def voxelvolume_rendertype_driver(mat, item):
 
         scn = bpy.context.scene
         nb = scn.nb
@@ -927,12 +929,13 @@ class ImportVoxelvolumes(Operator, ImportHelper):
     def voxelvolume_slice_drivers_yoke(parent, child, prop, index):
 
         scn = bpy.context.scene
-        nb = scn.nb
 
         driver = child.driver_add(prop, index).driver
         driver.type = 'SCRIPTED'
         data_path = "%s.%s[%d]" % (parent.path_from_id(), prop, index)
-        nb_rp.create_var(driver, "var", 'SINGLE_PROP', 'SCENE', scn, data_path)
+        nb_rp.create_var(driver, "var",
+                         'SINGLE_PROP', 'SCENE',
+                         scn, data_path)
         driver.expression = "var"
 
     @staticmethod
@@ -1066,6 +1069,93 @@ class ImportVoxelvolumes(Operator, ImportHelper):
         vg.add(vidxs, 1.0, "REPLACE")
 
         return me
+
+    @staticmethod
+    def get_voxmat(name):
+        """Create a material to hold a voxel_data texture."""
+
+        mat = bpy.data.materials.new(name)
+        mat.type = "SURFACE"
+        mat.use_transparency = True
+        mat.alpha = 0.
+        mat.volume.density = 0.
+        mat.volume.reflection = 0.
+        mat.use_shadeless = True
+        mat.preview_render_type = 'CUBE'
+        mat.use_fake_user = True
+
+        return mat
+
+    def get_voxtex(self, context, texdict, volname, item):
+        """Create a voxel_data texture."""
+
+        scn = context.scene
+
+        img = texdict['img']
+        dims = texdict['dims']
+        texdir = texdict['texdir']
+        texformat = texdict['texformat']
+        is_overlay = texdict['is_overlay']
+        is_label = texdict['is_label']
+
+        tex = bpy.data.textures.new(item.name, 'VOXEL_DATA')
+        tex.use_preview_alpha = True
+        tex.use_color_ramp = True
+        tex.use_fake_user = True
+        if texformat == 'STRIP':  # TODO: this should be handled with cycles
+            texformat = "IMAGE_SEQUENCE"
+        tex.voxel_data.file_format = texformat
+        tex.voxel_data.use_still_frame = True
+        tex.voxel_data.still_frame = scn.frame_current
+        tex.voxel_data.interpolation = 'NEREASTNEIGHBOR'
+
+        if texformat == "IMAGE_SEQUENCE":
+            texpath = os.path.join(texdir, texformat, volname, '0000.png')
+            img = bpy.data.images.load(bpy.path.abspath(texpath))
+            img.name = item.name
+            img.source = 'SEQUENCE'
+            img.colorspace_settings.name = 'Non-Color'  # TODO: check
+            img.reload()
+            tex.image_user.frame_duration = dims[2]
+            tex.image_user.frame_start = 1
+            tex.image_user.frame_offset = 0
+            tex.image = img
+        elif texformat == "8BIT_RAW":
+            tex.voxel_data.filepath = bpy.path.abspath(img.filepath)
+            tex.voxel_data.resolution = [int(dim) for dim in dims[:3]]
+
+        if is_label:
+            tex.voxel_data.interpolation = "NEREASTNEIGHBOR"
+            if len(item.labels) < 33:
+                self.generate_label_ramp(tex, item)
+            else:  # too many labels: switching to continuous ramp
+                item.colourmap_enum = "jet"
+        elif is_overlay:
+            item.colourmap_enum = "jet"
+        else:
+            try:  # FIXME
+                item.colourmap_enum = "grey"
+            except:
+                pass
+
+        return tex
+
+    @staticmethod
+    def generate_label_ramp(tex, item):
+        """Make a color ramp from a label collection."""
+
+        cr = tex.color_ramp
+        cr.interpolation = 'CONSTANT'
+        cre = cr.elements
+        maxlabel = max([label.value for label in item.labels])
+        step = 1. / maxlabel
+        offset = step / 2.
+        cre[1].position = item.labels[0].value / maxlabel - offset
+        cre[1].color = item.labels[0].colour
+        for label in item.labels[1:]:
+            pos = label.value / maxlabel - offset
+            el = cre.new(pos)
+            el.color = label.colour
 
     @staticmethod
     def beautify_voxelvolumes(ob, argdict={}):
