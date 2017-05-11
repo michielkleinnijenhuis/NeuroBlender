@@ -28,8 +28,9 @@ as well as there callback and update functions.
 
 import os
 import re
-import mathutils
 from glob import glob
+
+import mathutils
 
 import bpy
 from bpy.types import PropertyGroup
@@ -2732,7 +2733,7 @@ class NeuroBlenderProperties(PropertyGroup):
         description="Show/hide the NeuroBlender panel contents",
         default=True)
 
-    settingprops = PointerProperty(type=nb_pr.SettingsProperties)
+    settingprops = PointerProperty(type=SettingsProperties)
 
     show_transform = BoolProperty(
         name="Transform",
