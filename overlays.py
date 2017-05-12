@@ -232,7 +232,7 @@ class VertexWeight2UV(Operator, ExportHelper):
         # select the item(s) to bake
         dp_split = re.findall(r"[\w']+", self.data_path)
         items = eval("group.%s" % dp_split[-2])
-        if not nb.uv_bakeall:
+        if not nb.settingprops.uv_bakeall:
             items = [items[self.index]]
 
         # bake

@@ -510,7 +510,7 @@ class NeuroBlenderOverlayPanel(bpy.types.Panel):
         col = row.column()
         col.operator("nb.vw2uv", text="", icon="GROUP_UVS")
         col = row.column()
-        col.prop(nb, "uv_bakeall", toggle=True)
+        col.prop(nb.settingprops, "uv_bakeall", toggle=True)
 
         row = layout.row()
         row.separator()
