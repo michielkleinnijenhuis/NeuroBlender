@@ -197,7 +197,9 @@ class VertexWeight2UV(Operator, ExportHelper):
         nb_ob = eval('.'.join(self.data_path.split('.')[:2]))
         group = eval('.'.join(self.data_path.split('.')[:3]))
 
-        # TODO: exit on no UVmap
+        # cancel if surface is not unwrapped
+        if not nb_ob.is_unwrapped:  # surf.data.uv_layers
+            return {"CANCELLED"}
 
         # prep directory
         if not bpy.data.is_saved:
@@ -322,6 +324,7 @@ class UnwrapSurface(Operator):
     def execute(self, context):
 
         scn = context.scene
+        nb = scn.nb
 
         surf = bpy.data.objects[self.name_surface]
         sphere = bpy.data.objects[self.name_sphere]
@@ -340,6 +343,9 @@ class UnwrapSurface(Operator):
         surf.select = True
         scn.objects.active = sphere
         bpy.ops.object.join_uvs()
+
+        nb_ob = nb.surfaces.get(surf.name)
+        nb_ob.is_unwrapped = True
 
         return {"FINISHED"}
 

@@ -2496,6 +2496,10 @@ class SurfaceProperties(PropertyGroup):
         name="Unwrapping sphere",
         description="Select sphere for unwrapping",
         items=surfaces_enum_callback)
+    is_unwrapped = BoolProperty(
+        name="Is unwrapped",
+        description="Indicates if the surface has been unwrapped",
+        default=False)
 
 
 class VoxelvolumeProperties(PropertyGroup):

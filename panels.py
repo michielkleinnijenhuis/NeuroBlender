@@ -484,7 +484,7 @@ class NeuroBlenderOverlayPanel(bpy.types.Panel):
                                       nb_ov, "index_scalars",
                                       rows=2, type="COMPACT")
                 if nb.objecttype == 'surfaces':
-                    self.drawunit_bake(layout)
+                    self.drawunit_bake(layout, nb_ob)
 
         if nb.overlaytype == "scalargroups":
             self.drawunit_tri(layout, "overlay_material", nb, nb_ov)
@@ -494,7 +494,7 @@ class NeuroBlenderOverlayPanel(bpy.types.Panel):
         if nb.settingprops.advanced:
             self.drawunit_tri(layout, "overlay_info", nb, nb_ov)
 
-    def drawunit_bake(self, layout):
+    def drawunit_bake(self, layout, nb_ob):
 
         row = layout.row()
         row.separator()
@@ -509,8 +509,10 @@ class NeuroBlenderOverlayPanel(bpy.types.Panel):
         col.operator("nb.vw2vc", text="", icon="GROUP_VCOL")
         col = row.column()
         col.operator("nb.vw2uv", text="", icon="GROUP_UVS")
+        col.enabled = nb_ob.is_unwrapped
         col = row.column()
         col.prop(nb.settingprops, "uv_bakeall", toggle=True)
+        col.enabled = nb_ob.is_unwrapped
 
         row = layout.row()
         row.separator()
