@@ -30,7 +30,7 @@ import os
 from glob import glob
 import numpy as np
 from mathutils import Vector, Matrix
-from random import sample
+from random import random
 import xml.etree.ElementTree
 import pickle
 
@@ -53,8 +53,8 @@ from .. import (materials as nb_ma,
 
 class ImportOverlays(Operator, ImportHelper):
     bl_idname = "nb.import_overlays"
-    bl_label = "Import bordergroup overlay"
-    bl_description = "Import bordergroup overlay to curves"
+    bl_label = "Import overlays"
+    bl_description = "Import overlays onto a NeuroBlender tract/surface"
     bl_options = {"REGISTER", "UNDO", "PRESET"}
 
     directory = StringProperty(subtype="FILE_PATH")
@@ -92,12 +92,15 @@ class ImportOverlays(Operator, ImportHelper):
             info = self.import_overlay(context, fpath)
             self.report({'INFO'}, info)
 
-
         return {"FINISHED"}
 
     def invoke(self, context, event):
 
         self.overlaytype = context.scene.nb.overlaytype
+
+        if not self.parentpath:
+            parent = nb_ut.active_nb_object()[0]
+            self.parentpath = parent.path_from_id()
 
         context.window_manager.fileselect_add(self)
 
@@ -116,10 +119,7 @@ class ImportOverlays(Operator, ImportHelper):
               bpy.data.textures]
         name = nb_ut.check_name(self.name, fpath, ca)
 
-        try:
-            parent = eval(self.parentpath)
-        except (SyntaxError, NameError):
-            parent = nb_ut.active_nb_object()[0]
+        parent = eval(self.parentpath)
 
         obinfo = nb_ut.get_nb_objectinfo(parent.name)
 
@@ -127,49 +127,59 @@ class ImportOverlays(Operator, ImportHelper):
 
         fun = eval("self.import_{}_{}".format(obinfo['type'],
                                               self.overlaytype))
-        fun(fpath, parent_ob, name=name)
+        fun(fpath, parent, parent_ob, name=name)
 
         context.scene.objects.active = parent_ob
         parent_ob.select = True
 
-    def import_tracts_scalargroups(self, fpath, parent_ob, name=""):
+        return "done"  # TODO: error handling and info
+
+    def import_tracts_scalargroups(self, fpath, parent, ob, name=""):
         """Import a scalar overlay onto a tract object."""
 
-        nb_ma.create_vc_overlay_tract(parent_ob, fpath, name=name)
+        sg_data = self.read_tractscalar(fpath)
 
-    def import_surfaces_scalargroups(self, fpath, parent_ob, name=""):
-        """Import a timeseries overlay onto a surface object."""
+        scalars, sg_range = self.normalize_data(sg_data)
 
-        nb_ma.create_vc_overlay(parent_ob, fpath, name=name)
+        # TODO: check against all other scalargroups etc
+        ca = [parent.scalargroups]
+        name = nb_ut.check_name(name, fpath, ca)
 
-    def import_surfaces_scalars(self, fpath, parent_ob, name=""):
-        """Import a scalar overlay onto a surface object."""  # deprecated?
+        sgprops = {"name": name,
+                   "filepath": fpath,
+                   "range": sg_range}
+        sg = nb_ut.add_item(parent, "scalargroups", sgprops)
 
-        if fpath.endswith('.label'):  # but not treated as a label
-            nb_ma.create_vg_overlay(parent_ob, fpath, name=name, is_label=False)
-        else:  # assumed scalar overlay
-            nb_ma.create_vc_overlay(parent_ob, fpath, name=name)
+        ob.data.use_uv_as_generated = True
+        diffcol = [0.0, 0.0, 0.0, 1.0]
+        group = nb_ma.make_cr_matgroup_tract_sg(diffcol, 0.04, sg)
 
-    def import_surfaces_labelgroups(self, fpath, parent_ob, name=""):
-        """Import a label overlay onto a surface object."""
+        for j, (scalar, scalarrange) in enumerate(scalars):
 
-        if fpath.endswith('.label'):
-            nb_ma.create_vg_overlay(parent_ob, fpath, name=name, is_label=True)
-        elif (fpath.endswith('.annot') |
-              fpath.endswith('.gii') |
-              fpath.endswith('.border')):
-            nb_ma.create_vg_annot(parent_ob, fpath, name=name)
-            # TODO: figure out from gifti if it is annot or label
-        else:  # assumed scalar overlay type with integer labels??
-            nb_ma.create_vc_overlay(parent_ob, fpath, name=name)
+            # TODO: check against all other scalargroups etc
+            ca = [sg.scalars for sg in parent.scalargroups]
+            tpname = "%s.vol%04d" % (name, j)
+            scalarname = nb_ut.check_name(tpname, fpath, ca)
 
-    def import_surfaces_bordergroups(self, fpath, parent_ob, name=""):
-        """Import a label overlay onto a surface object."""
+            sprops = {"name": scalarname,
+                      "filepath": fpath,
+                      "range": scalarrange}
+            nb_scalar = nb_ut.add_item(sg, "scalars", sprops)
 
-        if fpath.endswith('.border'):
-            nb_ma.create_border_curves(parent_ob, fpath, name=name)
-        else:
-            print("Only Connectome Workbench .border files supported.")
+            for i, (spl, sl) in enumerate(zip(ob.data.splines, scalar)):
+
+                # TODO: implement name check that checks for the prefix 'name'
+                splname = nb_scalar.name + '_spl' + str(i).zfill(8)
+                ca = [bpy.data.images,
+                      bpy.data.materials]
+                splname = nb_ut.check_name(splname, fpath, ca, maxlen=52)
+
+                img = self.create_overlay_tract_img(splname, sl)
+
+                # it seems crazy to make a material/image per streamline!
+                mat = nb_ma.make_cr_mat_tract_sg(splname, img, group)
+                ob.data.materials.append(mat)
+                spl.material_index = len(ob.data.materials) - 1
 
     @staticmethod
     def read_tractscalar(fpath):
@@ -200,6 +210,188 @@ class ImportOverlays(Operator, ImportHelper):
                 scalars = pickle.load(f)
 
         return scalars
+
+    @staticmethod
+    def normalize_data(nn_group):
+        """"Normalize the data in the scalargroup between 0 and 1."""
+        gmin = float('Inf')
+        gmax = -float('Inf')
+        dranges = []
+        for nn_data in nn_group:
+            dmin = float('Inf')
+            dmax = -float('Inf')
+            for streamline in nn_data:
+                dmin = min(dmin, min(streamline))
+                dmax = max(dmax, max(streamline))
+            dranges.append([dmin, dmax])
+            gmin = min(gmin, dmin)
+            gmax = max(gmax, dmax)
+        gdata = [[(np.array(streamline) - gmin) / (gmax - gmin)
+                  for streamline in nn_data]
+                 for nn_data in nn_group]
+
+        return zip(gdata, dranges), (gmin, gmax)
+
+    @staticmethod
+    def create_overlay_tract_img(name, scalar):
+        """Create an Nx1 image from a streamline's scalar data."""
+
+        vals = [[val, val, val, 1.0] for val in scalar]
+        img = bpy.data.images.new(name, len(scalar), 1)
+        pixels = [chan for px in vals for chan in px]
+        img.pixels = pixels
+        img.source = 'GENERATED'
+
+        return img
+
+    def import_surfaces_scalargroups(self, fpath, parent, ob, name=""):
+        """Import a timeseries overlay onto a surface object."""
+
+        # load the data
+        if fpath.endswith('.label'):
+            # NOTE: fs labelfiles have only data for a vertex subset!
+            labels, timeseries = self.read_surflabel(fpath, is_label=False)
+        else:
+            labels = None
+            timeseries = self.read_surfscalar(fpath)
+
+        # check validity
+        if ((not list(labels)) and
+                (len(ob.data.vertices) != len(timeseries[0]))):
+            return
+
+        # normalize between 0  and 1
+        timeseries, timeseriesrange = nb_ut.normalize_data(timeseries)
+
+        # unique name for the overlay
+        ca = [parent.scalargroups,
+              ob.vertex_groups,
+              bpy.data.materials]  # TODO: all other scalargroups, scalars etc
+        name = nb_ut.check_name(name, fpath, ca)
+
+        # create the scalargroup
+        texdir = "//uvtex_{}".format(name)  # TODO: choice of texdir, & check if exists
+        props = {"name": name,
+                 "filepath": fpath,
+                 "range": timeseriesrange,
+                 "texdir": texdir}
+        scalargroup = nb_ut.add_item(parent, "scalargroups", props)
+        if timeseries.shape[0] == 1:
+            scalargroup.icon = "FORCE_CHARGE"
+
+        # implement the (mean) overlay on the object
+        nb_ma.set_vertex_group(ob, "{}.volmean".format(name),
+                               label=labels,
+                               scalars=np.mean(timeseries, axis=0))
+        mat = nb_ma.make_cr_mat_surface_sg(scalargroup)
+        nb_ma.set_materials(ob.data, mat)
+
+        # add the scalars in the timeseries
+        for i, scalars in enumerate(timeseries):
+
+            tpname = "%s.vol%04d" % (name, i)
+            props = {"name": tpname,
+                     "filepath": fpath,
+                     "range": timeseriesrange}
+            nb_ut.add_item(scalargroup, "scalars", props)
+
+            nb_ma.set_vertex_group(ob, tpname,
+                                   label=labels,
+                                   scalars=scalars)
+            # TODO: timeseries could be baked here (speedup needed)
+
+        # load the textures
+#         abstexdir = bpy.path.abspath(texdir)
+#         if os.path.isdir(abstexdir):
+#             nfiles = len(glob(os.path.join(abstexdir, '*.png')))
+#             if nfiles == len(scalargroup.scalars):
+#                 nb_ma.load_surface_textures(name, abstexdir,
+#                                             len(scalargroup.scalars))
+
+    def import_surfaces_labelgroups(self, fpath, parent, ob, name=""):
+        """Import a label overlay onto a surface object.
+
+        TODO: decide what is the best approach:
+        reading gifti and converting to freesurfer format (current) or
+        have a seperate functions for handling .gii annotations
+        (this can be found in commit c3b6d66)
+        """
+
+        # load the data
+        if fpath.endswith('.label'):  # single label
+            # NOTE: fs labelfiles have only data for a vertex subset!
+            label, _ = self.read_surflabel(fpath, is_label=True)
+            ctab = []
+            names = []
+            trans = 1
+        # TODO: figure out from gifti if it is annot or label
+        elif (fpath.endswith('.annot') |
+              fpath.endswith('.gii')):  # multiple labels []
+            labels, ctab, names = self.read_surfannot(fpath)
+        elif fpath.endswith('.border'):
+            pass  # TODO
+        else:  # assumed scalar overlay type with integer labels??
+            # TODO: test this delegation; is it useful for anything at all?
+            self.import_surfaces_scalargroups(fpath, parent, ob, name)
+            return
+
+        # check validity
+        # TODO
+
+        # unique names for the labelgroup and labels
+        ca = [parent.labelgroups,
+              ob.vertex_groups,
+              bpy.data.materials]  # TODO: all other labelgroups, labels etc
+        name = nb_ut.check_name(name, fpath, ca)
+        if not names:
+            names = ['{}.{}'.format(name, name)]
+        labelnames = [nb_ut.check_name(labelname, "", ca)
+                      for labelname in names]
+
+        # create the labelgroup
+        # TODO: choice of texdir, & check if exists
+#         texdir = "//uvtex_{}".format(name)
+        props = {"name": name,
+                 "filepath": fpath}
+        labelgroup = nb_ut.add_item(parent, "labelgroups", props)
+
+        # implement the (mean) overlay on the object
+        # TODO: find out if this is necessary
+#         nb_ma.set_vertex_group(ob, name)
+#         mat = nb_ma.make_cr_mat_surface_sg(labelgroup)
+#         nb_ma.set_materials(ob.data, mat)
+
+        # add the labels in the labelgroup
+        vgs = []
+        mats = []
+        for i, labelname in enumerate(labelnames):
+
+            if list(ctab):  # from annot-like
+                label = np.where(labels == i)[0]
+                value = ctab[i, 4]
+                diffcol = ctab[i, 0:4] / 255
+            else:  # from label-like
+                values = [label.value for label in labelgroup.labels] or [0]
+                value = max(values) + 1
+                diffcol = [random() for _ in range(3)] + [trans]
+
+            props = {"name": labelname,
+                     "value": int(value),
+                     "colour": diffcol}
+            nb_ut.add_item(labelgroup, "labels", props)
+
+            vgs.append(nb_ma.set_vertex_group(ob, labelname, label))
+            mats.append(nb_ma.make_cr_mat_basic(labelname, diffcol, mix=0.05))
+
+        nb_ma.set_materials_to_vertexgroups(ob, vgs, mats)
+
+    def import_surfaces_bordergroups(self, fpath, parent, parent_ob, name=""):
+        """Import a label overlay onto a surface object."""
+
+        if fpath.endswith('.border'):
+            nb_ma.create_border_curves(parent_ob, fpath, name=name)
+        else:
+            print("Only Connectome Workbench .border files supported.")
 
     @staticmethod
     def read_surfscalar(fpath):
@@ -264,7 +456,7 @@ class ImportOverlays(Operator, ImportHelper):
             if is_label:
                 scalars = None  # TODO: handle file where no scalars present
 
-        return label, scalars
+        return label, np.atleast_2d(scalars)
 
     @staticmethod
     def read_surfannot(fpath):

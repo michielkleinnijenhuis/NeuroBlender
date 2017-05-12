@@ -85,7 +85,7 @@ def materialise(ob, colourtype='primary6', colourpicker=(1, 1, 1), trans=1):
     elif ob.type == "MESH":
         group = make_nodegroup_dirsurfaces()
 
-    mat = make_material_basic_cycles(matname, diffcol, mix, diff_rn, group)
+    mat = make_cr_mat_basic(matname, diffcol, mix, diff_rn, group)
 
     link_innode(mat, colourtype)
 
@@ -248,127 +248,12 @@ def BR2CR(mat):
 # ========================================================================== #
 
 
-def create_vc_overlay_tract(ob, fpath, name="", is_label=False):
-    """Create scalar overlay for a tract object."""
-
-    # TODO: implement reading of groups
-    iol = bpy.types.NB_OT_import_overlays
-    nn_scalargroup_data = iol.read_tractscalar(fpath)
-    groupmin = float('Inf')
-    groupmax = -float('Inf')
-    scalarranges = []
-    for scalar_data in nn_scalargroup_data:
-        datamin = float('Inf')
-        datamax = -float('Inf')
-        for streamline in scalar_data:
-            datamin = min(datamin, min(streamline))
-            datamax = max(datamax, max(streamline))
-        scalarranges.append([datamin, datamax])
-        groupmin = min(groupmin, datamin)
-        groupmax = max(groupmax, datamax)
-    grouprange = groupmax - groupmin
-    scalargrouprange = groupmin, groupmax
-    scalargroup_data = [[(np.array(streamline) - groupmin) / grouprange
-                         for streamline in scalar_data]
-                        for scalar_data in nn_scalargroup_data]
-
-    nb_ob = nb_ut.active_nb_object()[0]
-    ca = [nb_ob.scalargroups]
-    name = nb_ut.check_name(name, fpath, ca)
-    sgprops = {"name": name,
-               "filepath": fpath,
-               "range": scalargrouprange}
-    scalargroup = nb_ut.add_item(nb_ob, "scalargroups", sgprops)
-
-    ob.data.use_uv_as_generated = True
-    diffcol = [0.0, 0.0, 0.0, 1.0]
-    group = make_material_overlaytract_cycles_group(diffcol, mix=0.04,
-                                                    nb_ov=scalargroup)
-
-    for j, (scalar, scalarrange) in enumerate(zip(scalargroup_data,
-                                                  scalarranges)):
-        # TODO: check against all other scalargroups etc
-        ca = [sg.scalars for sg in nb_ob.scalargroups]
-        tpname = "%s.vol%04d" % (name, j)
-        scalarname = nb_ut.check_name(tpname, fpath, ca)
-        sprops = {"name": scalarname,
-                  "filepath": fpath,
-                  "range": scalarrange}
-        nb_scalar = nb_ut.add_item(scalargroup, "scalars", sprops)
-
-        for i, (spline, streamline) in enumerate(zip(ob.data.splines, scalar)):
-
-            # TODO: implement name check that checks for the prefix 'name'
-            splname = nb_scalar.name + '_spl' + str(i).zfill(8)
-            ca = [bpy.data.images, bpy.data.materials]
-            splname = nb_ut.check_name(splname, fpath, ca, maxlen=52)
-
-            img = create_overlay_tract_img(splname, streamline)
-
-            # it seems crazy to make a material/image per streamline!
-            mat = make_material_overlaytract_cycles_withgroup(splname, img, group)
-            ob.data.materials.append(mat)
-            spline.material_index = len(ob.data.materials) - 1
-
-
-def create_overlay_tract_img(name, scalar):
-    """"""
-
-    vals = [[val, val, val, 1.0] for val in scalar]
-    img = bpy.data.images.new(name, len(scalar), 1)
-    pixels = [chan for px in vals for chan in px]
-    img.pixels = pixels
-    img.source = 'GENERATED'
-
-    return img
-
-
 def set_curve_weights(ob, name, label=None, scalars=None):
     """"""
 
     for spline, scalar in zip(ob.data.splines, scalars):
         for point, val in zip(spline.points, scalar):
             point.co[3] = val
-
-
-def create_vc_overlay(ob, fpath, name="", is_label=False):
-    """Create scalar overlay for a surface object."""
-
-    iol = bpy.types.NB_OT_import_overlays
-    timeseries = iol.read_surfscalar(fpath)
-
-    timeseries, timeseriesrange = nb_ut.normalize_data(timeseries)
-
-    nb_ob = nb_ut.active_nb_object()[0]
-    ca = [nb_ob.scalargroups]  # TODO: all other scalargroups etc
-    name = nb_ut.check_name(name, fpath, ca)
-    texdir = "//uvtex_%s" % name
-    props = {"name": name,
-             "filepath": fpath,
-             "range": timeseriesrange,
-             "texdir": texdir}
-    scalargroup = nb_ut.add_item(nb_ob, "scalargroups", props)
-
-    vg = set_vertex_group(ob, "%s.volmean" % name,
-                          scalars=np.mean(timeseries, axis=0))
-    mat = map_to_vertexcolours(ob, scalargroup, [vg])
-
-    if timeseries.shape[0] == 1:
-        scalargroup.icon = "FORCE_CHARGE"
-    for i, scalars in enumerate(timeseries):
-        tpname = "%s.vol%04d" % (name, i)
-        vg = set_vertex_group(ob, tpname, scalars=scalars)
-        props = {"name": tpname,
-                 "filepath": fpath,
-                 "range": timeseriesrange}
-        nb_ov = nb_ut.add_item(scalargroup, "scalars", props)
-
-    abstexdir = bpy.path.abspath(texdir)
-    if os.path.isdir(abstexdir):
-        nfiles = len(glob(os.path.join(abstexdir, '*.png')))
-        if nfiles == len(scalargroup.scalars):
-            load_surface_textures(name, abstexdir,
-                                  len(scalargroup.scalars))
 
 
 def create_vg_annot(ob, fpath, name=""):
@@ -383,12 +268,14 @@ def create_vg_annot(ob, fpath, name=""):
     nb_ob = nb_ut.active_nb_object()[0]
     ca = [nb_ob.labelgroups]  # TODO: all other labelgroups
     groupname = nb_ut.check_name(name, fpath, ca)
+
     props = {"name": groupname,
              "filepath": fpath}
     labelgroup = nb_ut.add_item(nb_ob, "labelgroups", props)
-    mat = make_material_overlay_cycles(groupname, groupname,
-                                       ob, labelgroup)
+
+    mat = make_cr_mat_surface_sg(labelgroup)
     set_materials(ob.data, mat)
+
     nodes = mat.node_tree.nodes
     links = mat.node_tree.links
     attr = nodes["Attribute"]
@@ -415,7 +302,7 @@ def create_vg_annot(ob, fpath, name=""):
             value = i + 1
             diffcol = list(border['rgb']) + [1.0]
 
-            mat = make_material_basic_cycles(name, diffcol, mix=0.05)
+            mat = make_cr_mat_basic(name, diffcol, mix=0.05)
             new_mats.append(mat)
 
             props = {"name": name,
@@ -445,7 +332,7 @@ def create_vg_annot(ob, fpath, name=""):
             vg = set_vertex_group(ob, name, label)
             new_vgs.append(vg)
 
-            mat = make_material_basic_cycles(name, diffcol, mix=0.05)
+            mat = make_cr_mat_basic(name, diffcol, mix=0.05)
             new_mats.append(mat)
 
             props = {"name": name,
@@ -479,7 +366,7 @@ def create_border_curves(ob, fpath, name=""):
         name = nb_ut.check_name(border['name'], "", ca)
 
         diffcol = list(border['rgb']) + [1.0]
-        mat = make_material_basic_cycles(name, diffcol, mix=0.05)
+        mat = make_cr_mat_basic(name, diffcol, mix=0.05)
 
         bevel_depth = 0.5
         bevel_resolution = 10
@@ -532,7 +419,8 @@ def create_vg_overlay(ob, fpath, name="", is_label=False, trans=1):
     iol = bpy.types.NB_OT_import_overlays
     label, scalars = iol.read_surflabel(fpath, is_label)
 
-    if scalars is not None:
+    if scalars:
+
         ca = [ob.vertex_groups,
               ob.data.vertex_colors,
               bpy.data.materials]
@@ -566,7 +454,7 @@ def create_vg_overlay(ob, fpath, name="", is_label=False, trans=1):
         values = [label.value for label in labelgroup.labels] or [0]
         value = max(values) + 1
         diffcol = [random.random() for _ in range(3)] + [trans]
-        mat = make_material_basic_cycles(name, diffcol, mix=0.05)
+        mat = make_cr_mat_basic(name, diffcol, mix=0.05)
         set_materials_to_vertexgroups(ob, [vg], [mat])
 
         props = {"name": name,
@@ -587,17 +475,17 @@ def set_vertex_group(ob, name, label=None, scalars=None):
         bpy.ops.object.mode_set(mode="WEIGHT_PAINT")
     """
 
+    # NOTE: do not use the more pythonic 'label = []' => 'if label:'
+    # it selects all vertices when there are empty labels in the labelgroup
     if label is None:
         label = range(len(ob.data.vertices))
 
     if scalars is None:
-        w = np.ones(len(label))
-    else:
-        w = scalars
+        scalars = [1] * len(label)
 
     vg = ob.vertex_groups.new(name)
     for i, l in enumerate(list(label)):
-        vg.add([int(l)], w[i], "REPLACE")
+        vg.add([int(l)], scalars[i], "REPLACE")
     vg.lock_weight = True
 
     ob.vertex_groups.active_index = vg.index
@@ -639,11 +527,7 @@ def select_vertices_in_vertexgroups(ob, vgs=None):
 
 
 def set_materials_to_vertexgroups(ob, vgs, mats):
-    """Attach materials to vertexgroups.
-
-    see for operator-based method:
-    https://wiki.blender.org/index.php/Dev:Py/Scripts/Cookbook/Materials/Multiple_Materials
-    """
+    """Attach materials to vertexgroups."""
 
     if vgs is None:
         set_materials(ob.data, mats[0])
@@ -721,7 +605,7 @@ def map_to_vertexcolours(ob, nb_ov, vgs=None, is_label=False, colourtype=""):
     """
 
     name = nb_ov.name
-    mat = make_material_overlay_cycles(name, name, ob, nb_ov)
+    mat = make_cr_mat_surface_sg(nb_ov)
     set_materials_to_vertexgroups(ob, vgs=None, mats=[mat])
 
 #     set_materials_to_vertexgroups(ob, vgs, [mat])
@@ -842,9 +726,9 @@ def load_surface_textures(name, directory, nframes):
 # ========================================================================== #
 
 
-def make_material_basic_cycles(name, diff_col, mix=0.04,
-                               diff_rn=0.1, diff_ingroup=None):
-    """Create a basic Cycles material.
+def make_cr_mat_basic(name, diff_col, mix=0.04,
+                      diff_rn=0.1, diff_ingroup=None):
+    """Create a Cycles material (basic).
 
     The material mixes difffuse, transparent and glossy.
     """
@@ -1158,17 +1042,14 @@ def make_nodegroup_dirsurfaces(name="DirSurfacesGroup"):
     return group
 
 
-def make_material_overlay_cycles(name, vcname, ob=None, nb_ov=None, img=None):
+def make_cr_mat_surface_sg(scalargroup, img=[]):
     """Create a Cycles material for colourramped vertexcolour rendering."""
-    # TODO: transparency?
 
     scn = bpy.context.scene
     nb = scn.nb
-#     if not scn.render.engine == "CYCLES":
-#         scn.render.engine = "CYCLES"
 
-    mat = (bpy.data.materials.get(name) or
-           bpy.data.materials.new(name))
+    mat = (bpy.data.materials.get(scalargroup.name) or
+           bpy.data.materials.new(scalargroup.name))
     mat.use_nodes = True
     mat.use_vertex_color_paint = True
     mat.use_vertex_color_light = True
@@ -1212,9 +1093,8 @@ def make_material_overlay_cycles(name, vcname, ob=None, nb_ov=None, img=None):
     vrgb.name = prefix + "ColorRamp"
     vrgb.location = 100, 100
 
-    if hasattr(nb_ov, 'nn_elements'):
-        nb_ov.colourmap_enum = 'jet'
-        # calc_nn_elpos(nb_ov, vrgb)
+    if hasattr(scalargroup, 'nn_elements'):
+        scalargroup.colourmap_enum = 'jet'
 
     srgb = nodes.new("ShaderNodeSeparateRGB")
     srgb.label = "Separate RGB"
@@ -1224,12 +1104,12 @@ def make_material_overlay_cycles(name, vcname, ob=None, nb_ov=None, img=None):
     attr = nodes.new("ShaderNodeAttribute")
     attr.location = -500, 300
     attr.name = prefix + "Attribute"
-    attr.attribute_name = vcname
+    attr.attribute_name = scalargroup.name
     attr.label = "Attribute"
 
     itex = nodes.new("ShaderNodeTexImage")
     itex.location = -500, -100
-    if img is not None:
+    if img:
         itex.image = img
     itex.label = "Image Texture"
 
@@ -1238,37 +1118,6 @@ def make_material_overlay_cycles(name, vcname, ob=None, nb_ov=None, img=None):
     tval.name = prefix + "Value"
     tval.outputs[0].default_value = 1.0
     tval.location = 400, 300
-    # TODO: link this with colorramp through driver?
-
-#     if ob is not None:
-#         nnel = nodes.new("ShaderNodeValue")
-#         nnel.location = 100, 300
-#         nnel.name = prefix + "Value"
-#         nnel.label = "Value"
-#         driver = nnel.outputs[0].driver_add("default_value")
-#         var2 = driver.driver.variables.new()
-#         var2.name = "dmin"
-#         var2.targets[0].id = ob  #.id_data
-#         var2.targets[0].data_path = "scalars[" + name + "].range[0]"
-#         var3 = driver.driver.variables.new()
-#         var3.name = "dmax"
-#         var3.targets[0].id = ob  #.id_data
-#         var3.targets[0].data_path = "scalars[" + name + "].range[1]"
-#         var1 = driver.driver.variables.new()
-#         var1.name = "norm_pos"
-#         var1.targets[0].id = mat  # bpy.data.node_groups["Shader Nodetree"]
-#         var1.targets[0].data_path = "node_tree.nodes['_ColorRamp'].color_ramp.elements[0].position"
-#         driver.driver.expression = "norm_pos * (dmax - dmin) - dmin"
-
-#     driver = diffuse.inputs[1].driver_add("default_value")
-#     var = driver.driver.variables.new()
-#     var.name = "variable"
-#     var.targets[0].data_path = "PATH"
-#     var.targets[0].id = "Target_Object_Name"
-#     driver.driver.expression = "variable"
-#
-#     # remove driver
-#     diffuse.inputs[1].driver_remove("default_value")
 
     if nb.settingprops.mode == "scientific":
         links.new(emit.outputs["Emission"], out.inputs["Surface"])
@@ -1285,8 +1134,8 @@ def make_material_overlay_cycles(name, vcname, ob=None, nb_ov=None, img=None):
     return mat
 
 
-def make_material_overlaytract_cycles_withgroup(name, img, group):
-    """"""
+def make_cr_mat_tract_sg(name, img, group):
+    """Create a Cycles material for a tract scalargroup."""
 
     mat = (bpy.data.materials.get(name) or
            bpy.data.materials.new(name))
@@ -1327,11 +1176,8 @@ def make_material_overlaytract_cycles_withgroup(name, img, group):
     return mat
 
 
-def make_material_overlaytract_cycles_group(diffcol, mix=0.04, nb_ov=None):
-    """Create a basic Cycles material.
-
-    The material mixes difffuse, transparent and glossy.
-    """
+def make_cr_matgroup_tract_sg(diffcol, mix=0.04, nb_ov=None):
+    """Create a Cycles material group for a tract scalargroup."""
 
     diffuse = {'colour': diffcol, 'roughness': 0.1}
     glossy = {'colour': (1.0, 1.0, 1.0, 1.0), 'roughness': 0.1}

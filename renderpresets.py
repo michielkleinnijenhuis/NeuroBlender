@@ -1066,7 +1066,7 @@ def create_table(preset, centre, tableprops):
     ob.location = tableprops["location"]
 
     diffcol = [0.5, 0.5, 0.5, 1.0]
-    mat = nb_ma.make_material_basic_cycles(ob.name, diffcol, mix=0.8)
+    mat = nb_ma.make_cr_mat_basic(ob.name, diffcol, mix=0.8)
     nb_ma.set_materials(ob.data, mat)
 
     ob.parent = centre
@@ -1353,7 +1353,7 @@ def create_colourbar(cbars, cr_ob, type):
 
     if type.startswith('tracts_scalars'):
         pass
-        # mat = make_material_overlay_cycles(cbar_name, cbar_name, cbar, cr_ob)
+        # mat = make_cr_mat_surface_sg(cr_ob)
         # cr = bpy.data.node_groups["TractOvGroup"].nodes["ColorRamp"]
         # cr.color_ramp.elements[0].position = 0.2
     elif type.startswith('surfaces_scalars'):
