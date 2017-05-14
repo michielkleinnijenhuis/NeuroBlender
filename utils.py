@@ -44,10 +44,86 @@ import bpy
 # ========================================================================== #
 
 
-def check_name(name, fpath, checkagainst,
+def get_nb_collections(context,
+                       parentpaths=["nb"],
+                       colltypes=["tracts", "surfaces", "voxelvolumes"]):
+    """Get NeuroBlender collections and item lists.
+
+    The default returns the top-level NeuroBlender collections.
+    """
+
+    scn = context.scene
+
+    nb_collections = []
+    nb_items = []
+    for parent in parentpaths:
+        for colltype in colltypes:
+            datapath = "{}.{}".format(parent, colltype)
+            try:
+                nb_collection = scn.path_resolve(datapath)
+            except ValueError:
+                pass
+            else:
+                nb_collections.append(nb_collection)
+                nb_items += nb_collection
+
+    nb_dpaths = [item.path_from_id() for item in nb_items]
+
+    return nb_collections, nb_items, nb_dpaths
+
+
+def compare_names(name, old_names, newname_funs, newname_argdict, ca=[]):
+    """"""
+
+    while True:
+        intersect = set([])
+        for old_names, fun in zip(old_names, newname_funs):
+            new_names = fun(name, newname_argdict)
+            intersect = intersect or set(new_names) & set(old_names)
+        if (not bool(intersect)):
+            break
+        name = check_name(name, "", ca)
+
+    return name
+
+
+def check_name(name, fpath, checkagainst=[],
                nzfill=3, forcefill=False,
                maxlen=40, firstfill=0):
     """Make sure a unique name is given."""
+
+
+    def get_full_set():
+
+        context = bpy.context
+
+        # NeuroBlender objects and overlays
+        obc, _, obpaths = get_nb_collections(context)
+        ovtypes = ["scalargroups", "labelgroups", "bordergroups"]
+        ovc, _, ovpaths = get_nb_collections(context, obpaths, ovtypes)
+        oitypes = ["scalars", "labels", "borders"]
+        oic, _, _ = get_nb_collections(context, ovpaths, oitypes)
+
+        # vertex groups, vertex colors, uv maps
+        _, surfs, _ = get_nb_collections(context, colltypes=["surfaces"])
+        vgs = [bpy.data.objects[s.name].vertex_groups for s in surfs]
+        vcs = [bpy.data.objects[s.name].data.vertex_colors for s in surfs]
+        uvl = [bpy.data.objects[s.name].data.uv_layers for s in surfs]
+
+        # blender datablocks
+        bdb = [bpy.data.materials,
+               bpy.data.textures,
+               bpy.data.objects,
+               bpy.data.meshes,
+               bpy.data.lamps,
+               bpy.data.images,
+               bpy.data.curves,
+               bpy.data.cameras]
+
+        return obc + ovc + oic + vgs + vcs + uvl + bdb
+
+    if not checkagainst:
+        ca = get_full_set()
 
     # if unspecified, derive a name from the filename
     if not name:
