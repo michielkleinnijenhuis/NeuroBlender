@@ -295,22 +295,21 @@ class ObjectListOperations(Operator):
 
     def get_collection(self, context):
 
+        scn = context.scene
+
         try:
-            self.data_path = eval("%s.path_from_id()" % self.data_path)
-        except SyntaxError:
-            self.report({'INFO'}, 'empty data path')
-#             # try to construct data_path from type, index, name?
-#             if type in ['tracts', 'surfaces', 'voxelvolumes']:
-#                 self.data_path = ''
-            return {"CANCELLED"}
-        except NameError:
-            self.report({'INFO'}, 'invalid data path: %s' % self.data_path)
-            return {"CANCELLED"}
+            # NOTE: this converts calls with key to index
+            self.data_path = scn.path_resolve(self.data_path).path_from_id()
+        except ValueError:
+            info = 'invalid data path: {}'.format(self.data_path)
+            self.report({'INFO'}, info)
+            raise
 
         dp_split = re.findall(r"[\w']+", self.data_path)
         dp_indices = re.findall(r"(\[\d+\])", self.data_path)
-        collection = eval(self.data_path.strip(dp_indices[-1]))
-        coll_path = collection.path_from_id()
+        coll_path = self.data_path.strip(dp_indices[-1])
+        collection = scn.path_resolve(coll_path)
+        coll_path = collection.path_from_id()  # key to index
         data = '.'.join(coll_path.split('.')[:-1])
 
         if self.index == -1:
@@ -320,7 +319,8 @@ class ObjectListOperations(Operator):
         if not self.name:
             self.name = collection[self.index].name
 
-        nb_ob = eval('.'.join(self.data_path.split('.')[:2]))
+        nb_ob_path = '.'.join(self.data_path.split('.')[:2])
+        nb_ob = scn.path_resolve(nb_ob_path)
 
         return collection, data, nb_ob
 
