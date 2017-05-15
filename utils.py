@@ -475,7 +475,8 @@ def h5_in2out(inds):
     return in2out
 
 
-def make_polyline(curvedata, clist):
+def make_polyline(curvedata, clist,
+                  use_endpoint_u=True, use_cyclic_u=False):
     """Create a 3D curve from a list of points."""
 
     polyline = curvedata.splines.new('POLY')
@@ -484,7 +485,8 @@ def make_polyline(curvedata, clist):
         x, y, z = clist[num]
         polyline.points[num].co = (x, y, z, 1)
     polyline.order_u = len(polyline.points)-1
-    polyline.use_endpoint_u = True
+    polyline.use_endpoint_u = use_endpoint_u
+    polyline.use_cyclic_u = use_cyclic_u
 
 
 def normalize_data(data):

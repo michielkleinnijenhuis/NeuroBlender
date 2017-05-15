@@ -595,7 +595,7 @@ class ImportOverlays(Operator, ImportHelper):
             # create the curve
             clist = [ob.data.vertices[vi].co[:3]
                      for vi in border['verts'][:, 0]]
-            nb_ut.make_polyline(curve, clist)
+            nb_ut.make_polyline(curve, clist, use_cyclic_u=True)
 
             # bevel the curve
             fill_mode = 'FULL'
