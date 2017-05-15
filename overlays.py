@@ -31,10 +31,13 @@ import re
 
 import bpy
 from bpy.types import (Operator,
+                       OperatorFileListElement,
                        UIList)
 from bpy.props import (StringProperty,
-                       IntProperty)
-from bpy_extras.io_utils import ExportHelper
+                       IntProperty,
+                       CollectionProperty)
+from bpy_extras.io_utils import (ImportHelper,
+                                 ExportHelper)
 
 from . import (materials as nb_ma,
                properties as nb_pr,
@@ -320,6 +323,10 @@ class UnwrapSurface(Operator):
         name="Sphere name",
         description="Specify the name for the sphere object to unwrap from",
         default="")
+    filepath = StringProperty(
+        name="Filepath",
+        description="The filepath to the spherical surface",
+        subtype="FILE_PATH")
 
     def execute(self, context):
 
@@ -327,6 +334,16 @@ class UnwrapSurface(Operator):
         nb = scn.nb
 
         surf = bpy.data.objects[self.name_surface]
+
+        if self.name_sphere == "Select":
+            directory = os.path.dirname(self.filepath)
+            fname = os.path.basename(self.filepath)
+            bpy.ops.nb.import_surfaces(filepath=self.filepath,
+                                       directory=directory,
+                                       files=[{"name": fname, "name": fname}],
+                                       name="sphere")
+            self.name_sphere = context.scene.objects.active.name
+
         sphere = bpy.data.objects[self.name_sphere]
 
         # select sphere and project
@@ -347,13 +364,23 @@ class UnwrapSurface(Operator):
         nb_ob = nb.surfaces.get(surf.name)
         nb_ob.is_unwrapped = True
 
+        if nb_ob.sphere == "Select":
+            data_path = 'nb.surfaces["{}"]'.format(self.name_sphere)
+            bpy.ops.nb.oblist_ops(action='REMOVE_L1', data_path=data_path)
+
         return {"FINISHED"}
 
     def invoke(self, context, event):
 
         nb_ob = nb_ut.active_nb_object()[0]
+
+        if nb_ob.sphere == "Select":
+            bpy.ops.nb.import_surfaces('INVOKE_DEFAULT')
+            self.name_sphere = context.scene.objects.active.name
+        else:
+            self.name_sphere = nb_ob.sphere
+
         self.name_surface = nb_ob.name
-        self.name_sphere = nb_ob.sphere
 
         return self.execute(context)
 

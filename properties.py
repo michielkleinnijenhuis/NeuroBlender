@@ -768,6 +768,20 @@ def surfaces_enum_callback(self, context):
     return items
 
 
+def sphere_enum_callback(self, context):
+    """Populate the enum based on available options."""
+
+    scn = context.scene
+    nb = scn.nb
+
+    items = [("Select", "Select from file",
+             "Select file to unwrap without importing sphere", 0)]
+    items += [(surface.name, surface.name, "List the surfaces", i+1)
+              for i, surface in enumerate(nb.surfaces)]
+
+    return items
+
+
 def voxelvolumes_enum_callback(self, context):
     """Populate the enum based on available options."""
 
@@ -2536,7 +2550,7 @@ class SurfaceProperties(PropertyGroup):
     sphere = EnumProperty(
         name="Unwrapping sphere",
         description="Select sphere for unwrapping",
-        items=surfaces_enum_callback)
+        items=sphere_enum_callback)
     is_unwrapped = BoolProperty(
         name="Is unwrapped",
         description="Indicates if the surface has been unwrapped",
