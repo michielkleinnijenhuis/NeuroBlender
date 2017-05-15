@@ -628,7 +628,8 @@ def index_scalars_update_func(group=None):
         if group.path_from_id().startswith("nb.tracts"):
             if hasattr(group, 'scalars'):
                 for i, spline in enumerate(ob.data.splines):
-                    splname = name + '_spl' + str(i).zfill(8)
+                    # FIXME: generalize with saved re variable
+                    splname = name + '.spl' + str(i).zfill(8)
                     spline.material_index = ob.material_slots.find(splname)
 
         # FIXME: used texture slots
@@ -2082,6 +2083,19 @@ class ScalarGroupProperties(PropertyGroup):
         default=True,
         update=mat_is_yoked_bool_update)
 
+    prefix_parentname = BoolProperty(
+        name="Prefix parentname",
+        default=True,
+        description="Prefix the name of the parent on overlays and items")
+    timepoint_postfix = StringProperty(
+        name="Timepoint postfix",
+        description="Specify an re for the timepoint naming",
+        default='vol{:04d}')
+    spline_postfix = StringProperty(
+        name="Spline postfix",
+        description="Specify an re for the streamline naming",
+        default='spl{:08d}')
+
 
 class LabelGroupProperties(PropertyGroup):
     """Properties of label groups."""
@@ -2214,6 +2228,19 @@ class LabelGroupProperties(PropertyGroup):
                ("STRIP", "STRIP", "STRIP", 1),
                ("RAW_8BIT", "RAW_8BIT", "RAW_8BIT", 2)])
 
+    prefix_parentname = BoolProperty(
+        name="Prefix parentname",
+        default=True,
+        description="Prefix the name of the parent on overlays and items")
+    timepoint_postfix = StringProperty(
+        name="Timepoint postfix",
+        description="Specify an re for the timepoint naming",
+        default='vol{:04d}')
+    spline_postfix = StringProperty(
+        name="Spline postfix",
+        description="Specify an re for the streamline naming",
+        default='spl{:08d}')
+
 
 class BorderGroupProperties(PropertyGroup):
     """Properties of border groups."""
@@ -2267,6 +2294,19 @@ class BorderGroupProperties(PropertyGroup):
         items=[("IMAGE_SEQUENCE", "IMAGE_SEQUENCE", "IMAGE_SEQUENCE", 0),
                ("STRIP", "STRIP", "STRIP", 1),
                ("RAW_8BIT", "RAW_8BIT", "RAW_8BIT", 2)])
+
+    prefix_parentname = BoolProperty(
+        name="Prefix parentname",
+        default=True,
+        description="Prefix the name of the parent on overlays and items")
+    timepoint_postfix = StringProperty(
+        name="Timepoint postfix",
+        description="Specify an re for the timepoint naming",
+        default='vol{:04d}')
+    spline_postfix = StringProperty(
+        name="Spline postfix",
+        description="Specify an re for the streamline naming",
+        default='spl{:08d}')
 
 
 class TractProperties(PropertyGroup):
@@ -2334,7 +2374,8 @@ class TractProperties(PropertyGroup):
         name="scalargroup index",
         description="index of the scalargroups collection",
         default=0,
-        min=0)
+        min=0,
+        update=index_scalars_update)
     labelgroups = CollectionProperty(
         type=LabelGroupProperties,
         name="labelgroups",
@@ -2573,7 +2614,8 @@ class VoxelvolumeProperties(PropertyGroup):
         name="scalargroup index",
         description="index of the scalargroups collection",
         default=0,
-        min=0)
+        min=0,
+        update=index_scalars_update)
     labelgroups = CollectionProperty(
         type=LabelGroupProperties,
         name="labelgroups",

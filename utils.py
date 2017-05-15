@@ -72,19 +72,53 @@ def get_nb_collections(context,
     return nb_collections, nb_items, nb_dpaths
 
 
-def compare_names(name, old_names, newname_funs, newname_argdict, ca=[]):
-    """"""
+def compare_names(name, ca_collections,
+                  newname_funs, newname_argdict,
+                  prefix_parentname=True):
+    """Rename items with names taht occur in collections."""
+
+    def find_intersect(old_names, new_names, ca):
+        """Determine intersecting names and suggest a new set."""
+
+        intersect = set(old_names) & set(new_names)
+        new_names = [check_name(name, "", ca) if name in intersect else name
+                     for name in new_names]
+        return intersect, new_names
+
+    all_names = [fun(name, newname_argdict) for fun in newname_funs]
 
     while True:
         intersect = set([])
-        for old_names, fun in zip(old_names, newname_funs):
-            new_names = fun(name, newname_argdict)
-            intersect = intersect or set(new_names) & set(old_names)
+        i = 0
+        for ca, proposed_names in zip(ca_collections, all_names):
+
+            old_names = [k for c in ca for k in c.keys()]
+
+            iter_intersect, proposed_names = find_intersect(old_names,
+                                                            proposed_names,
+                                                            ca)
+
+            if i == 0 and iter_intersect:
+                # change groupname
+                all_names[0] = proposed_names
+                # update itemnames with new groupname
+                for j, fun in enumerate(newname_funs[1:]):
+                    all_names[j+1] = fun(proposed_names[0],
+                                         newname_argdict)
+            if i != 0 and iter_intersect:
+                # keep groupname
+                all_names[0] = newname_funs[0](all_names[0][0],
+                                               newname_argdict)
+                # change itemnames
+                all_names[i] = proposed_names
+
+            intersect = intersect or iter_intersect
+            i += 1
+
         if (not bool(intersect)):
             break
-        name = check_name(name, "", ca)
 
-    return name
+    return tuple(all_names)
 
 
 def check_name(name, fpath, checkagainst=[],
