@@ -234,16 +234,16 @@ class ObjectListOperations(Operator):
             pass
         else:
             if self.action.startswith('REMOVE'):
-                info = ['removed %s' % (collection[self.index].name)]
+                info = ['removed {}'.format(collection[self.index].name)]
                 info += self.remove_items(nb, data, collection, nb_ob)
                 self.report({'INFO'}, '; '.join(info))
             elif (self.action.startswith('DOWN') and
                   self.index < len(collection) - 1):
                 collection.move(self.index, self.index + 1)
-                exec("%s.index_%s += 1" % (data, self.type))
+                exec("{}.index_{} += 1".format(data, self.type))
             elif self.action.startswith('UP') and self.index >= 1:
                 collection.move(self.index, self.index - 1)
-                exec("%s.index_%s -= 1" % (data, self.type))
+                exec("{}.index_{} -= 1".format(data, self.type))
 
         if self.type == "voxelvolumes":
             self.update_voxelvolume_drivers(nb)
@@ -259,14 +259,16 @@ class ObjectListOperations(Operator):
             nb_ob = nb_ut.active_nb_object()[0]
             self.type = nb.objecttype
             self.name = nb_ob.name
-            self.index = eval("nb.%s.find(self.name)" % self.type)
+            data_path = "nb.{}".format(self.type)
+            self.index = scn.path_resolve(data_path).find(self.name)
             self.data_path = nb_ob.path_from_id()
         elif self.action.endswith('_L2'):
             nb_ob = nb_ut.active_nb_object()[0]
             nb_ov = nb_ut.active_nb_overlay()[0]
             self.type = nb.overlaytype
             self.name = nb_ov.name
-            self.index = eval("nb_ob.%s.find(self.name)" % self.type)
+            data_path = "{}.{}".format(nb_ob.path_from_id(), self.type)
+            self.index = scn.path_resolve(data_path).find(self.name)
             self.data_path = nb_ov.path_from_id()
         elif self.action.endswith('_L3'):
             nb_ob = nb_ut.active_nb_object()[0]
@@ -274,17 +276,20 @@ class ObjectListOperations(Operator):
             nb_it = nb_ut.active_nb_overlayitem()[0]
             self.type = nb.overlaytype.replace("groups", "s")
             self.name = nb_it.name
-            self.index = eval("nb_ov.%s.find(self.name)" % self.type)
+            data_path = "{}.{}".format(nb_ob.path_from_id(), self.type)
+            self.index = scn.path_resolve(data_path).find(self.name)
             self.data_path = nb_it.path_from_id()
         elif self.action.endswith('_PL'):
-            preset = eval("nb.presets[%d]" % nb.index_presets)
+            preset_path = "nb.presets[{:d}]".format(nb.index_presets)
+            preset = scn.path_resolve(preset_path)
             light = preset.lights[preset.index_lights]
             self.type = "lights"
             self.name = light.name
             self.index = preset.index_lights
             self.data_path = light.path_from_id()
         elif self.action.endswith('_AN'):
-            preset = eval("nb.presets[%d]" % nb.index_presets)
+            preset_path = "nb.presets[{:d}]".format(nb.index_presets)
+            preset = scn.path_resolve(preset_path)
             animation = preset.animations[preset.index_animations]
             self.type = "animations"
             self.name = animation.name
