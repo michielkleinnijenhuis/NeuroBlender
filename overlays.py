@@ -197,8 +197,10 @@ class VertexWeight2UV(Operator, ExportHelper):
         scn = context.scene
         nb = scn.nb
 
-        nb_ob = eval('.'.join(self.data_path.split('.')[:2]))
-        group = eval('.'.join(self.data_path.split('.')[:3]))
+        nb_ob_path = '.'.join(self.data_path.split('.')[:2])
+        nb_ob = scn.path_resolve(nb_ob_path)
+        group_path = '.'.join(self.data_path.split('.')[:3])
+        group = scn.path_resolve(group_path)
 
         # cancel if surface is not unwrapped
         if not nb_ob.is_unwrapped:  # surf.data.uv_layers
@@ -208,7 +210,7 @@ class VertexWeight2UV(Operator, ExportHelper):
         if not bpy.data.is_saved:
             nb_ut.force_save(nb.settingprops.projectdir)
         if not group.texdir:
-            group.texdir = "//uvtex_%s" % group.name
+            group.texdir = "//uvtex_{}".format(group.name)
         nb_ut.mkdir_p(bpy.path.abspath(group.texdir))
 
         # set the surface as active object
@@ -231,12 +233,13 @@ class VertexWeight2UV(Operator, ExportHelper):
         ami = surf.active_material_index
         matnames = [ms.name for ms in surf.material_slots]
         surf.data.materials.clear()
-        img = self.create_baking_material(surf, nb.settingprops.uv_resolution,
-                                          "bake_vcol")
+        uvres = nb.settingprops.uv_resolution
+        img = self.create_baking_material(surf, uvres, "bake_vcol")
 
         # select the item(s) to bake
         dp_split = re.findall(r"[\w']+", self.data_path)
-        items = eval("group.%s" % dp_split[-2])
+        data_path = "{}.{}".format(group.path_from_id(), dp_split[-2])
+        items = scn.path_resolve(data_path)
         if not nb.settingprops.uv_bakeall:
             items = [items[self.index]]
 
@@ -284,7 +287,8 @@ class VertexWeight2UV(Operator, ExportHelper):
 
         return self.execute(context)
 
-    def create_baking_material(self, surf, uvres, name):
+    @staticmethod
+    def create_baking_material(surf, uvres, name):
         """Create a material to bake vertex colours to."""
 
         mat = nb_ma.make_material_bake_cycles(name)
