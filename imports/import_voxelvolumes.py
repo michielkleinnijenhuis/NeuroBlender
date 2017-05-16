@@ -372,6 +372,8 @@ class ImportVoxelvolumes(Operator, ImportHelper):
 
         scn.render.engine = "BLENDER_RENDER"
 
+        scn.update()
+
         # force updates on voxelvolumes
         nb.index_voxelvolumes = nb.index_voxelvolumes
 #         item.rendertype = item.rendertype  # FIXME

@@ -251,6 +251,7 @@ class ImportTracts(Operator, ImportHelper):
 
         scn.objects.active = ob
         ob.select = True
+        scn.update()
 
         info_mat = nb_ma.materialise(ob,
                                      self.colourtype,

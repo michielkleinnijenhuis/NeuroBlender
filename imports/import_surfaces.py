@@ -205,6 +205,7 @@ class ImportSurfaces(Operator, ImportHelper):
 
         scn.objects.active = ob
         ob.select = True
+        scn.update()
 
         info_mat = nb_ma.materialise(ob,
                                      self.colourtype,
@@ -275,7 +276,7 @@ class ImportSurfaces(Operator, ImportHelper):
         me = bpy.data.meshes.new(name)
         me.from_pydata(verts, [], faces)
         ob = bpy.data.objects.new(name, me)
-        bpy.context.scene.objects.link(ob)
+        scn.objects.link(ob)
 
         return [(ob, affine, sformfile)]
 

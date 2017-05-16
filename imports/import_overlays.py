@@ -182,6 +182,8 @@ class ImportOverlays(Operator, ImportHelper):
         context.scene.objects.active = parent_ob
         parent_ob.select = True
 
+        scn.update()
+
         return info  # TODO: error handling and info
 
     def import_tracts_scalargroups(self, context, name, fpath, parent, ob):
