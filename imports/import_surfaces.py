@@ -189,6 +189,9 @@ class ImportSurfaces(Operator, ImportHelper):
             info = "import {}: {}".format(outcome, reason)
             raise
 
+        group = bpy.data.groups.get("surfaces") or \
+            bpy.data.groups.new("surfaces")
+
         for surf in surfaces:
 
             ob, affine, sformfile = surf
@@ -202,6 +205,8 @@ class ImportSurfaces(Operator, ImportHelper):
 
             nb_ut.move_to_layer(ob, 1)
             scn.layers[1] = True
+
+            group.objects.link(ob)
 
         scn.objects.active = ob
         ob.select = True

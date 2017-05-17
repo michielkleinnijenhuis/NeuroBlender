@@ -370,6 +370,10 @@ class ImportVoxelvolumes(Operator, ImportHelper):
         nb_ut.move_to_layer(sbox, 2)
         scn.layers[2] = True
 
+        group = bpy.data.groups.get("voxelvolumes") or \
+            bpy.data.groups.new("voxelvolumes")
+        group.objects.link(ob)
+
         scn.render.engine = "BLENDER_RENDER"
 
         scn.update()

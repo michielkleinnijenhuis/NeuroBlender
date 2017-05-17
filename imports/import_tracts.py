@@ -249,6 +249,10 @@ class ImportTracts(Operator, ImportHelper):
         nb_ut.move_to_layer(ob, 0)
         scn.layers[0] = True
 
+        group = bpy.data.groups.get("tracts") or \
+            bpy.data.groups.new("tracts")
+        group.objects.link(ob)
+
         scn.objects.active = ob
         ob.select = True
         scn.update()
