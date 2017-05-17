@@ -682,6 +682,7 @@ class ImportOverlays(Operator, ImportHelper):
         group_ob = bpy.data.objects.new(group.name, object_data=None)
         context.scene.objects.link(group_ob)
         group_ob.parent = ob
+        group_group = bpy.data.groups.new(group.name)
 
         # add the items
         for itemname, border in zip(itemnames, borderlist):
@@ -699,6 +700,7 @@ class ImportOverlays(Operator, ImportHelper):
             curve.dimensions = '3D'
             curveob = bpy.data.objects.new(itemname, curve)
             context.scene.objects.link(curveob)
+            group_group.objects.link(curveob)
 
             # create the curve
             clist = [ob.data.vertices[vi].co[:3]
