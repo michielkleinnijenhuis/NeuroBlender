@@ -785,7 +785,7 @@ class ImportOverlays(Operator, ImportHelper):
             expr = '{}.{}'.format(name, expr)
         names = [expr.format(i, name)
                  for i in range(argdict['nscalars'])]
-        names += '{}.volmean'.format(name)  # TODO: flexibility?
+        names.append('{}.volmean'.format(name))  # TODO: flexibility?
 
         return names
 
