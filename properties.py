@@ -998,7 +998,8 @@ def rendertype_enum_update(self, context):
     """Set surface or volume rendering for the voxelvolume."""
 
     try:
-        matnames = [scalar.matname for scalar in self.scalars]
+        matnames = [scalar.matname for scalar in self.scalars
+                    if scalar.matname]
     except:
         matnames = [self.name]
     else:
