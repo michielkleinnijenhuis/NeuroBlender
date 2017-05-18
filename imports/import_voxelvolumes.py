@@ -311,7 +311,11 @@ class ImportVoxelvolumes(Operator, ImportHelper):
 
         # prep texture directory
         if not bpy.data.is_saved:
-            nb_ut.force_save(nb.settingprops.projectdir)
+            dpath = nb_ut.force_save(nb.settingprops.projectdir)
+            if nb.settingprops.verbose:
+                infostring = 'Blend-file had not been saved: saved file to {}'
+                info = infostring.format(dpath)
+                self.report({'INFO'}, info)
         abstexdir = bpy.path.abspath(self.texdir)
         nb_ut.mkdir_p(abstexdir)
 
@@ -319,7 +323,7 @@ class ImportVoxelvolumes(Operator, ImportHelper):
 #         outcome = "failed"
 #         ext = os.path.splitext(fpath)[1]
 
-        texdict = self.load_texdir(texdict)
+        texdict, info_load = self.load_texdir(texdict)
 
         item = self.add_to_collections(texdict)
 
@@ -383,11 +387,20 @@ class ImportVoxelvolumes(Operator, ImportHelper):
 #         item.rendertype = item.rendertype  # FIXME
 
         affine = texdict["affine"]
-        info = "import successful"
+        info = "Voxelvolume import successful"
         if nb.settingprops.verbose:
-            info = """{}\nname: '{}'
-                      {}\npath: '{}'
-                      {}\ntransform: {}""".format(info, name, fpath, affine)
+            infostring = "{}\n"
+            infostring += "name: '{}'\n"
+            infostring += "path: '{}'\n"
+            infostring += "transform: \n"
+            infostring += "{}\n"
+            infostring += "dimensions: [{:4d}, {:4d}, {:4d}, {:4d}]\n"
+            infostring += "datarange: [{:.6f}, {:.6f}]\n"
+            infostring += "{}"
+            info = infostring.format(info, name, fpath, Matrix(affine),
+                                     *texdict['dims'],
+                                     *texdict['datarange'],
+                                     info_load)
 
         return info
 
@@ -413,12 +426,29 @@ class ImportVoxelvolumes(Operator, ImportHelper):
             for pf in ("affine", "dims", "datarange", "labels"):
                 npy = os.path.join(abstexdir, "{}.npy".format(pf))
                 texdict[pf] = np.load(npy)
+
+            texsource = "LOADED"
+
         except:
+
+            texsource = "CREATED"
             texdict = self.create_texdir(texdict)
+
+        if texdict['is_label']:
+            vvoltype = 'label overlay'
+        elif texdict['is_overlay']:
+            vvoltype = 'scalar overlay'
+        else:
+            vvoltype = 'base volume'
+        infostring = "texture: \n"
+        infostring += "    {0} and imported as {3}\n"
+        infostring += "    format: '{2}'\n"
+        infostring += "    texture directory: '{1}'"
+        info = infostring.format(texsource, abstexdir, texformat, vvoltype)
 
         texdict['loaded'] = True
 
-        return texdict
+        return texdict, info
 
     def create_texdir(self, texdict):
         """Generate a NeuroBlender volume texture from a external format."""

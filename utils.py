@@ -284,6 +284,8 @@ def force_save(projectdir):
                                    dir=projectdir)
     bpy.ops.wm.save_as_mainfile(filepath=defaultpath[1])
 
+    return defaultpath[1]
+
 
 # ========================================================================== #
 # nibabel-related functions

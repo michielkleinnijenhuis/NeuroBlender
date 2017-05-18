@@ -266,18 +266,22 @@ class ImportTracts(Operator, ImportHelper):
                     "res": 10}
         info_beau = self.beautification(ob, beaudict)
 
-        info = "import successful"
+        info = "Tract import successful"
         if nb.settingprops.verbose:
-            info = """{}name: '{}'
-                        path: '{}'
-                        transform: {}
-                        decimate:
-                            weeding: {}
-                            interpolation: {}
-                            {}\n{}""".format(info, name, fpath, affine,
-                                             self.weed_tract,
-                                             self.interpolate_streamlines,
-                                             info_mat, info_beau)
+            infostring = "{}\n"
+            infostring += "name: '{}'\n"
+            infostring += "path: '{}'\n"
+            infostring += "transform: \n"
+            infostring += "{}\n"
+            infostring += "decimate: "
+            infostring += "weeding: {}; "
+            infostring += "interpolation: {};\n"
+            infostring += "{}\n"
+            infostring += "{}"
+            info = infostring.format(info, name, fpath, affine,
+                                     self.weed_tract,
+                                     self.interpolate_streamlines,
+                                     info_mat, info_beau)
 
         return info
 
@@ -590,7 +594,12 @@ class ImportTracts(Operator, ImportHelper):
         ob.data.bevel_depth = argdict["depth"]
         ob.data.bevel_resolution = argdict["res"]
 
-        info = "bevel: mode=%s; depth=%.3f; resolution=%3d" \
-            % (argdict["mode"], argdict["depth"], argdict["res"])
+        infostring = "bevel: "
+        infostring += "mode='{}'; "
+        infostring += "depth={:.3f}; "
+        infostring += "resolution={:d};"
+        info = infostring.format(argdict["mode"],
+                                 argdict["depth"],
+                                 argdict["res"])
 
         return info

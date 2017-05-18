@@ -223,13 +223,17 @@ class ImportSurfaces(Operator, ImportHelper):
                     "use_z": True}
         info_beau = self.beautification(ob, beaudict)
 
-        info = "import successful"
+        info = "Surface import successful"
         if nb.settingprops.verbose:
-            info = """{}\nname: '{}'
-                        \npath: '{}'
-                        \ntransform: {}
-                        \n{}\n{}""".format(info, name, fpath, affine,
-                                           info_mat, info_beau)
+            infostring = "{}\n"
+            infostring += "name: '{}'\n"
+            infostring += "path: '{}'\n"
+            infostring += "transform: \n"
+            infostring += "{}\n"
+            infostring += "{}\n"
+            infostring += "{}"
+            info = infostring.format(info, name, fpath, affine,
+                                     info_mat, info_beau)
 
         return info
 
@@ -338,8 +342,14 @@ class ImportSurfaces(Operator, ImportHelper):
         mod.use_y = argdict["use_y"]
         mod.use_z = argdict["use_z"]
 
-        info = "smooth: iterations=%3d; factor=%.3f; use_xyz=%s %s %s" \
-            % (argdict["iterations"], argdict["factor"],
-               argdict["use_x"], argdict["use_y"], argdict["use_z"])
+        infostring = "smooth: "
+        infostring += "iterations={:d}; "
+        infostring += "factor={:.3f}; "
+        infostring += "use_xyz=[{}, {}, {}];"
+        info = infostring.format(argdict["iterations"],
+                                 argdict["factor"],
+                                 argdict["use_x"],
+                                 argdict["use_y"],
+                                 argdict["use_z"])
 
         return info

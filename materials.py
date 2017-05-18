@@ -89,7 +89,10 @@ def materialise(ob, colourtype='primary6', colourpicker=(1, 1, 1), trans=1):
 
     set_materials(ob.data, mat)
 
-    info = "material: type=%s; colour=%s" % (colourtype, diffcol)
+    infostring = "material: "
+    infostring += "type='{}'; "
+    infostring += "colour=[{:.1f}, {:.1f}, {:.1f}, {:.1f}];"
+    info = infostring.format(colourtype, *diffcol)
 
     return info
 

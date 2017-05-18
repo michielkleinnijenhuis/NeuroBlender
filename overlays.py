@@ -205,11 +205,17 @@ class VertexWeight2UV(Operator, ExportHelper):
 
         # cancel if surface is not unwrapped
         if not nb_ob.is_unwrapped:  # surf.data.uv_layers
+            info = "Surface has not been unwrapped"
+            self.report({'ERROR'}, info)
             return {"CANCELLED"}
 
         # prep directory
         if not bpy.data.is_saved:
-            nb_ut.force_save(nb.settingprops.projectdir)
+            dpath = nb_ut.force_save(nb.settingprops.projectdir)
+            if nb.settingprops.verbose:
+                infostring = 'Blend-file had not been saved: saved file to {}'
+                info = infostring.format(dpath)
+                self.report({'INFO'}, info)
         if not group.texdir:
             group.texdir = "//uvtex_{}".format(group.name)
         nb_ut.mkdir_p(bpy.path.abspath(group.texdir))
@@ -269,6 +275,11 @@ class VertexWeight2UV(Operator, ExportHelper):
         scn.render.engine = engine
         scn.cycles.samples = samples
         scn.cycles.preview_samples = preview_samples
+
+        if nb.settingprops.verbose:
+            infostring = 'Baked {0} textures at {1}x{1} to {2}'
+            info = infostring.format(len(items), uvres, abstexdir)
+            self.report({'INFO'}, info)
 
         return {"FINISHED"}
 
