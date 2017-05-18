@@ -1067,22 +1067,20 @@ def colourmap_enum_update(self, context):
     scn = context.scene
     nb = scn.nb
 
-    nb_ob = nb_ut.active_nb_object()[0]
-    if hasattr(nb_ob, 'slicebox'):
+    if self.path_from_id().startswith("nb.tracts"):
+        ng = bpy.data.node_groups.get("TractOvGroup")
+        cr = ng.nodes["ColorRamp"].color_ramp
+        ng_path = 'bpy.data.node_groups["TractOvGroup"]'
+        # FIXME: include self.name
+        cr_parentpath = '{}.nodes["ColorRamp"]'.format(ng_path)
+    elif self.path_from_id().startswith("nb.surfaces"):
+        nt = bpy.data.materials[self.name].node_tree
+        cr = nt.nodes["ColorRamp"].color_ramp
+        nt_path = 'bpy.data.materials["{}"].node_tree'.format(self.name)
+        cr_parentpath = '{}.nodes["ColorRamp"]'.format(nt_path)
+    elif self.path_from_id().startswith("nb.voxelvolumes"):
         cr = bpy.data.textures[self.name].color_ramp
         cr_parentpath = 'bpy.data.textures["{}"]'.format(self.name)
-    else:
-        if hasattr(nb_ob, "nstreamlines"):
-            ng = bpy.data.node_groups.get("TractOvGroup")
-            cr = ng.nodes["ColorRamp"].color_ramp
-            ng_path = 'bpy.data.node_groups["TractOvGroup"]'
-            # FIXME: include self.name
-            cr_parentpath = '{}.nodes["ColorRamp"]'.format(ng_path)
-        elif hasattr(nb_ob, "sphere"):
-            nt = bpy.data.materials[self.name].node_tree
-            cr = nt.nodes["ColorRamp"].color_ramp
-            nt_path = 'bpy.data.materials["{}"].node_tree'.format(self.name)
-            cr_parentpath = '{}.nodes["ColorRamp"]'.format(nt_path)
 
     colourmap = self.colourmap_enum
 
@@ -1091,7 +1089,7 @@ def colourmap_enum_update(self, context):
     nb.cr_path = cr_path
     menu_idname = "OBJECT_MT_colourmap_presets"
 
-    cmap_dir = os.path.join("presets","neuroblender_colourmaps")
+    cmap_dir = os.path.join("presets", "neuroblender_colourmaps")
     preset_path = bpy.utils.user_resource('SCRIPTS', cmap_dir, create=False)
     filepath = os.path.join(preset_path, '{}.py'.format(colourmap))
 
