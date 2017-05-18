@@ -384,7 +384,7 @@ class ImportVoxelvolumes(Operator, ImportHelper):
 
         # force updates on voxelvolumes
         nb.index_voxelvolumes = nb.index_voxelvolumes
-#         item.rendertype = item.rendertype  # FIXME
+        item.rendertype = item.rendertype
 
         affine = texdict["affine"]
         info = "Voxelvolume import successful"

@@ -85,7 +85,6 @@ def rendertype_enum_handler(dummy):
 
     for vvol in nb.voxelvolumes:
         rendertype_enum_update(vvol, bpy.context)
-    for vvol in nb.voxelvolumes:
         for scalargroup in vvol.scalargroups:
             rendertype_enum_update(scalargroup, bpy.context)
         for labelgroup in vvol.labelgroups:
