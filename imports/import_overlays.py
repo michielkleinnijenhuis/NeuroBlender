@@ -88,6 +88,10 @@ class ImportOverlays(Operator, ImportHelper):
             (if found, {groupname} is substituted by the scalargroup name)""",
         default="//uvtex_{groupname}",
         subtype="DIR_PATH")
+    bake_on_import = BoolProperty(
+        name="Bake",
+        description="Bake scalargroup textures on import",
+        default=True)
 
     def execute(self, context):
 
@@ -155,6 +159,9 @@ class ImportOverlays(Operator, ImportHelper):
                 self.overlaytype in ('scalargroups', 'labelgroups')):
             row = layout.row()
             row.prop(self, "texdir")
+
+            row = layout.row()
+            row.prop(self, "bake_on_import")
 
     def import_overlay(self, context, name, fpath):
         """Import an overlay onto a NeuroBlender object."""
@@ -378,20 +385,24 @@ class ImportOverlays(Operator, ImportHelper):
             props = {"name": itemname,
                      "filepath": fpath,
                      "range": timeseriesrange}
-            nb_ut.add_item(group, "scalars", props)
+            item = nb_ut.add_item(group, "scalars", props)
 
             nb_ma.set_vertex_group(ob, itemname,
                                    label=labels,
                                    scalars=scalars)
-            # TODO: timeseries could be baked here (speedup needed)
 
-        # load the textures
-#         abstexdir = bpy.path.abspath(texdir)
-#         if os.path.isdir(abstexdir):
-#             nfiles = len(glob(os.path.join(abstexdir, '*.png')))
-#             if nfiles == len(scalargroup.scalars):
-#                 nb_ma.load_surface_textures(name, abstexdir,
-#                                             len(scalargroup.scalars))
+        # load/bake the textures
+        if self.bake_on_import:
+            texdir_valid = nb_ut.validate_texdir(group.texdir, texformat='png')
+            if texdir_valid:
+                group.texdir = group.texdir
+                bpy.ops.object.mode_set(mode="TEXTURE_PAINT")
+            else:
+                bpy.ops.nb.vw2uv(filepath=group.texdir,
+                                 check_existing=True,
+                                 data_path=item.path_from_id(),
+                                 uv_bakeall=True,
+                                 matname=mat.name)
 
         return "done"
 
@@ -662,7 +673,7 @@ class ImportOverlays(Operator, ImportHelper):
 
         # unique names for the group and items
         _, ovc, oic = self.get_all_nb_collections(context)
-        coll_groupname = ovc
+        coll_groupname = ovc + [bpy.data.groups]
         coll_itemnames = oic + [bpy.data.objects,
                                 bpy.data.curves,
                                 bpy.data.materials]

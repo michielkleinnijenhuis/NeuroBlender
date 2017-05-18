@@ -243,11 +243,6 @@ def set_vertex_group(ob, name, label=None, scalars=None):
     return vg
 
 
-# =========================================================================== #
-# vertex group materials
-# =========================================================================== #
-
-
 def set_materials_to_vertexgroups(ob, vgs, mats):
     """Attach materials to vertexgroups."""
 
@@ -316,11 +311,6 @@ def assign_materialslots_to_faces_pls(ob, pl=None, mat_idxs=[]):
     return ob
 
 
-# =========================================================================== #
-# mapping vertex weights to vertexcolours
-# =========================================================================== #
-
-
 def assign_vc(ob, vertexcolours, vgs, labelgroup=None, colour=[0, 0, 0]):
     """Assign RGB values to the vertex_colors attribute.
 
@@ -359,13 +349,9 @@ def assign_vc(ob, vertexcolours, vgs, labelgroup=None, colour=[0, 0, 0]):
 
     return ob
 
-# =========================================================================== #
-# voxelvolume texture mapping
-# =========================================================================== #
-
 
 def load_surface_textures(name, directory, nframes):
-    """"""
+    """Load and switch to a NeuroBlender surface texture."""
 
     try:
         mat = bpy.data.materials[name]
@@ -373,20 +359,24 @@ def load_surface_textures(name, directory, nframes):
         pass
     else:
         absdir = bpy.path.abspath(directory)
-        fpath = glob(os.path.join(absdir, '*.png'))[0]
-        bpy.data.images.load(fpath, check_existing=False)
-        fname = os.path.basename(fpath)
-        img = bpy.data.images[fname]
-        img.source = 'SEQUENCE'
+        try:
+            fpath = glob(os.path.join(absdir, '*.png'))[0]
+        except IndexError:
+            pass
+        else:
+            bpy.data.images.load(fpath, check_existing=False)
+            fname = os.path.basename(fpath)
+            img = bpy.data.images[fname]
+            img.source = 'SEQUENCE'
 
-        nodes = mat.node_tree.nodes
-        links = mat.node_tree.links
-        itex = nodes["Image Texture"]
-        srgb = nodes["Separate RGB"]
-        itex.image_user.use_auto_refresh = True
-        itex.image_user.frame_duration = nframes
-        itex.image = img
-        links.new(itex.outputs["Color"], srgb.inputs["Image"])
+            nodes = mat.node_tree.nodes
+            links = mat.node_tree.links
+            itex = nodes["Image Texture"]
+            srgb = nodes["Separate RGB"]
+            itex.image_user.use_auto_refresh = True
+            itex.image_user.frame_duration = nframes
+            itex.image = img
+            links.new(itex.outputs["Color"], srgb.inputs["Image"])
 
 
 # ========================================================================== #

@@ -540,6 +540,9 @@ def normalize_data(data):
 def validate_texdir(texdir, texformat, overwrite=False, vol_idx=-1):
     """Check whether path is in a valid NeuroBlender volume texture."""
 
+    objecttype = 'surfaces' if texformat == 'png' else 'voxelvolumes'
+
+    # TODO: for surface textures
     if overwrite:
         return False
 
@@ -547,25 +550,31 @@ def validate_texdir(texdir, texformat, overwrite=False, vol_idx=-1):
     if not os.path.isdir(abstexdir):
         return False
 
-    for pf in ('affine', 'dims', 'datarange', 'labels'):
+    pfs = ('datarange', 'labels')
+    if objecttype == 'voxelvolumes':
+        pfs += ('affine', 'dims')
+    for pf in pfs:
         f = os.path.join(abstexdir, "{}.npy".format(pf))
         if not os.path.isfile(f):
             return False
 
-    absimdir = os.path.join(abstexdir, texformat)
-    if not os.path.isdir(absimdir):
-        return False
-
-    if vol_idx != -1:
-        absvoldir = os.path.join(absimdir, 'vol%04d' % vol_idx)
-        if not os.path.isdir(absvoldir):
+    if objecttype == 'voxelvolumes':
+        absimdir = os.path.join(abstexdir, texformat)
+        if not os.path.isdir(absimdir):
             return False
-    else:
-        absvoldir = os.path.join(absimdir, 'vol%04d' % 0)
-        if not os.path.isdir(absvoldir):
-            return False
-        # TODO: see if all vols are there
 
+        if vol_idx != -1:
+            absvoldir = os.path.join(absimdir, 'vol%04d' % vol_idx)
+            if not os.path.isdir(absvoldir):
+                return False
+        else:
+            absvoldir = os.path.join(absimdir, 'vol%04d' % 0)
+            if not os.path.isdir(absvoldir):
+                return False
+    elif objecttype == 'surfaces':
+        absimdir = abstexdir
+
+    # TODO: see if all vols are there (this just checks if imdir is not empty)
     nfiles = len(glob(os.path.join(absimdir, '*')))
     if not nfiles:
         return False

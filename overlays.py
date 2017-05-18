@@ -29,6 +29,8 @@ This module implements operations on overlays.
 import os
 import re
 
+import numpy as np
+
 import bpy
 from bpy.types import (Operator,
                        OperatorFileListElement,
@@ -192,6 +194,10 @@ class VertexWeight2UV(Operator, ExportHelper):
         name="Name",
         description="Specify the material name for the group",
         default="")
+    uv_bakeall = BoolProperty(
+        name="Bake all",
+        description="Bake single or all scalars in a group",
+        default=True)
 
     def execute(self, context):
 
@@ -217,8 +223,9 @@ class VertexWeight2UV(Operator, ExportHelper):
                 info = infostring.format(dpath)
                 self.report({'INFO'}, info)
         if not group.texdir:
-            group.texdir = "//uvtex_{}".format(group.name)
-        nb_ut.mkdir_p(bpy.path.abspath(group.texdir))
+            group.texdir = "//uvtex_{groupname}".format(groupname=group.name)
+        abstexdir = bpy.path.abspath(group.texdir)
+        nb_ut.mkdir_p(abstexdir)
 
         # set the surface as active object
         surf = bpy.data.objects[nb_ob.name]
@@ -247,7 +254,7 @@ class VertexWeight2UV(Operator, ExportHelper):
         dp_split = re.findall(r"[\w']+", self.data_path)
         data_path = "{}.{}".format(group.path_from_id(), dp_split[-2])
         items = scn.path_resolve(data_path)
-        if not nb.settingprops.uv_bakeall:
+        if not self.uv_bakeall:
             items = [items[self.index]]
 
         # bake
@@ -267,6 +274,11 @@ class VertexWeight2UV(Operator, ExportHelper):
             vc = vcs[vcs.active_index]
             vcs.remove(vc)
 
+        # save the essentials to the texture directory
+        texdict = {'datarange': group.range, 'labels': None}
+        for pf in ('datarange', 'labels'):
+            np.save(os.path.join(abstexdir, pf), np.array(texdict[pf]))
+
         # reinstate materials and render settings
         surf.data.materials.pop(0)
         for matname in matnames:
@@ -276,6 +288,12 @@ class VertexWeight2UV(Operator, ExportHelper):
         scn.cycles.samples = samples
         scn.cycles.preview_samples = preview_samples
 
+        # load the texture
+        group.texdir = group.texdir
+        # TODO: switch to frame 0 on loading single timepoint?
+
+        bpy.ops.object.mode_set(mode="TEXTURE_PAINT")
+
         if nb.settingprops.verbose:
             infostring = 'Baked {0} textures at {1}x{1} to {2}'
             info = infostring.format(len(items), uvres, abstexdir)
@@ -284,6 +302,9 @@ class VertexWeight2UV(Operator, ExportHelper):
         return {"FINISHED"}
 
     def invoke(self, context, event):
+
+        scn = context.scene
+        nb = scn.nb
 
         nb_ob = nb_ut.active_nb_object()[0]
         nb_ov = nb_ut.active_nb_overlay()[0]
@@ -296,6 +317,7 @@ class VertexWeight2UV(Operator, ExportHelper):
         self.data_path = nb_it.path_from_id()
         self.itemname = nb_it.name
         self.matname = nb_ov.name
+        self.uv_bakeall = nb.settingprops.uv_bakeall
 
         return self.execute(context)
 
