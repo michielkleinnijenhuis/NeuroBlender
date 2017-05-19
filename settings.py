@@ -76,7 +76,14 @@ class ExecutePreset_SE(ExecutePreset, Operator):
 
         # execute the preset using script.python_file_run
         if ext == ".py":
-            bpy.ops.script.python_file_run(filepath=filepath)
+#             bpy.ops.script.python_file_run(override, filepath=filepath)
+            # NOTE: override because of RuntimeError on running from headless
+            for area in bpy.context.screen.areas:
+                if area.type == 'VIEW_3D':
+                    override = bpy.context.copy()
+                    override['area'] = area
+                    bpy.ops.script.python_file_run(override, filepath=filepath)
+                    break
         elif ext == ".xml":
             import rna_xml
             rna_xml.xml_file_run(context,
