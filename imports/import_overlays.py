@@ -19,10 +19,10 @@
 # <pep8 compliant>
 
 
-"""The NeuroBlender imports module.
+"""The NeuroBlender imports (overlays) module.
 
 NeuroBlender is a Blender add-on to create artwork from neuroscientific data.
-This module implements importing data into NeuroBlender.
+This module implements importing tract and surface overlays into NeuroBlender.
 """
 
 
