@@ -95,8 +95,7 @@ def animate_camera_rotation(context, preset, animname="camZ"):
     nb = scn.nb
 
     bpy.ops.nb.import_animations(name=animname)
-    animname = "{}.000".format(animname)  # TODO: get rid of forcefill
-    anim = preset.animations[animname]
+    anim = preset.animations[preset.index_animations]
     anim.reverse = False
     anim.repetitions = 1
     anim.frame_end = 250
