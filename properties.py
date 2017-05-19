@@ -285,6 +285,8 @@ def campaths_enum_callback(self, context):
 
     items = [(cp.name, cp.name, "List the camera paths", i)
              for i, cp in enumerate(nb.campaths)]
+    if not items:
+        items = [("No_CamPaths", "No camera trajectories found", "", 0)]
 
     return items
 
@@ -294,6 +296,7 @@ def campaths_enum_update(self, context):
 
     scn = context.scene
     nb = scn.nb
+
     nb_preset = nb.presets[nb.index_presets]
     cam = bpy.data.objects[nb_preset.cameras[0].name]
     anim = nb_preset.animations[nb_preset.index_animations]
@@ -301,6 +304,7 @@ def campaths_enum_update(self, context):
     if anim.animationtype == "CameraPath": # FIXME: overkill?
         cam_anims = [anim for anim in nb_preset.animations
                      if ((anim.animationtype == "CameraPath") &
+                         (anim.campaths_enum != "No_CamPaths") &
                          (anim.is_rendered))]
         nb_rp.clear_camera_path_animations(cam, nb_preset.animations,
                                            [nb_preset.index_animations])

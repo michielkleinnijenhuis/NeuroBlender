@@ -737,9 +737,13 @@ def create_camera_path_animations(cam, anims):
 #             bpy.ops.constraint.move_up(override, constraint=cns.name)
 
     for anim in anims:
-        campath = bpy.data.objects[anim.campaths_enum]
-        animate_campath(campath, anim)
-        animate_camera(cam, anim, campath)
+        try:
+            campath = bpy.data.objects[anim.campaths_enum]
+        except:
+            pass
+        else:
+            animate_campath(campath, anim)
+            animate_camera(cam, anim, campath)
 
     cnsCO = add_constraint(cam, "CHILD_OF", "Child Of", box)
     timeline = generate_timeline(scn, anims)
