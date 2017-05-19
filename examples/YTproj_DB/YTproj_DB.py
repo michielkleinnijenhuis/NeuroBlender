@@ -97,8 +97,8 @@ def animate_camera_rotation(context, preset, animname="camZ"):
     bpy.ops.nb.import_animations(name=animname)
     animname = "{}.000".format(animname)  # TODO: get rid of forcefill
     anim = preset.animations[animname]
-    anim.reverse = True
-    anim.repetitions = 1.5
+    anim.reverse = False
+    anim.repetitions = 1
     anim.frame_end = 250
     bpy.ops.nb.add_campath(name="CP_Z")
     anim.campaths_enum = "CP_Z"
@@ -430,7 +430,7 @@ def run_example():
     set_render_settings(context, datadir)
 
     create_scene(context,
-                 datadir, blendname="YTproj_DB_scn_test",
+                 datadir, blendname="YTproj_DB_scn",
                  T1="nustd")
 
 
