@@ -957,9 +957,12 @@ class NeuroBlenderAnimationPanel(bpy.types.Panel):
         row.prop(anim, "tracktype", expand=True)
 
         split = layout.split(percentage=0.33)
-        split.prop(cam_ob, "rotation_euler", index=2, text="tumble")
+        col = split.column()
+        col.prop(cam_ob, "rotation_euler", index=2, text="tumble")
+        col.enabled = anim.tracktype != "TrackObject"
 
-        row = split.row(align=True)
+        col = split.column()
+        row = col.row(align=True)
         row.prop(cam, "clip_start")
         row.prop(cam, "clip_end")
 

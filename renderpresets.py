@@ -485,7 +485,7 @@ def create_camera(preset, centre, box, camprops):
     scn.objects.link(cam)
 
     add_constraint(cam, "CHILD_OF", "Child Of", box)
-    add_constraint(cam, "TRACK_TO", "TrackToCentre", centre)
+    add_constraint(cam, "TRACK_TO", "TrackToObject", centre)
 #     add_cam_constraints(cam)
 
     # depth-of-field
@@ -557,7 +557,7 @@ def add_cam_constraints(cam):
     nb_preset = nb.presets[nb.index_presets]
     centre = bpy.data.objects[nb_preset.name+'Centre']
 
-    cnsTT = add_constraint(cam, "TRACK_TO", "TrackToCentre", centre)
+    cnsTT = add_constraint(cam, "TRACK_TO", "TrackToObject", centre)
     cnsLDi = add_constraint(cam, "LIMIT_DISTANCE",
                             "LimitDistInClipSphere", centre, cam.data.clip_end)
     cnsLDo = add_constraint(cam, "LIMIT_DISTANCE",
@@ -702,11 +702,11 @@ def update_cam_constraints(cam, cam_anims):
         timeline = generate_timeline(scn, cam_anims)
         restrict_trans_timeline(scn, cns, timeline, group="ChildOf")
 
-        dpath = 'constraints["TrackToCentre"].influence'
+        dpath = 'constraints["TrackToObject"].influence'
         fcu = action.fcurves.find(dpath)
         action.fcurves.remove(fcu)
         # add the constraint keyframes back again
-        cns = cam.constraints["TrackToCentre"]
+        cns = cam.constraints["TrackToObject"]
         timeline = generate_timeline(scn, cam_anims, trackcentre=True)
         restrict_incluence_timeline(scn, cns, timeline, group="TrackTo")
 
@@ -749,7 +749,7 @@ def create_camera_path_animations(cam, anims):
     timeline = generate_timeline(scn, anims)
     restrict_trans_timeline(scn, cnsCO, timeline, group="ChildOf")
 
-    cnsTT = add_constraint(cam, "TRACK_TO", "TrackToCentre", centre)
+    cnsTT = add_constraint(cam, "TRACK_TO", "TrackToObject", centre)
     timeline = generate_timeline(scn, anims, trackcentre=True)
     restrict_incluence_timeline(scn, cnsTT, timeline, group="TrackTo")
 
@@ -837,7 +837,7 @@ def generate_timeline(scn, anims, trackcentre=False):
     for anim in anims:
         for i in range(anim.frame_start, anim.frame_end + 1):
             if trackcentre:
-                timeline[i] = anim.tracktype == 'TrackCentre'
+                timeline[i] = anim.tracktype == 'TrackObject'
             else:
                 timeline[i] = 1
 
@@ -1020,7 +1020,7 @@ def create_light(preset, centre, box, lights, lightprops):
     light.location = lightprops['location']
 
 #     add_constraint(light, "CHILD_OF", "Child Of", box)
-    add_constraint(light, "TRACK_TO", "TrackToCentre", centre)
+    add_constraint(light, "TRACK_TO", "TrackToObject", centre)
 
     return light
 

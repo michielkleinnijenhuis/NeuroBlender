@@ -345,7 +345,7 @@ def tracktype_enum_update(self, context):
                    for anim in cam_anims]
 
     timeline = nb_rp.generate_timeline(scn, cam_anims, anim_blocks)
-    cnsTT = cam.constraints["TrackToCentre"]
+    cnsTT = cam.constraints["TrackToObject"]
     nb_rp.restrict_incluence_timeline(scn, cnsTT, timeline, group="TrackTo")
 
     # TODO: if not yet executed/exists
@@ -398,7 +398,7 @@ def trackobject_enum_update(self, context):
 
     preset = nb.presets[nb.index_presets]
     cam = bpy.data.objects[self.name]
-    cns = cam.constraints["TrackToCentre"]
+    cns = cam.constraints["TrackToObject"]
     if self.trackobject == "None":
         cns.mute = True
     else:
@@ -1521,9 +1521,9 @@ class AnimationProperties(PropertyGroup):
         name="Tracktype",
         description="Camera rotation options",
         items=[("TrackNone", "None", "Use the camera rotation property", 0),
-               ("TrackCentre", "Centre", "Track the preset centre", 1),
+               ("TrackObject", "Object", "Track an object", 1),
                ("TrackPath", "Path", "Orient along the trajectory", 2)],
-        default="TrackCentre",
+        default="TrackObject",
         update=tracktype_enum_update)
     pathtype = EnumProperty(
         name="Pathtype",
