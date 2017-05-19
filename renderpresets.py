@@ -96,7 +96,7 @@ def scene_preset_init(name):
     lights = bpy.data.objects.new("Lights", None)
     scn.objects.link(lights)
     lights.parent = box
-    for idx in [0,1]:
+    for idx in [0, 1]:
         driver = lights.driver_add("scale", idx).driver
         driver.type = 'SCRIPTED'
         driver.expression = "scale"

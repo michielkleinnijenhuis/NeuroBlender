@@ -506,21 +506,25 @@ def light_update(self, context):
     scn = context.scene
     nb = scn.nb
 
-    light_ob = bpy.data.objects[self.name]
+    # on creation, not all properties have been set yet
+    # FIXME: find a less ugly approach and generalize to all update functions
+    if self.name:
+        light_ob = bpy.data.objects[self.name]
+        if self.is_rendered:
+            light_ob.hide = not self.is_rendered
+            light_ob.hide_render = not self.is_rendered
 
-    light_ob.hide = not self.is_rendered
-    light_ob.hide_render = not self.is_rendered
+        light = bpy.data.lamps[self.name]
+        if self.type:
+            light.type = self.type
 
-    light = bpy.data.lamps[self.name]
-
-    light.type = self.type
-
-    if scn.render.engine == "CYCLES":
-        light.use_nodes = True
-        node = light.node_tree.nodes["Emission"]
-        node.inputs[1].default_value = self.strength
-    elif scn.render.engine == "BLENDER_RENDER":
-        light.energy = self.strength
+        if self.strength:
+            if scn.render.engine == "CYCLES":
+                light.use_nodes = True
+                node = light.node_tree.nodes["Emission"]
+                node.inputs[1].default_value = self.strength
+            elif scn.render.engine == "BLENDER_RENDER":
+                light.energy = self.strength
 
 
 def table_update(self, context):
