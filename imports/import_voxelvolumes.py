@@ -330,6 +330,9 @@ class ImportVoxelvolumes(Operator, ImportHelper):
         mat = self.get_voxmat(name)
         tex = self.get_voxtex(context, texdict, 'vol0000', item)
 
+        item.texname = tex.name
+        item.texname = tex.name
+
         if self.is_label:
             for volnr, label in enumerate(item.labels):
                 pass  # TODO
