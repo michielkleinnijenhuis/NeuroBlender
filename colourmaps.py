@@ -318,7 +318,7 @@ class ResetColourmaps(Operator):
 
         tex = bpy.data.textures['manage_colourmaps']
         for cmdict in cmdictlist:
-            self.replace_colourmap(tex.color_ramp, cmdict)
+            replace_colourmap(tex.color_ramp, cmdict)
             bpy.ops.nb.colourmap_presets(name=cmdict["name"])
 
         info = ['all original colour maps have been reset to default values']
@@ -326,21 +326,22 @@ class ResetColourmaps(Operator):
 
         return {"FINISHED"}
 
-    def replace_colourmap(self, cr, cmdict):
 
-        cr.color_mode = cmdict["color_mode"]
-        cr.interpolation = cmdict["interpolation"]
-        cr.hue_interpolation = cmdict["hue_interpolation"]
+def replace_colourmap(cr, cmdict):
 
-        cre = cr.elements
-        while len(cre) > 1:
-            cre.remove(cre[0])
+    cr.color_mode = cmdict["color_mode"]
+    cr.interpolation = cmdict["interpolation"]
+    cr.hue_interpolation = cmdict["hue_interpolation"]
 
-        cre[0].position = cmdict["elements"][0]["position"]
-        cre[0].color = cmdict["elements"][0]["color"]
-        for elem in cmdict["elements"][1:]:
-            el = cre.new(elem["position"])
-            el.color = elem["color"]
+    cre = cr.elements
+    while len(cre) > 1:
+        cre.remove(cre[0])
+
+    cre[0].position = cmdict["elements"][0]["position"]
+    cre[0].color = cmdict["elements"][0]["color"]
+    for elem in cmdict["elements"][1:]:
+        el = cre.new(elem["position"])
+        el.color = elem["color"]
 
 
 class ObjectListCR(UIList):
