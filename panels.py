@@ -161,7 +161,7 @@ class NeuroBlenderBasePanel(bpy.types.Panel):
         col.enabled = not is_yoked
         col = row.column()
         col.prop(nb_ob, "sliceangle", expand=True, text="Angle")
-        col.enabled = not is_yoked
+        col.enabled = False  # not is_yoked
 
     def drawunit_tri_material(self, layout, nb, nb_ob):
 
