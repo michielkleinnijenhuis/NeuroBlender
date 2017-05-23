@@ -784,12 +784,13 @@ class ImportVoxelvolumes(Operator, ImportHelper):
 
         slicebox = self.voxelvolume_cutout(ob)
 
+        mw = ob.matrix_world  # FIXME: mw of parent for overlays?!
         for idx in range(0, 3):
-            self.voxelvolume_slice_drivers_volume(item, slicebox,
+            self.voxelvolume_slice_drivers_volume(item, slicebox, mw,
                                                   idx, "scale")
-            self.voxelvolume_slice_drivers_volume(item, slicebox,
+            self.voxelvolume_slice_drivers_volume(item, slicebox, mw,
                                                   idx, "location")
-            self.voxelvolume_slice_drivers_volume(item, slicebox,
+            self.voxelvolume_slice_drivers_volume(item, slicebox, mw,
                                                   idx, "rotation_euler")
 
         return ob, slicebox
@@ -883,32 +884,34 @@ class ImportVoxelvolumes(Operator, ImportHelper):
         return empty
 
     @staticmethod
-    def voxelvolume_slice_drivers_volume(item, slicebox,
-                                         index, prop, relative=True):
+    def voxelvolume_slice_drivers_volume(item, slicebox, matrix_world,
+                                         index_ijk, prop, relative=True):
 
         scn = bpy.context.scene
         nb = scn.nb
 
-        driver = slicebox.driver_add(prop, index).driver
+        index_xyz, p = nb_ut.slice_rotations(matrix_world, index_ijk)
+
+        driver = slicebox.driver_add(prop, index_ijk).driver
         driver.type = 'SCRIPTED'
 
         # dimension of the voxelvolume
-        data_path = "%s.dimensions[%d]" % (item.path_from_id(), index)
+        data_path = "%s.dimensions[%d]" % (item.path_from_id(), index_xyz)
         nb_rp.create_var(driver, "dim",
                          'SINGLE_PROP', 'SCENE',
                          scn, data_path)
         # relative slicethickness
-        data_path = "%s.slicethickness[%d]" % (item.path_from_id(), index)
+        data_path = "%s.slicethickness[%d]" % (item.path_from_id(), index_xyz)
         nb_rp.create_var(driver, "slc_th",
                          'SINGLE_PROP', 'SCENE',
                          scn, data_path)
         # relative sliceposition
-        data_path = "%s.sliceposition[%d]" % (item.path_from_id(), index)
+        data_path = "%s.sliceposition[%d]" % (item.path_from_id(), index_xyz)
         nb_rp.create_var(driver, "slc_pos",
                          'SINGLE_PROP', 'SCENE',
                          scn, data_path)
         # sliceangle
-        data_path = "%s.sliceangle[%d]" % (item.path_from_id(), index)
+        data_path = "%s.sliceangle[%d]" % (item.path_from_id(), index_xyz)
         nb_rp.create_var(driver, "slc_angle",
                          'SINGLE_PROP', 'SCENE',
                          scn, data_path)
@@ -919,7 +922,7 @@ class ImportVoxelvolumes(Operator, ImportHelper):
             elif prop == "rotation_euler":
                 driver.expression = "slc_angle"
             elif prop == "location":
-                driver.expression = "slc_pos * (dim - slc_th * dim)"
+                driver.expression = p + " * (dim - slc_th * dim)"
         else:
             if prop == "scale":
                 driver.expression = "slc_th / dim"
@@ -928,20 +931,23 @@ class ImportVoxelvolumes(Operator, ImportHelper):
             elif prop == "location":
                 pass
 
-        slicebox.lock_location[index] = True
-        slicebox.lock_rotation[index] = True
-        slicebox.lock_scale[index] = True
+        slicebox.lock_location[index_ijk] = True
+        slicebox.lock_rotation[index_ijk] = True
+        slicebox.lock_scale[index_ijk] = True
 
     @staticmethod
-    def voxelvolume_slice_drivers_surface(item, tex, index, prop):
+    def voxelvolume_slice_drivers_surface(item, tex, matrix_world,
+                                          index_ijk, prop):
 
         scn = bpy.context.scene
         nb = scn.nb
 
-        driver = tex.driver_add(prop, index).driver
+        index_xyz, p = nb_ut.slice_rotations(matrix_world, index_ijk)
+
+        driver = tex.driver_add(prop, index_ijk).driver
         driver.type = 'SCRIPTED'
 
-        data_path = "%s.slicethickness[%d]" % (item.path_from_id(), index)
+        data_path = "%s.slicethickness[%d]" % (item.path_from_id(), index_xyz)
         nb_rp.create_var(driver, "slc_th",
                          'SINGLE_PROP', 'SCENE',
                          scn, data_path)
@@ -950,11 +956,11 @@ class ImportVoxelvolumes(Operator, ImportHelper):
             driver.expression = "slc_th"
         elif prop == "offset":
             # relative sliceposition
-            data_path = "%s.sliceposition[%d]" % (item.path_from_id(), index)
+            data_path = "%s.sliceposition[%d]" % (item.path_from_id(), index_xyz)
             nb_rp.create_var(driver, "slc_pos",
                              'SINGLE_PROP', 'SCENE',
                              scn, data_path)
-            driver.expression = "2*(1/slc_th-1) * slc_pos - (1/slc_th-1)"
+            driver.expression = "2*(1/slc_th-1) * " + p + " - (1/slc_th-1)"
 
     @staticmethod
     def voxelvolume_rendertype_driver(mat, item):

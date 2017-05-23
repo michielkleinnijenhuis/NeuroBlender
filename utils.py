@@ -511,6 +511,19 @@ def h5_in2out(inds):
     return in2out
 
 
+def slice_rotations(matrix_world, index_ijk):
+    """Find closest quadrant rotation and direction of affine."""
+
+    row = matrix_world.row[index_ijk][:3]
+    index_xyz = np.argmax(np.absolute(row))
+    if row[index_xyz] > 0:
+        p = 'slc_pos'
+    else:
+        p = '(1 - slc_pos)'
+
+    return index_xyz, p
+
+
 def make_polyline(curvedata, clist,
                   use_endpoint_u=True, use_cyclic_u=False):
     """Create a 3D curve from a list of points."""

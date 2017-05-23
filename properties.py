@@ -1019,17 +1019,19 @@ def rendertype_enum_update(self, context):
         tss = [ts for ts in mat.texture_slots if ts is not None]
         for ts in tss:
             if mat.type == 'VOLUME':
-                    for idx in range(0, 3):
-                        ts.driver_remove("scale", idx)
-                        ts.driver_remove("offset", idx)
-                    ts.scale = [1, 1, 1]
-                    ts.offset = [0, 0, 0]
+                for idx in range(0, 3):
+                    ts.driver_remove("scale", idx)
+                    ts.driver_remove("offset", idx)
+                ts.scale = [1, 1, 1]
+                ts.offset = [0, 0, 0]
             elif mat.type == 'SURFACE':
+                ob = bpy.data.objects[self.name]
+                mw = ob.matrix_world  # FIXME: mw of parent for overlays?!
                 for idx in range(0, 3):
                     ivv = bpy.types.NB_OT_import_voxelvolumes
-                    ivv.voxelvolume_slice_drivers_surface(self, ts,
+                    ivv.voxelvolume_slice_drivers_surface(self, ts, mw,
                                                           idx, "scale")
-                    ivv.voxelvolume_slice_drivers_surface(self, ts,
+                    ivv.voxelvolume_slice_drivers_surface(self, ts, mw,
                                                           idx, "offset")
 
 
