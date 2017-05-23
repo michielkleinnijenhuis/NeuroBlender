@@ -388,6 +388,7 @@ class ImportVoxelvolumes(Operator, ImportHelper):
         # force updates on voxelvolumes
         nb.index_voxelvolumes = nb.index_voxelvolumes
         item.rendertype = item.rendertype
+        item.sformfile = item.sformfile
 
         affine = texdict["affine"]
         info = "Voxelvolume import successful"
@@ -429,6 +430,7 @@ class ImportVoxelvolumes(Operator, ImportHelper):
             for pf in ("affine", "dims", "datarange", "labels"):
                 npy = os.path.join(abstexdir, "{}.npy".format(pf))
                 texdict[pf] = np.load(npy)
+            texdict['sformfile'] = os.path.join(abstexdir, "affine.npy")
 
             texsource = "LOADED"
 
