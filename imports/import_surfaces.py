@@ -201,7 +201,10 @@ class ImportSurfaces(Operator, ImportHelper):
             props = {"name": name,
                      "filepath": fpath,
                      "sformfile": sformfile}
-            nb_ut.add_item(nb, "surfaces", props)
+            item = nb_ut.add_item(nb, "surfaces", props)
+
+            # force updates on surfaces
+            item.sformfile = item.sformfile
 
             nb_ut.move_to_layer(ob, 1)
             scn.layers[1] = True
