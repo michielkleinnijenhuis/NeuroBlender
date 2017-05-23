@@ -435,6 +435,7 @@ class NeuroBlenderOverlayPanel(bpy.types.Panel):
     drawunit_basic_cycles_mix = NeuroBlenderBasePanel.drawunit_basic_cycles_mix
     drawunit_rendertype = NeuroBlenderBasePanel.drawunit_rendertype
     drawunit_texture = NeuroBlenderBasePanel.drawunit_texture
+    calc_nn_elpos = NeuroBlenderBasePanel.calc_nn_elpos
     drawunit_colourmap = NeuroBlenderBasePanel.drawunit_colourmap
     drawunit_colourramp = NeuroBlenderBasePanel.drawunit_colourramp
     drawunit_slices = NeuroBlenderBasePanel.drawunit_slices
