@@ -396,6 +396,7 @@ class ImportOverlays(Operator, ImportHelper):
             texdir_valid = nb_ut.validate_texdir(group.texdir, texformat='png')
             if texdir_valid:
                 group.texdir = group.texdir
+                context.scene.objects.active = ob
                 bpy.ops.object.mode_set(mode="TEXTURE_PAINT")
             else:
                 bpy.ops.nb.vw2uv(filepath=group.texdir,
