@@ -68,8 +68,13 @@ class NeuroBlenderBasePanel(bpy.types.Panel):
         else:
             if nb.objecttype == "surfaces":
                 self.drawunit_tri(layout, "unwrap", nb, nb_ob)
+                if bpy.context.scene.nb.settingprops.use_carver:
+                    self.drawunit_tri(layout, "carvers", nb, nb_ob)
             elif nb.objecttype == "voxelvolumes":
-                self.drawunit_tri(layout, "slices", nb, nb_ob)
+                if bpy.context.scene.nb.settingprops.use_carver:
+                    self.drawunit_tri(layout, "carvers", nb, nb_ob)
+                else:
+                    self.drawunit_tri(layout, "slices", nb, nb_ob)
 
             self.drawunit_tri(layout, "material", nb, nb_ob)
 
@@ -152,6 +157,10 @@ class NeuroBlenderBasePanel(bpy.types.Panel):
 
     def drawunit_slices(self, layout, nb_ob, is_yoked=False):
 
+        self.drawunit_slices_tpa(layout, nb_ob)
+
+    def drawunit_slices_tpa(self, layout, nb_ob, is_yoked=False):
+
         row = layout.row()
         col = row.column()
         col.prop(nb_ob, "slicethickness", expand=True, text="Thickness")
@@ -161,7 +170,71 @@ class NeuroBlenderBasePanel(bpy.types.Panel):
         col.enabled = not is_yoked
         col = row.column()
         col.prop(nb_ob, "sliceangle", expand=True, text="Angle")
-        col.enabled = False  # not is_yoked
+        col.enabled = not is_yoked
+
+    def drawunit_tri_carvers(self, layout, nb, nb_ob):
+
+        self.drawunit_carvers(layout, nb_ob)
+
+    def drawunit_carvers(self, layout, nb_ob, is_yoked=False):
+
+        self.drawunit_carver(layout, nb_ob)
+        self.drawunit_carveroptions(layout, nb_ob)
+        self.drawunit_carverobjects(layout, nb_ob)
+
+    def drawunit_carver(self, layout, nb_ob):
+
+        row = layout.row()
+        row.operator("nb.import_carvers", icon='ZOOMIN', text="")
+        row.prop(nb_ob, "carvers_enum", text="")
+#         row.operator("nb.del_carver", icon='ZOOMOUT', text="")
+        row.operator("nb.oblist_ops",
+                     icon='ZOOMOUT',
+                     text="").action = 'REMOVE_CV'
+
+    def drawunit_carveroptions(self, layout, nb_ob):
+
+        ob = bpy.data.objects[nb_ob.name]
+        try:
+            carver = nb_ob.carvers[nb_ob.carvers_enum]
+            mod = ob.modifiers[carver.name]
+        except:
+            pass
+        else:
+            row = layout.row()
+            row.prop(carver, "name")
+
+            row = layout.row()
+            row.prop(mod, "operation", expand=True)
+
+        row = layout.row()
+        row.separator()
+
+    def drawunit_carverobjects(self, layout, nb_ob):
+
+        try:
+            carver = nb_ob.carvers[nb_ob.carvers_enum]
+        except:
+            pass
+        else:
+
+            row = layout.row()
+            row.prop(carver, "carveobject_type_enum", text="Carveobject type")
+
+            self.drawunit_UIList(layout, "CO", carver, "carveobjects", addopt=True)
+
+            try:
+                ob = bpy.data.objects[carver.name]
+                nb_carveob = carver.carveobjects[carver.index_carveobjects]
+                mod = ob.modifiers[nb_carveob.name]
+            except:
+                pass
+            else:
+                row = layout.row()
+                row.prop(mod, "operation", expand=True)
+#                 row.enabled = bool(carver.index_carveobjects)
+
+                self.drawunit_slices_tpa(layout, nb_carveob)
 
     def drawunit_tri_material(self, layout, nb, nb_ob):
 
@@ -685,6 +758,7 @@ class NeuroBlenderScenePanel(bpy.types.Panel):
             self.drawunit_tri(layout, "lights", nb, preset)
             self.drawunit_tri(layout, "tables", nb, preset)
             self.drawunit_tri(layout, "bounds", nb, preset)
+            self.drawunit_tri(layout, "carvers", nb, preset)
 
         row = layout.row()
         row.separator()
@@ -1113,6 +1187,12 @@ class NeuroBlenderSettingsPanel(bpy.types.Panel):
 
         row = layout.row()
         row.prop(settingprops, "engine", expand=True)
+
+        row = layout.row()
+        row.separator()
+
+        row = layout.row()
+        row.prop(settingprops, "use_carver", toggle=True)
 
         row = layout.row()
         row.separator()

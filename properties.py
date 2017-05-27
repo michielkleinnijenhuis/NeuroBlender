@@ -115,6 +115,8 @@ def index_scalars_handler(dummy):
                 scalar = sg.scalars[sg.index_scalars]
 
                 if sg.path_from_id().startswith("nb.surfaces"):
+                    # TODO: update vertex group index
+                    # TODO: try update vertex color selection
                     # update Image Sequence Texture index
                     mat = bpy.data.materials[sg.name]
                     itex = mat.node_tree.nodes["Image Texture"]
@@ -817,23 +819,49 @@ def sformfile_update(self, context):
 def slices_update(self, context):
     """Set slicethicknesses and positions for the object."""
 
-    ob = bpy.data.objects[self.name+"SliceBox"]
-    ob.scale = self.slicethickness
+    scn = context.scene
+    nb = scn.nb
 
-    try:
-        # FIXME: should this be scalargroups?
-        scalar = self.scalars[self.index_scalars]
-    except:
-        matname = self.name
-        mat = bpy.data.materials[matname]
-        mat.type = mat.type
-        mat.texture_slots[0].scale[0] = mat.texture_slots[0].scale[0]
+    def slices_update_slicebox(self, context):
+        """Set slicethicknesses and positions for the object."""
+
+        ob = bpy.data.objects[self.name+"SliceBox"]
+        ob.scale = self.slicethickness
+
+        try:
+            # FIXME: should this be scalargroups?
+            scalar = self.scalars[self.index_scalars]
+        except:
+            matname = self.name
+            mat = bpy.data.materials[matname]
+            mat.type = mat.type
+            mat.texture_slots[0].scale[0] = mat.texture_slots[0].scale[0]
+        else:
+            for scalar in self.scalars:
+                mat = bpy.data.materials[scalar.matname]
+                tss = [ts for ts in mat.texture_slots if ts is not None]
+                for ts in tss:
+                    ts.scale[0] = ts.scale[0]
+
+    def slices_update_boolean(self, context):
+
+        try:
+            nb_ob = nb_ut.active_nb_object()[0]
+            carver = nb_ob.carvers[nb_ob.index_carvers]
+            nb_carveob = carver.carveobjects[carver.index_carveobjects]
+            ob = bpy.data.objects[nb_carveob.name]
+        except:
+            pass
+        else:
+            ob.scale = self.slicethickness
+            ob.location = self.sliceposition
+            ob.rotation_euler = self.sliceangle
+
+    if nb.settingprops.use_carver:
+        slices_update_boolean(self, context)
+        scn.update()
     else:
-        for scalar in self.scalars:
-            mat = bpy.data.materials[scalar.matname]
-            tss = [ts for ts in mat.texture_slots if ts is not None]
-            for ts in tss:
-                ts.scale[0] = ts.scale[0]
+        slices_update_slicebox(self, context)
 
 
 def is_yoked_bool_update(self, context):
@@ -854,13 +882,13 @@ def is_yoked_bool_update(self, context):
 # ========================================================================== #
 
 
-def name_update(self, context):
+def name_update(self, context):  # FIXME! there's no name checks!
     """Update the name of a NeuroBlender collection item."""
 
     scn = context.scene
     nb = scn.nb
 
-    def rename_voxelvolume(vvol):
+    def rename_voxelvolume(vvol):  # FIXME: update for carver
         colls = [bpy.data.objects,
                  bpy.data.meshes,
                  bpy.data.materials,
@@ -968,6 +996,40 @@ def name_update(self, context):
     elif colltype == "campaths":  # not implemented via Panels
         colls = [bpy.data.objects,
                  bpy.data.curves]  # FollowPath constraints
+
+    elif colltype == "carvers":  # data?
+        oldname = self.name_mem
+        newname = self.name
+        carverob = bpy.data.objects.get(oldname)
+        colls = [carverob.children,
+                 carverob.modifiers,
+                 carverob.parent.modifiers,
+                 bpy.data.groups,
+                 self.carveobjects]
+        for coll in colls:
+            for item in coll:
+                item.name = item.name.replace(oldname, newname)
+#         for ob in carverob.children:
+#             ob.name = ob.name.replace(oldname, newname)
+#         for mod in carverob.modifiers:
+#             mod.name = mod.name.replace(oldname, newname)
+#         for mod in carverob.parent.modifiers:
+#             mod.name = mod.name.replace(oldname, newname)
+#         for group in bpy.data.groups:
+#             if group.name.split('.')[0] == oldname:  # FIXME: unsafe
+#                 group.name = group.name.replace(oldname, newname)
+#         for nb_ob in self.carveobjects:
+#             nb_ob.name = nb_ob.name.replace(oldname, newname)
+        colls = [bpy.data.objects,
+                 bpy.data.groups]
+
+    elif colltype == "carveobjects":
+        carverpath = '.'.join(self.path_from_id().split('.')[:-1])
+        carver = scn.path_resolve(carverpath)
+        carverob = bpy.data.objects.get(carver.name)
+        mod = carverob.modifiers.get(self.name_mem)
+        mod.name = self.name
+        colls = [bpy.data.objects]
 
     else:
         colls = []
@@ -1130,6 +1192,60 @@ def mat_is_yoked_bool_update(self, context):
 #                 self.driver_remove(prop, idx)
 
 
+def carvers_enum_callback(self, context):
+    """Populate the enum based on available options."""
+
+    scn = context.scene
+    nb = scn.nb
+
+    try:
+        self.carvers
+    except:
+        items = []
+    else:
+        items = [(carver.name, carver.name, "List the carvers", i)
+                 for i, carver in enumerate(self.carvers)]
+
+    return items
+
+
+def carveobjects_enum_callback(self, context):
+    """Populate the enum based on available options."""
+
+    scn = context.scene
+    nb = scn.nb
+
+    try:
+        self.objects[self.index_objects]
+    except:
+        items = []
+    else:
+        items = [(carveob.name, carveob.name, "List the carve objects", i+1)
+                 for i, carveob in enumerate(self.objects)]
+
+    return items
+
+
+def carveobject_is_rendered_update(self, context):
+    """Update the render status of the boolean modifier."""
+
+    scn = context.scene
+    nb = scn.nb
+
+    carveob = bpy.data.objects.get(self.name)
+    data_path = self.path_from_id()
+    carverpath = '.'.join(data_path.split('.')[:-1])
+    carver = scn.path_resolve(carverpath)
+    carverob = bpy.data.objects.get(carver.name)
+
+    mod = carverob.modifiers.get(carveob.name)
+    mod.show_render = mod.show_viewport = self.is_rendered
+
+    ob = bpy.data.objects.get(carver.name).parent
+    scn.objects.active = ob
+    bpy.ops.object.mode_set(mode='EDIT')
+    bpy.ops.object.mode_set(mode='OBJECT')
+
 # ========================================================================== #
 # NeuroBlender custom properties
 # ========================================================================== #
@@ -1226,6 +1342,11 @@ class SettingsProperties(PropertyGroup):
         name="Verbose",
         description="Verbose reporting",
         default=False)
+
+    use_carver = BoolProperty(
+        name="Use carver",
+        description="Use a boolean carver rather than a Hook slicer",
+        default=True)
 
 
 class CameraProperties(PropertyGroup):
@@ -1450,7 +1571,7 @@ class CamPathProperties(PropertyGroup):
 
 
 class AnimationProperties(PropertyGroup):
-    """Properties of table."""
+    """Properties of animation."""
 
     name = StringProperty(
         name="Name",
@@ -1606,6 +1727,117 @@ class AnimationProperties(PropertyGroup):
 #         subtype="TRANSLATION")
 
 
+class CarveObjectProperties(PropertyGroup):
+    """Properties of carver."""
+
+    name = StringProperty(
+        name="Name",
+        description="Specify a name for the carver",
+        update=name_update)
+    name_mem = StringProperty(
+        name="NameMem",
+        description="Memory for updating name")
+    icon = StringProperty(
+        name="Icon",
+        description="Icon for animation",
+        default="MOD_BOOLEAN")
+    is_valid = BoolProperty(
+        name="Is Valid",
+        description="Indicates if the object passed validity checks",
+        default=True)
+    is_rendered = BoolProperty(
+        name="Is Rendered",
+        description="Indicates if the carver is rendered",
+        default=True,
+        update=carveobject_is_rendered_update)
+
+    slicethickness = FloatVectorProperty(
+        name="Slice thickness",
+        description="The thickness of the slices",
+        default=(1.0, 1.0, 1.0),
+        size=3,
+        precision=4,
+#         min=0,
+#         max=1,
+        subtype="TRANSLATION",
+        update=slices_update)
+    sliceposition = FloatVectorProperty(
+        name="Slice position",
+        description="The position of the slices",
+        default=(0, 0, 0),
+        size=3,
+        precision=4,
+#         min=-1,
+#         max=1,
+        subtype="TRANSLATION",
+        update=slices_update)
+    sliceangle = FloatVectorProperty(
+        name="Slice position",
+        description="The position of the slices",
+        default=(0.0, 0.0, 0.0),
+        size=3,
+        precision=4,
+        min=-1.5708,
+        max=1.5708,
+        subtype="TRANSLATION",
+        update=slices_update)
+
+    type = StringProperty(
+        name="Type",
+        description="Specify a type for the carve object")
+
+
+class CarverProperties(PropertyGroup):
+    """Properties of carver."""
+
+    name = StringProperty(
+        name="Name",
+        description="Specify a name for the carver",
+        update=name_update)
+    name_mem = StringProperty(
+        name="NameMem",
+        description="Memory for updating name")
+    icon = StringProperty(
+        name="Icon",
+        description="Icon for animation",
+        default="MOD_BOOLEAN")
+    is_valid = BoolProperty(
+        name="Is Valid",
+        description="Indicates if the object passed validity checks",
+        default=True)
+    is_rendered = BoolProperty(
+        name="Is Rendered",
+        description="Indicates if the carver is rendered",
+        default=True)
+
+    carveobjects = CollectionProperty(
+        type=CarveObjectProperties,
+        name="Carve objects",
+        description="The collection of carve objects")
+    index_carveobjects = IntProperty(
+        name="object index",
+        description="index of the objects collection",
+        default=0,
+        min=0)
+
+    carveobjects_enum = EnumProperty(
+        name="Object selector",
+        description="Select carve objects",
+        items=carveobjects_enum_callback)
+
+    carveobject_type_enum = EnumProperty(
+        name="Type",
+        description="Type of carve object",
+        default="slice",
+        items=[("slice", "Slice", "Slice", 0),
+               ("orthoslices", "Orthogonal slices", "Orthogonal slices", 1),
+               ("cube", "Cube", "Cube", 2),
+               ("cylinder", "Cylinder", "Cylinder", 3),
+               ("sphere", "Sphere", "Sphere", 4),
+               ("suzanne", "Suzanne", "Suzanne", 5),
+               ("activeob", "Active object", "Active object", 6)])
+
+
 class PresetProperties(PropertyGroup):
     """Properties of a preset."""
 
@@ -1635,11 +1867,12 @@ class PresetProperties(PropertyGroup):
     centre = StringProperty(
         name="Centre",
         description="Scene centre",
-        default="PresetCentre")
+        default="Centre")
     box = StringProperty(
         name="Box",
         description="Scene box",
-        default="PresetBox")
+        default="Box")
+
     cam = StringProperty(
         name="Camera",
         description="Scene camera",
@@ -1710,6 +1943,24 @@ class PresetProperties(PropertyGroup):
         description="last frame of the animation",
         min=2,
         default=100)
+
+    carversempty = StringProperty(
+        name="Carvers",
+        description="Scene carvers",
+        default="Carvers")
+    carvers = CollectionProperty(
+        type=CarverProperties,
+        name="carvers",
+        description="The collection of carvers")
+    index_carvers = IntProperty(
+        name="carver index",
+        description="index of the carvers collection",
+        default=0,
+        min=0)
+    carvers_enum = EnumProperty(
+        name="carvers",
+        description="select carver",
+        items=carvers_enum_callback)
 
 
 class ColorRampProperties(PropertyGroup):
@@ -2564,6 +2815,20 @@ class SurfaceProperties(PropertyGroup):
         description="Indicates if the surface has been unwrapped",
         default=False)
 
+    carvers = CollectionProperty(
+        type=CarverProperties,
+        name="carvers",
+        description="The collection of carvers")
+    index_carvers = IntProperty(
+        name="carver index",
+        description="index of the carvers collection",
+        default=0,
+        min=0)
+    carvers_enum = EnumProperty(
+        name="carvers",
+        description="select carver",
+        items=carvers_enum_callback)
+
 
 class VoxelvolumeProperties(PropertyGroup):
     """Properties of voxelvolumes."""
@@ -2772,6 +3037,13 @@ class VoxelvolumeProperties(PropertyGroup):
         subtype="TRANSLATION",
         update=slices_update)
 
+    slicer_operation = EnumProperty(
+        name="Slicer operation",
+        description="Operation that the slicer performs",
+        default="INTERSECT",
+        items=[("INTERSECT", "INTERSECT", "INTERSECT", 0),
+               ("DIFFERENCE", "DIFFERENCE", "DIFFERENCE", 1)])
+
     texdir = StringProperty(
         name="Texture directory",
         description="The directory with textures",
@@ -2791,6 +3063,20 @@ class VoxelvolumeProperties(PropertyGroup):
     texname = StringProperty(
         name="Texture name",
         description="The name of the scalar overlay")
+
+    carvers = CollectionProperty(
+        type=CarverProperties,
+        name="carvers",
+        description="The collection of carvers")
+    index_carvers = IntProperty(
+        name="carver index",
+        description="index of the carvers collection",
+        default=0,
+        min=0)
+    carvers_enum = EnumProperty(
+        name="carvers",
+        description="select carver",
+        items=carvers_enum_callback)
 
 
 class NeuroBlenderProperties(PropertyGroup):
@@ -2848,7 +3134,7 @@ class NeuroBlenderProperties(PropertyGroup):
         default=False,
         description="Show/hide the preset's centre and dimensions")
     show_cameras = BoolProperty(
-        name="Camera",
+        name="Cameras",
         default=False,
         description="Show/hide the preset's camera properties")
     show_lights = BoolProperty(
@@ -2868,9 +3154,13 @@ class NeuroBlenderProperties(PropertyGroup):
         default=False,
         description="Show/hide the Fill light properties")
     show_tables = BoolProperty(
-        name="Table",
+        name="Tables",
         default=False,
         description="Show/hide the preset's table properties")
+    show_carvers = BoolProperty(
+        name="Carvers",
+        default=False,
+        description="Show/hide the preset's carver properties")
     show_animations = BoolProperty(
         name="Animation",
         default=False,
@@ -2994,6 +3284,7 @@ class NeuroBlenderProperties(PropertyGroup):
     cm_presetlabel = StringProperty(
         name="CM label",
         default="Grey")
+
 
 # @persistent
 # def projectdir_update(dummy):

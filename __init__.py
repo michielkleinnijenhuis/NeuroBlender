@@ -35,6 +35,7 @@ import mathutils
 if "bpy" in locals():
     import imp
     imp.reload(nb_an)
+    imp.reload(nb_ca)
     imp.reload(nb_cm)
     imp.reload(nb_im)
     imp.reload(nb_ma)
@@ -57,6 +58,7 @@ else:
     from bpy_extras.io_utils import ExportHelper
 
     from . import (animations as nb_an,
+                   carvers as nb_ca,
                    colourmaps as nb_cm,
                    materials as nb_ma,
                    overlays as nb_ol,
@@ -202,7 +204,13 @@ class ObjectListOperations(Operator):
                ('REMOVE_CP', "RemoveCP", ""),
                ('UP_AN', "UpAN", ""),
                ('DOWN_AN', "DownAN", ""),
-               ('REMOVE_AN', "RemoveAN", "")))
+               ('REMOVE_AN', "RemoveAN", ""),
+               ('UP_CV', "UpCV", ""),
+               ('DOWN_CV', "DownCV", ""),
+               ('REMOVE_CV', "RemoveCV", ""),
+               ('UP_CO', "UpCO", ""),
+               ('DOWN_CO', "DownCO", ""),
+               ('REMOVE_CO', "RemoveCO", "")))
 
     data_path = StringProperty(
         name="data path",
@@ -235,13 +243,42 @@ class ObjectListOperations(Operator):
         else:
             if self.action.startswith('REMOVE'):
                 info = ['removed {}'.format(collection[self.index].name)]
-                info += self.remove_items(nb, data, collection, nb_ob)
+                info += self.remove_items(context, nb, data, collection, nb_ob)
                 self.report({'INFO'}, '; '.join(info))
             elif (self.action.startswith('DOWN') and
                   self.index < len(collection) - 1):
+
+                if self.action.endswith('_CO'):
+                    nb_ob = nb_ut.active_nb_object()[0]
+                    carver = nb_ob.carvers[nb_ob.index_carvers]
+                    override = context.copy()
+                    override['object'] = bpy.data.objects[carver.name]
+                    bpy.ops.object.modifier_move_down(override,
+                                                      modifier=self.name)
+
+#                     carverob = bpy.data.objects[carver.name]
+#                     if self.index == 0:  # first mod always INTERSECT
+#                         carverob.modifiers[0].operation = 'INTERSECT'
+#                         carver.modifiers[1].operation = 'UNION'
+
                 collection.move(self.index, self.index + 1)
                 exec("{}.index_{} += 1".format(data, self.type))
+
             elif self.action.startswith('UP') and self.index >= 1:
+
+                if self.action.endswith('_CO'):
+                    nb_ob = nb_ut.active_nb_object()[0]
+                    carver = nb_ob.carvers[nb_ob.index_carvers]
+                    override = context.copy()
+                    override['object'] = bpy.data.objects[carver.name]
+                    bpy.ops.object.modifier_move_up(override,
+                                                    modifier=self.name)
+
+#                     carverob = bpy.data.objects[carver.name]
+#                     if self.index == 1:  # first mod always INTERSECT
+#                         carverob.modifiers[1].operation = 'INTERSECT'
+#                         carver.modifiers[0].operation = 'UNION'
+
                 collection.move(self.index, self.index - 1)
                 exec("{}.index_{} -= 1".format(data, self.type))
 
@@ -295,6 +332,22 @@ class ObjectListOperations(Operator):
             self.name = animation.name
             self.index = preset.index_animations
             self.data_path = animation.path_from_id()
+        elif self.action.endswith('_CV'):
+            nb_ob = nb_ut.active_nb_object()[0]
+            carver = nb_ob.carvers.get(nb_ob.carvers_enum)
+#             carver = nb_ob.carvers[nb_ob.index_carvers]
+            self.type = "carvers"
+            self.name = carver.name
+            self.index = nb_ob.index_carvers
+            self.data_path = carver.path_from_id()
+        elif self.action.endswith('_CO'):
+            nb_ob = nb_ut.active_nb_object()[0]
+            carver = nb_ob.carvers[nb_ob.index_carvers]
+            carveobject = carver.carveobjects[carver.index_carveobjects]
+            self.type = "carveobjects"
+            self.name = carveobject.name
+            self.index = carver.index_carveobjects
+            self.data_path = carveobject.path_from_id()
 
         return self.execute(context)
 
@@ -329,7 +382,7 @@ class ObjectListOperations(Operator):
 
         return collection, data, nb_ob
 
-    def remove_items(self, nb, data, collection, nb_ob):
+    def remove_items(self, context, nb, data, collection, nb_ob):
         """Remove items from NeuroBlender."""
 
         info = []
@@ -373,6 +426,10 @@ class ObjectListOperations(Operator):
             fun = eval("self.remove_animations_%s" %
                        anim.animationtype.lower())
             fun(nb_preset.animations, self.index)
+        elif self.action.endswith('_CV'):
+            self.remove_carvers(context, self.data_path)
+        elif self.action.endswith('_CO'):
+            self.remove_carveobjects(context, self.data_path)
         else:
             ob = bpy.data.objects[nb_ob.name]
             fun = eval("self.remove_%s_%s" % (nb.objecttype, self.type))
@@ -545,6 +602,60 @@ class ObjectListOperations(Operator):
         """Remove timeseries animation."""
 
         pass  # TODO
+
+    def remove_carvers(self, context, data_path):
+        """Remove timeseries animation."""
+
+        scn = context.scene
+
+        carver = scn.path_resolve(data_path)
+        carverob = bpy.data.objects[carver.name]
+
+        for cob in carver.carveobjects:
+            self.remove_carveobjects(context, cob.path_from_id())
+        for cob in carverob.children:
+            if cob.name == '{}.bounds'.format(carver.name):
+                bpy.data.objects.remove(cob)
+
+        ob = carverob.parent
+        mod = ob.modifiers.get('{}.bounds'.format(carver.name))
+        ob.modifiers.remove(mod)
+        mod = ob.modifiers.get(carver.name)
+        ob.modifiers.remove(mod)
+
+        bpy.data.objects.remove(carverob)
+
+        group = bpy.data.groups.get(carver.name)
+        bpy.data.groups.remove(group)
+
+        scn.objects.active = ob
+        bpy.ops.object.mode_set(mode='EDIT')
+        bpy.ops.object.mode_set(mode='OBJECT')
+
+    def remove_carveobjects(self, context, data_path):
+        """Remove carve object from carver."""
+
+        scn = context.scene
+
+        nb_carveob = scn.path_resolve(data_path)
+        carveob = bpy.data.objects.get(nb_carveob.name)
+        carverpath = '.'.join(data_path.split('.')[:-1])
+        carver = scn.path_resolve(carverpath)
+        carverob = bpy.data.objects.get(carver.name)
+        # FIXME: make sure modifier has the right name
+        mod = carverob.modifiers.get(carveob.name)
+        carverob.modifiers.remove(mod)
+        if nb_carveob.type == 'activeob':
+            group = bpy.data.groups.get(carver.name)
+            group.objects.unlink(carveob)
+            cmats = carveob.data.materials
+            cmats.pop(cmats.find('wire'))
+        else:
+            bpy.data.objects.remove(carveob)
+
+        scn.objects.active = carverob.parent
+        bpy.ops.object.mode_set(mode='EDIT')
+        bpy.ops.object.mode_set(mode='OBJECT')
 
 
 class MassIsRenderedL1(Menu):

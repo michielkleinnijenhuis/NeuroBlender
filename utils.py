@@ -596,3 +596,60 @@ def validate_texdir(texdir, texformat, overwrite=False, vol_idx=-1):
         return False
 
     return True
+
+
+def labels2meshes_vtk(surfdir, compdict, labelimage, labels=[],
+                      spacing=[1, 1, 1], offset=[0, 0, 0], nvoxthr=0):
+    """Generate meshes from a labelimage with vtk marching cubes."""
+
+    try:
+        import vtk
+    except ImportError:
+        return
+
+    if not labels:
+        labels = np.unique(labelimage)
+        labels = np.delete(labels, 0)
+        # labels = np.unique(labelimage[labelimage > 0])
+    print('number of labels to process: ', len(labels))
+
+    labelimage = np.lib.pad(labelimage.tolist(),
+                            ((1, 1), (1, 1), (1, 1)),
+                            'constant')
+    dims = labelimage.shape
+
+    vol = vtk.vtkImageData()
+    vol.SetDimensions(dims[0], dims[1], dims[2])
+    vol.SetOrigin(offset[0] * spacing[0] + spacing[0],
+                  offset[1] * spacing[1] + spacing[1],
+                  offset[2] * spacing[2] + spacing[2])
+    # vol.SetOrigin(0, 0, 0)
+    vol.SetSpacing(spacing[0], spacing[1], spacing[2])
+
+    sc = vtk.vtkFloatArray()
+    sc.SetNumberOfValues(labelimage.size)
+    sc.SetNumberOfComponents(1)
+    sc.SetName('tnf')
+    for ii, val in enumerate(np.ravel(labelimage.swapaxes(0, 2))):
+        # FIXME: why swapaxes???
+        sc.SetValue(ii, val)
+    vol.GetPointData().SetScalars(sc)
+
+    dmc = vtk.vtkDiscreteMarchingCubes()
+    dmc.SetInput(vol)
+    dmc.ComputeNormalsOn()
+
+    for label in labels:
+        try:
+            labelname = compdict[label]['name']
+        except KeyError:
+            labelname = 'label.{:05d}'.format(label)
+        fpath = os.path.join(surfdir, '{:s}.stl'.format(labelname))
+        print("Processing label {} (value: {:05d})".format(labelname, label))
+        dmc.SetValue(0, label)
+        dmc.Update()
+
+        writer = vtk.vtkSTLWriter()
+        writer.SetInputConnection(dmc.GetOutputPort())
+        writer.SetFileName(fpath)
+        writer.Write()

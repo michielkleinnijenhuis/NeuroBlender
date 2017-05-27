@@ -352,8 +352,13 @@ class ImportVoxelvolumes(Operator, ImportHelper):
                     tex = self.get_voxtex(context, texdict, volname, scalar)
 
         # create the voxelvolume object
-#         ob = voxelvolume_object_bool(name, texdict['dims'], texdict['affine'])
-        ob, sbox = self.voxelvolume_object_slicebox(item, texdict)
+        if nb.settingprops.use_carver:
+            ob = self.voxelvolume_object_bool(context, name,
+                                              texdict['dims'],
+                                              texdict['affine'])
+        else:
+            ob, sbox = self.voxelvolume_object_slicebox(item, texdict)
+            nb_ut.move_to_layer(sbox, 2)
 
         # single texture slot for simple switching
         texslot = mat.texture_slots.add()
@@ -374,7 +379,6 @@ class ImportVoxelvolumes(Operator, ImportHelper):
             bpy.ops.object.mode_set(mode='OBJECT')
 
         nb_ut.move_to_layer(ob, 2)
-        nb_ut.move_to_layer(sbox, 2)
         scn.layers[2] = True
 
         group = bpy.data.groups.get("voxelvolumes") or \
@@ -731,33 +735,39 @@ class ImportVoxelvolumes(Operator, ImportHelper):
 
         return item
 
-    def voxelvolume_object_bool(self, name, dims, affine):
-        """"""
+    def voxelvolume_object_bool(self, context, name, dims, affine):
+        """Create a voxelvolume box with boolean carve modifiers."""
 
-        # the voxelvolumebox
-        ob = self.voxelvolume_box_ob(dims, "SliceBox")
+        ob = self.voxelvolume_box_ob(dims, "SliceBox", add_vg=False)
+#         bpy.ops.mesh.primitive_cube_add()
+#         ob = context.scene.objects.active
+        ob.scale
         ob.name = name
         ob.matrix_world = affine
-        # an empty to hold the sliceboxes
-        empty = bpy.data.objects.new(ob.name+"SliceBox", None)
-        empty.parent = ob
-        empty.location = (0, 0, 0)
-        bpy.context.scene.objects.link(empty)
-        # create sliceboxes and modifiers
-        for direc in 'xyz':
-            boolmod = ob.modifiers.new("bool_%s" % direc, 'BOOLEAN')
-            boolmod.solver = 'CARVE'
-            boolmod.operation = 'INTERSECT'
-            sb = self.voxelvolume_box_ob(dims, "SliceBox")
-            sb.name = direc
-            sb.parent = empty
-            boolmod.object = sb
-            # TODO: no need for vg
 
-        return ob
+#         mat = get_wire_material()
+# 
+#         carvebox = self.carvebox(context, ob, dims, mat)
+# 
+#         vvol_bounds = self.carvebox_mappingbounds(context, dims, mat, carvebox)
+# 
+#         carveob_names = ["box", "cyl"]
+#         for name in carveob_names:
+#             carveob = self.carvebox_carveobject(context, name, mat, carvebox)
+#             carvebox_boolmod(name, carvebox,
+#                              carveob, 'BMESH', 'INTERSECT')
+# 
+#         carvebox_boolmod("vvol_bounds", carvebox,
+#                          vvol_bounds, 'BMESH', 'UNION')
+# 
+#         carvebox_boolmod("carvebox", ob,
+#                          carvebox, 'BMESH', 'INTERSECT')
+
+        return ob  # , carvebox
+
 
     def voxelvolume_object_slicebox(self, item, texdict):
-        """"""
+        """Create a voxelvolume box with boolean carve modifiers."""
 
         scn = bpy.context.scene
 
@@ -1004,7 +1014,7 @@ class ImportVoxelvolumes(Operator, ImportHelper):
         return bb_min, bb_max
 
     @staticmethod
-    def voxelvolume_box_ob(dims=[256, 256, 256], slicetype="verts"):
+    def voxelvolume_box_ob(dims=[256, 256, 256], slicetype="verts", add_vg=True):
         """"""
 
         me = bpy.data.meshes.new(slicetype)
@@ -1052,8 +1062,9 @@ class ImportVoxelvolumes(Operator, ImportHelper):
         me.from_pydata(v, [], faces)
         me.update(calc_edges=True)
 
-        vg = ob.vertex_groups.new(slicetype)
-        vg.add(vidxs, 1.0, "REPLACE")
+        if add_vg:
+            vg = ob.vertex_groups.new(slicetype)
+            vg.add(vidxs, 1.0, "REPLACE")
 
         return ob
 
@@ -1215,3 +1226,4 @@ class ImportVoxelvolumes(Operator, ImportHelper):
         info = ""  # TODO
 
         return info
+
