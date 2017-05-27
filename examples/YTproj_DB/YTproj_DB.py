@@ -28,41 +28,56 @@ generating a simple voxelvolume animation.
 
 
 import os
+from subprocess import call
+import pickle
 
 import bpy
+from mathutils import Vector
 
-from NeuroBlender import nb_ut
+from NeuroBlender import utils as nb_ut
+from NeuroBlender import colourmaps as nb_cm
+# FIXME
+# from NeuroBlender.examples.YTproj_DB import (read_labelimage_nii,
+#                                              labels2meshes_vtk)
+# from . import read_labelimage_nii, labels2meshes_vtk
 
 
-def import_volume(context, datadir, T1):
-    """Load the T1 volume."""
+def import_volume(context, datadir, vol, cmdict, ext=".nii.gz"):
+    """Load the volume.
+
+    import volume <datadir>/<vol>.nii.gz with name <vol>
+    i.e. write png's to '//voltex_<vol>',
+    where '//' is short for the path where the .blend file has been saved
+    """
 
     scn = context.scene
     nb = scn.nb
 
-    # import volume <datadir>/<T1>.nii.gz with name <T1>
-    # i.e. write png's to texdir
+    # import volume
     bpy.ops.nb.import_voxelvolumes(directory=datadir,
-                                   files=[{"name": "{}.nii.gz".format(T1)}],
-                                   name=T1,
-                                   texdir="//voltex_{}".format(T1))
+                                   files=[{"name": vol + ext}],
+                                   name=vol,
+                                   texdir="//voltex_{}".format(vol))
+    vvol = nb.voxelvolumes[nb.index_voxelvolumes]
 
-    vvol = nb.voxelvolumes[0]
+    # set the origin for the slices / slice animation
     vvol.sliceposition = (0, 0, 0)
+    vvol.slicethickness = (1, 1, 1)
+    vvol.sliceangle = (0, 0, 0)
 
-    # tweak texture settings to give it a clean and smooth appearance
-    tex = bpy.data.textures[T1]
-    cre = tex.color_ramp.elements
-    cre[0].position = 0.04
-    cre[1].position = 0.5
-    cre[0].color = (0.161539, 0.0307693, 0.00769232, 0)
-    cre[1].color = (0.757397, 0.650142, 0.610706, 1)
-    tex.voxel_data.interpolation = 'TRICUBIC_BSPLINE'
+    # give the volume a smooth and clean appearance
+    tex = bpy.data.textures[vvol.texname]
+    tex.voxel_data.interpolation = 'TRICUBIC_BSPLINE'  # custom interpolation
+    nb.cr_path = 'bpy.data.textures["{}"].color_ramp'.format(tex.name)
+    bpy.ops.nb.colourmap_presets(name=cmdict['name'])  # custom colourmap
+    vvol.colourmap_enum = cmdict['name'].lower()
+    nb_cm.replace_colourmap(tex.color_ramp, cmdict)
 
     return vvol
 
 
-def create_preset(context, presetname="Preset"):
+def create_preset(context, presetname="Preset",
+                  cam_distance=3.5, centre_shift=[0, 0, 0]): # z-12
     """Create the scene."""
 
     scn = context.scene
@@ -72,14 +87,15 @@ def create_preset(context, presetname="Preset"):
     bpy.ops.nb.add_preset(name=presetname)
     preset = nb.presets[presetname]
 
-    cam = preset.cameras[0]
-    cam.cam_distance = 3.5
+    # move the camera position and tracking object to get max view
+    cam = preset.cameras[preset.index_cameras]
+    cam.cam_distance = cam_distance
     centre = bpy.data.objects.get(preset.centre)
-    centre.location[2] = -12
+    centre.location = centre.location + Vector(centre_shift)
 
+    # FIXME: make this default?
     for light in preset.lights:
         light.type = 'HEMI'
-
 #     # hiding rendering of lights in this volume rendering example
 #     for l in ["Key", "Fill", "Back"]:
 #         bpy.data.objects[l].hide_render = True
@@ -87,7 +103,6 @@ def create_preset(context, presetname="Preset"):
     return preset
 
 
-# camera rotation animation
 def animate_camera_rotation(context, preset, animname="camZ"):
     """Create a camera rotation around Z."""
 
@@ -96,16 +111,37 @@ def animate_camera_rotation(context, preset, animname="camZ"):
 
     bpy.ops.nb.import_animations(name=animname)
     anim = preset.animations[preset.index_animations]
-    anim.reverse = False
-    anim.repetitions = 1
+
+    # NOTE: almost all of these are the default on creating the animation,
+    # but made explicit here for the sake of the example
+    anim.animationtype = 'CameraPath'
+    # timings
+    anim.frame_end = 1
     anim.frame_end = 250
-    bpy.ops.nb.add_campath(name="CP_Z")
-    anim.campaths_enum = "CP_Z"
+    anim.repetitions = 1
+    anim.offset = 1
+    # trajectory
+    anim.reverse = False
+    preset_index = nb.presets.find(preset.name)
+    animation_index = preset.animations.find(anim.name)
+    bpy.ops.nb.add_campath(name="CP_Z",
+                           pathtype='Circular',
+                           axis='Z',
+                           index_presets=preset_index,
+                           index_animations=animation_index)
+    cp = nb.campaths[nb.index_campaths]
+    anim.campaths_enum = cp.name
+    # tracking
+    anim.tracktype = 'TrackObject'
+    # FIXME: do something with this or remove
+#     nb_cam = preset.cameras[preset.index_cameras]
+#     cam = bpy.data.cameras[nb_cam.name]
+#     cam.clip_start = 30
+#     cam.clip_end = 500
 
     return anim
 
 
-# slice animation
 def animate_volume_slicer(context, vvol, keyframes, index=2):
     """Create a slicing animation building and removing the brain along Z."""
 
@@ -125,6 +161,7 @@ def animate_volume_slicer(context, vvol, keyframes, index=2):
         kfp.easing = keyframes[kfp.co[0]][2]
 
 
+# FIXME: remove or implement simple version of slice-anim
 # def animate_volume_slicer(context, preset, T1, animname="slcZ",
 #                           range, offset=0, reverse=False):
 #     """Create a slicing animation building and removing the brain along Z."""
@@ -149,6 +186,7 @@ def animate_volume_slicer(context, vvol, keyframes, index=2):
 # 
 #     return anim
 
+
 def animate_hide_switch(context, show_range):
     """Hide the 'surfaces' group for a part of the animation."""
 
@@ -157,7 +195,7 @@ def animate_hide_switch(context, show_range):
 
     surfs = bpy.data.groups.get('surfaces')
 
-    # set the animation on one of the objects in the group
+    # set the animation on one of the objects in the 'surfaces' group
     anim_ob = surfs.objects[0]
     interval_head = [scn.frame_start, show_range[0] - 1]
     interval_anim = [show_range[0], show_range[1]]
@@ -171,7 +209,7 @@ def animate_hide_switch(context, show_range):
             anim_ob.keyframe_insert("hide")
             anim_ob.keyframe_insert("hide_render")
 
-    # select the surfaces group and make the animated object active
+    # select the 'surfaces' group and make the animated object active
     for group in bpy.data.groups:
         for ob in group.objects:
             ob.select = False
@@ -183,8 +221,8 @@ def animate_hide_switch(context, show_range):
     bpy.ops.object.make_links_data(type='ANIMATION')
 
 
-
 def set_render_settings(context, datadir, qr=True):
+    """Pick a set of render settings."""
 
     scn = context.scene
     nb = scn.nb
@@ -194,7 +232,6 @@ def set_render_settings(context, datadir, qr=True):
            False: {'rp': 100, 'ff': 'TIFF', 'qu': 100, 'cd': '16', 'fs': 1}}
 
     scn.nb.settingprops.engine = 'BLENDER_RENDER'
-#     scn.render.engine = 'BLENDER_RENDER'
 
     scn.render.resolution_x = 1920
     scn.render.resolution_y = 1080
@@ -205,213 +242,262 @@ def set_render_settings(context, datadir, qr=True):
     scn.render.image_settings.quality = qrs[qr]['qu']
     scn.render.image_settings.color_depth = qrs[qr]['cd']
     scn.render.image_settings.tiff_codec = 'NONE'
-#     scn.render.threads_mode = 'FIXED'
-#     scn.render.threads = 4
     scn.render.filepath = os.path.join(datadir, '')
     if not qr:
         tiffpath = os.path.join(datadir, 'tiffs', '')
         nb_ut.mkdir_p(tiffpath)
         scn.render.filepath = tiffpath
-    # scn.render.image_settings.file_format = 'FFMPEG'
-    # scn.format = 'MPEG2'
-    # scn.ffmpeg_preset = 'VERYSLOW'
 
 
-def import_fs_cortical(context, fssubjdir, sformfile="",
-                       hemis=["lh", "rh"], surf="pial"):
+def import_fs_cortical(context, fs_surf_dir, sformfile="",
+                       hemis=["lh", "rh"], surftype="pial"):
     """Load freesurfer surfaces."""
 
     scn = context.scene
     nb = scn.nb
 
     for h in hemis:
-        surfname = "{}.{}".format(h, surf)
-        bpy.ops.nb.import_surfaces(directory=fssubjdir,
+        surfname = "{}.{}".format(h, surftype)
+        bpy.ops.nb.import_surfaces(directory=fs_surf_dir,
                                    files=[{"name": surfname}],
-                                   name=surfname)
-        if sformfile:
-            nb.surfaces[surfname].sformfile = sformfile
+                                   name=surfname,
+                                   sformfile=sformfile)
+        surf = nb.surfaces[nb.index_surfaces]
+# os.path.join(fs_surf_dir, "affine.npy")
+#         if sformfile:  # FIXME: why necessary?
+#             surf.sformfile = sformfile
 
         # make it a (bit of a lazy) glass brain
-        mat = bpy.data.materials.get(surfname)
+        mat = bpy.data.materials.get(surf.name)
         mat.diffuse_color = (0.1, 0.1, 0.1)
         mat.alpha = 0.1
 
 
-def import_fs_subcortical(context, base, surfdir, sformfile=""):
+def import_fs_subcortical(context, fs_subc_dir, fs_subc_lut, sformfile=""):
     """Load freesurfer-derived subcortical structures."""
 
     scn = context.scene
     nb = scn.nb
 
-    aseg = get_lut(context)
-    for seg in aseg:
-        surfname = seg["name"]
-        surfcolour = seg["colour"]
-        surffilename = "{:s}.{:s}.stl".format(base, surfname)
-        bpy.ops.nb.import_surfaces(directory=surfdir,
+    for _, seg in fs_subc_lut.items():
+        surffilename = "{:s}.stl".format(seg["name"])
+        bpy.ops.nb.import_surfaces(directory=fs_subc_dir,
                                    files=[{"name": surffilename}],
-                                   name=surfname,
+                                   name=seg["name"],
+                                   sformfile=sformfile,
                                    colourtype='pick',
-                                   colourpicker=surfcolour[:3])
-        surf = nb.surfaces[surfname]
-        surf.sformfile = sformfile
-        surfob = bpy.data.objects[surfname]
+                                   colourpicker=seg["colour"][:3],
+                                   beautify=True)
+        surf = nb.surfaces[nb.index_surfaces]
+#         if sformfile:
+#             surf.sformfile = sformfile
+
+        # more aggressive smoothing on subcortical structures
+        surfob = bpy.data.objects[surf.name]
         surfob.modifiers["smooth"].iterations = 40
 
 
-# define lut
-def get_lut(context):
+def generate_fs_subcortical_meshes(context, fs_mri_dir, fs_subc_dir,
+                                   fs_subc_lut, fs_subc_seg):
+    """Generate meshes from a freesurfer segmentation image (e.g. aseg.mgz)."""
+
+    basepath = os.path.join(fs_mri_dir, fs_subc_seg)
+    cmd = 'mri_convert {0}.mgz {0}.nii.gz'.format(basepath)
+    exit_code = call(cmd, shell=True)
+    if exit_code:
+        return exit_code
+
+    nii_image = '{}.nii.gz'.format(basepath)
+    labels2meshes_via_p2(fs_mri_dir, fs_subc_seg, fs_subc_lut, nii_image)
+    if exit_code:
+        return exit_code
+#     try:
+#         import vtk
+#     except ImportError:  # likely that vtk is not importable from blender
+#         labels2meshes_via_p2(fs_mri_dir, fs_subc_seg, fs_subc_lut, nii_image)
+#         if exit_code:
+#             return exit_code
+#     else:
+#         labeldata, spacing, offset = read_labelimage_nii(nii_image)
+#         labels2meshes_vtk(fs_subc_dir, fs_subc_lut,
+#                           labeldata, spacing=spacing, offset=offset)
+#         # TODO: offset from header
+
+    return 0
+
+
+def labels2meshes_via_p2(fs_mri_dir, fs_subc_seg, fs_subc_lut, nii_image):
+    """Generate meshes in python2."""
+
+    # dump the lookuptable in a python2 pickle
+    lutpickle = os.path.join(fs_mri_dir, '{}.pickle'.format(fs_subc_seg))
+    with open(lutpickle, "wb") as f:
+        pickle.dump(fs_subc_lut, f, protocol=2)
+
+    # call labels2meshes_vtk.py from python2 with <nii_image> and <lut>
+    l2mfun = os.path.join(os.path.dirname(__file__), "labels2meshes_vtk.py")
+    cmd = "python2 {} {} -l {}".format(l2mfun, nii_image, lutpickle)
+    exit_code = call(cmd, shell=True)
+
+    return exit_code
+
+
+def get_lut(context, fs_subc_seg):
     """Return a lookup table for label values, names and colours.
 
     This derives from the FreeSurfer subcortical segmentation LUT.
+    # FIXME: switch aseg/aparc
     """
 
     scn = context.scene
     nb = scn.nb
 
-    aseg = [
-        {'value': 4,
-         'name': 'DSSC_Left-Lateral-Ventricle',
-         'colour': [0, 0, 1, 1]},
-        {'value': 5,
-         'name': 'Left-Inf-Lat-Vent',
-         'colour': [0, 0, 1, 1]},
-        {'value': 7,
-         'name': 'DSSC_Left-Cerebellum-White-Matter',
-         'colour': [1, 1, 1, 1]},
-        {'value': 8,
-         'name': 'DSSC_Left-Cerebellum-Cortex',
-         'colour': [0.2, 0.2, 0.2, 1]},
-        {'value':  10,
-         'name': 'DSSC_Left-Thalamus-Proper',
-         'colour': [1, 0, 0, 1]},
-        {'value':  11,
-         'name': 'DSSC_Left-Caudate',
-         'colour': [1, 1, 0, 1]},  # [122, 186, 220, 0]
-        {'value':  12,
-         'name': 'Left-Putamen',
-         'colour': [1, 1, 0, 1]},
-        {'value':  13,
-         'name': 'Left-Pallidum',
-         'colour': [1, 1, 0, 1]},
-        {'value':  14,
-         'name': '3rd-Ventricle',
-         'colour': [0, 0, 1, 1]},
-        {'value':  15,
-         'name': 'DSSC_4th-Ventricle',
-         'colour': [0, 0, 0, 1]},  # [42, 204, 164, 0]
-        {'value':  16,
-         'name': 'Brain-Stem',
-         'colour': [1, 1, 1, 1]},
-        {'value':  17,
-         'name': 'DSSC_Left-Hippocampus',
-         'colour': [0, 1, 1, 1]},  # [220, 216, 20, 0]
-        {'value':  18,
-         'name': 'DSSC_Left-Amygdala',
-         'colour': [0, 1, 1, 1]},  # [103, 255, 255, 0]
-        {'value':  24,
-         'name': 'CSF',
-         'colour': [0, 0, 1, 1]},
-        {'value':  26,
-         'name': 'DSSC_Left-Accumbens-area',
-         'colour': [0, 1, 1, 1]},  # [255, 165, 0, 0]
-        {'value':  28,
-         'name': 'DSSC_Left-VentralDC',
-         'colour': [0, 1, 1, 1]},  # [165, 42, 42, 0]
-        {'value':  30,
-         'name': 'Left-vessel',
-         'colour': [0, 0, 1, 1]},
-        {'value':  31,
-         'name': 'Left-choroid-plexus',
-         'colour': [0, 0, 0, 1]},
-        {'value':  43,
-         'name': 'Right-Lateral-Ventricle',
-         'colour': [0, 0, 1, 1]},
-        {'value':  44,
-         'name': 'Right-Inf-Lat-Vent',
-         'colour': [0, 0, 1, 1]},
-        {'value':  46,
-         'name': 'Right-Cerebellum-White-Matter',
-         'colour': [1, 1, 1, 1]},
-        {'value':  47,
-         'name': 'Right-Cerebellum-Cortex',
-         'colour': [0.2, 0.2, 0.2, 1]},
-        {'value':  49,
-         'name': 'Right-Thalamus-Proper',
-         'colour': [1, 0, 0, 1]},
-        {'value':  50,
-         'name': 'Right-Caudate',
-         'colour': [1, 1, 0, 1]},
-        {'value':  51,
-         'name': 'Right-Putamen',
-         'colour': [1, 1, 0, 1]},
-        {'value':  52,
-         'name': 'Right-Pallidum',
-         'colour': [1, 1, 0, 1]},
-        {'value':  53,
-         'name': 'Right-Hippocampus',
-         'colour': [0, 1, 1, 1]},
-        {'value':  54,
-         'name': 'Right-Amygdala',
-         'colour': [0, 1, 1, 1]},
-        {'value':  58,
-         'name': 'Right-Accumbens-area',
-         'colour': [0, 1, 1, 1]},
-        {'value':  60,
-         'name': 'Right-VentralDC',
-         'colour': [0, 1, 1, 1]},
-        {'value':  62,
-         'name': 'Right-vessel',
-         'colour': [0, 0, 1, 1]},
-        {'value':  63,
-         'name': 'Right-choroid-plexus',
-         'colour': [0, 0, 0, 1]},
-        {'value': 251,
-         'name': 'CC_Posterior',
-         'colour': [1, 1, 1, 1]},
-        {'value': 252,
-         'name': 'CC_Mid_Posterior',
-         'colour': [1, 1, 1, 1]},
-        {'value': 253,
-         'name': 'CC_Central',
-         'colour': [1, 1, 1, 1]},
-        {'value': 254,
-         'name': 'CC_Mid_Anterior',
-         'colour': [1, 1, 1, 1]},
-        {'value': 255,
-         'name': 'CC_Anterior',
-         'colour': [1, 1, 1, 1]}]
+    aseg = {4: {'name': 'DSSC_Left-Lateral-Ventricle',
+                'colour': [0, 0, 1, 1]},
+            5: {'name': 'Left-Inf-Lat-Vent',
+                'colour': [0, 0, 1, 1]},
+            7: {'name': 'DSSC_Left-Cerebellum-White-Matter',
+                'colour': [1, 1, 1, 1]},
+            8: {'name': 'DSSC_Left-Cerebellum-Cortex',
+                'colour': [0.2, 0.2, 0.2, 1]},
+            10: {'name': 'DSSC_Left-Thalamus-Proper',
+                 'colour': [1, 0, 0, 1]},
+            11: {'name': 'DSSC_Left-Caudate',
+                 'colour': [1, 1, 0, 1]},  # [122, 186, 220, 0]
+            12: {'name': 'Left-Putamen',
+                 'colour': [1, 1, 0, 1]},
+            13: {'name': 'Left-Pallidum',
+                 'colour': [1, 1, 0, 1]},
+            14: {'name': '3rd-Ventricle',
+                 'colour': [0, 0, 1, 1]},
+            15: {'name': 'DSSC_4th-Ventricle',
+                 'colour': [0, 0, 0, 1]},  # [42, 204, 164, 0]
+            16: {'name': 'Brain-Stem',
+                 'colour': [1, 1, 1, 1]},
+            17: {'name': 'DSSC_Left-Hippocampus',
+                 'colour': [0, 1, 1, 1]},  # [220, 216, 20, 0]
+            18: {'name': 'DSSC_Left-Amygdala',
+                 'colour': [0, 1, 1, 1]},  # [103, 255, 255, 0]
+            24: {'name': 'CSF',
+                 'colour': [0, 0, 1, 1]},
+            26: {'name': 'DSSC_Left-Accumbens-area',
+                 'colour': [0, 1, 1, 1]},  # [255, 165, 0, 0]
+            28: {'name': 'DSSC_Left-VentralDC',
+                 'colour': [0, 1, 1, 1]},  # [165, 42, 42, 0]
+            30: {'name': 'Left-vessel',
+                 'colour': [0, 0, 1, 1]},
+            31: {'name': 'Left-choroid-plexus',
+                 'colour': [0, 0, 0, 1]},
+            43: {'name': 'Right-Lateral-Ventricle',
+                 'colour': [0, 0, 1, 1]},
+            44: {'name': 'Right-Inf-Lat-Vent',
+                 'colour': [0, 0, 1, 1]},
+            46: {'name': 'Right-Cerebellum-White-Matter',
+                 'colour': [1, 1, 1, 1]},
+            47: {'name': 'Right-Cerebellum-Cortex',
+                 'colour': [0.2, 0.2, 0.2, 1]},
+            49: {'name': 'Right-Thalamus-Proper',
+                 'colour': [1, 0, 0, 1]},
+            50: {'name': 'Right-Caudate',
+                 'colour': [1, 1, 0, 1]},
+            51: {'name': 'Right-Putamen',
+                 'colour': [1, 1, 0, 1]},
+            52: {'name': 'Right-Pallidum',
+                 'colour': [1, 1, 0, 1]},
+            53: {'name': 'Right-Hippocampus',
+                 'colour': [0, 1, 1, 1]},
+            54: {'name': 'Right-Amygdala',
+                 'colour': [0, 1, 1, 1]},
+            58: {'name': 'Right-Accumbens-area',
+                 'colour': [0, 1, 1, 1]},
+            60: {'name': 'Right-VentralDC',
+                 'colour': [0, 1, 1, 1]},
+            62: {'name': 'Right-vessel',
+                 'colour': [0, 0, 1, 1]},
+            63: {'name': 'Right-choroid-plexus',
+                 'colour': [0, 0, 0, 1]},
+            251: {'name': 'CC_Posterior',
+                  'colour': [1, 1, 1, 1]},
+            252: {'name': 'CC_Mid_Posterior',
+                  'colour': [1, 1, 1, 1]},
+            253: {'name': 'CC_Central',
+                  'colour': [1, 1, 1, 1]},
+            254: {'name': 'CC_Mid_Anterior',
+                  'colour': [1, 1, 1, 1]},
+            255: {'name': 'CC_Anterior',
+                  'colour': [1, 1, 1, 1]}
+            }
 
     return aseg
 
 
-def create_scene(context, datadir, blendname, T1="T1"):
-    """Create the blend file for the first part of the animation."""
+def create_scene(context, blendpath, datadir,
+                 T1="T1", T1cmap=None,
+                 fs_cort=True, fs_subc=True,
+                 fs_subjdir="", fs_subc_seg="aseg"):
+    """Create the blend file for the animation."""
 
     scn = context.scene
     nb = scn.nb
 
-    blendpath = os.path.join(datadir, "{}.blend".format(blendname))
+    # save the (yet empty) blendfile
     bpy.ops.wm.save_as_mainfile(filepath=blendpath)
 
-    vvol = import_volume(context, datadir, T1)
-    fs_subjdir = os.path.join(datadir, "fs", "surf")
-    import_fs_cortical(context, fs_subjdir,
-                       "//fs/surf/transmat_fssurf.txt")
-    surfdir = os.path.join(datadir, "fs/mri/dmcsurf_" + "aseg")
-    import_fs_subcortical(context, "aseg", surfdir,
-                          "//fs/mri/dmcsurf_aseg/transmat_aseg.txt")
+    # load the voxelvolume
+    basepath = os.path.join(os.path.join(fs_subjdir, "mri"), T1)
+    cmd = 'mri_convert {0}.mgz {0}.nii.gz'.format(basepath)
+    exit_code = call(cmd, shell=True)
+    if exit_code:
+        return exit_code
+    vvol = import_volume(context, os.path.join(fs_subjdir, "mri"), T1, T1cmap)
+#     vvol = import_volume(context, datadir, T1, T1cmap)
 
+    # load the (pial) surfaces (of both hemispheres)
+    if fs_cort:
+        fs_surf_dir = os.path.join(fs_subjdir, "surf")
+        # FIXME: get from fs/nibabel
+        tmat = os.path.join(fs_surf_dir, "transmat.txt")  # "affine.npy"
+        import_fs_cortical(context, fs_surf_dir,
+                           sformfile=tmat,
+                           hemis=["lh", "rh"],
+                           surftype="pial")
+
+    # load (and generate) the subcortical structure meshes
+    if fs_subc:
+        fs_mri_dir = os.path.join(fs_subjdir, "mri")
+        fs_subc_dir = os.path.join(fs_mri_dir, fs_subc_seg)
+
+        lut = get_lut(context, fs_subc_seg)
+
+        # create the subcortical structure meshes from volume segmentation
+        # TODO: generate aseg/aparc surfaces here (including transmat.txt)?
+        # TODO: check if gen needed
+        nb_ut.mkdir_p(fs_subc_dir)
+        generate_fs_subcortical_meshes(context, fs_mri_dir, fs_subc_dir,
+                                       lut, fs_subc_seg)
+
+        tmat = os.path.join(fs_subc_dir, "affine.npy")
+        import_fs_subcortical(context, fs_subc_dir, lut, tmat)
+
+    # create the camera, lights, etc
     preset = create_preset(context)
 
-    animate_camera_rotation(context, preset)
-    kfps = {1: (0.1, 'QUAD', 'EASE_OUT'),
-            125: (0.8, 'QUART', 'EASE_OUT'),
-            250: (0.4, 'BEZIER', 'EASE_IN')}
-    animate_volume_slicer(context, vvol, kfps, index=2)
-    animate_hide_switch(context, [125, 250])
+    # generate the animation elements
+    keyframes = [scn.frame_start,
+                 int((scn.frame_end - scn.frame_start) / 2),
+                 scn.frame_end]
 
+    animate_camera_rotation(context, preset)
+
+    kfps = {keyframes[0]: (0.1, 'QUAD', 'EASE_OUT'),
+            keyframes[1]: (0.8, 'QUART', 'EASE_OUT'),
+            keyframes[2]: (0.4, 'BEZIER', 'EASE_IN')}
+    animate_volume_slicer(context, vvol, kfps, index=2)
+
+    if fs_cort | fs_subc:
+        animate_hide_switch(context, [keyframes[1], keyframes[2]])
+
+    # save the final blendfile
     bpy.ops.wm.save_mainfile()
 
 
@@ -422,15 +508,49 @@ def run_example():
     scn = context.scene
     nb = scn.nb
 
-    datadir = "/Users/michielk/oxdox/brainart/YTproj_DB"
+    # TODO: argument parser?
 
+    # the path to this example's directory and it's name
+    example_name = os.path.splitext(os.path.basename(__file__))[0]
+
+    # <datadir> contains the T1 volume <T1name>.nii.gz;
+    # <cmap> is a custom colourmap for the voxelvolume in this example
+    # FIXME: too much to pack into NeuroBlender.zip: provide download option
+    datadir = "/Users/michielk/workspace/NeuroBlender/examples/YTproj_DB/data"
+    T1name = "nu"  # FIXME: make more general?, e.g. from volume from fs?
+    cmap = {"name": example_name,
+            "color_mode": "RGB",
+            "interpolation": "LINEAR",
+            "hue_interpolation": "FAR",
+            "elements": [{"position": 0.04,
+                          "color": (0.161539, 0.030769, 0.007692, 0)},
+                         {"position": 0.50,
+                          "color": (0.757397, 0.650142, 0.610706, 1)}]}
+
+    # <datadir>/<fs_subjdir> is the directory with freesurfer output
+    # it should contain the subdirectories 'surf' and 'mri'
+    fs_cort = True
+    fs_subc = True
+    fs_subjdir = os.path.join(datadir, "fs")
+    fs_subc_seg = "aseg"
+
+    # the 10-s animation is going to range from frame 1 to 250
+    scn.frame_start = 1
     scn.frame_end = 250
 
-    set_render_settings(context, datadir)
+    # this function loads settings for rendering the scene
+    # qr is a switch between quick-render (.avi) and full-render (tif-stack)
+    set_render_settings(context, datadir, qr=True)
 
-    create_scene(context,
-                 datadir, blendname="YTproj_DB_scn",
-                 T1="nustd")
+    # build the blend file
+    blendpath = os.path.join(datadir, "{}.blend".format(example_name))
+    create_scene(context, blendpath, datadir,
+                 T1=T1name, T1cmap=cmap,
+                 fs_cort=fs_cort, fs_subc=fs_subc,
+                 fs_subjdir=fs_subjdir, fs_subc_seg=fs_subc_seg)
+
+    # render the scene
+#     bpy.ops.render.render(animation=True)
 
 
 if __name__ == "__main__":
