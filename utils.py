@@ -266,6 +266,7 @@ def get_nb_objectinfo(parent):
     obinfo['name'] = parent
     obinfo['type'] = obtypes[[i > -1 for i in idxs].index(True)]
     obinfo['idx'] = idxs[[i > -1 for i in idxs].index(True)]
+    obinfo['layer'] = layerdict[obinfo['type']]
 
     return obinfo
 
