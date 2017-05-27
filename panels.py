@@ -109,9 +109,9 @@ class NeuroBlenderBasePanel(bpy.types.Panel):
                      text="").action = 'REMOVE_' + uilistlevel
 
         if bpy.context.scene.nb.settingprops.advanced:
-            col.menu("nb.mass_is_rendered_" + uilistlevel,
-                     icon='DOWNARROW_HLT',
-                     text="")
+#             col.menu("nb.mass_is_rendered_" + uilistlevel,
+#                      icon='DOWNARROW_HLT',
+#                      text="")
             col.separator()
             col.operator("nb.oblist_ops",
                          icon='TRIA_UP',
