@@ -149,11 +149,12 @@ def set_materials(me, mat):
           does not conflict with per-vertex material assignment
     """
 
-    mats = [mat for mat in me.materials]
-    mats.insert(0, mat)
-    me.materials.clear()
-    for mat in mats:
-        me.materials.append(mat)
+    if isinstance(mat, bpy.types.Material):
+        mats = [mat for mat in me.materials]
+        mats.insert(0, mat)
+        me.materials.clear()
+        for mat in mats:
+            me.materials.append(mat)
 
 
 def get_golden_angle_colour(i):
