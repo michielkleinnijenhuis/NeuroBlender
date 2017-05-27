@@ -257,6 +257,8 @@ def get_nb_objectinfo(parent):
     nb = scn.nb
 
     obtypes = ["tracts", "surfaces", "voxelvolumes"]
+    layerdict = {'tracts': 0, 'surfaces': 1, 'voxelvolumes': 2}
+
     idxs = [nb.tracts.find(parent),
             nb.surfaces.find(parent),
             nb.voxelvolumes.find(parent)]
