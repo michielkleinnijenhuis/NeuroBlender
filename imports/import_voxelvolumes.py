@@ -385,7 +385,7 @@ class ImportVoxelvolumes(Operator, ImportHelper):
             bpy.data.groups.new("voxelvolumes")
         group.objects.link(ob)
 
-        scn.render.engine = "BLENDER_RENDER"
+        nb.settingprops.engine = 'BLENDER_RENDER'
 
         scn.update()
 

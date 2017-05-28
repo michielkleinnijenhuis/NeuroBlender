@@ -62,9 +62,10 @@ def slices_handler(dummy):
     scn = bpy.context.scene
     nb = scn.nb
 
+    for surf in nb.surfaces:
+        slices_update(surf, bpy.context)
     for vvol in nb.voxelvolumes:
         slices_update(vvol, bpy.context)
-    for vvol in nb.voxelvolumes:
         for scalargroup in vvol.scalargroups:
             slices_update(scalargroup, bpy.context)
         for labelgroup in vvol.labelgroups:
@@ -843,25 +844,25 @@ def slices_update(self, context):
                 for ts in tss:
                     ts.scale[0] = ts.scale[0]
 
-    def slices_update_boolean(self, context):
+        return ob
 
-        try:
-            nb_ob = nb_ut.active_nb_object()[0]
-            carver = nb_ob.carvers[nb_ob.index_carvers]
-            nb_carveob = carver.carveobjects[carver.index_carveobjects]
-            ob = bpy.data.objects[nb_carveob.name]
-        except:
-            pass
-        else:
+    def slices_update_boolean(self, context):
+        """Set slicethicknesses positions and angles for the object."""
+
+        ob = bpy.data.objects.get(self.name, [])
+        if ob and isinstance(self, bpy.types.CarveObjectProperties):
             ob.scale = self.slicethickness
             ob.location = self.sliceposition
             ob.rotation_euler = self.sliceangle
 
+        return ob
+
     if nb.settingprops.use_carver:
-        slices_update_boolean(self, context)
-        scn.update()
+        ob = slices_update_boolean(self, context)
     else:
-        slices_update_slicebox(self, context)
+        ob = slices_update_slicebox(self, context)
+
+    nb_ut.force_object_update(context, ob)
 
 
 def is_yoked_bool_update(self, context):
@@ -1245,6 +1246,9 @@ def carveobject_is_rendered_update(self, context):
     scn.objects.active = ob
     bpy.ops.object.mode_set(mode='EDIT')
     bpy.ops.object.mode_set(mode='OBJECT')
+
+#TODO: update function on 
+# bpy.context.scene.nb.settingprops.use_carver
 
 # ========================================================================== #
 # NeuroBlender custom properties

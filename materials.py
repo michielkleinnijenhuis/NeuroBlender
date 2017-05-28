@@ -174,14 +174,14 @@ def CR2BR(mat):
 
     try:
         rgb = mat.node_tree.nodes["RGB"]
-    except KeyError:
+    except (KeyError, AttributeError):
         pass
     else:
         mat.diffuse_color = rgb.outputs[0].default_value[0:3]
 
     try:
         trans = mat.node_tree.nodes["Transparency"]
-    except KeyError:
+    except (KeyError, AttributeError):
         pass
     else:
         mat.use_transparency = True

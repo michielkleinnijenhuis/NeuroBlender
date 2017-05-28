@@ -316,6 +316,12 @@ class NeuroBlenderBasePanel(bpy.types.Panel):
         row = layout.row()
         row.separator()
 
+        if tex.type == 'VOXEL_DATA':
+            row = layout.row()
+            row.prop(tex.voxel_data, "interpolation")
+            row = layout.row()
+            row.separator()
+
         row = layout.row()
         row.prop(tex, "intensity")
         row.prop(tex, "contrast")

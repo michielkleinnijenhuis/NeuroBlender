@@ -26,20 +26,15 @@ This module implements carvers that slice through NeuroBlender objects.
 """
 
 
-import numpy as np
 from mathutils import Vector
 
 import bpy
 from bpy.types import (Operator,
-                       UIList,
-                       Menu)
+                       UIList)
 from bpy.props import (StringProperty,
-                       EnumProperty,
-                       FloatVectorProperty,
-                       IntProperty)
+                       EnumProperty)
 
 from . import (materials as nb_ma,
-               renderpresets as nb_rp,
                utils as nb_ut)
 
 
@@ -84,12 +79,12 @@ class ImportCarver(Operator):
         box = self.create_carvebox(context, carver.name, ob,
                                    mat, obinfo['layer'])
 
-        if obinfo['type'] == 'voxelvolumes':
+        if isinstance(nb_ob, bpy.types.VoxelvolumeProperties):
             self.mappingbounds(context, ob, box, mat=mat)
 
+        nb_ut.force_object_update(context, ob)
+
         scn.objects.active = ob
-        bpy.ops.object.mode_set(mode='EDIT')
-        bpy.ops.object.mode_set(mode='OBJECT')
 
         infostring = 'added carver "%s" to object "%s"'
         info = [infostring % (name, nb_ob.name)]
@@ -107,23 +102,30 @@ class ImportCarver(Operator):
     def create_carvebox(self, context, name, ob, mat=None, layer=2):
         """Create a box to gather carve objects in."""
 
+        scn = context.scene
+
         bpy.ops.mesh.primitive_cube_add()
-        box = context.scene.objects.active
+        box = scn.objects.active
 
         box.name = box.data.name = name
         box.parent = ob
         loc_ctr = 0.125 * sum((Vector(b) for b in ob.bound_box), Vector())
-#         glob_ctr = ob.matrix_world * loc_ctr
         box.location = loc_ctr
         box.scale = ob.dimensions / 2
 
         if isinstance(mat, bpy.types.Material):
             box.data.materials.append(mat)
+#         box.modifiers.new('wire', 'WIREFRAME')
 
         box.data.show_faces = False
         box.hide = True
         box.hide_select = False
         box.hide_render = True
+
+        for i, _ in enumerate('xyz'):
+            box.lock_location[i] = True
+            box.lock_rotation[i] = True
+            box.lock_scale[i] = True
 
         group = bpy.data.groups.new(name)
         group.objects.link(box)
@@ -152,8 +154,7 @@ class ImportCarver(Operator):
         if isinstance(mat, bpy.types.Material):
             bounds.data.materials.append(mat)
 
-        bounds.hide = bounds.hide_select = False
-        bounds.hide_render = True
+        bounds.hide = bounds.hide_select = bounds.hide_render = True
 
         for i, direc in enumerate('xyz'):
             bounds.lock_location[i] = True
@@ -183,6 +184,8 @@ class ImportCarver(Operator):
         mat.emit = 1
         mat.use_transparency = True
         mat.alpha = 0.5
+#         bpy.data.node_groups["Shader Nodetree"].nodes["Material"].inputs[0].default_value = (0.8, 0, 0, 1)
+#         bpy.context.object.active_material.use_nodes = False
 
         return mat
 
@@ -243,15 +246,10 @@ class ImportCarveObjects(Operator):
             bpy.data.groups.new(groupname)
 
         for name in names:
-            carveob = self.create_carveobject(context, name, carver, co_group)
+            self.create_carveobject(context, name, carver, co_group)
 
-        # update
-        if self.carveobject_type_enum == 'activeob':
-            scn.objects.active = bpy.data.objects.get(carver.name).parent
-        else:
-            scn.objects.active = carveob.parent.parent
-        bpy.ops.object.mode_set(mode='EDIT')
-        bpy.ops.object.mode_set(mode='OBJECT')
+        ob = bpy.data.objects.get(carver.name).parent
+        nb_ut.force_object_update(context, ob)
 
         infostring = 'added carveobject "%s" in carver "%s"'
         info = [infostring % (name, carver.name)]
@@ -312,7 +310,15 @@ class ImportCarveObjects(Operator):
         carveob.hide = carveob.hide_select = False
         carveob.hide_render = True
 
-        self.add_boolmod(name, carvebox, carveob)
+        op = 'UNION' if carver.index_carveobjects else 'INTERSECT'
+        self.add_boolmod(name, carvebox, carveob, operation=op)
+
+#         scn.objects.active = carvebox
+#         cmods = carvebox.modifiers
+#         while cmods.find('wire') in range(0, len(cmods) - 1):
+#             bpy.ops.object.modifier_move_down(modifier="wire")
+
+        scn.objects.active = carvebox.parent
 
         return carveob
 
@@ -351,6 +357,7 @@ class ImportCarveObjects(Operator):
                  "suzanne": "normalized"}
         gname = '{}.{}'.format(carver.name, gdict[cotype])
 
+        # FIXME: check against all modifier names (e.g. 'wire' is reserved)
         nb_colls = [nb.surfaces, nb.voxelvolumes]
         item_ca = [carver.carveobjects
                    for nb_coll in nb_colls
@@ -454,323 +461,3 @@ class ObjectListCO(UIList):
         elif self.layout_type in {'GRID'}:
             layout.alignment = 'CENTER'
             layout.prop(text="", icon=item_icon)
-
-
-# @deprecated
-class DelCarver(Operator):
-    bl_idname = "nb.del_carver"
-    bl_label = "Delete carver"
-    bl_description = "Delete a carver"
-    bl_options = {"REGISTER", "UNDO", "PRESET"}
-
-    name = StringProperty(
-        name="Name",
-        description="Specify the name of the carver",
-        default="")
-    index = IntProperty(
-        name="index",
-        description="Specify carver index",
-        default=-1)
-    index_presets = IntProperty(
-        name="index",
-        description="Specify preset index",
-        default=-1)
-
-    def execute(self, context):
-
-        scn = context.scene
-        nb = scn.nb
-
-        info = []
-
-        preset = nb.presets[self.index_presets]
-
-        if self.name:  # got here through cli
-            try:
-                preset.carvers[self.name]
-            except KeyError:
-                infostring = 'no carvers with name "%s"'
-                info = [infostring % self.name]
-                self.report({'INFO'}, info[0])
-                return {"CANCELLED"}
-            else:
-                self.index = preset.carvers.find(self.name)
-        else:  # got here through invoke
-            self.name = preset.carvers[self.index].name
-
-        info = self.delete_carver(preset.carvers[self.index], info)
-        preset.carvers.remove(self.index)
-        preset.index_carvers -= 1
-        infostring = 'removed carver "%s"'
-        info = [infostring % self.name] + info
-
-        try:
-            name = preset.carvers[0].name
-        except IndexError:
-            infostring = 'all carvers have been removed'
-            info += [infostring]
-        else:
-            pass
-            nb.carvers_enum = name
-            infostring = 'carver is now "%s"'
-            info += [infostring % name]
-
-        self.report({'INFO'}, '; '.join(info))
-
-        return {"FINISHED"}
-
-    def invoke(self, context, event):
-
-        scn = context.scene
-        nb = scn.nb
-
-        self.index_presets = nb.index_presets
-        preset = nb.presets[self.index_presets]
-        self.index = preset.index_carvers
-        self.name = ""
-
-        return self.execute(context)
-
-    def delete_carver(self, carver, info=[]):
-        """Delete a preset."""
-
-        pass
-        # delete all carveobjects and data
-#         for ps_obname in ps_obnames:
-#             try:
-#                 ob = bpy.data.objects[ps_obname]
-#             except KeyError:
-#                 infostring = 'object "%s" not found'
-#                 info += [infostring % ps_obname]
-#             else:
-#                 bpy.data.objects.remove(ob)
-
-        return info
-
-
-# @deprecated
-class DelCarveObject(Operator):
-    bl_idname = "nb.del_carveobject"
-    bl_label = "Delete carve object"
-    bl_description = "Delete a carve object"
-    bl_options = {"REGISTER", "UNDO", "PRESET"}
-
-    index = IntProperty(
-        name="index",
-        description="Specify carver index",
-        default=-1)
-    parentpath = StringProperty(
-        name="Data path",
-        description="The path to the carve object",
-        default="nb")
-
-    def execute(self, context):
-
-        scn = context.scene
-        nb = scn.nb
-
-        info = []
-
-        carver = scn.path_resolve(self.parentpath)
-        carverob = bpy.data.objects[carver.name]
-
-        carveob = carver.carveobjects[self.index]
-
-        # FIXME: make sure modifier has the right name
-        mod = carverob.modifiers.get(carveob.name)
-        carverob.modifiers.remove(mod)
-
-        ob = bpy.data.objects.get(carveob.name)
-        bpy.data.objects.remove(ob)
-
-        carver.carveobjects.remove(self.index)
-        carver.index_carveobjects -= 1
-        infostring = 'removed carve object "%s"'
-        info = [infostring % carveob.name] + info
-
-        self.report({'INFO'}, '; '.join(info))
-
-        return {"FINISHED"}
-
-    def invoke(self, context, event):
-
-        nb_ob = nb_ut.active_nb_object()[0]
-        carver = nb_ob.carvers[nb_ob.index_carvers]
-        self.parentpath = carver.path_from_id()
-        self.index = carver.carveobjects.find(carver.carveobjects_enum)
-
-        return self.execute(context)
-
-
-# @deprecated
-class CopyCarver(Operator):
-    bl_idname = "nb.copy_carver"
-    bl_label = "Add carver"
-    bl_description = "Add a carver to an object"
-    bl_options = {"REGISTER", "UNDO", "PRESET"}
-
-    index_presets = IntProperty(
-        name="index presets",
-        description="Specify preset index",
-        default=-1)
-    name = StringProperty(
-        name="Name",
-        description="Specify a name for the carver",
-        default="Carver")
-    parentpath = StringProperty(
-        name="Parentpath",
-        description="The path to the parent of the object",
-        default="nb")
-
-    def execute(self, context):
-
-        scn = context.scene
-        nb = scn.nb
-
-        preset = nb.presets[nb.index_presets]
-
-        nb_ob = scn.path_resolve(self.parentpath)
-        obinfo = nb_ut.get_nb_objectinfo(nb_ob.name)
-        ob = bpy.data.objects[nb_ob.name]
-
-        if nb_ob.carvers_enum == 'NEW':
-            bpy.ops.nb.import_carvers(index_presets=self.index_presets,
-                                      name=self.name)
-            carver = preset.carvers[preset.index_carvers]
-        else:
-            carver = preset.carvers.get(nb_ob.carvers_enum)
-
-        group = bpy.data.groups.get(carver.name)
-        box = group.objects.get(carver.name)
-
-        name_new = ob.name + '.{}'
-        group_new = bpy.data.groups.new(name_new.format(group.name))
-
-        box_new = box.copy()
-        box_new.data = box.data.copy()
-        group_new.objects.link(box_new)
-        scn.objects.link(box_new)
-        box_new.name = box_new.data.name = name_new.format(box.name)
-        box_new.parent = ob
-        box_new.location = ob.dimensions / 2
-        box_new.scale = ob.dimensions / 2
-
-        layerdict = {'tracts': 0, 'surfaces': 1, 'voxelvolumes': 2}
-        nb_ut.move_to_layer(box_new, layerdict[obinfo['type']])
-
-        for cob in group.objects:
-            if cob.parent == box:
-                cob_new = cob.copy()
-                cob_new.data = cob.data.copy()
-                group_new.objects.link(cob_new)
-                scn.objects.link(cob_new)
-
-                cob_new.name = cob_new.data.name = name_new.format(cob.name)
-                cob_new.parent = box_new
-                box_new.modifiers[cob.name].object = cob_new
-
-#                 cob_new.constraints.new(type='COPY_SCALE')
-#                 cns = cob_new.constraints["Copy Scale"]
-#                 cns.target = cob
-#                 cns.owner_space = 'LOCAL'
-
-                nb_ut.move_to_layer(cob_new, 5)
-
-        if obinfo['type'] == 'voxelvolumes':
-            bounds = self.get_mappingbounds(context, box_new, ob.dimensions)
-            bounds.name = bounds.data.name = name_new.format("bounds")
-            self.add_boolmod('bounds', box_new, bounds, 'BMESH', 'UNION')
-            nb_ut.move_to_layer(bounds, 5)
-
-        self.add_boolmod('carver', ob, box_new, 'BMESH', 'INTERSECT')
-
-#         # create an instance ()
-#         bpy.ops.mesh.primitive_cube_add()
-#         instance = scn.objects.active
-#         instance.dupli_type = 'GROUP'
-#         instance.dupli_group = group
-#         scn.objects.link(instance)
-#         instance.parent = ob
-#         instance.location = ob.dimensions / 2
-#         instance.scale = ob.dimensions / 2
-
-#         carvebox_ob = carvebox.copy()
-#         carvebox_ob.data = carvebox.data.copy()
-#         carvebox_ob.data.name = carvebox_ob.name = ob.name + carver.name
-#         scn.objects.link(carvebox_ob)
-#
-#         carvebox_ob.parent = ob
-#         carvebox_ob.location = ob.dimensions / 2
-#         carvebox_ob.scale = ob.dimensions / 2
-
-
-        # attach to object
-        # FIXME: do parenting / scaling / location on attaching it to object
-#         carvebox.parent = ob
-#         carvebox.location = dims[:3] / 2
-#         carvebox.scale = dims[:3] / 2
-#         if obinfo['type'] == "voxelvolumes":
-#             vvol_bounds = self.get_mappingbounds(context, mat, carvebox)
-#             self.carvebox_boolmod("vvol_bounds", carvebox,
-#                                   vvol_bounds, 'BMESH', 'UNION')
-#         self.carvebox_boolmod("carvebox", ob,
-#                               carvebox, 'BMESH', 'INTERSECT')
-
-        infostring = 'added carver "%s" to object "%s"'
-        info = [infostring % (carver.name, nb_ob.name)]
-        self.report({'INFO'}, '; '.join(info))
-
-        return {"FINISHED"}
-
-    def invoke(self, context, event):
-
-        scn = context.scene
-        nb = scn.nb
-
-        self.index_presets = nb.index_presets
-
-        nb_ob = nb_ut.active_nb_object()[0]
-        self.parentpath = nb_ob.path_from_id()
-
-        return self.execute(context)
-
-    @staticmethod
-    def add_boolmod(name, par, ob, solver='BMESH', operation='INTERSECT'):
-        """Add a boolean modifier."""
-
-        boolmod = par.modifiers.new(name, 'BOOLEAN')
-        boolmod.solver = solver
-        boolmod.operation = operation
-        boolmod.object = ob
-
-        return boolmod
-
-    @staticmethod
-    def get_mappingbounds(context, box, dims=[256, 256, 256]):
-        """Create a cube array to form a voxelvolume's fixed mapping bounds."""
-
-        scale = [1./dim for dim in dims]
-        location = [-1 + sc for sc in scale]
-
-        bpy.ops.mesh.primitive_cube_add(location=location)
-        bounds = context.scene.objects.active
-
-        bounds.parent = box
-        bounds.scale = scale
-
-        mat = bpy.data.materials.get('wire')
-        bounds.data.materials.append(mat)
-
-        bounds.hide = bounds.hide_select = False
-        bounds.hide_render = True
-
-        for i, direc in enumerate('xyz'):
-            bounds.lock_location[i] = True
-            bounds.lock_rotation[i] = True
-            bounds.lock_scale[i] = True
-            mod = bounds.modifiers.new("array_{}".format(direc), type='ARRAY')
-            mod.use_relative_offset = True
-            mod.relative_offset_displace[0] = 0
-            mod.relative_offset_displace[i] = dims[i] - 1
-
-        return bounds
