@@ -132,11 +132,19 @@ class AddCamPoint(Operator):
 
         try:
             spline = campath.data.splines[0]
-            spline.points.add()
+            if spline.type == 'POLY':
+                pts = spline.points
+            else:
+                pts = spline.bezier_points
+            pts.add()
         except:
             spline = campath.data.splines.new('POLY')
 
-        spline.points[-1].co = tuple(self.co) + (1,)
+        if spline.type == 'POLY':
+            spline.points[-1].co = tuple(self.co) + (1,)
+        else:
+            spline.bezier_points[-1].co = tuple(self.co)
+            # TODO: handles
         spline.order_u = len(spline.points) - 1
         spline.use_endpoint_u = True
 
