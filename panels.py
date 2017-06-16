@@ -43,11 +43,41 @@ class NeuroBlenderBasePanel(bpy.types.Panel):
         nb = scn.nb
 
         if nb.is_enabled:
-            self.draw_nb_panel(self.layout, nb)
+            self.draw_nb_panel(context, self.layout)
+            if nb.settingprops.switches:
+                self.drawunit_switches(context, self.layout, nb)
         else:
             self.drawunit_switch_to_main(self.layout, nb)
 
-    def draw_nb_panel(self, layout, nb):
+    def drawunit_switches(self, context, layout, nb):
+
+        scn = context.scene
+
+        row = layout.row(align=True)
+        row.alignment = 'RIGHT'
+        props = [{'prop': 'mode',
+                  'icons': {'artistic': 'VPAINT_HLT',
+                            'scientific': 'RADIO'}},
+                 {'prop': 'engine',
+                  'icons': {'BLENDER_RENDER': 'NDOF_FLY',
+                            'CYCLES': 'NDOF_TURN'}},
+                 {'prop': 'verbose',
+                  'icons': {True: 'SPEAKER',
+                            False: 'FREEZE'}},
+                 {'prop': 'advanced',
+                  'icons': {True: 'DISCLOSURE_TRI_RIGHT',
+                            False: 'DISCLOSURE_TRI_DOWN'}}]
+        for prop in props:
+            dpath = 'nb.settingprops.{}'.format(prop['prop'])
+            propval = scn.path_resolve(dpath)
+            icon = prop['icons'][propval]
+            row.prop(nb.settingprops, prop['prop'], toggle=True,
+                     icon_only=True, emboss=True, icon=icon)
+
+    def draw_nb_panel(self, context, layout):
+
+        scn = context.scene
+        nb = scn.nb
 
         row = layout.row()
         row.prop(nb, "objecttype", expand=True)
@@ -506,6 +536,7 @@ class NeuroBlenderOverlayPanel(bpy.types.Panel):
     bl_context = "scene"
 
     draw = NeuroBlenderBasePanel.draw
+    drawunit_switches = NeuroBlenderBasePanel.drawunit_switches
     drawunit_switch_to_main = NeuroBlenderBasePanel.drawunit_switch_to_main
     drawunit_UIList = NeuroBlenderBasePanel.drawunit_UIList
     drawunit_tri = NeuroBlenderBasePanel.drawunit_tri
@@ -738,6 +769,7 @@ class NeuroBlenderScenePanel(bpy.types.Panel):
     bl_context = "scene"
 
     draw = NeuroBlenderBasePanel.draw
+    drawunit_switches = NeuroBlenderBasePanel.drawunit_switches
     drawunit_switch_to_main = NeuroBlenderBasePanel.drawunit_switch_to_main
     drawunit_UIList = NeuroBlenderBasePanel.drawunit_UIList
     drawunit_tri = NeuroBlenderBasePanel.drawunit_tri
@@ -928,6 +960,7 @@ class NeuroBlenderAnimationPanel(bpy.types.Panel):
     bl_context = "scene"
 
     draw = NeuroBlenderBasePanel.draw
+    drawunit_switches = NeuroBlenderBasePanel.drawunit_switches
     drawunit_switch_to_main = NeuroBlenderBasePanel.drawunit_switch_to_main
     drawunit_UIList = NeuroBlenderBasePanel.drawunit_UIList
     drawunit_tri = NeuroBlenderBasePanel.drawunit_tri
@@ -1161,6 +1194,7 @@ class NeuroBlenderSettingsPanel(bpy.types.Panel):
     bl_context = "scene"
 
     draw = NeuroBlenderBasePanel.draw
+    drawunit_switches = NeuroBlenderBasePanel.drawunit_switches
     drawunit_switch_to_main = NeuroBlenderBasePanel.drawunit_switch_to_main
     drawunit_tri = NeuroBlenderBasePanel.drawunit_tri
 
@@ -1198,43 +1232,24 @@ class NeuroBlenderSettingsPanel(bpy.types.Panel):
         row.separator()
 
         row = layout.row()
-        row.prop(settingprops, "use_carver", toggle=True)
-
-        row = layout.row()
-        row.separator()
-
-        box = layout.box()
-        row = box.row()
-        row.prop(settingprops, "texformat")
-        row = box.row()
-        row.prop(settingprops, "texmethod")
-        row = box.row()
-        row.prop(settingprops, "uv_resolution")
+        row.prop(settingprops, "verbose", toggle=True)
 
         row = layout.row()
         row.separator()
 
         row = layout.row()
-        row.prop(settingprops, "advanced", toggle=True,
-                 text="Expanded options")
+        row.prop(settingprops, "advanced", toggle=True)
 
         row = layout.row()
         row.separator()
 
         row = layout.row()
-        row.prop(settingprops, "verbose", toggle=True,
-                 text="Verbose reporting")
+        row.prop(settingprops, "switches", expand=True)
 
         row = layout.row()
         row.separator()
 
-        row = layout.row()
-        row.operator("nb.reload",
-                     text="Reload NeuroBlender",
-                     icon="RECOVER_LAST")
-
-        row = layout.row()
-        row.separator()
+        self.drawunit_tri(layout, "texture_preferences", nb, data=None)
 
         self.drawunit_tri(layout, "manage_colourmaps", nb, data=None)
 
@@ -1245,6 +1260,23 @@ class NeuroBlenderSettingsPanel(bpy.types.Panel):
         preset_op_name = "nb.setting_presets"
 
         self.drawunit_presetmenu(layout, menu_name, label, preset_op_name)
+
+    def drawunit_presetmenu(self, layout, menu_name, label, preset_op):
+
+        row = layout.row(align=True)
+        row.menu(menu_name, text=label)
+        # FIXME: change the label on create or remove
+        row.operator(preset_op, text="", icon='ZOOMIN')
+        row.operator(preset_op, text="", icon='ZOOMOUT').remove_active = True
+
+    def drawunit_tri_texture_preferences(self, layout, nb, data):
+
+        row = layout.row()
+        row.prop(nb.settingprops, "texformat")
+        row = layout.row()
+        row.prop(nb.settingprops, "texmethod")
+        row = layout.row()
+        row.prop(nb.settingprops, "uv_resolution")
 
     def drawunit_tri_manage_colourmaps(self, layout, nb, data):
 
@@ -1272,11 +1304,3 @@ class NeuroBlenderSettingsPanel(bpy.types.Panel):
             layout.template_preview(tex, parent=mat, slot=ts)
             layout.separator()
             layout.operator("nb.reset_colourmaps")
-
-    def drawunit_presetmenu(self, layout, menu_name, label, preset_op):
-
-        row = layout.row(align=True)
-        row.menu(menu_name, text=label)
-        # FIXME: change the label on create or remove
-        row.operator(preset_op, text="", icon='ZOOMIN')
-        row.operator(preset_op, text="", icon='ZOOMOUT').remove_active = True

@@ -1347,6 +1347,11 @@ class SettingsProperties(PropertyGroup):
         description="Verbose reporting",
         default=False)
 
+    switches = BoolProperty(
+        name="Show switchbar",
+        description="Show a small bar with switches in each panel",
+        default=True)
+
     use_carver = BoolProperty(
         name="Use carver",
         description="Use a boolean carver rather than a Hook slicer",
@@ -3210,6 +3215,10 @@ class NeuroBlenderProperties(PropertyGroup):
         default=False,
         description="Show/hide the colour map management",
         update=managecmap_update)
+    show_texture_preferences = BoolProperty(
+        name="Texture preferences",
+        default=False,
+        description="Show/hide the texture preferences")
 
     tracts = CollectionProperty(
         type=TractProperties,
