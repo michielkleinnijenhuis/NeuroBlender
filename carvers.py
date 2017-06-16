@@ -29,6 +29,7 @@ This module implements carvers that slice through NeuroBlender objects.
 from mathutils import Vector
 
 import bpy
+import numpy as np
 from bpy.types import (Operator,
                        UIList)
 from bpy.props import (StringProperty,
@@ -62,7 +63,8 @@ class ImportCarver(Operator):
         ca = [nb_ob.carvers
               for nb_coll in nb_colls
               for nb_ob in nb_coll]
-        ca += [bpy.data.groups]
+        ca += [bpy.data.groups, bpy.data.objects, bpy.data.meshes]
+        # TODO: {}.bounds; modifiers of the current object
         name = nb_ut.check_name(self.name, "", ca)
 
         nb_ob = scn.path_resolve(self.parentpath)
@@ -111,7 +113,11 @@ class ImportCarver(Operator):
         box.parent = ob
         loc_ctr = 0.125 * sum((Vector(b) for b in ob.bound_box), Vector())
         box.location = loc_ctr
-        box.scale = ob.dimensions / 2
+        pts = [v.co for v in ob.data.vertices]
+        datamin = np.amin(np.array(pts), axis=0)
+        datamax = np.amax(np.array(pts), axis=0)
+        dims = datamax - datamin
+        box.scale = dims / 2  # ob.dimensions / 2
 
         if isinstance(mat, bpy.types.Material):
             box.data.materials.append(mat)
