@@ -2783,21 +2783,6 @@ class VoxelvolumeProperties(PropertyGroup):
         default=0,
         min=0)
 
-    colourtype = EnumProperty(
-        name="colourtype",
-        description="Apply this colour method",
-        items=[("basic", "basic",
-                "Switch to basic material", 1),
-               ("directional", "directional",
-                "Switch to directional colour-coding", 2)],
-        update=material_enum_update)
-    colourpicker = FloatVectorProperty(
-        name="",
-        description="Pick a colour",
-        default=[1.0, 0.0, 0.0],
-        subtype="COLOR",
-        update=material_update)
-
     rendertype = EnumProperty(
         name="rendertype",
         description="Surface or volume rendering of texture",
