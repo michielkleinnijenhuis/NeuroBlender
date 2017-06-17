@@ -55,21 +55,6 @@ from . import (materials as nb_ma,
 # ========================================================================== #
 
 @persistent
-def force_object_updates(dummy):
-
-    scn = bpy.context.scene
-    nb = scn.nb
-
-#     nb_colls = [nb.tracts, nb.surfaces, nb.voxelvolumes]
-    nb_colls = [nb.voxelvolumes]
-    for nb_coll in nb_colls:
-        for nb_ob in nb_coll:
-            ob = bpy.data.objects.get(nb_ob.name)
-            nb_ut.force_object_update(bpy.context, ob)
-
-# bpy.app.handlers.frame_change_pre.append(force_object_updates)
-
-@persistent
 def carvers_handler(dummy):
     """Update carvers."""
 
@@ -82,12 +67,9 @@ def carvers_handler(dummy):
             for carveob in carver.carveobjects:
                 carvers_update(carveob, bpy.context)
 
-bpy.app.handlers.frame_change_pre.append(slices_handler)
+bpy.app.handlers.frame_change_pre.append(carvers_handler)
 
 
-# FIXME: excessive to remove/add these drivers at every frame;
-# mostly just need an update of the offset values for texture mapping;
-# except when keyframing rendertype!
 @persistent
 def rendertype_enum_handler(dummy):
     """Set surface or volume rendering for the voxelvolume."""
@@ -103,12 +85,11 @@ def rendertype_enum_handler(dummy):
             rendertype_enum_update(labelgroup, bpy.context)
 
 bpy.app.handlers.frame_change_pre.append(rendertype_enum_handler)
-# does this need to be post?
 
 
 @persistent
 def index_scalars_handler(dummy):
-    """"""
+    """Update scalar overlays."""
 
     scn = bpy.context.scene
     nb = scn.nb
@@ -119,6 +100,7 @@ def index_scalars_handler(dummy):
         pass
     else:
         for anim in preset.animations:
+
             if anim.animationtype == "TimeSeries":
 
                 sgs = nb_rp.find_ts_scalargroups(anim)
@@ -136,8 +118,9 @@ def index_scalars_handler(dummy):
                     # FIXME: more flexible indexing
 
                 elif sg.path_from_id().startswith("nb.voxelvolumes"):
-                    index_scalars_update_vvolscalar_func(sg, scalar,
-                                                         nb.settingprops.texmethod)
+                    texmethod = nb.settingprops.texmethod
+                    index_scalars_update_vvolscalar_func(sg, scalar, texmethod)
+
 
 bpy.app.handlers.frame_change_pre.append(index_scalars_handler)
 
@@ -158,6 +141,7 @@ def init_settings_handler(dummy):
     nb.settingprops.uv_resolution = nb.settingprops.uv_resolution
     nb.settingprops.advanced = nb.settingprops.advanced
     nb.settingprops.verbose = nb.settingprops.verbose
+    nb.settingprops.switches = nb.settingprops.switches
 
 bpy.app.handlers.load_post.append(init_settings_handler)
 
@@ -184,17 +168,6 @@ def engine_update(self, context):
     # TODO: handle lights
 
 
-def engine_driver():
-
-    scn = bpy.context.scene
-    nb = scn.nb
-
-    driver = nb.driver_add("engine", -1).driver
-    driver.type = 'AVERAGE'
-
-    nb_rp.create_var(driver, "type", 'SINGLE_PROP', 'SCENE', scn, "render.engine")
-
-
 def esp_path_update(self, context):
     """Add external site-packages path to sys.path."""
 
@@ -205,6 +178,7 @@ def mode_enum_update(self, context):
     """Perform actions for updating mode."""
 
     # TODO: switch colourbars
+    # TODO: general update of this functionality
 
     scn = context.scene
     nb = scn.nb
@@ -235,9 +209,8 @@ def managecmap_update(self, context):
     def gen_dummies(name="manage_colourmaps"):
 
         ivv = bpy.types.NB_OT_import_voxelvolumes
-        cube = ivv.voxelvolume_box_ob([2, 2, 2], "SliceBox")
+        cube = ivv.voxelvolume_box_ob(name, [2, 2, 2])
         cube.hide = cube.hide_render = True
-        cube.name = cube.data.name = name
         bpy.data.materials.new(name)
         mat = bpy.data.materials.get(name)
         mat.volume.density = 0
@@ -265,7 +238,7 @@ def managecmap_update(self, context):
         me = bpy.data.meshes.get(name)
         bpy.data.meshes.remove(me)
 
-    name="manage_colourmaps"
+    name = "manage_colourmaps"
 
     if self.show_manage_colourmaps:
         gen_dummies(name)
@@ -305,26 +278,6 @@ def campaths_enum_callback(self, context):
     return items
 
 
-def pathtype_enum_callback(self, context):
-    """Populate the enum based on available options."""
-
-    scn = context.scene
-    nb = scn.nb
-
-    items = [("Circular", "Circular",
-              "Circular trajectory from camera position", 0),
-             ("Create", "Create",
-              "Create a path from camera positions", 1)]
-    if self.anim_tract:
-        items += [("Streamline", "Streamline",
-                   "Curvilinear trajectory from a streamline", 2)]
-    if self.anim_curve:
-        items += [("Select", "Select",
-                   "Curvilinear trajectory from curve", 3)]
-
-    return items
-
-
 def campaths_enum_update(self, context):
     """Update the camera path."""
 
@@ -343,6 +296,26 @@ def campaths_enum_update(self, context):
         nb_rp.clear_camera_path_animations(cam, nb_preset.animations,
                                            [nb_preset.index_animations])
         nb_rp.create_camera_path_animations(cam, cam_anims)
+
+
+def campathtype_enum_callback(self, context):
+    """Populate the enum based on available options."""
+
+    scn = context.scene
+    nb = scn.nb
+
+    items = [("Circular", "Circular",
+              "Circular trajectory from camera position", 0),
+             ("Create", "Create",
+              "Create a path from camera positions", 1)]
+    if self.anim_tract:
+        items += [("Streamline", "Streamline",
+                   "Curvilinear trajectory from a streamline", 2)]
+    if self.anim_curve:
+        items += [("Select", "Select",
+                   "Curvilinear trajectory from curve", 3)]
+
+    return items
 
 
 def curves_enum_callback(self, context):
@@ -366,10 +339,9 @@ def tracktype_enum_update(self, context):
 
     scn = context.scene
     nb = scn.nb
+
     nb_preset = nb.presets[nb.index_presets]
     cam = bpy.data.objects[nb_preset.cameras[0].name]
-    centre = bpy.data.objects[nb_preset.centre]
-    anim = nb_preset.animations[nb_preset.index_animations]
 
     cam_anims = [anim for anim in nb_preset.animations
                  if ((anim.animationtype == "CameraPath") &
@@ -398,6 +370,7 @@ def direction_toggle_update(self, context):
 
     scn = context.scene
     nb = scn.nb
+
     nb_preset = nb.presets[nb.index_presets]
     anim = nb_preset.animations[nb_preset.index_animations]
 
@@ -416,9 +389,9 @@ def direction_toggle_update(self, context):
 def trackobject_enum_callback(self, context):
     """Populate the enum based on available options."""
 
-    items = [(ob.name, ob.name, "List all objects", i+1)
-             for i, ob in enumerate(bpy.data.objects)]
-    items.insert(0, ("None", "None", "None", 0))
+    items = [("None", "None", "None", 0)]
+    items += [(ob.name, ob.name, "List all objects", i+1)
+              for i, ob in enumerate(bpy.data.objects)]
 
     return items
 
@@ -430,7 +403,6 @@ def trackobject_enum_update(self, context):
     scn = context.scene
     nb = scn.nb
 
-    preset = nb.presets[nb.index_presets]
     cam = bpy.data.objects[self.name]
     cns = cam.constraints["TrackToObject"]
     if self.trackobject == "None":
@@ -505,8 +477,7 @@ def presets_enum_update(self, context):
     self.index_presets = self.presets.find(self.presets_enum)
     preset = self.presets[self.index_presets]
     scn.camera = bpy.data.objects[preset.cameras[0].name]
-    # TODO:
-    # switch cam view etc
+    # TODO: switch cam view etc
 
 
 def cam_view_enum_XX_update(self, context):
@@ -514,7 +485,6 @@ def cam_view_enum_XX_update(self, context):
 
     scn = context.scene
     nb = scn.nb
-    nb_preset = nb.presets[nb.index_presets]
 
     lud = {'Centre': 0,
            'Left': -1, 'Right': 1,
@@ -530,12 +500,7 @@ def cam_view_enum_XX_update(self, context):
     self.cam_view = list(cv_unit * self.cam_distance)
 
     cam = bpy.data.objects[self.name]
-    centre = bpy.data.objects[nb_preset.centre]
-
-#     cam_view_update(cam, centre, self.cam_view, nb_preset.dims)
     cam.location = self.cam_view
-
-    scn.frame_set(0)
 
 
 def light_update(self, context):
@@ -601,7 +566,7 @@ def overlay_enum_callback(self, context):
 def index_scalars_update(self, context):
     """Switch views on updating scalar index."""
 
-    if hasattr(self, 'scalargroups'):  # TODO: isinstance
+    if isinstance(self, bpy.types.ScalarGroupProperties):
         try:
             sg = self.scalargroups[self.index_scalargroups]
         except IndexError:
@@ -623,7 +588,7 @@ def index_scalars_update_func(group=None):
         group = nb_ut.active_nb_overlay()[0]
 
     nb_ob_path = '.'.join(group.path_from_id().split('.')[:-1])
-    nb_ob = eval(nb_ob_path)
+    nb_ob = scn.path_resolve(nb_ob_path)
     ob = bpy.data.objects[nb_ob.name]
 
     try:
@@ -633,12 +598,12 @@ def index_scalars_update_func(group=None):
     else:
         name = scalar.name
 
-        if group.path_from_id().startswith("nb.surfaces"):
+        if isinstance(nb_ob, bpy.types.SurfaceProperties):
 
             vg_idx = ob.vertex_groups.find(name)
             ob.vertex_groups.active_index = vg_idx
 
-            if hasattr(group, 'scalars'):
+            if isinstance(group, bpy.types.ScalarGroupProperties):
 
                 mat = bpy.data.materials[group.name]
 
@@ -666,17 +631,16 @@ def index_scalars_update_func(group=None):
                 for mat in mats:
                     ob.data.materials.append(mat)
 
-        if group.path_from_id().startswith("nb.tracts"):
-            if hasattr(group, 'scalars'):
+        if isinstance(nb_ob, bpy.types.TractProperties):
+            if isinstance(group, bpy.types.ScalarGroupProperties):
                 for i, spline in enumerate(ob.data.splines):
                     # FIXME: generalize with saved re variable
                     splname = name + '.spl' + str(i).zfill(8)
                     spline.material_index = ob.material_slots.find(splname)
 
         # FIXME: used texture slots
-        if group.path_from_id().startswith("nb.voxelvolumes"):
-            if hasattr(group, 'scalars'):
-
+        if isinstance(nb_ob, bpy.types.VoxelvolumeProperties):
+            if isinstance(group, bpy.types.ScalarGroupProperties):
                 index_scalars_update_vvolscalar_func(group, scalar,
                                                      nb.settingprops.texmethod)
 
@@ -714,7 +678,6 @@ def index_scalars_update_vvolscalar_func(group, scalar, method=1):
 
         mat = bpy.data.materials[scalar.matname]
         ts = mat.texture_slots[scalar.tex_idx]
-        print(mat, ts, scalar.tex_idx)
         for prop in props:
             exec('ts.%s = 1' % prop)
 
@@ -743,7 +706,7 @@ def index_scalars_update_vvolscalar_func(group, scalar, method=1):
 def index_labels_update(self, context):
     """Switch views on updating label index."""
 
-    if hasattr(self, 'labelgroups'):  # TODO: isinstance
+    if isinstance(self, bpy.types.LabelGroupProperties):
         try:
             lg = self.labelgroups[self.index_labelgroups]
         except IndexError:
@@ -762,7 +725,7 @@ def index_labels_update_func(group=None):
     nb = scn.nb
 
     nb_ob_path = '.'.join(group.path_from_id().split('.')[:-1])
-    nb_ob = eval(nb_ob_path)
+    nb_ob = scn.path_resolve(nb_ob_path)
     ob = bpy.data.objects[nb_ob.name]
 
     if group is None:
@@ -774,8 +737,7 @@ def index_labels_update_func(group=None):
         pass
     else:
         name = label.name
-
-        if "surfaces" in group.path_from_id():
+        if isinstance(nb_ob, bpy.types.SurfaceProperties):
             vg_idx = ob.vertex_groups.find(name)
             ob.vertex_groups.active_index = vg_idx
 
@@ -809,20 +771,6 @@ def surfaces_enum_callback(self, context):
     return items
 
 
-def sphere_enum_callback(self, context):
-    """Populate the enum based on available options."""
-
-    scn = context.scene
-    nb = scn.nb
-
-    items = [("Select", "Select from file",
-             "Select file to unwrap without importing sphere", 0)]
-    items += [(surface.name, surface.name, "List the surfaces", i+1)
-              for i, surface in enumerate(nb.surfaces)]
-
-    return items
-
-
 def voxelvolumes_enum_callback(self, context):
     """Populate the enum based on available options."""
 
@@ -831,6 +779,20 @@ def voxelvolumes_enum_callback(self, context):
 
     items = [(vvol.name, vvol.name, "List the voxelvolumes", i)
              for i, vvol in enumerate(nb.voxelvolumes)]
+
+    return items
+
+
+def sphere_enum_callback(self, context):
+    """Populate the enum based on available options."""
+
+    scn = context.scene
+    nb = scn.nb
+
+    items = [("Select", "Select from file",
+              "Select file to unwrap without importing sphere", 0)]
+    items += [(surface.name, surface.name, "List the surfaces", i+1)
+              for i, surface in enumerate(nb.surfaces)]
 
     return items
 
@@ -1189,18 +1151,10 @@ def carveobject_is_rendered_update(self, context):
     nb = scn.nb
 
     carveob = bpy.data.objects.get(self.name)
-    data_path = self.path_from_id()
-    carverpath = '.'.join(data_path.split('.')[:-1])
-    carver = scn.path_resolve(carverpath)
-    carverob = bpy.data.objects.get(carver.name)
+    carverob = carveob.parent
 
     mod = carverob.modifiers.get(carveob.name)
     mod.show_render = mod.show_viewport = self.is_rendered
-
-    ob = bpy.data.objects.get(carver.name).parent
-    scn.objects.active = ob
-    bpy.ops.object.mode_set(mode='EDIT')
-    bpy.ops.object.mode_set(mode='OBJECT')
 
 
 # ========================================================================== #
@@ -1594,7 +1548,7 @@ class AnimationProperties(PropertyGroup):
     pathtype = EnumProperty(
         name="Pathtype",
         description="Trajectory types for the camera animation",
-        items=pathtype_enum_callback)
+        items=campathtype_enum_callback)
 
     axis = EnumProperty(
         name="Animation axis",
