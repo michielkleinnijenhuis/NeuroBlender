@@ -198,6 +198,8 @@ class ImportSurfaces(Operator, ImportHelper):
 
             ob.matrix_world = affine
 
+            if ext[1:] == 'blend':
+                name = ob.name
             props = {"name": name,
                      "filepath": fpath,
                      "sformfile": sformfile}
@@ -211,20 +213,27 @@ class ImportSurfaces(Operator, ImportHelper):
 
             group.objects.link(ob)
 
+            if self.colourtype != "none":
+                info_mat = nb_ma.materialise(ob,
+                                             self.colourtype,
+                                             self.colourpicker,
+                                             self.transparency)
+            else:
+                info_mat = "not materialisation"
+
+            beaudict = {"iterations": 10,
+                        "factor": 0.5,
+                        "use_x": True,
+                        "use_y": True,
+                        "use_z": True}
+            if self.beautify:
+                info_beau = self.beautification(ob, beaudict)
+            else:
+                info_beau = 'no beautification'
+
         scn.objects.active = ob
         ob.select = True
         scn.update()
-
-        info_mat = nb_ma.materialise(ob,
-                                     self.colourtype,
-                                     self.colourpicker,
-                                     self.transparency)
-        beaudict = {"iterations": 10,
-                    "factor": 0.5,
-                    "use_x": True,
-                    "use_y": True,
-                    "use_z": True}
-        info_beau = self.beautification(ob, beaudict)
 
         info = "Surface import successful"
         if nb.settingprops.verbose:
@@ -319,8 +328,11 @@ class ImportSurfaces(Operator, ImportHelper):
     read_surfaces_sphere = read_surfaces_fs
     read_surfaces_orig = read_surfaces_fs
 
-    def read_surfaces_blend(self, fpath, name, sformfile):
+    def read_surfaces_blend(self, fpath, name, sformfile=""):
         """Import a surface from a .blend file."""
+
+        if sformfile:
+            affine = Matrix(nb_ut.read_affine_matrix(sformfile))
 
         with bpy.data.libraries.load(fpath) as (data_from, data_to):
             data_to.objects = data_from.objects
@@ -329,7 +341,10 @@ class ImportSurfaces(Operator, ImportHelper):
         for ob in data_to.objects:
             if ob is not None:
                 bpy.context.scene.objects.link(ob)
-                surfaces.append((ob, ob.matrix_world, sformfile))
+                ob.name = ob.name.replace(' ', '_')
+                if not sformfile:
+                    affine = ob.matrix_world
+                surfaces.append((ob, affine, sformfile))
 
         return surfaces
 
