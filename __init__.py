@@ -311,7 +311,7 @@ class ObjectListOperations(Operator):
             nb_it = nb_ut.active_nb_overlayitem()[0]
             self.type = nb.overlaytype.replace("groups", "s")
             self.name = nb_it.name
-            data_path = "{}.{}".format(nb_ob.path_from_id(), self.type)
+            data_path = "{}.{}".format(nb_ov.path_from_id(), self.type)
             self.index = scn.path_resolve(data_path).find(self.name)
             self.data_path = nb_it.path_from_id()
         elif self.action.endswith('_PL'):
