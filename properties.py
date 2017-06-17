@@ -305,6 +305,26 @@ def campaths_enum_callback(self, context):
     return items
 
 
+def pathtype_enum_callback(self, context):
+    """Populate the enum based on available options."""
+
+    scn = context.scene
+    nb = scn.nb
+
+    items = [("Circular", "Circular",
+              "Circular trajectory from camera position", 0),
+             ("Create", "Create",
+              "Create a path from camera positions", 1)]
+    if self.anim_tract:
+        items += [("Streamline", "Streamline",
+                   "Curvilinear trajectory from a streamline", 2)]
+    if self.anim_curve:
+        items += [("Select", "Select",
+                   "Curvilinear trajectory from curve", 3)]
+
+    return items
+
+
 def campaths_enum_update(self, context):
     """Update the camera path."""
 
@@ -1584,15 +1604,7 @@ class AnimationProperties(PropertyGroup):
     pathtype = EnumProperty(
         name="Pathtype",
         description="Trajectory types for the camera animation",
-        items=[("Circular", "Circular",
-                "Circular trajectory from camera position", 0),
-               ("Streamline", "Streamline",
-                "Curvilinear trajectory from a streamline", 1),
-               ("Select", "Select",
-                "Curvilinear trajectory from curve", 2),
-               ("Create", "Create",
-                "Create a path from camera positions", 3)],
-        default="Circular")
+        items=pathtype_enum_callback)
 
     axis = EnumProperty(
         name="Animation axis",
