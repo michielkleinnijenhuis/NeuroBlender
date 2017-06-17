@@ -1016,9 +1016,13 @@ def material_update(self, context):
     scn = context.scene
     nb = scn.nb
 
-    mat = bpy.data.materials[self.name]
-    if nb.settingprops.engine.startswith("BLENDER"):
-        nb_ma.CR2BR(mat)
+    try:
+        mat = bpy.data.materials[self.name]
+    except KeyError:
+        pass
+    else:
+        if nb.settingprops.engine.startswith("BLENDER"):
+            nb_ma.CR2BR(mat)
 
 
 def material_enum_update(self, context):
