@@ -1279,7 +1279,7 @@ class SettingsProperties(PropertyGroup):
         name="texmethod",
         description="",
         default=1,
-        min=1, max=4)
+        min=1, max=3)
     uv_resolution = IntProperty(
         name="utexture resolution",
         description="the resolution of baked textures",
