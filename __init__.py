@@ -394,17 +394,10 @@ class ObjectListOperations(Operator):
                 infostring = 'object "%s" not found'
                 info += [infostring % name]
             else:
-                if self.type == 'voxelvolumes':
-                    self.remove_material(ob, name)
-                    try:
-                        slicebox = bpy.data.objects[name+"SliceBox"]
-                    except KeyError:
-                        infostring = 'slicebox "%s" not found'
-                        info += [infostring % name+"SliceBox"]
-                    else:
-                        for ms in ob.material_slots:
-                            self.remove_material(ob, ms.name)
-                        bpy.data.objects.remove(slicebox)
+                # remove carvers
+                for carver in nb_ob.carvers:
+                    carver_data_path = carver.path_from_id()
+                    self.remove_carvers(context, carver_data_path)
                 # remove all children
                 fun = eval("self.remove_%s_overlays" % self.type)
                 fun(nb_ob, ob)
@@ -566,19 +559,6 @@ class ObjectListOperations(Operator):
             if re.match(mstring, item.name) is not None:
                 coll.remove(item)
 
-    def update_voxelvolume_drivers(self, nb):
-        """Update the data path in the drivers of voxelvolumes slicers."""
-
-        for i, vvol in enumerate(nb.voxelvolumes):
-            slicebox = bpy.data.objects[vvol.name+"SliceBox"]
-            for dr in slicebox.animation_data.drivers:
-                for var in dr.driver.variables:
-                    for tar in var.targets:
-                        dp = tar.data_path
-                        idx = 16
-                        if dp.index("nb.voxelvolumes[") == 0:
-                            tar.data_path = dp[:idx] + "%d" % i + dp[idx + 1:]
-
     def remove_animations_camerapath(self, anims, index):
         """Remove camera path animation."""
 
@@ -612,24 +592,8 @@ class ObjectListOperations(Operator):
 
         for cob in carver.carveobjects:
             self.remove_carveobjects(context, cob.path_from_id())
-        for cob in carverob.children:
-            if cob.name == '{}.bounds'.format(carver.name):
-                bpy.data.objects.remove(cob)
-
-        ob = carverob.parent
-        mod = ob.modifiers.get('{}.bounds'.format(carver.name))
-        ob.modifiers.remove(mod)
-        mod = ob.modifiers.get(carver.name)
-        ob.modifiers.remove(mod)
 
         bpy.data.objects.remove(carverob)
-
-        group = bpy.data.groups.get(carver.name)
-        bpy.data.groups.remove(group)
-
-        scn.objects.active = ob
-        bpy.ops.object.mode_set(mode='EDIT')
-        bpy.ops.object.mode_set(mode='OBJECT')
 
     def remove_carveobjects(self, context, data_path):
         """Remove carve object from carver."""
@@ -653,7 +617,7 @@ class ObjectListOperations(Operator):
         else:
             bpy.data.objects.remove(carveob)
 
-        scn.objects.active = carverob.parent
+        scn.objects.active = carverob
         bpy.ops.object.mode_set(mode='EDIT')
         bpy.ops.object.mode_set(mode='OBJECT')
 

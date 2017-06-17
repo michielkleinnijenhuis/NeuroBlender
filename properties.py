@@ -54,22 +54,33 @@ from . import (materials as nb_ma,
 # handler functions
 # ========================================================================== #
 
-
 @persistent
-def slices_handler(dummy):
-    """Set surface or volume rendering for the voxelvolume."""
+def force_object_updates(dummy):
 
     scn = bpy.context.scene
     nb = scn.nb
 
+#     nb_colls = [nb.tracts, nb.surfaces, nb.voxelvolumes]
+    nb_colls = [nb.voxelvolumes]
+    for nb_coll in nb_colls:
+        for nb_ob in nb_coll:
+            ob = bpy.data.objects.get(nb_ob.name)
+            nb_ut.force_object_update(bpy.context, ob)
+
+# bpy.app.handlers.frame_change_pre.append(force_object_updates)
+
+@persistent
+def carvers_handler(dummy):
+    """Update carvers."""
+
+    scn = bpy.context.scene
+    nb = scn.nb
     for surf in nb.surfaces:
-        slices_update(surf, bpy.context)
+        carvers_update(surf, bpy.context)
     for vvol in nb.voxelvolumes:
-        slices_update(vvol, bpy.context)
-        for scalargroup in vvol.scalargroups:
-            slices_update(scalargroup, bpy.context)
-        for labelgroup in vvol.labelgroups:
-            slices_update(labelgroup, bpy.context)
+        for carver in vvol.carvers:
+            for carveob in carver.carveobjects:
+                carvers_update(carveob, bpy.context)
 
 bpy.app.handlers.frame_change_pre.append(slices_handler)
 
@@ -817,65 +828,18 @@ def sformfile_update(self, context):
         ob.matrix_world = affine
 
 
-def slices_update(self, context):
-    """Set slicethicknesses and positions for the object."""
+def carvers_update(self, context):
+    """Set scaling, positions and rotations for the carveobject."""
 
     scn = context.scene
     nb = scn.nb
 
-    def slices_update_slicebox(self, context):
-        """Set slicethicknesses and positions for the object."""
-
-        ob = bpy.data.objects[self.name+"SliceBox"]
+    ob = bpy.data.objects.get(self.name, [])
+    if ob and isinstance(self, bpy.types.CarveObjectProperties):
         ob.scale = self.slicethickness
-
-        try:
-            # FIXME: should this be scalargroups?
-            scalar = self.scalars[self.index_scalars]
-        except:
-            matname = self.name
-            mat = bpy.data.materials[matname]
-            mat.type = mat.type
-            mat.texture_slots[0].scale[0] = mat.texture_slots[0].scale[0]
-        else:
-            for scalar in self.scalars:
-                mat = bpy.data.materials[scalar.matname]
-                tss = [ts for ts in mat.texture_slots if ts is not None]
-                for ts in tss:
-                    ts.scale[0] = ts.scale[0]
-
-        return ob
-
-    def slices_update_boolean(self, context):
-        """Set slicethicknesses positions and angles for the object."""
-
-        ob = bpy.data.objects.get(self.name, [])
-        if ob and isinstance(self, bpy.types.CarveObjectProperties):
-            ob.scale = self.slicethickness
-            ob.location = self.sliceposition
-            ob.rotation_euler = self.sliceangle
-
-        return ob
-
-    if nb.settingprops.use_carver:
-        ob = slices_update_boolean(self, context)
-    else:
-        ob = slices_update_slicebox(self, context)
-
-    nb_ut.force_object_update(context, ob)
-
-
-def is_yoked_bool_update(self, context):
-    """Add or remove drivers linking voxelvolume and overlay."""
-
-    nb_ob = nb_ut.active_nb_object()[0]
-    for prop in ['slicethickness', 'sliceposition', 'sliceangle']:
-        for idx in range(0, 3):
-            if self.is_yoked:
-                ivv = bpy.types.NB_OT_import_voxelvolumes
-                ivv.voxelvolume_slice_drivers_yoke(nb_ob, self, prop, idx)
-            else:
-                self.driver_remove(prop, idx)
+        # TODO: calculate position regarding the slicethickness
+        ob.location = self.sliceposition
+        ob.rotation_euler = self.sliceangle
 
 
 # ========================================================================== #
@@ -895,7 +859,7 @@ def name_update(self, context):  # FIXME! there's no name checks!
                  bpy.data.materials,
                  bpy.data.textures,
                  bpy.data.images]
-        bpy.data.objects[vvol.name_mem+"SliceBox"].name = vvol.name+"SliceBox"
+
         return colls
 
     def rename_group(coll, group):
@@ -998,39 +962,19 @@ def name_update(self, context):  # FIXME! there's no name checks!
         colls = [bpy.data.objects,
                  bpy.data.curves]  # FollowPath constraints
 
-    elif colltype == "carvers":  # data?
-        oldname = self.name_mem
-        newname = self.name
-        carverob = bpy.data.objects.get(oldname)
-        colls = [carverob.children,
-                 carverob.modifiers,
-                 carverob.parent.modifiers,
-                 bpy.data.groups,
-                 self.carveobjects]
-        for coll in colls:
-            for item in coll:
-                item.name = item.name.replace(oldname, newname)
-#         for ob in carverob.children:
-#             ob.name = ob.name.replace(oldname, newname)
-#         for mod in carverob.modifiers:
-#             mod.name = mod.name.replace(oldname, newname)
-#         for mod in carverob.parent.modifiers:
-#             mod.name = mod.name.replace(oldname, newname)
-#         for group in bpy.data.groups:
-#             if group.name.split('.')[0] == oldname:  # FIXME: unsafe
-#                 group.name = group.name.replace(oldname, newname)
-#         for nb_ob in self.carveobjects:
-#             nb_ob.name = nb_ob.name.replace(oldname, newname)
+    elif colltype == "carvers":  # TODO: self.carveobjects + mods
         colls = [bpy.data.objects,
+                 bpy.data.meshes,
                  bpy.data.groups]
 
     elif colltype == "carveobjects":
-        carverpath = '.'.join(self.path_from_id().split('.')[:-1])
-        carver = scn.path_resolve(carverpath)
-        carverob = bpy.data.objects.get(carver.name)
+
+        carveob = bpy.data.objects[self.name_mem]
+        carverob = carveob.parent
         mod = carverob.modifiers.get(self.name_mem)
         mod.name = self.name
-        colls = [bpy.data.objects]
+        colls = [bpy.data.objects,
+                 bpy.data.meshes]
 
     else:
         colls = []
@@ -1077,25 +1021,12 @@ def rendertype_enum_update(self, context):
 
     # FIXME: vvol.rendertype ideally needs to switch if mat.type does
     for matname in matnames:
-        mat = bpy.data.materials[matname]
-        mat.type = self.rendertype
-        tss = [ts for ts in mat.texture_slots if ts is not None]
-        for ts in tss:
-            if mat.type == 'VOLUME':
-                for idx in range(0, 3):
-                    ts.driver_remove("scale", idx)
-                    ts.driver_remove("offset", idx)
-                ts.scale = [1, 1, 1]
-                ts.offset = [0, 0, 0]
-            elif mat.type == 'SURFACE':
-                ob = bpy.data.objects[self.name]
-                mw = ob.matrix_world  # FIXME: mw of parent for overlays?!
-                for idx in range(0, 3):
-                    ivv = bpy.types.NB_OT_import_voxelvolumes
-                    ivv.voxelvolume_slice_drivers_surface(self, ts, mw,
-                                                          idx, "scale")
-                    ivv.voxelvolume_slice_drivers_surface(self, ts, mw,
-                                                          idx, "offset")
+        try:
+            mat = bpy.data.materials[matname]
+        except KeyError:
+            pass
+        else:
+            mat.type = self.rendertype
 
 
 def colourmap_enum_callback(self, context):
@@ -1247,8 +1178,6 @@ def carveobject_is_rendered_update(self, context):
     bpy.ops.object.mode_set(mode='EDIT')
     bpy.ops.object.mode_set(mode='OBJECT')
 
-#TODO: update function on 
-# bpy.context.scene.nb.settingprops.use_carver
 
 # ========================================================================== #
 # NeuroBlender custom properties
@@ -1350,11 +1279,6 @@ class SettingsProperties(PropertyGroup):
     switches = BoolProperty(
         name="Show switchbar",
         description="Show a small bar with switches in each panel",
-        default=True)
-
-    use_carver = BoolProperty(
-        name="Use carver",
-        description="Use a boolean carver rather than a Hook slicer",
         default=True)
 
 
@@ -1766,20 +1690,20 @@ class CarveObjectProperties(PropertyGroup):
         default=(1.0, 1.0, 1.0),
         size=3,
         precision=4,
-#         min=0,
-#         max=1,
+        min=0,
+        max=1,
         subtype="TRANSLATION",
-        update=slices_update)
+        update=carvers_update)
     sliceposition = FloatVectorProperty(
         name="Slice position",
         description="The position of the slices",
         default=(0, 0, 0),
         size=3,
         precision=4,
-#         min=-1,
-#         max=1,
+        min=-1,
+        max=1,
         subtype="TRANSLATION",
-        update=slices_update)
+        update=carvers_update)
     sliceangle = FloatVectorProperty(
         name="Slice position",
         description="The position of the slices",
@@ -1789,7 +1713,7 @@ class CarveObjectProperties(PropertyGroup):
         min=-1.5708,
         max=1.5708,
         subtype="TRANSLATION",
-        update=slices_update)
+        update=carvers_update)
 
     type = StringProperty(
         name="Type",
@@ -2300,45 +2224,6 @@ class ScalarGroupProperties(PropertyGroup):
         update=rendertype_enum_update,
         default="VOLUME")
 
-    slicebox = StringProperty(
-        name="Slicebox",
-        description="Name of slicebox",
-        default="box")
-    slicethickness = FloatVectorProperty(
-        name="Slice thickness",
-        description="The thickness of the slices",
-        default=(1.0, 1.0, 1.0),
-        size=3,
-        precision=4,
-        min=0,
-        max=1,
-        subtype="TRANSLATION",
-        update=slices_update)
-    sliceposition = FloatVectorProperty(
-        name="Slice position",
-        description="The position of the slices",
-        default=(0.5, 0.5, 0.5),
-        size=3,
-        precision=4,
-        min=0,
-        max=1,
-        subtype="TRANSLATION",
-        update=slices_update)
-    sliceangle = FloatVectorProperty(
-        name="Slice position",
-        description="The position of the slices",
-        default=(0.0, 0.0, 0.0),
-        size=3,
-        precision=4,
-        min=-1.5708,
-        max=1.5708,
-        subtype="TRANSLATION",
-        update=slices_update)
-    is_yoked = BoolProperty(
-        name="Is Yoked",
-        description="Indicates if the overlay is yoked to parent",
-        default=False,
-        update=is_yoked_bool_update)
     dimensions = FloatVectorProperty(
         name="dimensions",
         description="",
@@ -2451,45 +2336,6 @@ class LabelGroupProperties(PropertyGroup):
         update=rendertype_enum_update,
         default="VOLUME")
 
-    slicebox = StringProperty(
-        name="Slicebox",
-        description="Name of slicebox",
-        default="box")
-    slicethickness = FloatVectorProperty(
-        name="Slice thickness",
-        description="The thickness of the slices",
-        default=(1.0, 1.0, 1.0),
-        size=3,
-        precision=4,
-        min=0,
-        max=1,
-        subtype="TRANSLATION",
-        update=slices_update)
-    sliceposition = FloatVectorProperty(
-        name="Slice position",
-        description="The position of the slices",
-        default=(0.5, 0.5, 0.5),
-        size=3,
-        precision=4,
-        min=0,
-        max=1,
-        subtype="TRANSLATION",
-        update=slices_update)
-    sliceangle = FloatVectorProperty(
-        name="Slice position",
-        description="The position of the slices",
-        default=(0.0, 0.0, 0.0),
-        size=3,
-        precision=4,
-        min=-1.5708,
-        max=1.5708,
-        subtype="TRANSLATION",
-        update=slices_update)
-    is_yoked = BoolProperty(
-        name="Is Yoked",
-        description="Indicates if the overlay is yoked to parent",
-        default=False,
-        update=is_yoked_bool_update)
     dimensions = FloatVectorProperty(
         name="dimensions",
         description="",
@@ -2706,6 +2552,20 @@ class TractProperties(PropertyGroup):
         default=1.,
         min=0.,
         max=1.)
+
+    carvers = CollectionProperty(
+        type=CarverProperties,
+        name="carvers",
+        description="The collection of carvers")
+    index_carvers = IntProperty(
+        name="carver index",
+        description="index of the carvers collection",
+        default=0,
+        min=0)
+    carvers_enum = EnumProperty(
+        name="carvers",
+        description="select carver",
+        items=carvers_enum_callback)
 
 
 class SurfaceProperties(PropertyGroup):
@@ -3011,48 +2871,6 @@ class VoxelvolumeProperties(PropertyGroup):
         min=0.,
         max=1.)
 
-    slicebox = StringProperty(
-        name="Slicebox",
-        description="Name of slicebox",
-        default="box")
-    slicethickness = FloatVectorProperty(
-        name="Slice thickness",
-        description="The thickness of the slices",
-        default=(1.0, 1.0, 1.0),
-        size=3,
-        precision=4,
-        min=0,
-        max=1,
-        subtype="TRANSLATION",
-        update=slices_update)
-    sliceposition = FloatVectorProperty(
-        name="Slice position",
-        description="The position of the slices",
-        default=(0.5, 0.5, 0.5),
-        size=3,
-        precision=4,
-        min=0,
-        max=1,
-        subtype="TRANSLATION",
-        update=slices_update)
-    sliceangle = FloatVectorProperty(
-        name="Slice position",
-        description="The position of the slices",
-        default=(0.0, 0.0, 0.0),
-        size=3,
-        precision=4,
-        min=-1.5708,
-        max=1.5708,
-        subtype="TRANSLATION",
-        update=slices_update)
-
-    slicer_operation = EnumProperty(
-        name="Slicer operation",
-        description="Operation that the slicer performs",
-        default="INTERSECT",
-        items=[("INTERSECT", "INTERSECT", "INTERSECT", 0),
-               ("DIFFERENCE", "DIFFERENCE", "DIFFERENCE", 1)])
-
     texdir = StringProperty(
         name="Texture directory",
         description="The directory with textures",
@@ -3068,10 +2886,10 @@ class VoxelvolumeProperties(PropertyGroup):
 
     matname = StringProperty(
         name="Material name",
-        description="The name of the scalar overlay")
+        description="The name of the voxelvolume material")
     texname = StringProperty(
         name="Texture name",
-        description="The name of the scalar overlay")
+        description="The name of the voxelvolume texture")
 
     carvers = CollectionProperty(
         type=CarverProperties,
@@ -3122,6 +2940,10 @@ class NeuroBlenderProperties(PropertyGroup):
         name="Overlay slices",
         default=False,
         description="Show/hide the object's overlay slices")
+    show_overlay_carvers = BoolProperty(
+        name="Overlay carvers",
+        default=False,
+        description="Show/hide the object's overlay carvers")
     show_overlay_info = BoolProperty(
         name="Overlay info",
         default=False,

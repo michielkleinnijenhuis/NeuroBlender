@@ -658,10 +658,14 @@ def labels2meshes_vtk(surfdir, compdict, labelimage, labels=[],
 def force_object_update(context, ob):
     """Force an update on an object."""
 
-    scn = context.scene
-    current_active = scn.objects.active
-    scn.objects.active = ob
-    bpy.ops.object.mode_set(mode='EDIT')
-    bpy.ops.object.mode_set(mode='OBJECT')
-    scn.objects.active = current_active
-
+    if isinstance(ob, bpy.types.Object):
+        scn = context.scene
+        for obj in bpy.data.objects:
+            obj.select = False
+        ob.select = True
+        current_active = scn.objects.active
+        scn.objects.active = ob
+        scn.update()
+        bpy.ops.object.mode_set(mode='EDIT')
+        bpy.ops.object.mode_set(mode='OBJECT')
+        scn.objects.active = current_active

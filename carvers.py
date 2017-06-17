@@ -59,34 +59,31 @@ class ImportCarver(Operator):
         scn = context.scene
         nb = scn.nb
 
+        # get parent info and object
+        nb_ob = scn.path_resolve(self.parentpath)
+        obinfo = nb_ut.get_nb_objectinfo(nb_ob.name)
+        ob = bpy.data.objects.get(nb_ob.name)
+
+        # check name
         nb_colls = [nb.surfaces, nb.voxelvolumes]
         ca = [nb_ob.carvers
               for nb_coll in nb_colls
               for nb_ob in nb_coll]
         ca += [bpy.data.groups, bpy.data.objects, bpy.data.meshes]
-        # TODO: {}.bounds; modifiers of the current object
-        name = nb_ut.check_name(self.name, "", ca)
+        name = '{}.{}'.format(nb_ob.name, self.name)
+        name = nb_ut.check_name(name, "", ca)
 
-        nb_ob = scn.path_resolve(self.parentpath)
-        obinfo = nb_ut.get_nb_objectinfo(nb_ob.name)
-        ob = bpy.data.objects.get(nb_ob.name)
-
+        # add the carver to carver collection
         props = {"name": name}
         carver = nb_ut.add_item(nb_ob, "carvers", props)
         nb_ob.carvers_enum = carver.name
 
-        mat = bpy.data.materials.get('wire') or \
-            self.get_wire_material('wire')
+        # create the carver
+        self.create_carvebox(context, carver.name, ob, nb_ob, obinfo['layer'])
 
-        box = self.create_carvebox(context, carver.name, ob,
-                                   mat, obinfo['layer'])
-
-        if isinstance(nb_ob, bpy.types.VoxelvolumeProperties):
-            self.mappingbounds(context, ob, box, mat=mat)
-
-        nb_ut.force_object_update(context, ob)
-
-        scn.objects.active = ob
+        # hide the parent object
+        nb_ob.is_rendered = False
+        ob.hide = ob.hide_render = True
 
         infostring = 'added carver "%s" to object "%s"'
         info = [infostring % (name, nb_ob.name)]
@@ -101,44 +98,58 @@ class ImportCarver(Operator):
 
         return self.execute(context)
 
-    def create_carvebox(self, context, name, ob, mat=None, layer=2):
+    def create_carvebox(self, context, name, ob, nb_ob, layer=2):
         """Create a box to gather carve objects in."""
 
         scn = context.scene
 
+        # add carvebox
         bpy.ops.mesh.primitive_cube_add()
         box = scn.objects.active
-
         box.name = box.data.name = name
-        box.parent = ob
+
+        # scale and move to overlap with object
         loc_ctr = 0.125 * sum((Vector(b) for b in ob.bound_box), Vector())
-        box.location = loc_ctr
+        glob_ctr = ob.matrix_world * loc_ctr
         pts = [v.co for v in ob.data.vertices]
         datamin = np.amin(np.array(pts), axis=0)
         datamax = np.amax(np.array(pts), axis=0)
         dims = datamax - datamin
-        box.scale = dims / 2  # ob.dimensions / 2
+        box.scale = dims / 2
+        box.location = glob_ctr
+
+        # attach texture mapping (vvol) or boolean (surf)
+        ms = ob.material_slots.get(ob.name)
+        mat = ms.material
+        if isinstance(nb_ob, bpy.types.VoxelvolumeProperties):
+            ts = mat.texture_slots.get(ob.name)
+            ts.texture_coords = 'OBJECT'
+            ts.object = ob
+        elif isinstance(nb_ob, bpy.types.SurfaceProperties):
+            self.add_boolmod(ob.name, box, ob, 'BMESH', 'INTERSECT')
 
         if isinstance(mat, bpy.types.Material):
             box.data.materials.append(mat)
-#         box.modifiers.new('wire', 'WIREFRAME')
 
-        box.data.show_faces = False
-        box.hide = True
-        box.hide_select = False
-        box.hide_render = True
-
+        # prevent the user from controlling the carver from the viewport
+        box.hide_select = True
         for i, _ in enumerate('xyz'):
             box.lock_location[i] = True
             box.lock_rotation[i] = True
             box.lock_scale[i] = True
 
+        # let the carvebox follow the parent object
+        cns = box.constraints.new(type='CHILD_OF')
+        cns.target = ob
+        cns.inverse_matrix = ob.matrix_world.inverted()
+
+        # add to group and move to layer
         group = bpy.data.groups.new(name)
         group.objects.link(box)
-
-        self.add_boolmod(box.name, ob, box, 'BMESH', 'INTERSECT')
-
         nb_ut.move_to_layer(box, layer)
+
+        bpy.context.scene.objects.active = box
+        nb_ut.force_object_update(context, box)
 
         return box
 
@@ -254,7 +265,8 @@ class ImportCarveObjects(Operator):
         for name in names:
             self.create_carveobject(context, name, carver, co_group)
 
-        ob = bpy.data.objects.get(carver.name).parent
+#         ob = bpy.data.objects.get(carver.name).parent
+        ob = bpy.data.objects.get(carver.name)
         nb_ut.force_object_update(context, ob)
 
         infostring = 'added carveobject "%s" in carver "%s"'

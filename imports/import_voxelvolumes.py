@@ -29,7 +29,7 @@ This module implements importing voxelvolumes into NeuroBlender.
 import os
 from glob import glob
 import numpy as np
-from mathutils import Vector, Matrix
+from mathutils import Matrix
 
 import bpy
 from bpy.types import (Operator,
@@ -95,7 +95,7 @@ def h5_dataset_callback(self, context):
     try:
         import h5py
         f = h5py.File(os.path.join(self.directory, self.files[0].name), 'r')
-    except (OSError, TypeError) as e:
+    except (OSError, TypeError, IndexError) as e:
         items = [("dataset", "no dataset available", str(e), 0)]
     else:
         f.visititems(h5_dataset_add)
@@ -187,14 +187,21 @@ class ImportVoxelvolumes(Operator, ImportHelper):
 
     def execute(self, context):
 
-        filenames = [f.name for f in self.files]
-        if not filenames:
-            filenames = os.listdir(self.directory)
+        if self.has_valid_texdir and (not self.overwrite):
 
-        for f in filenames:
-            fpath = os.path.join(self.directory, f)
-            info = self.import_voxelvolume(context, fpath)
+            info = self.import_voxelvolume(context, fpath='')
             self.report({'INFO'}, info)
+
+        else:
+
+            filenames = [f.name for f in self.files]
+            if self.directory and (not filenames):
+                filenames = os.listdir(self.directory)
+
+            for f in filenames:
+                fpath = os.path.join(self.directory, f)
+                info = self.import_voxelvolume(context, fpath)
+                self.report({'INFO'}, info)
 
         return {"FINISHED"}
 
@@ -327,17 +334,22 @@ class ImportVoxelvolumes(Operator, ImportHelper):
 
         item = self.add_to_collections(texdict)
 
-        mat = self.get_voxmat(name)
         tex = self.get_voxtex(context, texdict, 'vol0000', item)
-
-        item.texname = tex.name
         item.texname = tex.name
 
         if self.is_label:
+
+            nb_ob = eval(self.parentpath)
+            mat = bpy.data.materials[nb_ob.name]
+
             for volnr, label in enumerate(item.labels):
                 pass  # TODO
+
         elif self.is_overlay:
-            item.rendertype = "SURFACE"
+
+            nb_ob = eval(self.parentpath)
+            mat = bpy.data.materials[nb_ob.name]
+
             for scalar in item.scalars:
                 volname = scalar.name[-7:]  # FIXME: this is not secure
                 pfdict = {"IMAGE_SEQUENCE": os.path.join(volname, '0000.png'),
@@ -351,50 +363,34 @@ class ImportVoxelvolumes(Operator, ImportHelper):
                 if nb.settingprops.texmethod == 4:
                     tex = self.get_voxtex(context, texdict, volname, scalar)
 
-        # create the voxelvolume object
-        if nb.settingprops.use_carver:
-            ob = self.voxelvolume_object_bool(context, name,
-                                              texdict['dims'],
-                                              texdict['affine'])
-        else:
-            ob, sbox = self.voxelvolume_object_slicebox(item, texdict)
-            nb_ut.move_to_layer(sbox, 2)
-
-        # single texture slot for simple switching
-        texslot = mat.texture_slots.add()
-        texslot.texture = tex
-        texslot.use_map_density = True
-        texslot.texture_coords = 'ORCO'
-        texslot.use_map_emission = True
-
-        self.voxelvolume_rendertype_driver(mat, item)
-
-        nb_ma.set_materials(ob.data, mat)
-
-        if self.is_overlay:
-            nb_ob = eval(self.parentpath)
-            ob.parent = bpy.data.objects[nb_ob.name]
             item.index_scalars = 0  # induce switch
-            bpy.ops.object.mode_set(mode='EDIT')  # TODO: more elegant update
-            bpy.ops.object.mode_set(mode='OBJECT')
 
-        nb_ut.move_to_layer(ob, 2)
-        scn.layers[2] = True
+        else:
 
-        group = bpy.data.groups.get("voxelvolumes") or \
-            bpy.data.groups.new("voxelvolumes")
-        group.objects.link(ob)
+            # create the voxelvolume object
+            ob = self.voxelvolume_box_ob(name, texdict['dims'])
+            ob.matrix_world = texdict['affine']
+
+            mat = self.get_voxmat(name)
+            nb_ma.set_materials(ob.data, mat)
+
+            nb_ut.move_to_layer(ob, 2)
+            scn.layers[2] = True
+
+            group = bpy.data.groups.get("voxelvolumes") or \
+                bpy.data.groups.new("voxelvolumes")
+            group.objects.link(ob)
+
+        self.add_tex_to_mat(mat, tex, 'OBJECT', ob)
 
         nb.settingprops.engine = 'BLENDER_RENDER'
-
-        scn.update()
 
         # force updates on voxelvolumes
         nb.index_voxelvolumes = nb.index_voxelvolumes
         item.rendertype = item.rendertype
-        item.sformfile = item.sformfile
+        if not self.is_overlay:
+            item.sformfile = item.sformfile
 
-        affine = texdict["affine"]
         info = "Voxelvolume import successful"
         if nb.settingprops.verbose:
             infostring = "{}\n"
@@ -405,7 +401,8 @@ class ImportVoxelvolumes(Operator, ImportHelper):
             infostring += "dimensions: [{:4d}, {:4d}, {:4d}, {:4d}]\n"
             infostring += "datarange: [{:.6f}, {:.6f}]\n"
             infostring += "{}"
-            info = infostring.format(info, name, fpath, Matrix(affine),
+            info = infostring.format(info, name, fpath,
+                                     Matrix(texdict["affine"]),
                                      *texdict['dims'],
                                      *texdict['datarange'],
                                      info_load)
@@ -559,7 +556,9 @@ class ImportVoxelvolumes(Operator, ImportHelper):
         def write_to_strip(absimdir, data, dims):
             """Write data to an image strip."""
 
-            img = bpy.data.images.new("img", width=dims[2]*dims[1], height=dims[0])
+            img = bpy.data.images.new("img",
+                                      width=dims[2]*dims[1],
+                                      height=dims[0])
             for volnr, vol in enumerate(data):
                 vol = np.reshape(vol, [-1, 1])
                 pixels = []
@@ -585,9 +584,6 @@ class ImportVoxelvolumes(Operator, ImportHelper):
                 img.filepath = filepath
 
             return img
-
-        scn = bpy.context.scene
-        nb = scn.nb
 
         fpath = texdict['fpath']
         is_label = texdict['is_label']
@@ -735,293 +731,13 @@ class ImportVoxelvolumes(Operator, ImportHelper):
 
         return item
 
-    def voxelvolume_object_bool(self, context, name, dims, affine):
-        """Create a voxelvolume box with boolean carve modifiers."""
+    @staticmethod
+    def voxelvolume_box_ob(name, dims=[256, 256, 256]):
+        """Create a RAS-box of certain dimension."""
 
-        ob = self.voxelvolume_box_ob(dims, "SliceBox", add_vg=False)
-#         bpy.ops.mesh.primitive_cube_add()
-#         ob = context.scene.objects.active
-        ob.scale
-        ob.name = name
-        ob.matrix_world = affine
-
-#         mat = get_wire_material()
-# 
-#         carvebox = self.carvebox(context, ob, dims, mat)
-# 
-#         vvol_bounds = self.carvebox_mappingbounds(context, dims, mat, carvebox)
-# 
-#         carveob_names = ["box", "cyl"]
-#         for name in carveob_names:
-#             carveob = self.carvebox_carveobject(context, name, mat, carvebox)
-#             carvebox_boolmod(name, carvebox,
-#                              carveob, 'BMESH', 'INTERSECT')
-# 
-#         carvebox_boolmod("vvol_bounds", carvebox,
-#                          vvol_bounds, 'BMESH', 'UNION')
-# 
-#         carvebox_boolmod("carvebox", ob,
-#                          carvebox, 'BMESH', 'INTERSECT')
-
-        return ob  # , carvebox
-
-
-    def voxelvolume_object_slicebox(self, item, texdict):
-        """Create a voxelvolume box with boolean carve modifiers."""
-
-        scn = bpy.context.scene
-
-        slices = False
-        me = bpy.data.meshes.new(texdict["name"])
-        ob = bpy.data.objects.new(texdict["name"], me)
+        me = bpy.data.meshes.new(name)
+        ob = bpy.data.objects.new(name, me)
         bpy.context.scene.objects.link(ob)
-        ob1 = self.voxelvolume_box_ob(texdict["dims"], "Bounds")
-        ob2 = self.voxelvolume_box_ob(texdict["dims"], "SliceBox")
-
-        ob.select = True
-        scn.objects.active = ob
-        obs = [ob, ob1, ob2]
-        ctx = bpy.context.copy()
-        ctx['active_object'] = ob
-        ctx['selected_objects'] = obs
-        ctx['selected_editable_bases'] = [scn.object_bases[ob.name]
-                                          for ob in obs]
-        bpy.ops.object.join(ctx)
-
-        scn.objects.active = ob
-        ob.select = True
-
-        mat = Matrix() if texdict["is_overlay"] else Matrix(texdict["affine"])
-        ob.matrix_world = mat
-
-        slicebox = self.voxelvolume_cutout(ob)
-
-        mw = ob.matrix_world  # FIXME: mw of parent for overlays?!
-        for idx in range(0, 3):
-            self.voxelvolume_slice_drivers_volume(item, slicebox, mw,
-                                                  idx, "scale")
-            self.voxelvolume_slice_drivers_volume(item, slicebox, mw,
-                                                  idx, "location")
-            self.voxelvolume_slice_drivers_volume(item, slicebox, mw,
-                                                  idx, "rotation_euler")
-
-        return ob, slicebox
-
-    def voxelvolume_cutout(self, ob):
-        """"""
-
-        scn = bpy.context.scene
-
-        bb_min, bb_max = self.find_bbox_coordinates([ob])
-
-        for slicetype in ["SliceBox"]:  # , "sagittal", "coronal", "axial"
-
-            empty = bpy.data.objects.new(ob.name+slicetype, None)
-            empty.parent = ob
-            empty.location = (0, 0, 0)
-    #         empty.location = ob.location
-    #         empty.location[0] = bb_min[0] + (bb_max[0] - bb_min[0]) / 2
-    #         empty.location[1] = bb_min[1] + (bb_max[1] - bb_min[1]) / 2
-    #         empty.location[2] = bb_min[2] + (bb_max[2] - bb_min[2]) / 2
-            bpy.context.scene.objects.link(empty)
-            scn.objects.active = empty
-
-    #         saved_location = scn.cursor_location
-    #         scn.cursor_location = empty.location
-    #         bpy.ops.object.origin_set(type='ORIGIN_CURSOR')
-    #         scn.cursor_location = saved_location
-
-            if 0:
-                bpy.ops.object.constraint_add(type='LIMIT_SCALE')
-                con = empty.constraints["Limit Scale"]
-                con.use_transform_limit = True
-                con.owner_space = 'LOCAL'
-                con.use_min_x = con.use_min_y = con.use_min_z = True
-                con.use_max_x = con.use_max_y = con.use_max_z = True
-                con.min_x = con.min_y = con.min_z = 0
-                con.max_x = con.max_y = con.max_z = 1
-
-                bpy.ops.object.constraint_add(type='LIMIT_LOCATION')
-                con = empty.constraints["Limit Location"]
-                con.use_transform_limit = True
-                con.owner_space = 'LOCAL'
-                con.use_min_x = True
-                con.use_max_x = True
-                con.use_min_y = True
-                con.use_max_y = True
-                con.use_min_z = True
-                con.use_max_z = True
-                if slicetype == "SliceBox":
-                    con.min_x = con.min_y = con.min_z = 0
-                    con.max_x = bb_max[0] - bb_min[0]
-                    con.max_y = bb_max[1] - bb_min[1]
-                    con.max_z = bb_max[2] - bb_min[2]
-                    # for GLOBAL space?
-        #             con.min_x = bb_min[0]
-        #             con.max_x = bb_max[0]
-        #             con.min_y = bb_min[1]
-        #             con.max_y = bb_max[1]
-        #             con.min_z = bb_min[2]
-        #             con.max_z = bb_max[2]
-                elif slicetype == "sagittal":
-                    con.min_x = 0
-                    con.max_x = dims[0]
-                    con.min_y = 0
-                    con.max_y = 0
-                    con.min_z = 0
-                    con.max_z = 0
-                elif slicetype == "coronal":
-                    con.min_x = 0
-                    con.max_x = 0
-                    con.min_y = 0
-                    con.max_y = dims[1]
-                    con.min_z = 0
-                    con.max_z = 0
-                elif slicetype == "axial":
-                    con.min_x = 0
-                    con.max_x = 0
-                    con.min_y = 0
-                    con.max_y = 0
-                    con.min_z = 0
-                    con.max_z = dims[2]
-
-            scn.objects.active = ob
-            bpy.ops.object.modifier_add(type='HOOK')
-            hook = ob.modifiers["Hook"]
-            hook.name = slicetype
-            hook.object = empty
-            hook.vertex_group = slicetype
-            hook.falloff_type = 'NONE'
-
-        return empty
-
-    @staticmethod
-    def voxelvolume_slice_drivers_volume(item, slicebox, matrix_world,
-                                         index_ijk, prop, relative=True):
-
-        scn = bpy.context.scene
-        nb = scn.nb
-
-        index_xyz, p = nb_ut.slice_rotations(matrix_world, index_ijk)
-
-        driver = slicebox.driver_add(prop, index_ijk).driver
-        driver.type = 'SCRIPTED'
-
-        # dimension of the voxelvolume
-        data_path = "%s.dimensions[%d]" % (item.path_from_id(), index_xyz)
-        nb_rp.create_var(driver, "dim",
-                         'SINGLE_PROP', 'SCENE',
-                         scn, data_path)
-        # relative slicethickness
-        data_path = "%s.slicethickness[%d]" % (item.path_from_id(), index_xyz)
-        nb_rp.create_var(driver, "slc_th",
-                         'SINGLE_PROP', 'SCENE',
-                         scn, data_path)
-        # relative sliceposition
-        data_path = "%s.sliceposition[%d]" % (item.path_from_id(), index_xyz)
-        nb_rp.create_var(driver, "slc_pos",
-                         'SINGLE_PROP', 'SCENE',
-                         scn, data_path)
-        # sliceangle
-        data_path = "%s.sliceangle[%d]" % (item.path_from_id(), index_xyz)
-        nb_rp.create_var(driver, "slc_angle",
-                         'SINGLE_PROP', 'SCENE',
-                         scn, data_path)
-
-        if relative:
-            if prop == "scale":
-                driver.expression = "slc_th"
-            elif prop == "rotation_euler":
-                driver.expression = "slc_angle"
-            elif prop == "location":
-                driver.expression = p + " * (dim - slc_th * dim)"
-        else:
-            if prop == "scale":
-                driver.expression = "slc_th / dim"
-            elif prop == "rotation_euler":
-                driver.expression = "slc_angle"
-            elif prop == "location":
-                pass
-
-        slicebox.lock_location[index_ijk] = True
-        slicebox.lock_rotation[index_ijk] = True
-        slicebox.lock_scale[index_ijk] = True
-
-    @staticmethod
-    def voxelvolume_slice_drivers_surface(item, tex, matrix_world,
-                                          index_ijk, prop):
-
-        scn = bpy.context.scene
-        nb = scn.nb
-
-        index_xyz, p = nb_ut.slice_rotations(matrix_world, index_ijk)
-
-        driver = tex.driver_add(prop, index_ijk).driver
-        driver.type = 'SCRIPTED'
-
-        data_path = "%s.slicethickness[%d]" % (item.path_from_id(), index_xyz)
-        nb_rp.create_var(driver, "slc_th",
-                         'SINGLE_PROP', 'SCENE',
-                         scn, data_path)
-        if prop == "scale":
-            # relative slicethickness
-            driver.expression = "slc_th"
-        elif prop == "offset":
-            # relative sliceposition
-            data_path = "%s.sliceposition[%d]" % (item.path_from_id(), index_xyz)
-            nb_rp.create_var(driver, "slc_pos",
-                             'SINGLE_PROP', 'SCENE',
-                             scn, data_path)
-            driver.expression = "2*(1/slc_th-1) * " + p + " - (1/slc_th-1)"
-
-    @staticmethod
-    def voxelvolume_rendertype_driver(mat, item):
-
-        scn = bpy.context.scene
-        nb = scn.nb
-
-        driver = mat.driver_add("type", -1).driver
-        driver.type = 'AVERAGE'
-        vv_idx = nb.index_voxelvolumes
-
-        data_path = "%s.rendertype" % item.path_from_id()
-        nb_rp.create_var(driver, "type",
-                         'SINGLE_PROP', 'SCENE',
-                         scn, data_path)
-
-    @staticmethod
-    def voxelvolume_slice_drivers_yoke(parent, child, prop, index):
-
-        scn = bpy.context.scene
-
-        driver = child.driver_add(prop, index).driver
-        driver.type = 'SCRIPTED'
-        data_path = "%s.%s[%d]" % (parent.path_from_id(), prop, index)
-        nb_rp.create_var(driver, "var",
-                         'SINGLE_PROP', 'SCENE',
-                         scn, data_path)
-        driver.expression = "var"
-
-    @staticmethod
-    def find_bbox_coordinates(obs):
-        """Find the extreme dimensions in the geometry."""
-
-        bb_world = [ob.matrix_world * Vector(bbco)
-                    for ob in obs for bbco in ob.bound_box]
-        bb_min = np.amin(np.array(bb_world), 0)
-        bb_max = np.amax(np.array(bb_world), 0)
-
-        return bb_min, bb_max
-
-    @staticmethod
-    def voxelvolume_box_ob(dims=[256, 256, 256], slicetype="verts", add_vg=True):
-        """"""
-
-        me = bpy.data.meshes.new(slicetype)
-        ob = bpy.data.objects.new(slicetype, me)
-        bpy.context.scene.objects.link(ob)
-
-        nverts = 0
 
         width = dims[0]
         height = dims[1]
@@ -1036,104 +752,13 @@ class ImportVoxelvolumes(Operator, ImportHelper):
              (width, height, depth),
              (    0, height, depth)]
 
-    #     vidxs = range(nverts, nverts + 8)
-    #     faces = [(0, 1, 2, 3), (0, 1, 5, 4), (1, 2, 6, 5),
-    #              (2, 3, 7, 6), (3, 0, 4, 7), (4, 5, 6, 7)]
-        if slicetype == "SliceBox":
-            vidxs = range(nverts, nverts + 8)
-            faces = [(3, 2, 1, 0), (0, 1, 5, 4), (1, 2, 6, 5),
-                     (2, 3, 7, 6), (3, 0, 4, 7), (4, 5, 6, 7)]
-        elif slicetype == "Bounds":
-            vidxs = range(nverts, nverts + 8)
-            faces = []
-        elif slicetype == "sagittal":
-            vidxs = range(nverts, nverts + 4)
-            v = [v[0], v[3], v[7], v[4]]
-            faces = [(0, 1, 2, 3)]
-        elif slicetype == "coronal":
-            vidxs = range(nverts, nverts + 4)
-            v = [v[0], v[1], v[5], v[4]]
-            faces = [(0, 1, 2, 3)]
-        elif slicetype == "axial":
-            vidxs = range(nverts, nverts + 4)
-            v = [v[0], v[1], v[2], v[3]]
-            faces = [(0, 1, 2, 3)]
+        faces = [(3, 2, 1, 0), (0, 1, 5, 4), (1, 2, 6, 5),
+                 (2, 3, 7, 6), (3, 0, 4, 7), (4, 5, 6, 7)]
 
         me.from_pydata(v, [], faces)
         me.update(calc_edges=True)
 
-        if add_vg:
-            vg = ob.vertex_groups.new(slicetype)
-            vg.add(vidxs, 1.0, "REPLACE")
-
         return ob
-
-    @staticmethod
-    def voxelvolume_box(ob=None, dims=[256, 256, 256], slicetype="verts"):
-        """Create a box with the dimensions of the voxelvolume."""
-
-        if ob is None:
-            me = bpy.data.meshes.new(slicetype)
-        else:
-            me = ob.data
-
-        nverts = len(me.vertices)
-
-        width = dims[0]
-        height = dims[1]
-        depth = dims[2]
-
-        v = [(    0,      0,     0),
-             (width,      0,     0),
-             (width, height,     0),
-             (    0, height,     0),
-             (    0,      0, depth),
-             (width,      0, depth),
-             (width, height, depth),
-             (    0, height, depth)]
-
-        faces = [(0, 1, 2, 3), (0, 1, 5, 4), (1, 2, 6, 5),
-                 (2, 3, 7, 6), (3, 0, 4, 7), (4, 5, 6, 7)]
-
-        if slicetype == "box":
-            vidxs = range(nverts, nverts + 8)
-            me.from_pydata(v, [], faces)
-            me.update(calc_edges=True)
-        elif slicetype == "bounds":
-            vidxs = range(nverts, nverts + 8)
-            for vco in v:
-                me.vertices.add(1)
-                me.vertices[-1].co = vco
-        elif slicetype == "sagittal":
-            vidxs = range(nverts, nverts + 4)
-            me.vertices.add(4)
-            me.vertices[-4].co = v[0]
-            me.vertices[-3].co = v[1]
-            me.vertices[-2].co = v[2]
-            me.vertices[-1].co = v[3]
-            me.edges.add(4)
-            me.edges[-4].vertices[0] = nverts
-            me.edges[-4].vertices[1] = nverts + 1
-            me.edges[-3].vertices[0] = nverts + 1
-            me.edges[-3].vertices[1] = nverts + 2
-            me.edges[-2].vertices[0] = nverts + 2
-            me.edges[-2].vertices[1] = nverts + 3
-            me.edges[-1].vertices[0] = nverts + 3
-            me.edges[-1].vertices[1] = nverts
-            me.polygons.add(1)
-            me.polygons[-1].vertices[0] = nverts
-            me.polygons[-1].vertices[1] = nverts + 1
-            me.polygons[-1].vertices[2] = nverts + 2
-            me.polygons[-1].vertices[3] = nverts + 3
-        elif slicetype == "coronal":
-            pass
-        elif slicetype == "axial":
-            pass
-
-        vg = ob.vertex_groups.new(slicetype)
-        vg.add(vidxs, 1.0, "REPLACE")
-
-        return me
 
     @staticmethod
     def get_voxmat(name):
@@ -1172,7 +797,7 @@ class ImportVoxelvolumes(Operator, ImportHelper):
         tex.voxel_data.file_format = texformat
         tex.voxel_data.use_still_frame = True
         tex.voxel_data.still_frame = scn.frame_current
-        tex.voxel_data.interpolation = 'NEREASTNEIGHBOR'
+        tex.voxel_data.interpolation = 'TRILINEAR'  # 'NEREASTNEIGHBOR'
 
         if texformat == "IMAGE_SEQUENCE":
             texpath = os.path.join(texdir, texformat, volname, '0000.png')
@@ -1202,6 +827,17 @@ class ImportVoxelvolumes(Operator, ImportHelper):
 
         return tex
 
+    def add_tex_to_mat(self, mat, tex, texture_coords='ORCO', ob=None):
+        """Add a texture to a material."""
+
+        texslot = mat.texture_slots.add()
+        texslot.texture = tex
+        texslot.use_map_density = True
+        texslot.texture_coords = texture_coords
+        if texture_coords == 'OBJECT':
+            texslot.object = ob
+        texslot.use_map_emission = True
+
     @staticmethod
     def generate_label_ramp(tex, item):
         """Make a color ramp from a label collection."""
@@ -1226,4 +862,3 @@ class ImportVoxelvolumes(Operator, ImportHelper):
         info = ""  # TODO
 
         return info
-

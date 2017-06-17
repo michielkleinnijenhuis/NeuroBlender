@@ -91,32 +91,24 @@ class NeuroBlenderBasePanel(bpy.types.Panel):
         row.separator()
 
         try:
-            idx = eval("nb.index_%s" % nb.objecttype)
-            nb_ob = eval("nb.%s[%d]" % (nb.objecttype, idx))
-        except IndexError:
+            idx = scn.path_resolve("nb.index_{}".format(nb.objecttype))
+            nb_ob = scn.path_resolve("nb.{}[{:d}]".format(nb.objecttype, idx))
+        except (IndexError, ValueError):
             pass
         else:
-            if nb.objecttype == "surfaces":
-                self.drawunit_tri(layout, "unwrap", nb, nb_ob)
-                if bpy.context.scene.nb.settingprops.use_carver:
-                    self.drawunit_tri(layout, "carvers", nb, nb_ob)
-            elif nb.objecttype == "voxelvolumes":
-                if bpy.context.scene.nb.settingprops.use_carver:
-                    self.drawunit_tri(layout, "carvers", nb, nb_ob)
-                else:
-                    self.drawunit_tri(layout, "slices", nb, nb_ob)
-
+            self.drawunit_tri(layout, "carvers", nb, nb_ob)
             self.drawunit_tri(layout, "material", nb, nb_ob)
-
             self.drawunit_tri(layout, "transform", nb, nb_ob)
-
             if nb.settingprops.advanced:
+                if nb.objecttype == "surfaces":
+                    self.drawunit_tri(layout, "unwrap", nb, nb_ob)
                 self.drawunit_tri(layout, "info", nb, nb_ob)
 
     def drawunit_switch_to_main(self, layout, nb):
 
         row = layout.row()
         row.label(text="Please use the main scene for NeuroBlender.")
+
         row = layout.row()
         row.operator("nb.switch_to_main",
                      text="Switch to main",
@@ -124,46 +116,70 @@ class NeuroBlenderBasePanel(bpy.types.Panel):
 
     def drawunit_UIList(self, layout, uilistlevel, data, obtype, addopt=True):
 
+        scn = bpy.context.scene
+        nb = scn.nb
+
+        coll = scn.path_resolve('{}.{}'.format(data.path_from_id(), obtype))
+
         row = layout.row()
-        row.template_list("ObjectList" + uilistlevel, "",
-                          data, obtype,
-                          data, "index_" + obtype,
-                          rows=2)
+        row.template_list(
+            "ObjectList" + uilistlevel, "",
+            data, obtype,
+            data, "index_" + obtype,
+            rows=2
+            )
         col = row.column(align=True)
+
         if addopt:
             if uilistlevel == "L2":
-                if data.path_from_id().startswith("nb.voxelvolumes"):
+                if isinstance(data, bpy.types.VoxelvolumeProperties):
                     obtype = "voxelvolumes"
                 else:
                     obtype = "overlays"
-            col.operator("nb.import_" + obtype,
-                         icon='ZOOMIN',
-                         text="").parentpath = data.path_from_id()
-        col.operator("nb.oblist_ops",
-                     icon='ZOOMOUT',
-                     text="").action = 'REMOVE_' + uilistlevel
+            col.operator(
+                "nb.import_" + obtype,
+                icon='ZOOMIN',
+                text=""
+                ).parentpath = data.path_from_id()
 
-        if bpy.context.scene.nb.settingprops.advanced:
-#             col.menu("nb.mass_is_rendered_" + uilistlevel,
-#                      icon='DOWNARROW_HLT',
-#                      text="")
+        if len(coll):
+            col.operator(
+                "nb.oblist_ops",
+                icon='ZOOMOUT',
+                text=""
+                ).action = 'REMOVE_' + uilistlevel
+
+        if bpy.context.scene.nb.settingprops.advanced and (len(coll) > 1):
+
+            col.menu(
+                "nb.mass_is_rendered_" + uilistlevel,
+                icon='DOWNARROW_HLT',
+                text=""
+                )
+
             col.separator()
-            col.operator("nb.oblist_ops",
-                         icon='TRIA_UP',
-                         text="").action = 'UP_' + uilistlevel
-            col.operator("nb.oblist_ops",
-                         icon='TRIA_DOWN',
-                         text="").action = 'DOWN_' + uilistlevel
+            col.operator(
+                "nb.oblist_ops",
+                icon='TRIA_UP',
+                text=""
+                ).action = 'UP_' + uilistlevel
+            col.operator(
+                "nb.oblist_ops",
+                icon='TRIA_DOWN',
+                text=""
+                ).action = 'DOWN_' + uilistlevel
 
     def drawunit_tri(self, layout, triflag, nb, data):
 
+        scn = bpy.context.scene
+
         row = layout.row()
-        prop = "show_%s" % triflag
-        if eval("nb.%s" % prop):
-            exec("self.drawunit_tri_%s(layout, nb, data)" % triflag)
+        prop = "show_{}".format(triflag)
+        if scn.path_resolve("nb.{}".format(prop)):
+            fun = eval("self.drawunit_tri_{}".format(triflag))
+            fun(layout, nb, data)
             icon = 'TRIA_DOWN'
             row.prop(nb, prop, icon=icon, emboss=False)
-
             row = layout.row()
             row.separator()
         else:
@@ -181,102 +197,99 @@ class NeuroBlenderBasePanel(bpy.types.Panel):
         row = layout.row()
         row.operator("nb.unwrap_surface", text="Unwrap from sphere")
 
-    def drawunit_tri_slices(self, layout, nb, nb_ob):
-
-        self.drawunit_slices(layout, nb_ob)
-
-    def drawunit_slices(self, layout, nb_ob, is_yoked=False):
-
-        self.drawunit_slices_tpa(layout, nb_ob)
-
-    def drawunit_slices_tpa(self, layout, nb_ob, is_yoked=False):
-
-        row = layout.row()
-        col = row.column()
-        col.prop(nb_ob, "slicethickness", expand=True, text="Thickness")
-        col.enabled = not is_yoked
-        col = row.column()
-        col.prop(nb_ob, "sliceposition", expand=True, text="Position")
-        col.enabled = not is_yoked
-        col = row.column()
-        col.prop(nb_ob, "sliceangle", expand=True, text="Angle")
-        col.enabled = not is_yoked
-
     def drawunit_tri_carvers(self, layout, nb, nb_ob):
 
         self.drawunit_carvers(layout, nb_ob)
 
-    def drawunit_carvers(self, layout, nb_ob, is_yoked=False):
+    def drawunit_carvers(self, layout, nb_ob):
+
+        scn = bpy.context.scene
+        nb = scn.nb
 
         self.drawunit_carver(layout, nb_ob)
-        self.drawunit_carveroptions(layout, nb_ob)
-        self.drawunit_carverobjects(layout, nb_ob)
+        try:
+            nb_ob.carvers[nb_ob.index_carvers]
+        except IndexError:
+            pass
+        else:
+            if nb.settingprops.advanced:
+                self.drawunit_carveroptions(layout, nb_ob)
+            self.drawunit_carverobjects(layout, nb_ob)
 
     def drawunit_carver(self, layout, nb_ob):
 
         row = layout.row()
         row.operator("nb.import_carvers", icon='ZOOMIN', text="")
         row.prop(nb_ob, "carvers_enum", text="")
-#         row.operator("nb.del_carver", icon='ZOOMOUT', text="")
         row.operator("nb.oblist_ops",
                      icon='ZOOMOUT',
                      text="").action = 'REMOVE_CV'
+        row.enabled = not isinstance(nb_ob, bpy.types.TractProperties)
 
     def drawunit_carveroptions(self, layout, nb_ob):
 
-        ob = bpy.data.objects[nb_ob.name]
         try:
             carver = nb_ob.carvers[nb_ob.carvers_enum]
-            mod = ob.modifiers[carver.name]
-        except:
+#             ob = bpy.data.objects[nb_ob.name]
+#             mod = ob.modifiers[carver.name]
+        except KeyError:
             pass
         else:
             row = layout.row()
             row.prop(carver, "name")
-
-            row = layout.row()
-            row.prop(mod, "operation", expand=True)
+#             row = layout.row()
+#             row.prop(mod, "operation", expand=True)
 
         row = layout.row()
         row.separator()
 
     def drawunit_carverobjects(self, layout, nb_ob):
 
+        scn = bpy.context.scene
+        nb = scn.nb
+
         try:
             carver = nb_ob.carvers[nb_ob.carvers_enum]
-        except:
+        except KeyError:
             pass
         else:
 
             row = layout.row()
             row.prop(carver, "carveobject_type_enum", text="Carveobject type")
 
-            self.drawunit_UIList(layout, "CO", carver, "carveobjects", addopt=True)
+            self.drawunit_UIList(layout, "CO", carver,
+                                 "carveobjects", addopt=True)
 
             try:
-                ob = bpy.data.objects[carver.name]
                 nb_carveob = carver.carveobjects[carver.index_carveobjects]
+                ob = bpy.data.objects[carver.name]
                 mod = ob.modifiers[nb_carveob.name]
-            except:
+            except (NameError, IndexError, KeyError):
                 pass
             else:
-                row = layout.row()
-                row.prop(mod, "operation", expand=True)
-#                 row.enabled = bool(carver.index_carveobjects)
+                if nb.settingprops.advanced:
+                    row = layout.row()
+                    row.prop(mod, "operation", expand=True)
 
-                self.drawunit_slices_tpa(layout, nb_carveob)
+                self.drawunit_carvers_tpa(layout, nb_carveob)
+
+    def drawunit_carvers_tpa(self, layout, nb_ob):
+
+        row = layout.row()
+        col = row.column()
+        col.prop(nb_ob, "slicethickness", expand=True, text="Thickness")
+        col = row.column()
+        col.prop(nb_ob, "sliceposition", expand=True, text="Position")
+        col = row.column()
+        col.prop(nb_ob, "sliceangle", expand=True, text="Angle")
 
     def drawunit_tri_material(self, layout, nb, nb_ob):
 
-        if nb.objecttype == "voxelvolumes":
-
+        if isinstance(nb_ob, bpy.types.VoxelvolumeProperties):
             self.drawunit_rendertype(layout, nb_ob)
-
             tex = bpy.data.textures[nb_ob.name]
             self.drawunit_texture(layout, tex, nb_ob)
-
         else:
-
             self.drawunit_material(layout, nb_ob)
 
     def drawunit_material(self, layout, nb_ob):
@@ -290,11 +303,12 @@ class NeuroBlenderBasePanel(bpy.types.Panel):
 
         else:
 
-            row = layout.row()
-            row.prop(nb_ob, "colourtype", expand=True)
+            if nb.settingprops.advanced:
+                row = layout.row()
+                row.prop(nb_ob, "colourtype", expand=True)
 
-            row = layout.row()
-            row.separator()
+                row = layout.row()
+                row.separator()
 
             self.drawunit_basic_cycles(layout, nb_ob)
 
@@ -305,10 +319,14 @@ class NeuroBlenderBasePanel(bpy.types.Panel):
         row = layout.row(align=True)
         row.prop(mat, "diffuse_color", text="")
         row.prop(mat, "alpha", text="Transparency")
-        if hasattr(nb_ob, "colour"):
+        if isinstance(nb_ob, (bpy.types.LabelProperties,
+                              bpy.types.BorderProperties)):
             row.operator("nb.revert_label", icon='BACK', text="")
 
     def drawunit_basic_cycles(self, layout, nb_ob):
+
+        scn = bpy.context.scene
+        nb = scn.nb
 
         mat = bpy.data.materials[nb_ob.name]
         colour = mat.node_tree.nodes["RGB"].outputs[0]
@@ -317,10 +335,12 @@ class NeuroBlenderBasePanel(bpy.types.Panel):
         row = layout.row(align=True)
         row.prop(colour, "default_value", text="")
         row.prop(trans, "default_value", text="Transparency")
-        if hasattr(nb_ob, "colour"):
+        if isinstance(nb_ob, (bpy.types.LabelProperties,
+                              bpy.types.BorderProperties)):
             row.operator("nb.revert_label", icon='BACK', text="")
 
-        self.drawunit_basic_cycles_mix(layout, mat)
+        if nb.settingprops.advanced:
+            self.drawunit_basic_cycles_mix(layout, mat)
 
     def drawunit_basic_cycles_mix(self, layout, mat):
 
@@ -334,34 +354,28 @@ class NeuroBlenderBasePanel(bpy.types.Panel):
         row.prop(nt.nodes["MixDiffGlos"].inputs[0],
                  "default_value", text="mix")
 
-    def drawunit_texture(self, layout, tex, nb_coll=None, text=""):
+    def drawunit_texture(self, layout, tex, nb_coll=None):
 
         scn = bpy.context.scene
         nb = scn.nb
 
-        if text:
-            row = layout.row()
-            row.label(text=text)
+        if nb.settingprops.advanced:
+            if tex.type == 'VOXEL_DATA':
+                row = layout.row()
+                row.prop(tex.voxel_data, "interpolation")
+                row = layout.row()
+                row.separator()
 
-        row = layout.row()
-        row.separator()
-
-        if tex.type == 'VOXEL_DATA':
             row = layout.row()
-            row.prop(tex.voxel_data, "interpolation")
+            row.prop(tex, "intensity")
+            row.prop(tex, "contrast")
+            row.prop(tex, "saturation")
+
             row = layout.row()
             row.separator()
 
-        row = layout.row()
-        row.prop(tex, "intensity")
-        row.prop(tex, "contrast")
-#         row.prop(tex, "saturation")
-
-        row = layout.row()
-        row.separator()
-
-        row = layout.row()
-        row.prop(tex, "use_color_ramp", text="Ramp")
+            row = layout.row()
+            row.prop(tex, "use_color_ramp", text="Ramp")
 
         if tex.use_color_ramp:
 
@@ -373,7 +387,6 @@ class NeuroBlenderBasePanel(bpy.types.Panel):
             row = layout.row()
             row.separator()
 
-            # NOTE: more fun stuff under Texture => Influence
             self.drawunit_colourramp(layout, tex, nb_coll)
 
         else:
@@ -390,16 +403,15 @@ class NeuroBlenderBasePanel(bpy.types.Panel):
                  icon="ALIGN", icon_only=True)
         row.operator("nb.colourmap_presets", text="", icon='ZOOMIN')
 
-    def drawunit_colourramp(self, layout, ramp, nb_coll=None, text=""):
+    def drawunit_colourramp(self, layout, ramp, nb_coll=None):
 
-        if text:
-            row = layout.row()
-            row.label(text=text)
+        scn = bpy.context.scene
+        nb = scn.nb
 
         row = layout.row()
         layout.template_color_ramp(ramp, "color_ramp", expand=True)
 
-        if ((nb_coll is not None) and bpy.context.scene.nb.settingprops.advanced):
+        if ((nb_coll is not None) and nb.settingprops.advanced):
 
             row = layout.row()
             row.separator()
@@ -459,24 +471,26 @@ class NeuroBlenderBasePanel(bpy.types.Panel):
 
     def drawunit_rendertype(self, layout, nb_ob):
 
+        scn = bpy.context.scene
+        nb = scn.nb
+
         row = layout.row()
         row.prop(nb_ob, "rendertype", expand=True)
 
         row = layout.row()
         row.separator()
 
-        if nb_ob.rendertype == "SURFACE":
+        if nb.settingprops.advanced and (nb_ob.rendertype == "SURFACE"):
             mat = bpy.data.materials[nb_ob.name]
             row = layout.row()
-            row.prop(mat, "alpha", text="SliceBox alpha")
-            # NOTE: more fun stuff under Material => Transparency
+            row.prop(mat, "alpha", text="Carvebox alpha")
 
     def drawunit_tri_transform(self, layout, nb, nb_ob):
 
         row = layout.row()
         row.prop(nb_ob, "sformfile", text="")
 
-        if bpy.context.scene.nb.settingprops.advanced:
+        if nb.settingprops.advanced:
             ob = bpy.data.objects[nb_ob.name]
             row = layout.row()
             col = row.column()
@@ -488,11 +502,10 @@ class NeuroBlenderBasePanel(bpy.types.Panel):
         row.prop(nb_ob, "filepath")
         row.enabled = False
 
-        funstring = 'self.drawunit_info_{}(layout, nb, nb_ob)'
-        fun = funstring.format(nb.objecttype)
-        eval(fun)
+        infofun = eval('self.drawunit_info_{}'.format(nb.objecttype))
+        infofun(layout, nb_ob)
 
-    def drawunit_info_tracts(self, layout, nb, nb_ob):
+    def drawunit_info_tracts(self, layout, nb_ob):
 
         row = layout.row()
         row.prop(nb_ob, "nstreamlines",
@@ -509,11 +522,14 @@ class NeuroBlenderBasePanel(bpy.types.Panel):
                  text="Tract weeding factor", emboss=False)
         row.enabled = False
 
-    def drawunit_info_surfaces(self, layout, nb, nb_ob):
+    def drawunit_info_surfaces(self, layout, nb_ob):
 
-        pass
+        row = layout.row()
+        row.prop(nb_ob, "is_unwrapped",
+                 text="Has the surface been unwrapped?", emboss=False)
+        row.enabled = False
 
-    def drawunit_info_voxelvolumes(self, layout, nb, nb_ob):
+    def drawunit_info_voxelvolumes(self, layout, nb_ob):
 
         row = layout.row()
         row.prop(nb_ob, "texdir")
@@ -524,6 +540,10 @@ class NeuroBlenderBasePanel(bpy.types.Panel):
 
         row = layout.row()
         row.prop(nb_ob, "range", text="Datarange", emboss=False)
+        row.enabled = False
+
+        row = layout.row()
+        row.prop(nb_ob, "dimensions", text="Dimensions", emboss=False)
         row.enabled = False
 
 
@@ -548,20 +568,25 @@ class NeuroBlenderOverlayPanel(bpy.types.Panel):
     calc_nn_elpos = NeuroBlenderBasePanel.calc_nn_elpos
     drawunit_colourmap = NeuroBlenderBasePanel.drawunit_colourmap
     drawunit_colourramp = NeuroBlenderBasePanel.drawunit_colourramp
-    drawunit_slices = NeuroBlenderBasePanel.drawunit_slices
 
-    def draw_nb_panel(self, layout, nb):
+    def draw_nb_panel(self, context, layout):
+
+        scn = context.scene
+        nb = scn.nb
 
         try:
-            ob_idx = eval("nb.index_%s" % nb.objecttype)
-            nb_ob = eval("nb.%s[%d]" % (nb.objecttype, ob_idx))
-        except IndexError:
+            idx = scn.path_resolve("nb.index_{}".format(nb.objecttype))
+            nb_ob = scn.path_resolve("nb.{}[{:d}]".format(nb.objecttype, idx))
+        except (IndexError, ValueError):
             row = self.layout.row()
-            row.label(text="No " + nb.objecttype + " loaded ...")
+            row.label(text="No {} loaded ...".format(nb.objecttype))
         else:
             self.draw_nb_overlaypanel(layout, nb, nb_ob)
 
     def draw_nb_overlaypanel(self, layout, nb, nb_ob):
+
+        scn = bpy.context.scene
+        nb = scn.nb
 
         row = layout.row()
         row.prop(nb, "overlaytype", expand=True)
@@ -575,31 +600,35 @@ class NeuroBlenderOverlayPanel(bpy.types.Panel):
         row.separator()
 
         try:
-            ov_idx = eval("nb_ob.index_%s" % nb.overlaytype)
-            nb_ov = eval("nb_ob.%s[%d]" % (nb.overlaytype, ov_idx))
-        except IndexError:
+            dpath = nb_ob.path_from_id()
+            ovtype = nb.overlaytype
+            idx = scn.path_resolve("{}.index_{}".format(dpath, ovtype))
+            nb_ov = scn.path_resolve("{}.{}[{:d}]".format(dpath, ovtype, idx))
+        except (IndexError, ValueError):
             pass
         else:
             self.draw_nb_overlayprops(layout, nb, nb_ob, nb_ov)
 
     def draw_nb_overlayprops(self, layout, nb, nb_ob, nb_ov):
 
-        if nb.objecttype == "voxelvolumes":
-            self.drawunit_tri(layout, "overlay_slices", nb, nb_ov)
-        else:
-            if nb.overlaytype == "scalargroups":
-                if len(nb_ov.scalars) > 1:
-                    row = layout.row()
-                    row.template_list("ObjectListTS", "",
-                                      nb_ov, "scalars",
-                                      nb_ov, "index_scalars",
-                                      rows=2, type="COMPACT")
-                if nb.objecttype == 'surfaces':
-                    self.drawunit_bake(layout, nb_ob)
-
         if nb.overlaytype == "scalargroups":
+
+            # (time)series
+            if len(nb_ov.scalars) > 1:
+                row = layout.row()
+                row.template_list("ObjectListTS", "",
+                                  nb_ov, "scalars",
+                                  nb_ov, "index_scalars",
+                                  rows=2, type="COMPACT")
+
+            # texture baking
+            if nb.objecttype == 'surfaces':
+                self.drawunit_bake(layout, nb_ob)
+
             self.drawunit_tri(layout, "overlay_material", nb, nb_ov)
+
         else:
+
             self.drawunit_tri(layout, "items", nb, nb_ov)
 
         if nb.settingprops.advanced:
@@ -629,6 +658,9 @@ class NeuroBlenderOverlayPanel(bpy.types.Panel):
         row.separator()
 
     def drawunit_tri_overlay_material(self, layout, nb, nb_ov):
+
+        scn = bpy.context.scene
+        nb = scn.nb
 
         if nb.objecttype == "tracts":
 
@@ -661,25 +693,42 @@ class NeuroBlenderOverlayPanel(bpy.types.Panel):
 
         elif nb.objecttype == "voxelvolumes":
 
-            self.drawunit_rendertype(layout, nb_ov)
-
             itemtype = nb.overlaytype.replace("groups", "s")
             item = eval("nb_ov.{0}[nb_ov.index_{0}]".format(itemtype))
-            mat = bpy.data.materials[item.matname]
-            tex = mat.texture_slots[item.tex_idx].texture
-            self.drawunit_texture(layout, tex, nb_ov)
+            dpath = nb_ov.path_from_id()
+#             item = scn.path_resolve("{0}.{1}[{0}.index_{1}]".format(dpath, itemtype))
+
+            parentpath = '.'.join(dpath.split('.')[:-1])
+            nb_parent = bpy.context.scene.path_resolve(parentpath)
+            mat = bpy.data.materials[nb_parent.name]
+            ts = mat.texture_slots.get(nb_ov.name)
+
+            # TODO: texture mixing options and reorder textures from NB
+            row = layout.row()
+            row.prop(ts, "blend_type")
+
+            self.drawunit_texture(layout, ts.texture, nb_ov)
 
     def drawunit_tri_items(self, layout, nb, nb_ov):
 
-        if nb.objecttype == "voxelvolumes":
-
-            mat = bpy.data.materials[nb_ov.name]
-            ts = mat.texture_slots.get(nb_ov.name)
-            row = layout.row()
-            row.prop(ts, "emission_factor")
-            row.prop(ts, "emission_color_factor")
+        scn = bpy.context.scene
+        nb = scn.nb
 
         itemtype = nb.overlaytype.replace("groups", "s")
+
+        if nb.objecttype == "voxelvolumes":
+
+            dpath = nb_ov.path_from_id()
+            parentpath = '.'.join(dpath.split('.')[:-1])
+            nb_parent = bpy.context.scene.path_resolve(parentpath)
+            mat = bpy.data.materials[nb_parent.name]
+
+            if nb.settingprops.advanced:
+                ts = mat.texture_slots.get(nb_ov.name)
+                row = layout.row()
+                row.prop(ts, "emission_factor")
+                row.prop(ts, "emission_color_factor")
+
         self.drawunit_UIList(layout, "L3", nb_ov, itemtype, addopt=False)
 
         self.drawunit_tri(layout, "itemprops", nb, nb_ov)
@@ -693,22 +742,31 @@ class NeuroBlenderOverlayPanel(bpy.types.Panel):
 
     def drawunit_tri_itemprops(self, layout, nb, nb_ov):
 
-        type = nb.overlaytype.replace("groups", "s")
+        scn = bpy.context.scene
+        nb = scn.nb
 
         try:
-            idx = eval("nb_ov.index_%s" % type)
-            data = eval("nb_ov.%s[%d]" % (type, idx))
-        except IndexError:
+            # TODO: make label panel code less convoluted
+            dpath = nb_ov.path_from_id()
+            itemtype = nb.overlaytype.replace("groups", "s")
+            idx = scn.path_resolve("{}.index_{}".format(dpath, itemtype))
+            data = scn.path_resolve("{}.{}[{:d}]".format(dpath, itemtype, idx))
+        except (IndexError, ValueError):
             pass
         else:
-            exec("self.drawunit_%s(layout, nb, data)" % type)
+            drawfun = eval('self.drawunit_{}'.format(itemtype))
+            drawfun(layout, nb, data)
 
     def drawunit_labels(self, layout, nb, nb_ov):
 
         if nb.objecttype == "voxelvolumes":
 
-            tex = bpy.data.textures[nb_ov.name]
-            el = tex.color_ramp.elements[nb_ov.index_labels + 1]
+            dpath = nb_ov.path_from_id()
+            parentpath = '.'.join(dpath.split('.')[:-1])
+            nb_parent = bpy.context.scene.path_resolve(parentpath)
+            tex = bpy.data.textures[nb_parent.name]
+
+            el = tex.color_ramp.elements[nb_parent.index_labels + 1]
             row = layout.row()
             row.prop(el, "color", text="")
 
@@ -719,14 +777,14 @@ class NeuroBlenderOverlayPanel(bpy.types.Panel):
             else:
                 self.drawunit_basic_cycles(layout, nb_ov)
 
-    def drawunit_borders(self, layout, nb, nb_ov):
+    def drawunit_borders(self, layout, nb, item):
 
-        self.drawunit_basic_cycles(layout, nb_ov)
+        self.drawunit_basic_cycles(layout, item)
 
         row = layout.row()
         row.separator()
 
-        ob = bpy.data.objects[nb_ov.name]
+        ob = bpy.data.objects[item.name]
 
         row = layout.row()
         row.label(text="Smoothing:")
@@ -737,12 +795,6 @@ class NeuroBlenderOverlayPanel(bpy.types.Panel):
         row.label(text="Bevel:")
         row.prop(ob.data, "bevel_depth")
         row.prop(ob.data, "bevel_resolution")
-
-    def drawunit_tri_overlay_slices(self, layout, nb, nb_ov):
-
-        row = layout.row()
-        row.prop(nb_ov, "is_yoked", text="Follow parent")
-        self.drawunit_slices(layout, nb_ov, nb_ov.is_yoked)
 
     def drawunit_tri_overlay_info(self, layout, nb, nb_ov):
 
@@ -756,7 +808,8 @@ class NeuroBlenderOverlayPanel(bpy.types.Panel):
             row.prop(nb_ov, "texdir")
 
             row = layout.row()
-#             row.enabled = False
+            row.enabled = False  # TODO: option to change range?
+#             (and revert it by getting it from file)
             row.prop(nb_ov, "range")
 
 
@@ -776,7 +829,10 @@ class NeuroBlenderScenePanel(bpy.types.Panel):
     drawunit_basic_cycles = NeuroBlenderBasePanel.drawunit_basic_cycles
     drawunit_basic_cycles_mix = NeuroBlenderBasePanel.drawunit_basic_cycles_mix
 
-    def draw_nb_panel(self, layout, nb):
+    def draw_nb_panel(self, context, layout):
+
+        scn = context.scene
+        nb = scn.nb
 
         self.drawunit_presets(layout, nb)
 
@@ -796,22 +852,6 @@ class NeuroBlenderScenePanel(bpy.types.Panel):
             self.drawunit_tri(layout, "lights", nb, preset)
             self.drawunit_tri(layout, "tables", nb, preset)
             self.drawunit_tri(layout, "bounds", nb, preset)
-            self.drawunit_tri(layout, "carvers", nb, preset)
-
-        row = layout.row()
-        row.separator()
-        obs = [ob for ob in bpy.data.objects
-               if ob.type not in ["CAMERA", "LAMP", "EMPTY"]]
-        sobs = bpy.context.selected_objects
-        if obs:
-            row = layout.row()
-            row.operator("nb.scene_preset",
-                         text="Load scene preset",
-                         icon="WORLD")
-            row.enabled = len(nb.presets) > 0
-        else:
-            row = layout.row()
-            row.label(text="No geometry loaded ...")
 
     def drawunit_presets(self, layout, nb):
 
@@ -820,26 +860,10 @@ class NeuroBlenderScenePanel(bpy.types.Panel):
         row.prop(nb, "presets_enum", expand=False, text="")
         row.operator("nb.del_preset", icon='ZOOMOUT', text="")
 
-    def drawunit_tri_bounds(self, layout, nb, preset):
-
-        preset_ob = bpy.data.objects[preset.centre]
-        row = layout.row()
-        col = row.column()
-        col.prop(preset_ob, "location")
-        col = row.column()
-        col.operator("nb.reset_presetcentre", icon='BACK', text="")
-
-        col = row.column()
-        col.prop(preset_ob, "scale")
-#         col.prop(preset, "dims")
-#         col.enabled = False
-        col = row.column()
-        col.operator("nb.reset_presetdims", icon='BACK', text="")
-
     def drawunit_tri_cameras(self, layout, nb, preset):
 
         try:
-            cam = preset.cameras[0]
+            cam = preset.cameras[0]  # TODO: multiple cameras in a preset
         except IndexError:
             cam = preset.cameras.add()
             preset.index_cameras = (len(preset.cameras)-1)
@@ -870,34 +894,25 @@ class NeuroBlenderScenePanel(bpy.types.Panel):
             row = layout.row()
             row.separator()
 
-            row = layout.row()
+            if nb.settingprops.advanced:
+                row = layout.row()
 
-            split = row.split(percentage=0.55)
-            col = split.column(align=True)
-            col.label(text="Track object:")
-            col.prop(cam, "trackobject", text="")
-            if cam.trackobject == "None":
-                col.prop(cam_ob, "rotation_euler", index=2, text="tumble")
+                split = row.split(percentage=0.55)
+                col = split.column(align=True)
+                col.label(text="Track object:")
+                col.prop(cam, "trackobject", text="")
+                if cam.trackobject == "None":
+                    col.prop(cam_ob, "rotation_euler", index=2, text="tumble")
 
-            split = split.split(percentage=0.1)
-            col = split.column()
-            col.separator()
+                split = split.split(percentage=0.1)
+                col = split.column()
+                col.separator()
 
-            camdata = cam_ob.data
-            col = split.column(align=True)
-            col.label(text="Clipping:")
-            col.prop(camdata, "clip_start", text="Start")
-            col.prop(camdata, "clip_end", text="End")
-
-#             split = layout.split(percentage=0.66)
-#
-#             camdata = cam_ob.data
-#             row = split.row(align=True)
-#             row.prop(camdata, "clip_start")
-#             row.prop(camdata, "clip_end")
-#
-#             if cam.trackobject == "None":
-#                 split.prop(cam_ob, "rotation_euler", index=2, text="tumble")
+                camdata = cam_ob.data
+                col = split.column(align=True)
+                col.label(text="Clipping:")
+                col.prop(camdata, "clip_start", text="Start")
+                col.prop(camdata, "clip_end", text="End")
 
     def drawunit_tri_lights(self, layout, nb, preset):
 
@@ -941,7 +956,6 @@ class NeuroBlenderScenePanel(bpy.types.Panel):
         try:
             tab = preset.tables[0]
         except IndexError:
-            # tab = create_table(preset.name+"DissectionTable")
             tab = preset.tables.add()
             preset.index_tables = (len(preset.tables)-1)
         else:
@@ -949,6 +963,26 @@ class NeuroBlenderScenePanel(bpy.types.Panel):
             row.prop(tab, "is_rendered", toggle=True)
             row = layout.row()
             self.drawunit_basic_cycles(layout, tab)
+
+    def drawunit_tri_bounds(self, layout, nb, preset):
+
+        preset_ob = bpy.data.objects[preset.centre]
+
+        row = layout.row()
+        props = [{'prop': 'location',
+                  'op': "nb.reset_presetcentre",
+                  'text': 'Recentre'},
+                 {'prop': 'scale',
+                  'op': "nb.reset_presetdims",
+                  'text': 'Rescale'}]
+        for propdict in props:
+            col = row.column()
+            row1 = col.row()
+            row1.operator(propdict['op'], icon='BACK', text=propdict['text'])
+            if nb.settingprops.advanced:
+                row1 = col.row()
+                col1 = row1.column()
+                col1.prop(preset_ob, propdict['prop'])
 
 
 class NeuroBlenderAnimationPanel(bpy.types.Panel):
@@ -965,8 +999,12 @@ class NeuroBlenderAnimationPanel(bpy.types.Panel):
     drawunit_UIList = NeuroBlenderBasePanel.drawunit_UIList
     drawunit_tri = NeuroBlenderBasePanel.drawunit_tri
 
-    def draw_nb_panel(self, layout, nb):
+    def draw_nb_panel(self, context, layout):
 
+        scn = context.scene
+        nb = scn.nb
+
+        # TODO: decouple animations from presets
         try:
             idx = nb.index_presets
             preset = nb.presets[idx]
@@ -976,10 +1014,12 @@ class NeuroBlenderAnimationPanel(bpy.types.Panel):
         else:
             self.drawunit_animations(layout, nb, preset)
 
-        row = layout.row()
-        row.operator("nb.set_animations",
-                     text="Set animations",
-                     icon="RENDER_ANIMATION")
+#         row = layout.row()
+#         row.separator()
+#         row = layout.row()
+#         row.operator("nb.set_animations",
+#                      text="Set animations",
+#                      icon="RENDER_ANIMATION")
 
     def drawunit_animations(self, layout, nb, preset):
 
@@ -1006,10 +1046,9 @@ class NeuroBlenderAnimationPanel(bpy.types.Panel):
 
             self.drawunit_tri(layout, "timings", nb, preset)
 
-#             funstring = 'self.drawunit_tri(layout, "anim{}", nb, preset)'
-            funstring = 'self.drawunit_animation_{}(layout, nb, preset)'
-            fun = funstring.format(anim.animationtype.lower())
-            eval(fun)
+            animtype = anim.animationtype.lower()
+            drawfun = eval('self.drawunit_animation_{}'.format(animtype))
+            drawfun(layout, nb, preset)
 
     def drawunit_tri_timings(self, layout, nb, preset):
 
@@ -1039,7 +1078,8 @@ class NeuroBlenderAnimationPanel(bpy.types.Panel):
     def drawunit_camerapath(self, layout, nb, preset):
 
         anim = preset.animations[preset.index_animations]
-#
+
+        # TODO: rewrite of campath options
         row = layout.row()
         col = row.column()
         col.prop(anim, "reverse", toggle=True,
@@ -1050,9 +1090,13 @@ class NeuroBlenderAnimationPanel(bpy.types.Panel):
         col.operator("nb.del_campath", icon='ZOOMOUT', text="")
         col.enabled = True
 
+        row = layout.row()
+        row.separator()
+
         box = layout.box()
         self.drawunit_tri(box, "newpath", nb, anim)
-        if anim.campaths_enum:
+
+        if nb.settingprops.advanced and (anim.campaths_enum != "No_CamPaths"):
             self.drawunit_tri(box, "points", nb, anim)
 
     def drawunit_tri_tracking(self, layout, nb, preset):
@@ -1070,15 +1114,20 @@ class NeuroBlenderAnimationPanel(bpy.types.Panel):
         row = layout.row()
         row.prop(anim, "tracktype", expand=True)
 
-        split = layout.split(percentage=0.33)
-        col = split.column()
-        col.prop(cam_ob, "rotation_euler", index=2, text="tumble")
-        col.enabled = anim.tracktype != "TrackObject"
+        if nb.settingprops.advanced:
 
-        col = split.column()
-        row = col.row(align=True)
-        row.prop(cam, "clip_start")
-        row.prop(cam, "clip_end")
+            row.separator()
+            row = layout.row()
+
+            split = layout.split(percentage=0.33)
+            col = split.column()
+            col.prop(cam_ob, "rotation_euler", index=2, text="tumble")
+            col.enabled = anim.tracktype != "TrackObject"
+
+            col = split.column()
+            row = col.row(align=True)
+            row.prop(cam, "clip_start")
+            row.prop(cam, "clip_end")
 
     def drawunit_tri_points(self, layout, nb, anim):
 
@@ -1120,7 +1169,7 @@ class NeuroBlenderAnimationPanel(bpy.types.Panel):
             row = layout.row()
             row.prop(anim, "anim_curve", text="")
         elif anim.pathtype == 'Create':
-            pass  # name, for every options?
+            pass  # TODO: name, for every option?
 
         row = layout.row()
         row.separator()
@@ -1198,7 +1247,10 @@ class NeuroBlenderSettingsPanel(bpy.types.Panel):
     drawunit_switch_to_main = NeuroBlenderBasePanel.drawunit_switch_to_main
     drawunit_tri = NeuroBlenderBasePanel.drawunit_tri
 
-    def draw_nb_panel(self, layout, nb):
+    def draw_nb_panel(self, context, layout):
+
+        scn = context.scene
+        nb = scn.nb
 
         settingprops = nb.settingprops
 
