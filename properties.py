@@ -2756,21 +2756,6 @@ class VoxelvolumeProperties(PropertyGroup):
             """,
         subtype="FILE_PATH",
         update=sformfile_update)
-    srow_x = FloatVectorProperty(
-        name="srow_x",
-        description="",
-        default=[1.0, 0.0, 0.0, 0.0],
-        size=4)
-    srow_y = FloatVectorProperty(
-        name="srow_y",
-        description="",
-        default=[0.0, 1.0, 0.0, 0.0],
-        size=4)
-    srow_z = FloatVectorProperty(
-        name="srow_z",
-        description="",
-        default=[0.0, 0.0, 1.0, 0.0],
-        size=4)
     dimensions = FloatVectorProperty(
         name="dimensions",
         description="",
