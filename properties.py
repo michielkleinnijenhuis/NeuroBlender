@@ -1461,10 +1461,6 @@ class TableProperties(PropertyGroup):
         description="Indicates if the overlay is rendered",
         default=False,
         update=table_update)
-    beautified = BoolProperty(
-        name="Beautify",
-        description="",
-        default=True)
 
     colourtype = EnumProperty(
         name="colourtype",
@@ -1515,16 +1511,6 @@ class CamPathProperties(PropertyGroup):
         name="Is Rendered",
         description="Indicates if the camera path is rendered",
         default=True)
-#
-#     bezier_points = CollectionProperty(
-#         type=CamPointProperties,
-#         name="campoints",
-#         description="The collection of camera positions")
-#     index_bezier_points = IntProperty(
-#         name="campoint index",
-#         description="index of the campoints collection",
-#         default=0,
-#         min=0)
 
 
 class AnimationProperties(PropertyGroup):
@@ -1873,15 +1859,6 @@ class PresetProperties(PropertyGroup):
         default=0,
         min=0)
 
-    lights_enum = EnumProperty(
-        name="Light switch",
-        description="switch between lighting modes",
-        items=[("Key", "Key", "Use Key lighting only", 1),
-               ("Key-Back-Fill", "Key-Back-Fill",
-                "Use Key-Back-Fill lighting", 2),
-               ("Free", "Free", "Set up manually", 3)],
-        default="Key")
-
     frame_start = IntProperty(
         name="startframe",
         description="first frame of the animation",
@@ -1892,24 +1869,6 @@ class PresetProperties(PropertyGroup):
         description="last frame of the animation",
         min=2,
         default=100)
-
-    carversempty = StringProperty(
-        name="Carvers",
-        description="Scene carvers",
-        default="Carvers")
-    carvers = CollectionProperty(
-        type=CarverProperties,
-        name="carvers",
-        description="The collection of carvers")
-    index_carvers = IntProperty(
-        name="carver index",
-        description="index of the carvers collection",
-        default=0,
-        min=0)
-    carvers_enum = EnumProperty(
-        name="carvers",
-        description="select carver",
-        items=carvers_enum_callback)
 
 
 class ColorRampProperties(PropertyGroup):
@@ -1928,12 +1887,12 @@ class ColorRampProperties(PropertyGroup):
         default=0,
         precision=4)
 
-    def calc_nn_position(self, position, range):
+    def calc_nn_position(self, position, datarange):
         """Calculate the non-normalized positions of elements."""
 
-        dmin = range[0]
-        dmax = range[1]
-        drange = dmax-dmin
+        dmin = datarange[0]
+        dmax = datarange[1]
+        drange = dmax - dmin
         self.nn_position = position * drange + dmin
 
 
@@ -1963,9 +1922,7 @@ class ScalarProperties(PropertyGroup):
         name="Is Rendered",
         description="Indicates if the overlay is rendered",
         default=True)
-    parent = StringProperty(
-        name="Parent",
-        description="The name of the parent object")
+
     range = FloatVectorProperty(
         name="Range",
         description="The original min-max of scalars mapped in vertexweights",
@@ -1986,6 +1943,7 @@ class ScalarProperties(PropertyGroup):
         description="Index of the non-normalized color stops",
         default=0,
         min=0)
+
     showcolourbar = BoolProperty(
         name="Render colourbar",
         description="Show/hide colourbar in rendered image",
@@ -2063,12 +2021,7 @@ class LabelProperties(PropertyGroup):
         name="Is Rendered",
         description="Indicates if the label is rendered",
         default=True)
-    parent = StringProperty(
-        name="Parent",
-        description="The name of the parent object")
-    group = StringProperty(
-        name="Group",
-        description="The group the border overlay belongs to")
+
     value = IntProperty(
         name="Label value",
         description="The value of the label in vertexgroup 'scalarname'",
@@ -2105,12 +2058,7 @@ class BorderProperties(PropertyGroup):
         name="Is Rendered",
         description="Indicates if the border is rendered",
         default=True)
-    parent = StringProperty(
-        name="Parent",
-        description="The name of the parent object")
-    group = StringProperty(
-        name="Group",
-        description="The group the border overlay belongs to")
+
     value = IntProperty(
         name="Label value",
         description="The value of the label in vertexgroup 'scalarname'",
@@ -2151,9 +2099,6 @@ class ScalarGroupProperties(PropertyGroup):
         name="Is Rendered",
         description="Indicates if the overlay is rendered",
         default=True)
-    parent = StringProperty(
-        name="Parent",
-        description="The name of the parent object")
 
     scalars = CollectionProperty(
         type=ScalarProperties,
@@ -2186,6 +2131,7 @@ class ScalarGroupProperties(PropertyGroup):
         description="Index of the non-normalized color stops",
         default=0,
         min=0)
+
     showcolourbar = BoolProperty(
         name="Render colourbar",
         description="Show/hide colourbar in rendered image",
@@ -2230,23 +2176,6 @@ class ScalarGroupProperties(PropertyGroup):
         min=0.,
         max=1.)
 
-    rendertype = EnumProperty(
-        name="rendertype",
-        description="Surface or volume rendering of texture",
-        items=[("SURFACE", "Surface",
-                "Switch to surface rendering", 0),
-               ("VOLUME", "Volume",
-                "Switch to volume rendering", 2)],
-        update=rendertype_enum_update,
-        default="VOLUME")
-
-    dimensions = FloatVectorProperty(
-        name="dimensions",
-        description="",
-        default=[0.0, 0.0, 0.0, 0.0],
-        size=4,
-        subtype="TRANSLATION")
-
     texdir = StringProperty(
         name="Texture directory",
         description="The directory with textures",
@@ -2259,12 +2188,6 @@ class ScalarGroupProperties(PropertyGroup):
         items=[("IMAGE_SEQUENCE", "IMAGE_SEQUENCE", "IMAGE_SEQUENCE", 0),
                ("STRIP", "STRIP", "STRIP", 1),
                ("RAW_8BIT", "RAW_8BIT", "RAW_8BIT", 2)])
-
-    mat_is_yoked = BoolProperty(
-        name="Material Is Yoked",
-        description="Indicates if the overlay time point materials are yoked",
-        default=True,
-        update=mat_is_yoked_bool_update)
 
     prefix_parentname = BoolProperty(
         name="Prefix parentname",
@@ -2306,9 +2229,6 @@ class LabelGroupProperties(PropertyGroup):
         name="Is Rendered",
         description="Indicates if the label is rendered",
         default=True)
-    parent = StringProperty(
-        name="Parent",
-        description="The name of the parent object")
 
     labels = CollectionProperty(
         type=LabelProperties,
@@ -2341,23 +2261,6 @@ class LabelGroupProperties(PropertyGroup):
         description="Index of the non-normalized color stops",
         default=0,
         min=0)
-
-    rendertype = EnumProperty(
-        name="rendertype",
-        description="Surface or volume rendering of texture",
-        items=[("SURFACE", "Surface",
-                "Switch to surface rendering", 0),
-               ("VOLUME", "Volume",
-                "Switch to volume rendering", 2)],
-        update=rendertype_enum_update,
-        default="VOLUME")
-
-    dimensions = FloatVectorProperty(
-        name="dimensions",
-        description="",
-        default=[0.0, 0.0, 0.0, 0.0],
-        size=4,
-        subtype="TRANSLATION")
 
     texdir = StringProperty(
         name="Texture directory",
@@ -2412,9 +2315,6 @@ class BorderGroupProperties(PropertyGroup):
         name="Is Rendered",
         description="Indicates if the border is rendered",
         default=True)
-    parent = StringProperty(
-        name="Parent",
-        description="The name of the parent object")
 
     borders = CollectionProperty(
         type=BorderProperties,
@@ -2479,10 +2379,6 @@ class TractProperties(PropertyGroup):
         name="Is Rendered",
         description="Indicates if the overlay is rendered",
         default=True)
-    beautified = BoolProperty(
-        name="Beautify",
-        description="Apply initial bevel on streamlines",
-        default=True)
 
     sformfile = StringProperty(
         name="Transform",
@@ -2494,21 +2390,6 @@ class TractProperties(PropertyGroup):
             """,
         subtype="FILE_PATH",
         update=sformfile_update)
-    srow_x = FloatVectorProperty(
-        name="srow_x",
-        description="",
-        default=[1.0, 0.0, 0.0, 0.0],
-        size=4)
-    srow_y = FloatVectorProperty(
-        name="srow_y",
-        description="",
-        default=[0.0, 1.0, 0.0, 0.0],
-        size=4)
-    srow_z = FloatVectorProperty(
-        name="srow_z",
-        description="",
-        default=[0.0, 0.0, 1.0, 0.0],
-        size=4)
 
     scalargroups = CollectionProperty(
         type=ScalarGroupProperties,
@@ -2520,15 +2401,6 @@ class TractProperties(PropertyGroup):
         default=0,
         min=0,
         update=index_scalars_update)
-    labelgroups = CollectionProperty(
-        type=LabelGroupProperties,
-        name="labelgroups",
-        description="The collection of loaded labelgroups")
-    index_labelgroups = IntProperty(
-        name="labelgroup index",
-        description="index of the labelgroups collection",
-        default=0,
-        min=0)
 
     colourtype = EnumProperty(
         name="colourtype",
@@ -2610,10 +2482,6 @@ class SurfaceProperties(PropertyGroup):
         name="Is Rendered",
         description="Indicates if the overlay is rendered",
         default=True)
-    beautified = BoolProperty(
-        name="Beautify",
-        description="Apply initial smoothing on surface",
-        default=True)
 
     sformfile = StringProperty(
         name="Transform",
@@ -2625,21 +2493,6 @@ class SurfaceProperties(PropertyGroup):
             """,
         subtype="FILE_PATH",
         update=sformfile_update)
-    srow_x = FloatVectorProperty(
-        name="srow_x",
-        description="",
-        default=[1.0, 0.0, 0.0, 0.0],
-        size=4)
-    srow_y = FloatVectorProperty(
-        name="srow_y",
-        description="",
-        default=[0.0, 1.0, 0.0, 0.0],
-        size=4)
-    srow_z = FloatVectorProperty(
-        name="srow_z",
-        description="",
-        default=[0.0, 0.0, 1.0, 0.0],
-        size=4)
 
     scalargroups = CollectionProperty(
         type=ScalarGroupProperties,
@@ -2741,10 +2594,6 @@ class VoxelvolumeProperties(PropertyGroup):
         name="Is Rendered",
         description="Indicates if the overlay is rendered",
         default=True)
-    beautified = BoolProperty(
-        name="Beautify",
-        description="",
-        default=True)
 
     sformfile = StringProperty(
         name="Transform",
@@ -2813,6 +2662,7 @@ class VoxelvolumeProperties(PropertyGroup):
         description="Index of the non-normalized color stops",
         default=0,
         min=0)
+
     showcolourbar = BoolProperty(
         name="Render colourbar",
         description="Show/hide colourbar in rendered image",
@@ -2902,18 +2752,18 @@ class NeuroBlenderProperties(PropertyGroup):
 
     settingprops = PointerProperty(type=SettingsProperties)
 
-    show_transform = BoolProperty(
-        name="Transform",
+    show_carvers = BoolProperty(
+        name="Carvers",
         default=False,
-        description="Show/hide the object's transform options")
+        description="Show/hide the preset's carver properties")
     show_material = BoolProperty(
         name="Material",
         default=False,
         description="Show/hide the object's materials options")
-    show_slices = BoolProperty(
-        name="Slices",
+    show_transform = BoolProperty(
+        name="Transform",
         default=False,
-        description="Show/hide the object's slice options")
+        description="Show/hide the object's transform options")
     show_info = BoolProperty(
         name="Info",
         default=False,
@@ -2922,14 +2772,6 @@ class NeuroBlenderProperties(PropertyGroup):
         name="Overlay material",
         default=False,
         description="Show/hide the object's overlay material")
-    show_overlay_slices = BoolProperty(
-        name="Overlay slices",
-        default=False,
-        description="Show/hide the object's overlay slices")
-    show_overlay_carvers = BoolProperty(
-        name="Overlay carvers",
-        default=False,
-        description="Show/hide the object's overlay carvers")
     show_overlay_info = BoolProperty(
         name="Overlay info",
         default=False,
@@ -2942,10 +2784,6 @@ class NeuroBlenderProperties(PropertyGroup):
         name="Item properties",
         default=True,
         description="Show/hide the properties of the item")
-    show_additional = BoolProperty(
-        name="Additional options",
-        default=False,
-        description="Show/hide the object's additional options")
     show_bounds = BoolProperty(
         name="Bounds",
         default=False,
@@ -2958,26 +2796,10 @@ class NeuroBlenderProperties(PropertyGroup):
         name="Lights",
         default=False,
         description="Show/hide the preset's lights properties")
-    show_key = BoolProperty(
-        name="Key",
-        default=False,
-        description="Show/hide the Key light properties")
-    show_back = BoolProperty(
-        name="Back",
-        default=False,
-        description="Show/hide the Back light properties")
-    show_fill = BoolProperty(
-        name="Fill",
-        default=False,
-        description="Show/hide the Fill light properties")
     show_tables = BoolProperty(
         name="Tables",
         default=False,
         description="Show/hide the preset's table properties")
-    show_carvers = BoolProperty(
-        name="Carvers",
-        default=False,
-        description="Show/hide the preset's carver properties")
     show_animations = BoolProperty(
         name="Animation",
         default=False,
@@ -3093,37 +2915,13 @@ class NeuroBlenderProperties(PropertyGroup):
         description="switch between overlay types",
         items=overlay_enum_callback)
 
-    # TODO: move to elsewhere
+    # TODO: move elsewhere
     cr_keeprange = BoolProperty(
         name="Keep range",
         description="Keep/discard the current range of the colour ramp",
         default=True)
-
     cr_path = StringProperty(
         name="CR path")
-
     cm_presetlabel = StringProperty(
         name="CM label",
         default="Grey")
-
-
-# @persistent
-# def projectdir_update(dummy):
-#     """"""
-#
-#     scn = bpy.context.scene
-#     nb = scn.nb
-#
-# #     nb.settingprops.projectdir = os.path.
-#
-# bpy.app.handlers.load_post(projectdir_update)
-
-# @persistent
-# def engine_driver_handler(dummy):
-#     """"""
-#
-#     engine_driver()
-#
-# bpy.app.handlers.load_post.append(engine_driver_handler)
-
-# =========================================================================== #
