@@ -131,6 +131,7 @@ class ObjectListL2(UIList):
             col.prop(item, "name", text="", emboss=False,
                      translate=False, icon=item_icon)
 
+            # TODO link this to mat.use_textures[idx] for vvol
             if context.scene.nb.settingprops.advanced:
                 col = layout.column()
                 col.alignment = "RIGHT"
@@ -241,10 +242,12 @@ class ObjectListOperations(Operator):
         except IndexError:
             pass
         else:
+
             if self.action.startswith('REMOVE'):
                 info = ['removed {}'.format(collection[self.index].name)]
                 info += self.remove_items(context, nb, data, collection, nb_ob)
                 self.report({'INFO'}, '; '.join(info))
+
             elif (self.action.startswith('DOWN') and
                   self.index < len(collection) - 1):
 
@@ -255,7 +258,6 @@ class ObjectListOperations(Operator):
                     override['object'] = bpy.data.objects[carver.name]
                     bpy.ops.object.modifier_move_down(override,
                                                       modifier=self.name)
-
 #                     carverob = bpy.data.objects[carver.name]
 #                     if self.index == 0:  # first mod always INTERSECT
 #                         carverob.modifiers[0].operation = 'INTERSECT'
@@ -273,7 +275,6 @@ class ObjectListOperations(Operator):
                     override['object'] = bpy.data.objects[carver.name]
                     bpy.ops.object.modifier_move_up(override,
                                                     modifier=self.name)
-
 #                     carverob = bpy.data.objects[carver.name]
 #                     if self.index == 1:  # first mod always INTERSECT
 #                         carverob.modifiers[1].operation = 'INTERSECT'
@@ -281,9 +282,6 @@ class ObjectListOperations(Operator):
 
                 collection.move(self.index, self.index - 1)
                 exec("{}.index_{} -= 1".format(data, self.type))
-
-        if self.type == "voxelvolumes":
-            self.update_voxelvolume_drivers(nb)
 
         return {"FINISHED"}
 
@@ -387,7 +385,7 @@ class ObjectListOperations(Operator):
 
         info = []
 
-        name = collection[self.index].name
+        name = collection[self.index].name  # TODO: nb_ob.name?
 
         if self.action.endswith('_L1'):
             try:
@@ -435,6 +433,7 @@ class ObjectListOperations(Operator):
             fun = eval("self.remove_%s_%s" % (nb.objecttype, self.type))
             fun(collection[self.index], ob)
 
+        # remove the NeuroBlender collection
         collection.remove(self.index)
         exec("%s.index_%s -= 1" % (data, self.type))
 
@@ -604,7 +603,7 @@ class ObjectListOperations(Operator):
         pass  # TODO
 
     def remove_carvers(self, context, data_path):
-        """Remove timeseries animation."""
+        """Remove a carver."""
 
         scn = context.scene
 
@@ -639,10 +638,11 @@ class ObjectListOperations(Operator):
 
         nb_carveob = scn.path_resolve(data_path)
         carveob = bpy.data.objects.get(nb_carveob.name)
+
         carverpath = '.'.join(data_path.split('.')[:-1])
         carver = scn.path_resolve(carverpath)
         carverob = bpy.data.objects.get(carver.name)
-        # FIXME: make sure modifier has the right name
+
         mod = carverob.modifiers.get(carveob.name)
         carverob.modifiers.remove(mod)
         if nb_carveob.type == 'activeob':
