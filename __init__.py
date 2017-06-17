@@ -506,22 +506,16 @@ class ObjectListOperations(Operator):
     def remove_voxelvolumes_scalargroups(self, scalargroup, ob):
         """Remove scalar overlay from a voxelvolume."""
 
+        bpy.data.textures.remove(bpy.data.textures[scalargroup.name])
         self.remove_material(ob, scalargroup.name)
-        sg_ob = bpy.data.objects[scalargroup.name]
-        bpy.data.objects.remove(sg_ob)
-        sg_ob = bpy.data.objects[scalargroup.name + 'SliceBox']
-        bpy.data.objects.remove(sg_ob)
 
     def remove_voxelvolumes_labelgroups(self, labelgroup, ob):
         """Remove labelgroup overlay from a voxelvolume."""
 
+        bpy.data.textures.remove(bpy.data.textures[labelgroup.name])
         self.remove_material(ob, labelgroup.name)
-        lg_ob = bpy.data.objects[labelgroup.name]
-        bpy.data.objects.remove(lg_ob)
-        lg_ob = bpy.data.objects[labelgroup.name + 'SliceBox']
-        bpy.data.objects.remove(lg_ob)
 
-    def remove_voxelvolumes_labels(self, label, ob):
+    def remove_voxelvolumes_labels(self, label, ob):  # FIXME
         """Remove label from a labelgroup."""
 
         self.remove_material(ob, label.name)
