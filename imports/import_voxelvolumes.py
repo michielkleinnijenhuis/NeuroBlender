@@ -700,7 +700,6 @@ class ImportVoxelvolumes(Operator, ImportHelper):
 
             props = {"name": name,
                      "filepath": fpath,
-                     "dimensions": tuple(dims),
                      "texdir": texdir}
 
             if is_label:
