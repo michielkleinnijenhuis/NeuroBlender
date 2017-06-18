@@ -31,7 +31,8 @@ from mathutils import Vector
 import bpy
 import numpy as np
 from bpy.types import (Operator,
-                       UIList)
+                       UIList,
+                       Menu)
 from bpy.props import (StringProperty,
                        EnumProperty)
 
@@ -479,3 +480,22 @@ class ObjectListCO(UIList):
         elif self.layout_type in {'GRID'}:
             layout.alignment = 'CENTER'
             layout.prop(text="", icon=item_icon)
+
+
+class MassIsRenderedCO(Menu):
+    bl_idname = "nb.mass_is_rendered_CO"
+    bl_label = "Vertex Group Specials"
+    bl_description = "Menu for group selection of rendering option"
+    bl_options = {"REGISTER"}
+
+    def draw(self, context):
+        layout = self.layout
+        layout.operator("nb.mass_select",
+                        icon='SCENE',
+                        text="Select All").action = 'SELECT_CO'
+        layout.operator("nb.mass_select",
+                        icon='SCENE',
+                        text="Deselect All").action = 'DESELECT_CO'
+        layout.operator("nb.mass_select",
+                        icon='SCENE',
+                        text="Invert").action = 'INVERT_CO'

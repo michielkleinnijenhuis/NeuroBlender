@@ -188,30 +188,33 @@ class ObjectListOperations(Operator):
     bl_options = {"REGISTER", "UNDO"}
 
     action = EnumProperty(
-        items=(('UP_L1', "UpL1", ""),
-               ('DOWN_L1', "DownL1", ""),
-               ('REMOVE_L1', "RemoveL1", ""),
-               ('UP_L2', "UpL2", ""),
-               ('DOWN_L2', "DownL2", ""),
-               ('REMOVE_L2', "RemoveL2", ""),
-               ('UP_L3', "UpL3", ""),
-               ('DOWN_L3', "DownL3", ""),
-               ('REMOVE_L3', "RemoveL3", ""),
-               ('UP_PL', "UpPL", ""),
-               ('DOWN_PL', "DownPL", ""),
-               ('REMOVE_PL', "RemovePL", ""),
-               ('UP_CP', "UpCP", ""),
-               ('DOWN_CP', "DownCP", ""),
-               ('REMOVE_CP', "RemoveCP", ""),
-               ('UP_AN', "UpAN", ""),
-               ('DOWN_AN', "DownAN", ""),
-               ('REMOVE_AN', "RemoveAN", ""),
-               ('UP_CV', "UpCV", ""),
-               ('DOWN_CV', "DownCV", ""),
-               ('REMOVE_CV', "RemoveCV", ""),
-               ('UP_CO', "UpCO", ""),
-               ('DOWN_CO', "DownCO", ""),
-               ('REMOVE_CO', "RemoveCO", "")))
+        items=(
+            ('UP_L1', "UpL1", ""),
+            ('DOWN_L1', "DownL1", ""),
+            ('REMOVE_L1', "RemoveL1", ""),
+            ('UP_L2', "UpL2", ""),
+            ('DOWN_L2', "DownL2", ""),
+            ('REMOVE_L2', "RemoveL2", ""),
+            ('UP_L3', "UpL3", ""),
+            ('DOWN_L3', "DownL3", ""),
+            ('REMOVE_L3', "RemoveL3", ""),
+            ('UP_PL', "UpPL", ""),
+            ('DOWN_PL', "DownPL", ""),
+            ('REMOVE_PL', "RemovePL", ""),
+            ('UP_CP', "UpCP", ""),
+            ('DOWN_CP', "DownCP", ""),
+            ('REMOVE_CP', "RemoveCP", ""),
+            ('UP_AN', "UpAN", ""),
+            ('DOWN_AN', "DownAN", ""),
+            ('REMOVE_AN', "RemoveAN", ""),
+            ('UP_CV', "UpCV", ""),
+            ('DOWN_CV', "DownCV", ""),
+            ('REMOVE_CV', "RemoveCV", ""),
+            ('UP_CO', "UpCO", ""),
+            ('DOWN_CO', "DownCO", ""),
+            ('REMOVE_CO', "RemoveCO", "")
+            )
+                          )
 
     data_path = StringProperty(
         name="data path",
@@ -680,24 +683,30 @@ class MassSelect(Operator):
     bl_options = {"REGISTER"}
 
     action = EnumProperty(
-        items=(('SELECT_L1', "Select_L1", ""),
-               ('DESELECT_L1', "Deselect_L1", ""),
-               ('INVERT_L1', "Invert_L1", ""),
-               ('SELECT_L2', "Select_L2", ""),
-               ('DESELECT_L2', "Deselect_L2", ""),
-               ('INVERT_L2', "Invert_L2", ""),
-               ('SELECT_L3', "Select_L3", ""),
-               ('DESELECT_L3', "Deselect_L3", ""),
-               ('INVERT_L3', "Invert_L3", ""),
-               ('SELECT_PL', "Select_PL", ""),
-               ('DESELECT_PL', "Deselect_PL", ""),
-               ('INVERT_PL', "Invert_PL", ""),
-               ('SELECT_CP', "Select_CP", ""),
-               ('DESELECT_CP', "Deselect_CP", ""),
-               ('INVERT_CP', "Invert_CP", ""),
-               ('SELECT_AN', "Select_AN", ""),
-               ('DESELECT_AN', "Deselect_AN", ""),
-               ('INVERT_AN', "Invert_AN", "")))
+        items=(
+            ('SELECT_L1', "Select_L1", ""),
+            ('DESELECT_L1', "Deselect_L1", ""),
+            ('INVERT_L1', "Invert_L1", ""),
+            ('SELECT_L2', "Select_L2", ""),
+            ('DESELECT_L2', "Deselect_L2", ""),
+            ('INVERT_L2', "Invert_L2", ""),
+            ('SELECT_L3', "Select_L3", ""),
+            ('DESELECT_L3', "Deselect_L3", ""),
+            ('INVERT_L3', "Invert_L3", ""),
+            ('SELECT_PL', "Select_PL", ""),
+            ('DESELECT_PL', "Deselect_PL", ""),
+            ('INVERT_PL', "Invert_PL", ""),
+            ('SELECT_AN', "Select_AN", ""),
+            ('DESELECT_AN', "Deselect_AN", ""),
+            ('INVERT_AN', "Invert_AN", ""),
+            ('SELECT_CP', "Select_CP", ""),
+            ('DESELECT_CP', "Deselect_CP", ""),
+            ('INVERT_CP', "Invert_CP", ""),
+            ('SELECT_CO', "Select_CO", ""),
+            ('DESELECT_CO', "Deselect_CO", ""),
+            ('INVERT_CO', "Invert_CO", ""),
+                )
+                          )
 
     data_path = StringProperty(
         name="data path",
