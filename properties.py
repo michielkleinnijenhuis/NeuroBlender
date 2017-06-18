@@ -566,7 +566,9 @@ def overlay_enum_callback(self, context):
 def index_scalars_update(self, context):
     """Switch views on updating scalar index."""
 
-    if isinstance(self, bpy.types.ScalarGroupProperties):
+    if isinstance(self, (bpy.types.TractProperties,
+                         bpy.types.SurfaceProperties,
+                         bpy.types.VoxelvolumeProperties)):
         try:
             sg = self.scalargroups[self.index_scalargroups]
         except IndexError:
