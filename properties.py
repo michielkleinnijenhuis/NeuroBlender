@@ -998,21 +998,15 @@ def rendertype_enum_update(self, context):
     """Set surface or volume rendering for the voxelvolume."""
 
     try:
-        matnames = [scalar.matname for scalar in self.scalars
-                    if scalar.matname]
-    except:
-        matnames = [self.name]
+        mat = bpy.data.materials[self.name]
+    except KeyError:
+        pass
     else:
-        matnames = set(matnames)
-
-    # FIXME: vvol.rendertype ideally needs to switch if mat.type does
-    for matname in matnames:
-        try:
-            mat = bpy.data.materials[matname]
-        except KeyError:
-            pass
-        else:
-            mat.type = self.rendertype
+        tc = {'SURFACE': 'ORCO', 'VOLUME': 'OBJECT'}
+        mat.type = self.rendertype
+        for ts in mat.texture_slots:
+            if ts is not None:
+                ts.texture_coords = tc[self.rendertype]
 
 
 def colourmap_enum_callback(self, context):

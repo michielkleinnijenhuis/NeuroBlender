@@ -122,11 +122,7 @@ class ImportCarver(Operator):
         # attach texture mapping (vvol) or boolean (surf)
         ms = ob.material_slots.get(ob.name)
         mat = ms.material
-        if isinstance(nb_ob, bpy.types.VoxelvolumeProperties):
-            ts = mat.texture_slots.get(ob.name)
-            ts.texture_coords = 'OBJECT'
-            ts.object = ob
-        elif isinstance(nb_ob, bpy.types.SurfaceProperties):
+        if isinstance(nb_ob, bpy.types.SurfaceProperties):
             self.add_boolmod(ob.name, box, ob, 'BMESH', 'INTERSECT')
 
         if isinstance(mat, bpy.types.Material):

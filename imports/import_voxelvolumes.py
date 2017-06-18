@@ -387,8 +387,8 @@ class ImportVoxelvolumes(Operator, ImportHelper):
 
         # force updates on voxelvolumes
         nb.index_voxelvolumes = nb.index_voxelvolumes
-        item.rendertype = item.rendertype
         if not self.is_overlay:
+            item.rendertype = item.rendertype
             item.sformfile = item.sformfile
 
         info = "Voxelvolume import successful"
@@ -765,7 +765,7 @@ class ImportVoxelvolumes(Operator, ImportHelper):
         """Create a material to hold a voxel_data texture."""
 
         mat = bpy.data.materials.new(name)
-        mat.type = "SURFACE"
+        mat.type = "VOLUME"
         mat.use_transparency = True
         mat.alpha = 0.
         mat.volume.density = 0.
