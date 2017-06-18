@@ -347,7 +347,8 @@ class ImportVoxelvolumes(Operator, ImportHelper):
 
         elif self.is_overlay:
 
-            nb_ob = eval(self.parentpath)
+            nb_ob = scn.path_resolve(self.parentpath)
+            ob = bpy.data.objects[nb_ob.name]
             mat = bpy.data.materials[nb_ob.name]
 
             for scalar in item.scalars:
