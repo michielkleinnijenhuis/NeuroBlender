@@ -67,6 +67,7 @@ def carvers_handler(dummy):
             for carveob in carver.carveobjects:
                 carvers_update(carveob, bpy.context)
 
+
 bpy.app.handlers.frame_change_pre.append(carvers_handler)
 
 
@@ -84,6 +85,7 @@ def rendertype_enum_handler(dummy):
         for labelgroup in vvol.labelgroups:
             rendertype_enum_update(labelgroup, bpy.context)
 
+
 bpy.app.handlers.frame_change_pre.append(rendertype_enum_handler)
 
 
@@ -94,32 +96,27 @@ def index_scalars_handler(dummy):
     scn = bpy.context.scene
     nb = scn.nb
 
-    try:
-        preset = nb.presets[nb.index_presets]
-    except:
-        pass
-    else:
-        for anim in preset.animations:
+    for anim in nb.animations:
 
-            if anim.animationtype == "TimeSeries":
+        if anim.animationtype == "TimeSeries":
 
-                sgs = nb_rp.find_ts_scalargroups(anim)
-                sg = sgs[anim.anim_timeseries]
+            sgs = nb_rp.find_ts_scalargroups(anim)
+            sg = sgs[anim.anim_timeseries]
 
-                scalar = sg.scalars[sg.index_scalars]
+            scalar = sg.scalars[sg.index_scalars]
 
-                if sg.path_from_id().startswith("nb.surfaces"):
-                    # TODO: update vertex group index
-                    # TODO: try update vertex color selection
-                    # update Image Sequence Texture index
-                    mat = bpy.data.materials[sg.name]
-                    itex = mat.node_tree.nodes["Image Texture"]
-                    itex.image_user.frame_offset = scn.frame_current
-                    # FIXME: more flexible indexing
+            if sg.path_from_id().startswith("nb.surfaces"):
+                # TODO: update vertex group index
+                # TODO: try update vertex color selection
+                # update Image Sequence Texture index
+                mat = bpy.data.materials[sg.name]
+                itex = mat.node_tree.nodes["Image Texture"]
+                itex.image_user.frame_offset = scn.frame_current
+                # FIXME: more flexible indexing
 
-                elif sg.path_from_id().startswith("nb.voxelvolumes"):
-                    texmethod = nb.settingprops.texmethod
-                    index_scalars_update_vvolscalar_func(sg, scalar, texmethod)
+            elif sg.path_from_id().startswith("nb.voxelvolumes"):
+                texmethod = nb.settingprops.texmethod
+                index_scalars_update_vvolscalar_func(sg, scalar, texmethod)
 
 
 bpy.app.handlers.frame_change_pre.append(index_scalars_handler)
@@ -142,6 +139,7 @@ def init_settings_handler(dummy):
     nb.settingprops.advanced = nb.settingprops.advanced
     nb.settingprops.verbose = nb.settingprops.verbose
     nb.settingprops.switches = nb.settingprops.switches
+
 
 bpy.app.handlers.load_post.append(init_settings_handler)
 
@@ -188,7 +186,7 @@ def mode_enum_update(self, context):
 
     try:
         nb_preset = nb.presets[self.index_presets]
-        nb_cam = nb_preset.cameras[0]
+        nb_cam = nb_preset.cameras[nb_preset.index_cameras]
         light_obs = [bpy.data.objects.get(light.name)
                      for light in nb_preset.lights]
         table_obs = [bpy.data.objects.get(table.name)
@@ -278,26 +276,6 @@ def campaths_enum_callback(self, context):
     return items
 
 
-def campaths_enum_update(self, context):
-    """Update the camera path."""
-
-    scn = context.scene
-    nb = scn.nb
-
-    nb_preset = nb.presets[nb.index_presets]
-    cam = bpy.data.objects[nb_preset.cameras[0].name]
-    anim = nb_preset.animations[nb_preset.index_animations]
-
-    if anim.animationtype == "CameraPath": # FIXME: overkill?
-        cam_anims = [anim for anim in nb_preset.animations
-                     if ((anim.animationtype == "CameraPath") &
-                         (anim.campaths_enum != "No_CamPaths") &
-                         (anim.is_rendered))]
-        nb_rp.clear_camera_path_animations(cam, nb_preset.animations,
-                                           [nb_preset.index_animations])
-        nb_rp.create_camera_path_animations(cam, cam_anims)
-
-
 def campathtype_enum_callback(self, context):
     """Populate the enum based on available options."""
 
@@ -330,8 +308,99 @@ def curves_enum_callback(self, context):
              for i, cu in enumerate(bpy.data.curves)
              if ((cu.name not in campaths) and
                  (cu.name not in tracts))]
+    if not items:
+        items = [("no_curves", "No curves found", "No curves found", 0)]
 
     return items
+
+
+def trackobject_enum_callback(self, context):
+    """Populate the enum based on available options."""
+
+    items = [("None", "None", "None", 0)]
+    items += [(ob.name, ob.name, "List all objects", i+1)
+              for i, ob in enumerate(bpy.data.objects)]
+
+    return items
+
+
+def animcarveobject_enum_callback(self, context):
+    """Populate the enum based on available options."""
+
+    scn = context.scene
+    nb = scn.nb
+
+    items = [(cob.name, cob.name, "List all carveobjects")
+             for nb_coll in [nb.surfaces, nb.voxelvolumes]
+             for nb_ob in nb_coll
+             for carver in nb_ob.carvers
+             for cob in carver.carveobjects]
+    if not items:
+        items = [("no_carveobjects", "No carveobjects found", "")]
+
+    return items
+
+
+def timeseries_enum_callback(self, context):
+    """Populate the enum based on available options."""
+
+    scn = context.scene
+    nb = scn.nb
+
+    # FIXME: crash when commenting/uncommenting this
+    aliases = {'T': 'tracts', 'S': 'surfaces', 'V': 'voxelvolumes'}
+    try:
+        coll = eval('nb.%s' % aliases[self.timeseries_object[0]])
+        sgs = coll[self.timeseries_object[3:]].scalargroups
+    except:
+        items = [('no_timeseries', 'No timeseries found',
+                  'No timeseries found', 0)]
+    else:
+#     sgs = find_ts_scalargroups(self)
+        items = [(scalargroup.name, scalargroup.name, "List the timeseries", i)
+                 for i, scalargroup in enumerate(sgs)]
+
+    return items
+
+
+def timeseries_object_enum_callback(self, context):
+    """Populate the enum based on available options."""
+
+    scn = context.scene
+    nb = scn.nb
+
+    nb_obs = ["%s: %s" % (l, ob.name)
+              for l, coll in zip(['T', 'S', 'V'], [nb.tracts,
+                                                   nb.surfaces,
+                                                   nb.voxelvolumes])
+              for ob in coll if len(ob.scalargroups)]
+    items = [(obname, obname, "List the objects", i)
+             for i, obname in enumerate(nb_obs)]
+    if not items:
+        items = [('no_tsobjects', 'No objects with timeseries found',
+                  'No objects with timeseries found', 0)]
+
+    return items
+
+
+def campaths_enum_update(self, context):
+    """Update the camera path."""
+
+    scn = context.scene
+    nb = scn.nb
+
+    nb_preset = nb.presets[nb.index_presets]
+    cam = bpy.data.objects[nb_preset.cameras[nb_preset.index_cameras].name]
+    anim = nb.animations[nb.index_animations]
+
+    if anim.animationtype == "CameraPath":  # FIXME: overkill?
+        cam_anims = [anim for anim in nb.animations
+                     if ((anim.animationtype == "CameraPath") &
+                         (anim.campaths_enum != "No_CamPaths") &
+                         (anim.is_rendered))]
+        nb_rp.clear_camera_path_animations(cam, nb.animations,
+                                           [nb.index_animations])
+        nb_rp.create_camera_path_animations(cam, cam_anims)
 
 
 def tracktype_enum_update(self, context):
@@ -341,9 +410,9 @@ def tracktype_enum_update(self, context):
     nb = scn.nb
 
     nb_preset = nb.presets[nb.index_presets]
-    cam = bpy.data.objects[nb_preset.cameras[0].name]
+    cam = bpy.data.objects[nb_preset.cameras[nb_preset.index_cameras].name]
 
-    cam_anims = [anim for anim in nb_preset.animations
+    cam_anims = [anim for anim in nb.animations
                  if ((anim.animationtype == "CameraPath") &
                      (anim.is_rendered))]
 
@@ -363,37 +432,6 @@ def tracktype_enum_update(self, context):
     else:
         cns.forward_axis = 'TRACK_NEGATIVE_Y'
         cns.up_axis = 'UP_Z'
-
-
-def direction_toggle_update(self, context):
-    """Update the direction of animation on a curve."""
-
-    scn = context.scene
-    nb = scn.nb
-
-    nb_preset = nb.presets[nb.index_presets]
-    anim = nb_preset.animations[nb_preset.index_animations]
-
-    try:
-        campath = bpy.data.objects[anim.campaths_enum]
-    except:
-        pass
-    else:
-        animdata = campath.data.animation_data
-        fcu = animdata.action.fcurves.find("eval_time")
-        mod = fcu.modifiers[0]  # TODO: sloppy
-        intercept, slope, _ = nb_rp.calculate_coefficients(campath, anim)
-        mod.coefficients = (intercept, slope)
-
-
-def trackobject_enum_callback(self, context):
-    """Populate the enum based on available options."""
-
-    items = [("None", "None", "None", 0)]
-    items += [(ob.name, ob.name, "List all objects", i+1)
-              for i, ob in enumerate(bpy.data.objects)]
-
-    return items
 
 
 def trackobject_enum_update(self, context):
@@ -416,42 +454,24 @@ def trackobject_enum_update(self, context):
             print(infostring.format(self.trackobject))
 
 
-def timeseries_enum_callback(self, context):
-    """Populate the enum based on available options."""
+def direction_toggle_update(self, context):
+    """Update the direction of animation on a curve."""
 
     scn = context.scene
     nb = scn.nb
 
-    # FIXME: crash when commenting/uncommenting this
-    aliases = {'T': 'tracts', 'S': 'surfaces', 'V': 'voxelvolumes'}
+    anim = nb.animations[nb.index_animations]
+
     try:
-        coll = eval('nb.%s' % aliases[self.timeseries_object[0]])
-        sgs = coll[self.timeseries_object[3:]].scalargroups
+        campath = bpy.data.objects[anim.campaths_enum]
     except:
-        items = []
+        pass
     else:
-#     sgs = find_ts_scalargroups(self)
-        items = [(scalargroup.name, scalargroup.name, "List the timeseries", i)
-                 for i, scalargroup in enumerate(sgs)]
-
-    return items
-
-
-def timeseries_object_enum_callback(self, context):
-    """Populate the enum based on available options."""
-
-    scn = context.scene
-    nb = scn.nb
-
-    nb_obs = ["%s: %s" % (l, ob.name)
-              for l, coll in zip(['T', 'S', 'V'], [nb.tracts,
-                                                   nb.surfaces,
-                                                   nb.voxelvolumes])
-              for ob in coll if len(ob.scalargroups)]
-    items = [(obname, obname, "List the objects", i)
-             for i, obname in enumerate(nb_obs)]
-
-    return items
+        animdata = campath.data.animation_data
+        fcu = animdata.action.fcurves.find("eval_time")
+        mod = fcu.modifiers[0]  # TODO: sloppy
+        intercept, slope, _ = nb_rp.calculate_coefficients(campath, anim)
+        mod.coefficients = (intercept, slope)
 
 
 # ========================================================================== #
@@ -476,7 +496,7 @@ def presets_enum_update(self, context):
 
     self.index_presets = self.presets.find(self.presets_enum)
     preset = self.presets[self.index_presets]
-    scn.camera = bpy.data.objects[preset.cameras[0].name]
+    scn.camera = bpy.data.objects[preset.cameras[preset.index_cameras].name]
     # TODO: switch cam view etc
 
 
@@ -691,9 +711,8 @@ def index_scalars_update_vvolscalar_func(group, scalar, method=1):
                  "emit_factor", "diffuse_color_factor", "alpha_factor")
         for i, ts in tss:
             ts.use = group.index_scalars == i
-            v = 1
             for prop in props:
-                exec('ts.%s = v' % prop)
+                exec('ts.%s = 1' % prop)
 
     elif method == 4:  # simple texture switching in slot 0
         try:
@@ -757,6 +776,8 @@ def tracts_enum_callback(self, context):
 
     items = [(tract.name, tract.name, "List the tracts", i)
              for i, tract in enumerate(nb.tracts)]
+    if not items:
+        items = [("no_tracts", "No tracts loaded", "No tracts loaded", 0)]
 
     return items
 
@@ -867,11 +888,13 @@ def name_update(self, context):  # FIXME! there's no name checks!
 
     elif colltype == "surfaces":
         # NOTE/TODO: ref to sphere
+        # TODO: rename carvers on surface rename
         colls = [bpy.data.objects,
                  bpy.data.meshes,
                  bpy.data.materials]
 
     elif colltype == "voxelvolumes":
+        # TODO: rename carvers on voxelvolume rename
         colls = rename_voxelvolume(self)
 
     elif colltype == "scalargroups":
@@ -1489,32 +1512,35 @@ class AnimationProperties(PropertyGroup):
     animationtype = EnumProperty(
         name="Animation type",
         description="Switch between animation types",
-        items=[("CameraPath", "Trajectory", "Animate a camera trajectory", 1),
-               ("Slices", "Slices", "Animate voxelvolume slices", 2),
-               ("TimeSeries", "Time series", "Play a time series", 3)])
+        items=[("CameraPath", "Camera trajectory",
+                "Let the camera follow a trajectory", 1),
+               ("Carver", "Carver",
+                "Animate a carver", 2),
+               ("TimeSeries", "Time series",
+                "Play a time series", 3)])
 
     frame_start = IntProperty(
         name="startframe",
         description="first frame of the animation",
         min=0,
         default=1,
-        update=campaths_enum_update)
+        )  # update=campaths_enum_update
     frame_end = IntProperty(
         name="endframe",
         description="last frame of the animation",
         min=1,
         default=100,
-        update=campaths_enum_update)
+        )  # update=campaths_enum_update
     repetitions = FloatProperty(
         name="repetitions",
         description="number of repetitions",
         default=1,
-        update=campaths_enum_update)
+        )  # update=campaths_enum_update
     offset = FloatProperty(
         name="offset",
         description="offset",
         default=0,
-        update=campaths_enum_update)
+        )  # update=campaths_enum_update
 
     anim_block = IntVectorProperty(
         name="anim block",
@@ -1526,13 +1552,13 @@ class AnimationProperties(PropertyGroup):
         name="Reverse",
         description="Toggle direction of trajectory traversal",
         default=False,
-        update=direction_toggle_update)
+        )  # update=direction_toggle_update
 
     campaths_enum = EnumProperty(
         name="Camera trajectory",
         description="Choose the camera trajectory",
         items=campaths_enum_callback,
-        update=campaths_enum_update)
+        )  # update=campaths_enum_update
     tracktype = EnumProperty(
         name="Tracktype",
         description="Camera rotation options",
@@ -1579,9 +1605,9 @@ class AnimationProperties(PropertyGroup):
         items=timeseries_enum_callback)
 
     anim_voxelvolume = EnumProperty(
-        name="Animation voxelvolume",
-        description="Select voxelvolume to animate",
-        items=voxelvolumes_enum_callback)
+        name="Animation carveobject",
+        description="Select carveobject to animate",
+        items=animcarveobject_enum_callback)
     sliceproperty = EnumProperty(
         name="Property to animate",
         description="Select property to animate",
@@ -1797,15 +1823,6 @@ class PresetProperties(PropertyGroup):
     index_tables = IntProperty(
         name="table index",
         description="index of the tables collection",
-        default=0,
-        min=0)
-    animations = CollectionProperty(
-        type=AnimationProperties,
-        name="animations",
-        description="The collection of animations")
-    index_animations = IntProperty(
-        name="animation index",
-        description="index of the animations collection",
         default=0,
         min=0)
 
@@ -2842,6 +2859,16 @@ class NeuroBlenderProperties(PropertyGroup):
         description="switch between presets",
         items=presets_enum_callback,
         update=presets_enum_update)
+
+    animations = CollectionProperty(
+        type=AnimationProperties,
+        name="animations",
+        description="The collection of animations")
+    index_animations = IntProperty(
+        name="animation index",
+        description="index of the animations collection",
+        default=0,
+        min=0)
 
     campaths = CollectionProperty(
         type=CamPathProperties,

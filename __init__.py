@@ -328,10 +328,10 @@ class ObjectListOperations(Operator):
         elif self.action.endswith('_AN'):
             preset_path = "nb.presets[{:d}]".format(nb.index_presets)
             preset = scn.path_resolve(preset_path)
-            animation = preset.animations[preset.index_animations]
+            animation = nb.animations[nb.index_animations]
             self.type = "animations"
             self.name = animation.name
-            self.index = preset.index_animations
+            self.index = nb.index_animations
             self.data_path = animation.path_from_id()
         elif self.action.endswith('_CV'):
             nb_ob = nb_ut.active_nb_object()[0]
@@ -415,11 +415,10 @@ class ObjectListOperations(Operator):
             else:
                 bpy.data.objects.remove(ob)
         elif self.action.endswith('_AN'):
-            nb_preset = eval("nb.presets[%d]" % nb.index_presets)
-            anim = nb_preset.animations[nb_preset.index_animations]
+            anim = nb.animations[nb.index_animations]
             fun = eval("self.remove_animations_%s" %
                        anim.animationtype.lower())
-            fun(nb_preset.animations, self.index)
+            fun(nb.animations, self.index)
         elif self.action.endswith('_CV'):
             self.remove_carvers(context, self.data_path)
         elif self.action.endswith('_CO'):
@@ -567,7 +566,7 @@ class ObjectListOperations(Operator):
                          (i != index))]
         nb_rp.update_cam_constraints(cam, cam_anims)
 
-    def remove_animations_slices(self, anims, index):
+    def remove_animations_carver(self, anims, index):
         """Remove slice animation."""
 
         anim = anims[index]

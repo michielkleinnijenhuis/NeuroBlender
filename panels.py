@@ -863,7 +863,8 @@ class NeuroBlenderScenePanel(bpy.types.Panel):
     def drawunit_tri_cameras(self, layout, nb, preset):
 
         try:
-            cam = preset.cameras[0]  # TODO: multiple cameras in a preset
+            cam = preset.cameras[preset.index_cameras]
+            # TODO: multiple cameras in a preset
         except IndexError:
             cam = preset.cameras.add()
             preset.index_cameras = (len(preset.cameras)-1)
@@ -1004,34 +1005,15 @@ class NeuroBlenderAnimationPanel(bpy.types.Panel):
         scn = context.scene
         nb = scn.nb
 
-        # TODO: decouple animations from presets
-        try:
-            idx = nb.index_presets
-            preset = nb.presets[idx]
-        except IndexError:
-            row = layout.row()
-            row.label(text="No presets loaded ...")
-        else:
-            self.drawunit_animations(layout, nb, preset)
-
-#         row = layout.row()
-#         row.separator()
-#         row = layout.row()
-#         row.operator("nb.set_animations",
-#                      text="Set animations",
-#                      icon="RENDER_ANIMATION")
-
-    def drawunit_animations(self, layout, nb, preset):
-
         row = layout.row(align=True)
         row.prop(bpy.context.scene, "frame_start")
         row.prop(bpy.context.scene, "frame_end")
 
         row = layout.row()
-        self.drawunit_UIList(layout, "AN", preset, "animations")
+        self.drawunit_UIList(layout, "AN", nb, "animations")
 
         try:
-            anim = preset.animations[preset.index_animations]
+            anim = nb.animations[nb.index_animations]
         except IndexError:
             pass
         else:
@@ -1039,24 +1021,39 @@ class NeuroBlenderAnimationPanel(bpy.types.Panel):
             row.separator()
 
             row = layout.row()
-            row.prop(anim, "animationtype", expand=True)
+            row.prop(anim, "animationtype")
 
             row = layout.row()
             row.separator()
 
-            self.drawunit_tri(layout, "timings", nb, preset)
+            self.drawunit_tri(layout, "timings", nb, nb)
 
             animtype = anim.animationtype.lower()
             drawfun = eval('self.drawunit_animation_{}'.format(animtype))
-            drawfun(layout, nb, preset)
+            drawfun(layout, nb)
 
-    def drawunit_tri_timings(self, layout, nb, preset):
+            row = layout.row()
+            row.separator()
+            row = layout.row()
+            opstring = "nb.animate_{}".format(animtype)
+            row.operator(opstring,
+                         text="Set animation",
+                         icon="RENDER_ANIMATION")
 
-        self.drawunit_animation_timings(layout, nb, preset)
+        row = layout.row()
+        row.separator()
+        row = layout.row()
+        row.operator("nb.set_animations",
+                     text="Set animations",
+                     icon="RENDER_ANIMATION")
 
-    def drawunit_animation_timings(self, layout, nb, preset):
+    def drawunit_tri_timings(self, layout, nb, dummy):
 
-        anim = preset.animations[preset.index_animations]
+        self.drawunit_animation_timings(layout, nb)
+
+    def drawunit_animation_timings(self, layout, nb):
+
+        anim = nb.animations[nb.index_animations]
 
         row = layout.row(align=True)
         row.prop(anim, "frame_start")
@@ -1066,10 +1063,16 @@ class NeuroBlenderAnimationPanel(bpy.types.Panel):
         row.prop(anim, "repetitions")
         row.prop(anim, "offset")
 
-    def drawunit_animation_camerapath(self, layout, nb, preset):
+    def drawunit_animation_camerapath(self, layout, nb):
 
-        self.drawunit_tri(layout, "camerapath", nb, preset)
-        self.drawunit_tri(layout, "tracking", nb, preset)
+        try:
+            preset = nb.presets[nb.index_presets]
+        except IndexError:
+            row = layout.row()
+            row.label('No presets (cameras) loaded.')
+        else:
+            self.drawunit_tri(layout, "camerapath", nb, preset)
+            self.drawunit_tri(layout, "tracking", nb, preset)
 
     def drawunit_tri_camerapath(self, layout, nb, preset):
 
@@ -1077,7 +1080,7 @@ class NeuroBlenderAnimationPanel(bpy.types.Panel):
 
     def drawunit_camerapath(self, layout, nb, preset):
 
-        anim = preset.animations[preset.index_animations]
+        anim = nb.animations[nb.index_animations]
 
         # TODO: rewrite of campath options
         row = layout.row()
@@ -1105,11 +1108,10 @@ class NeuroBlenderAnimationPanel(bpy.types.Panel):
 
     def drawunit_tracking(self, layout, nb, preset):
 
-        anim = preset.animations[preset.index_animations]
+        anim = nb.animations[nb.index_animations]
 
-        nb_cam = preset.cameras[0]
+        nb_cam = preset.cameras[preset.index_cameras]
         cam_ob = bpy.data.objects[nb_cam.name]
-        cam = bpy.data.cameras[nb_cam.name]
 
         row = layout.row()
         row.prop(anim, "tracktype", expand=True)
@@ -1126,8 +1128,8 @@ class NeuroBlenderAnimationPanel(bpy.types.Panel):
 
             col = split.column()
             row = col.row(align=True)
-            row.prop(cam, "clip_start")
-            row.prop(cam, "clip_end")
+            row.prop(cam_ob.data, "clip_start")
+            row.prop(cam_ob.data, "clip_end")
 
     def drawunit_tri_points(self, layout, nb, anim):
 
@@ -1177,13 +1179,13 @@ class NeuroBlenderAnimationPanel(bpy.types.Panel):
         row = layout.row()
         row.operator("nb.add_campath", text="Add trajectory")
 
-    def drawunit_animation_slices(self, layout, nb, preset):
+    def drawunit_animation_carver(self, layout, nb):
 
-        self.drawunit_tri(layout, "animslices", nb, preset)
+        self.drawunit_tri(layout, "carvers", nb, nb)
 
-    def drawunit_tri_animslices(self, layout, nb, preset):
+    def drawunit_tri_carvers(self, layout, nb, preset):
 
-        anim = preset.animations[preset.index_animations]
+        anim = nb.animations[nb.index_animations]
 
         row = layout.row()
         col = row.column()
@@ -1207,13 +1209,13 @@ class NeuroBlenderAnimationPanel(bpy.types.Panel):
         row = layout.row()
         row.prop(anim, "axis", expand=True)
 
-    def drawunit_animation_timeseries(self, layout, nb, preset):
+    def drawunit_animation_timeseries(self, layout, nb):
 
-        self.drawunit_tri(layout, "timeseries", nb, preset)
+        self.drawunit_tri(layout, "timeseries", nb, nb)
 
-    def drawunit_tri_timeseries(self, layout, nb, preset):
+    def drawunit_tri_timeseries(self, layout, nb, dummy):
 
-        anim = preset.animations[preset.index_animations]
+        anim = nb.animations[nb.index_animations]
 
         row = layout.row()
         col = row.column()
