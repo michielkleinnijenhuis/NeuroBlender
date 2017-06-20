@@ -118,20 +118,20 @@ class ImportSurfaces(Operator, ImportHelper):
 
         layout = self.layout
 
-        row = self.layout.row()
+        row = layout.row()
         row.prop(self, "name")
 
-        row = self.layout.row()
+        row = layout.row()
         row.prop(self, "beautify")
 
-        row = self.layout.row()
+        row = layout.row()
         row.label(text="Colour: ")
-        row = self.layout.row()
+        row = layout.row()
         row.prop(self, "colourtype")
-        row = self.layout.row()
+        row = layout.row()
         if self.colourtype == "pick":
             row.prop(self, "colourpicker")
-        row = self.layout.row()
+        row = layout.row()
         row.prop(self, "transparency")
 
     def invoke(self, context, event):
@@ -350,7 +350,9 @@ class ImportSurfaces(Operator, ImportHelper):
 
     @staticmethod
     def beautification(ob, argdict={"iterations": 10, "factor": 0.5,
-                                    "use_x": True, "use_y": True, "use_z": True}):
+                                    "use_x": True,
+                                    "use_y": True,
+                                    "use_z": True}):
         """Smooth the surface mesh."""
 
         mod = ob.modifiers.new("smooth", type='SMOOTH')
