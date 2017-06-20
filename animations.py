@@ -268,6 +268,7 @@ class AnimateCameraPath(Operator):
                 self.animate_campath(campath, anim)
                 self.animate_camera(cam, anim, campath)
 
+        cnsCO = nb_ut.add_constraint(cam, "CHILD_OF", "Child Of", box)
         timeline = self.generate_timeline(scn, anims)
         self.restrict_trans_timeline(scn, cnsCO, timeline, group="ChildOf")
 
