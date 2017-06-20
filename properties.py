@@ -1317,7 +1317,6 @@ class CameraProperties(PropertyGroup):
                ("Centre", "C", "Centre", 1),
                ("Right", "R", "Right", 2)],
         update=cam_view_enum_XX_update)
-
     cam_view_enum_AP = EnumProperty(
         name="Camera AP viewpoint",
         description="Choose a AP position for the camera",
@@ -1326,7 +1325,6 @@ class CameraProperties(PropertyGroup):
                ("Centre", "C", "Centre", 1),
                ("Posterior", "P", "Posterior", 2)],
         update=cam_view_enum_XX_update)
-
     cam_view_enum_IS = EnumProperty(
         name="Camera IS viewpoint",
         description="Choose a IS position for the camera",
@@ -1335,7 +1333,6 @@ class CameraProperties(PropertyGroup):
                ("Centre", "C", "Centre", 1),
                ("Superior", "S", "Superior", 2)],
         update=cam_view_enum_XX_update)
-
     cam_distance = FloatProperty(
         name="Camera distance",
         description="Relative distance of the camera (to bounding box)",
@@ -1377,13 +1374,12 @@ class LightsProperties(PropertyGroup):
     type = EnumProperty(
         name="Light type",
         description="type of lighting",
-        items=[("PLANE", "PLANE", "PLANE", 1),
-               ("POINT", "POINT", "POINT", 2),
-               ("SUN", "SUN", "SUN", 3),
-               ("SPOT", "SPOT", "SPOT", 4),
-               ("HEMI", "HEMI", "HEMI", 5),
-               ("AREA", "AREA", "AREA", 6)],
-        default="SPOT",
+        items=[("POINT", "POINT", "POINT", 0),
+               ("SUN", "SUN", "SUN", 1),
+               ("SPOT", "SPOT", "SPOT", 2),
+               ("HEMI", "HEMI", "HEMI", 3),
+               ("AREA", "AREA", "AREA", 4)],
+        default="HEMI",
         update=light_update)
     colour = FloatVectorProperty(
         name="Colour",
