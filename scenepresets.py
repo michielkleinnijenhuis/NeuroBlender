@@ -25,6 +25,7 @@ NeuroBlender is a Blender add-on to create artwork from neuroscientific data.
 This module implements the scene building system.
 """
 
+import numpy as np
 from mathutils import Vector
 
 import bpy
@@ -66,8 +67,8 @@ class ResetPresetCentre(Operator):
         scn = bpy.context.scene
         nb = scn.nb
 
-        obs = nb_rp.get_render_objects(nb)
-        cloc = nb_rp.get_brainbounds(obs)[0]
+        obs = get_render_objects(nb)
+        cloc = get_brainbounds(obs)[0]
 
         nb_preset = nb.presets[nb.index_presets]
 
@@ -92,8 +93,8 @@ class ResetPresetDims(Operator):
         scn = bpy.context.scene
         nb = scn.nb
 
-        obs = nb_rp.get_render_objects(nb)
-        dims = nb_rp.get_brainbounds(obs)[1]
+        obs = get_render_objects(nb)
+        dims = get_brainbounds(obs)[1]
 
         nb_preset = nb.presets[nb.index_presets]
         nb_preset.dims = dims
@@ -139,8 +140,8 @@ class AddPreset(Operator):
         ca = [nb.presets]
         name = nb_ut.check_name(self.name, "", ca, firstfill=1)
 
-        obs = nb_rp.get_render_objects(nb)  # TODO: move these function here
-        cloc, dims = nb_rp.get_brainbounds(obs)
+        obs = get_render_objects(nb)
+        cloc, dims = get_brainbounds(obs)
 
         nb_preset, preset = self.add_preset(context, name)
         nb_preset["dims"] = dims
@@ -801,3 +802,47 @@ class MassIsRenderedPL(Menu):
                         icon='SCENE',
                         text="Invert").action = 'INVERT_PL'
 
+
+def get_render_objects(nb):
+    """Gather all objects listed for render."""
+
+    carvers = [carver for surf in nb.surfaces
+               for carver in surf.carvers]
+    carvers += [carver for vvol in nb.voxelvolumes
+                for carver in vvol.carvers]
+    obnames = [[nb_ob.name for nb_ob in nb_coll if nb_ob.is_rendered]
+               for nb_coll in [nb.tracts, nb.surfaces, nb.voxelvolumes,
+                               carvers]]
+
+    obs = [bpy.data.objects[item] for sublist in obnames for item in sublist]
+
+    return obs
+
+
+def get_brainbounds(obs):
+    """Find the boundingbox, dimensions and centre of the objects."""
+
+    if not obs:
+        print("""
+              no objects selected for render:
+              setting location and dimensions to default.
+              """)
+        centre_location = [0, 0, 0]
+        dims = [100, 100, 100]
+    else:
+        bb_min, bb_max = np.array(get_bbox_coordinates(obs))
+        dims = np.subtract(bb_max, bb_min)
+        centre_location = bb_min + dims / 2
+
+    return centre_location, dims
+
+
+def get_bbox_coordinates(obs):
+    """Find the extreme dimensions in the geometry."""
+
+    bb_world = [ob.matrix_world * Vector(bbco)
+                for ob in obs for bbco in ob.bound_box]
+    bb_min = np.amin(np.array(bb_world), 0)
+    bb_max = np.amax(np.array(bb_world), 0)
+
+    return bb_min, bb_max

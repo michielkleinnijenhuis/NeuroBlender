@@ -178,6 +178,17 @@ def mode_enum_update(self, context):
     # TODO: switch colourbars
     # TODO: general update of this functionality
 
+    def switch_mode_preset(lights, tables, newmode, cam_view):
+        """Toggle rendering of lights and table."""
+
+        for light in lights:
+            light.hide = newmode == "scientific"
+            light.hide_render = newmode == "scientific"
+        for table in tables:
+            state = (cam_view[2] < 0) | (newmode == "scientific")
+            table.hide = state
+            table.hide_render = state
+
     scn = context.scene
     nb = scn.nb
 
@@ -194,8 +205,9 @@ def mode_enum_update(self, context):
     except:
         pass
     else:
-        nb_rp.switch_mode_preset(light_obs, table_obs,
-                                 nb.settingprops.mode, nb_cam.cam_view)
+        switch_mode_preset(light_obs, table_obs,
+                           nb.settingprops.mode,
+                           nb_cam.cam_view)
 
 
 def managecmap_update(self, context):
