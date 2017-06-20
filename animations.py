@@ -196,11 +196,11 @@ class AnimateCameraPath(Operator):
         nb_preset = nb.presets[nb.index_presets]
         centre = bpy.data.objects[nb_preset.name+'Centre']
 
-        cnsTT = nb_rp.add_constraint(
+        cnsTT = nb_ut.add_constraint(
             cam, "TRACK_TO", "TrackToObject", centre)
-        cnsLDi = nb_rp.add_constraint(
+        cnsLDi = nb_ut.add_constraint(
             cam, "LIMIT_DISTANCE", "LimitDistInClipSphere", centre, cam.data.clip_end)
-        cnsLDo = nb_rp.add_constraint(
+        cnsLDo = nb_ut.add_constraint(
             cam, "LIMIT_DISTANCE", "LimitDistOutBrainSphere", centre, max(centre.scale) * 2)
 
         return cnsTT, cnsLDi, cnsLDo
@@ -319,7 +319,7 @@ class AnimateCameraPath(Operator):
         frame_current = scn.frame_current
 
         cnsname = "FollowPath{}".format(anim.campaths_enum)
-        cns = nb_rp.add_constraint(cam, "FOLLOW_PATH", cnsname, campath, anim.tracktype)
+        cns = nb_ut.add_constraint(cam, "FOLLOW_PATH", cnsname, campath, anim.tracktype)
         anim.cnsname = cns.name
         self.restrict_incluence(cns, anim)
 

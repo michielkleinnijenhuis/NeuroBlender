@@ -669,3 +669,32 @@ def force_object_update(context, ob):
         bpy.ops.object.mode_set(mode='EDIT')
         bpy.ops.object.mode_set(mode='OBJECT')
         scn.objects.active = current_active
+
+
+def add_constraint(ob, ctype, name, target, val=None):
+    """Add a constraint to the camera."""
+
+    cns = ob.constraints.new(ctype)
+    cns.name = name
+    cns.target = target
+    cns.owner_space = 'WORLD'
+    cns.target_space = 'WORLD'
+    if name.startswith('TrackTo'):
+        cns.track_axis = 'TRACK_NEGATIVE_Z'
+        cns.up_axis = 'UP_Y'
+    elif name.startswith('LimitDistOut'):
+        cns.limit_mode = 'LIMITDIST_OUTSIDE'
+        cns.distance = val
+    elif name.startswith('LimitDistIn'):
+        cns.limit_mode = 'LIMITDIST_INSIDE'
+        cns.distance = val
+    elif name.startswith('FollowPath'):
+        cns.forward_axis = 'TRACK_NEGATIVE_Z'
+        cns.up_axis = 'UP_Y'
+        cns.use_curve_follow = val == "TrackPath"
+    elif name.startswith('Child Of'):
+        if val is not None:
+            for k, v in val.items():
+                exec("cns.{} = v".format(k))
+
+    return cns
