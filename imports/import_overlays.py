@@ -244,6 +244,7 @@ class ImportOverlays(Operator, ImportHelper):
                 # FIXME: ensure name end in splinenumber identifier
                 img = self.create_overlay_tract_img(splname, sl)
                 mat = nb_ma.make_cr_mat_tract_sg(splname, img, nodegroup)
+                mat.use_fake_user = True
                 ob.data.materials.append(mat)
                 spl.material_index = len(ob.data.materials) - 1
 
@@ -323,6 +324,7 @@ class ImportOverlays(Operator, ImportHelper):
         """Create an Nx1 image from a streamline's scalar data."""
 
         # TODO: use numpy here?
+        # FIXME: pack images?
         vals = [[val, val, val, 1.0] for val in scalar]
         pixels = [chan for px in vals for chan in px]
 
