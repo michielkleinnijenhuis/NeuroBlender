@@ -772,7 +772,8 @@ def make_cr_matgroup_tract_sg(diffcol, mix=0.04, nb_ov=None):
     diffuse = {'colour': diffcol, 'roughness': 0.1}
     glossy = {'colour': (1.0, 1.0, 1.0, 1.0), 'roughness': 0.1}
 
-    group = bpy.data.node_groups.new("TractOvGroup", "ShaderNodeTree")
+    name = "TractOvGroup.{}".format(nb_ov.name)
+    group = bpy.data.node_groups.new(name, "ShaderNodeTree")
     group.inputs.new("NodeSocketColor", "Color")
     group.outputs.new("NodeSocketShader", "Shader")
 

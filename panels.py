@@ -664,7 +664,7 @@ class NeuroBlenderOverlayPanel(bpy.types.Panel):
 
         if nb.objecttype == "tracts":
 
-            ng = bpy.data.node_groups.get("TractOvGroup")
+            ng = bpy.data.node_groups.get("TractOvGroup.{}".format(nb_ov.name))
             ramp = ng.nodes["ColorRamp"]
 
             self.drawunit_colourmap(layout, nb, ramp, nb_ov)
