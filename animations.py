@@ -39,7 +39,6 @@ from bpy.props import (StringProperty,
                        IntProperty)
 
 from . import (materials as nb_ma,
-               renderpresets as nb_rp,
                utils as nb_ut)
 
 
@@ -61,7 +60,7 @@ class SetAnimations(Operator):
         cam = bpy.data.objects[nb_preset.cameras[nb_preset.index_cameras].name]
         del_indices, cam_anims = [], []
         for i, anim in enumerate(nb_anims):
-            if ((anim.animationtype == "CameraPath") & (anim.is_rendered)):
+            if ((anim.animationtype == "camerapath") & (anim.is_rendered)):
                 del_indices.append(i)
                 cam_anims.append(anim)
         self.clear_camera_path_animations(cam, nb_anims, del_indices)
@@ -69,7 +68,7 @@ class SetAnimations(Operator):
 
         # slice fly-throughs
         slice_anims = [anim for anim in nb_anims
-                       if ((anim.animationtype == "Carver") &
+                       if ((anim.animationtype == "carver") &
                            (anim.is_rendered))]
         # delete previous animation on slicebox
         for anim in slice_anims:
@@ -85,7 +84,7 @@ class SetAnimations(Operator):
 
         # time series
         time_anims = [anim for anim in nb_anims
-                      if ((anim.animationtype == "TimeSeries") &
+                      if ((anim.animationtype == "timeseries") &
                           (anim.is_rendered))]
         for anim in time_anims:
             self.animate_timeseries(anim)
@@ -96,8 +95,13 @@ class SetAnimations(Operator):
 class AnimateCameraPath(Operator):
     bl_idname = "nb.animate_camerapath"
     bl_label = "Set animations"
-    bl_description = "(Re)set all animations in the preset"""
+    bl_description = "Add a camera trajectory animation"""
     bl_options = {"REGISTER", "UNDO", "PRESET"}
+
+    name = StringProperty(
+        name="Name",
+        description="Specify a name for the animation",
+        default="CameraPathAnimation")
 
     def execute(self, context):
 
@@ -107,13 +111,15 @@ class AnimateCameraPath(Operator):
         nb_preset = nb.presets[nb.index_presets]
         nb_anims = nb.animations
 
-        # camera path animations
+        ca = [nb.animations]
+        name = nb_ut.check_name(self.name, "", ca)
+
         preset = nb_preset.cameras[nb_preset.index_cameras]
         cam = bpy.data.objects[preset.name]
 
         del_indices, cam_anims = [], []
         for i, anim in enumerate(nb_anims):
-            if ((anim.animationtype == "CameraPath") & (anim.is_rendered)):
+            if ((anim.animationtype == "camerapath") & (anim.is_rendered)):
                 del_indices.append(i)
                 cam_anims.append(anim)
 
@@ -129,7 +135,7 @@ class AnimateCameraPath(Operator):
         del_anims = [anim for i, anim in enumerate(anims)
                      if i in delete_indices]
         cam_anims = [anim for i, anim in enumerate(anims)
-                     if ((anim.animationtype == "CameraPath") &
+                     if ((anim.animationtype == "camerapath") &
                          (anim.is_rendered) &
                          (i not in delete_indices))]
 
@@ -145,7 +151,8 @@ class AnimateCameraPath(Operator):
         self.clear_CP_followpath(anim)
         self.remove_CP_followpath(cam, anim)
 
-    def clear_CP_evaltime(self, anim):
+    @staticmethod
+    def clear_CP_evaltime(anim):
         """Remove modifiers on campath evaluation time."""
 
         actname = '{}Action'.format(anim.campaths_enum)
@@ -160,10 +167,11 @@ class AnimateCameraPath(Operator):
             """
             for mod in fcu.modifiers:
                 if ((mod.frame_start == anim.frame_start) &
-                    (mod.frame_end == anim.frame_end)):
+                        (mod.frame_end == anim.frame_end)):
                     fcu.modifiers.remove(mod)
 
-    def clear_CP_followpath(self, anim):
+    @staticmethod
+    def clear_CP_followpath(anim):
         """Remove the keyframes on the FollowPath constraint."""
 
     #     action = bpy.data.actions['CamAction']
@@ -178,32 +186,16 @@ class AnimateCameraPath(Operator):
             else:
                 bpy.data.actions['CamAction'].fcurves.remove(fcu)
 
-    def remove_CP_followpath(self, cam, anim):
+    @staticmethod
+    def remove_CP_followpath(cam, anim):
         """Delete a FollowPath constraint from the camera."""
 
         try:
             cns = cam.constraints[anim.cnsname]
-        except:
+        except KeyError:
             pass
         else:
             cam.constraints.remove(cns)
-
-    def add_cam_constraints(self, cam):
-        """Add defaults constraints to the camera."""
-
-        scn = bpy.context.scene
-        nb = scn.nb
-        nb_preset = nb.presets[nb.index_presets]
-        centre = bpy.data.objects[nb_preset.name+'Centre']
-
-        cnsTT = nb_ut.add_constraint(
-            cam, "TRACK_TO", "TrackToObject", centre)
-        cnsLDi = nb_ut.add_constraint(
-            cam, "LIMIT_DISTANCE", "LimitDistInClipSphere", centre, cam.data.clip_end)
-        cnsLDo = nb_ut.add_constraint(
-            cam, "LIMIT_DISTANCE", "LimitDistOutBrainSphere", centre, max(centre.scale) * 2)
-
-        return cnsTT, cnsLDi, cnsLDo
 
     def update_cam_constraints(self, cam, cam_anims):
         """Update the basic constraints of the camera."""
@@ -212,7 +204,7 @@ class AnimateCameraPath(Operator):
 
         try:
             action = bpy.data.actions['CamAction']
-        except:
+        except KeyError:
             pass
         else:
             props = ["use_location_x", "use_location_y", "use_location_z",
@@ -223,16 +215,16 @@ class AnimateCameraPath(Operator):
                 action.fcurves.remove(fcu)
             # add the constraint keyframes back again
             cns = cam.constraints["Child Of"]
-            timeline = self.generate_timeline(scn, cam_anims)
-            self.restrict_trans_timeline(scn, cns, timeline, group="ChildOf")
+            timeline = generate_timeline(scn, cam_anims)
+            restrict_trans_timeline(scn, cns, timeline, group="ChildOf")
 
             dpath = 'constraints["TrackToObject"].influence'
             fcu = action.fcurves.find(dpath)
             action.fcurves.remove(fcu)
             # add the constraint keyframes back again
             cns = cam.constraints["TrackToObject"]
-            timeline = self.generate_timeline(scn, cam_anims, trackcentre=True)
-            self.restrict_incluence_timeline(scn, cns, timeline, group="TrackTo")
+            timeline = generate_timeline(scn, cam_anims, trackcentre=True)
+            restrict_incluence_timeline(scn, cns, timeline, group="TrackTo")
 
     def create_camera_path_animations(self, cam, anims):
         """Keyframe a set of camera animations."""
@@ -269,14 +261,15 @@ class AnimateCameraPath(Operator):
                 self.animate_camera(cam, anim, campath)
 
         cnsCO = nb_ut.add_constraint(cam, "CHILD_OF", "Child Of", box)
-        timeline = self.generate_timeline(scn, anims)
-        self.restrict_trans_timeline(scn, cnsCO, timeline, group="ChildOf")
+        timeline = generate_timeline(scn, anims)
+        restrict_trans_timeline(scn, cnsCO, timeline, group="ChildOf")
 
         cnsTT = nb_ut.add_constraint(cam, "TRACK_TO", "TrackToObject", centre)
-        timeline = self.generate_timeline(scn, anims, trackcentre=True)
-        self.restrict_incluence_timeline(scn, cnsTT, timeline, group="TrackTo")
+        timeline = generate_timeline(scn, anims, trackcentre=True)
+        restrict_incluence_timeline(scn, cnsTT, timeline, group="TrackTo")
 
-    def animate_campath(self, campath=None, anim=None):
+    @staticmethod
+    def animate_campath(campath=None, anim=None):
         """Set up camera path animation."""
 
         scn = bpy.context.scene
@@ -291,26 +284,12 @@ class AnimateCameraPath(Operator):
             fcu = animdata.action.fcurves.new("eval_time")
 
         mod = fcu.modifiers.new('GENERATOR')
-        intercept, slope, _ = self.calculate_coefficients(campath, anim)
+        intercept, slope, _ = calculate_coefficients(campath, anim)
         mod.coefficients = (intercept, slope)
         mod.use_additive = True
         mod.use_restricted_range = True
         mod.frame_start = anim.frame_start
         mod.frame_end = anim.frame_end
-
-    def calculate_coefficients(self, campath, anim):
-        """Calculate the coefficients for a campath modifier."""
-
-        max_val = anim.repetitions * campath.data.path_duration
-        slope = max_val / (anim.frame_end - anim.frame_start)
-        intercept = -(anim.frame_start) * slope
-
-        if anim.reverse:
-            intercept = -intercept + 100  # TODO: check correctness of value 100
-            slope = -slope
-            max_val = -max_val
-
-        return intercept, slope, max_val
 
     def animate_camera(self, cam, anim, campath):
         """Set up camera animation."""
@@ -319,10 +298,11 @@ class AnimateCameraPath(Operator):
 
         frame_current = scn.frame_current
 
-        cnsname = "FollowPath{}".format(anim.campaths_enum)
-        cns = nb_ut.add_constraint(cam, "FOLLOW_PATH", cnsname, campath, anim.tracktype)
+        cnsname = "FollowPath{}".format(anim.name)
+        cns = nb_ut.add_constraint(cam, "FOLLOW_PATH", cnsname,
+                                   campath, anim.tracktype)
         anim.cnsname = cns.name
-        self.restrict_incluence(cns, anim)
+        restrict_incluence(cns, anim)
 
         cns.offset = anim.offset * -100
 
@@ -346,262 +326,153 @@ class AnimateCameraPath(Operator):
 
         scn.frame_set(frame_current)
 
-    def generate_timeline(self, scn, anims, trackcentre=False):
-        """Generate a timeline for a set of animations."""
-
-        timeline = np.zeros(scn.frame_end + 1)
-        if trackcentre:
-            timeline += 1
-
-        for anim in anims:
-            for i in range(anim.frame_start, anim.frame_end + 1):
-                if trackcentre:
-                    timeline[i] = anim.tracktype == 'TrackObject'
-                else:
-                    timeline[i] = 1
-
-        return timeline
-
-    def restrict_trans_timeline(self, scn, cns, timeline, group=""):
-        """Restrict the loc/rot in a constraint according to timeline."""
-
-        frame_current = scn.frame_current
-
-        for prop in ["use_location_x", "use_location_y", "use_location_z",
-                     "use_rotation_x", "use_rotation_y", "use_rotation_z"]:
-            scn.frame_set(0)
-            exec("cns.%s = True" % prop)
-            cns.keyframe_insert(prop, group=group)
-            scn.frame_set(scn.frame_end + 1)
-            exec("cns.%s = True" % prop)
-            cns.keyframe_insert(prop, group=group)
-
-            scn.frame_set(scn.frame_start)
-            exec("cns.%s = not timeline[scn.frame_start]" % prop)
-            cns.keyframe_insert(prop, group=group)
-
-            for fr in range(scn.frame_start+1, scn.frame_end):
-                scn.frame_set(fr)
-                exec("cns.%s = not timeline[fr]" % prop)
-                if ((timeline[fr] != timeline[fr-1]) or
-                    timeline[fr] != timeline[fr+1]):
-                    cns.keyframe_insert(prop, group=group)
-
-            scn.frame_set(scn.frame_end)
-            exec("cns.%s = not timeline[scn.frame_end]" % prop)
-            cns.keyframe_insert(prop, group=group)
-
-        scn.frame_set(frame_current)
-
-    def restrict_incluence_timeline(self, scn, cns, timeline, group=""):
-        """Restrict the influence of a constraint according to timeline."""
-
-        frame_current = scn.frame_current
-
-        scn.frame_set(scn.frame_start)
-        cns.influence = timeline[scn.frame_start]
-        cns.keyframe_insert("influence", group=group)
-
-        for fr in range(scn.frame_start+1, scn.frame_end):
-            scn.frame_set(fr)
-            cns.influence = timeline[fr]
-            if ((timeline[fr] != timeline[fr-1]) or
-                timeline[fr] != timeline[fr+1]):
-                cns.keyframe_insert("influence", group=group)
-
-        scn.frame_set(scn.frame_end)
-        cns.influence = timeline[scn.frame_end]
-        cns.keyframe_insert("influence", group=group)
-
-        scn.frame_set(frame_current)
-
-    def restrict_incluence(self, cns, anim):
-        """Restrict the influence of a constraint to the animation interval."""
-
-        scn = bpy.context.scene
-
-        frame_current = scn.frame_current
-
-        interval_head = [scn.frame_start, anim.frame_start - 1]
-        interval_anim = [anim.frame_start, anim.frame_end]
-        interval_tail = [anim.frame_end + 1, scn.frame_end]
-        ivs = [interval_head, interval_tail, interval_anim]
-        vals = [0, 0, 1]
-        for iv, val in zip(ivs, vals):
-            for fr in iv:
-                scn.frame_set(fr)
-                cns.influence = val
-                cns.keyframe_insert(data_path="influence", index=-1)
-
-        scn.frame_set(frame_current)
-
-    def setup_animation_rendering(self, filepath="render/anim",
-                                  file_format="AVI_JPEG",
-                                  blendpath=""):
-        """Set rendering properties for animations."""
-
-        scn = bpy.context.scene
-
-        scn.render.filepath = filepath
-        scn.render.image_settings.file_format = file_format
-        bpy.ops.render.render(animation=True)
-
-        bpy.ops.wm.save_as_mainfile(filepath=blendpath)
-
 
 class AnimateCarver(Operator):
     bl_idname = "nb.animate_carver"
-    bl_label = "Set carver animations"
-    bl_description = """..."""
+    bl_label = "Set carver animation"
+    bl_description = "Add a carver animation"""
     bl_options = {"REGISTER", "UNDO", "PRESET"}
+
+    name = StringProperty(
+        name="Name",
+        description="Specify a name for the animation",
+        default="CarverAnimation")
+
+    carveobject_data_path = StringProperty(
+        name="Carveobject data path",
+        description="Specify a the path to the camera")
+    sliceproperty = EnumProperty(
+        name="Property to animate",
+        description="Select property to animate",
+        items=[("Thickness", "Thickness", "Thickness", 0),
+               ("Position", "Position", "Position", 1),
+               ("Angle", "Angle", "Angle", 2)],
+        default="Position")
+    axis = EnumProperty(
+        name="Animation axis",
+        description="switch between animation axes",
+        items=[("X", "X", "X", 0),
+               ("Y", "Y", "Y", 1),
+               ("Z", "Z", "Z", 2)],
+        default="Z")
 
     def execute(self, context):
 
         scn = context.scene
         nb = scn.nb
 
-        # slice fly-throughs
-        slice_anims = [
-            anim for anim in nb.animations
-            if ((anim.animationtype == "Carver") & (anim.is_rendered))
-            ]
+        ca = [nb.animations]
+        name = nb_ut.check_name(self.name, "", ca)
 
-        # delete previous animation on carveobject
-        for anim in slice_anims:
-            carveobject = bpy.data.objects[anim.anim_voxelvolume]
-            carveobject.animation_data_clear()
+        animprops = {"name": name,
+                     "animationtype": 'carver',
+                     "icon": "MOD_BOOLEAN",
+                     "carveobject_data_path": self.carveobject_data_path,
+                     "sliceproperty": self.sliceproperty,
+                     "axis": self.axis}
+        anim = nb_ut.add_item(nb, "animations", animprops)
+        anim.animationtype = 'carver'
 
-        for anim in slice_anims:
-            vvol = nb.voxelvolumes[anim.anim_voxelvolume]
-            self.animate_carver(vvol, anim, anim.axis,
-                                anim.frame_start, anim.frame_end,
-                                anim.repetitions, anim.offset)
+        self.animate(anim)
 
         return {"FINISHED"}
 
-    def animate_carver(self, vvol, anim=None, axis="Z",
-                       frame_start=1, frame_end=100,
-                       repetitions=1.0, offset=0.0, frame_step=10):
+    @staticmethod
+    def animate(anim):
         """Set up a carver animation."""
 
-        # TODO: set fcu.interpolation = 'LINEAR'
-
         scn = bpy.context.scene
+        nb = scn.nb
 
-        frame_current = scn.frame_current
+        prop = "slice{}".format(anim.sliceproperty.lower())
+        # FIXME: the path might change on deleting objects
+        prop_path = '{}.{}'.format(anim.carveobject_data_path, prop)
+        idx = 'XYZ'.index(anim.axis)
+        cob_path = '{}[{}]'.format(prop_path, idx)
 
-        idx = 'XYZ'.index(axis)
-        kf1 = offset
-        kf2 = 1 * repetitions
+        # get or create the fcurve for this animation
+        fcu, prev = get_animation_fcurve(anim, data_path=prop_path, idx=idx)
 
+        # update the data_path and index
+        fcu.data_path = anim.fcurve_data_path = prop_path
+        fcu.array_index = anim.fcurve_array_index = idx
+
+        # reset the state of the previous prop to the frame-0 value
+        restore_state_carver(prev)
+
+        # Calculate the coordinates of the 3 points in the fcurve
+        # FIXME: wrap around for position and thickness
+        fullrange = {'slicethickness': [0, 1],
+                     'sliceposition': [-1, 1],
+                     'sliceangle': [-1.5708, 1.5708]}
+        prange = [fullrange[prop][0] * anim.repetitions,
+                  fullrange[prop][1] * anim.repetitions]
         if anim.reverse:
-            kfs = {anim.frame_start: 1 - offset,
-                   anim.frame_end: 1 - repetitions}
-        else:
-            kfs = {anim.frame_start: offset,
-                   anim.frame_end: repetitions % 1}
+            prange.reverse()
+        prange = [prange[0] + anim.offset,
+                  prange[1] + anim.offset]
+        kfs = {0: scn.path_resolve(cob_path),
+               anim.frame_start: prange[0],
+               anim.frame_end: prange[1]}
 
-    #     if anim.sliceproperty == "Thickness":
-    #         kfdefault = kf2
-    #     elif anim.sliceproperty == "Position":
-    #         kfdefault = kf1
-    #     elif anim.sliceproperty == "Angle":
-    #         kfdefault = kf1
+        # build the new fcurve
+        for i, (k, v) in enumerate(sorted(kfs.items())):
+            kp = fcu.keyframe_points[i]
+            kp.co = (k, v)
+            if k == 0:
+                kp.interpolation = 'CONSTANT'
+            else:
+                kp.interpolation = anim.interpolation
 
-        # set all frames to default value // fcu.extrapolation
-        prop = "slice%s" % anim.sliceproperty
-        attr = "%s.%s" % (prop, axis.lower())
-
-    #     print(has_keyframe(vvol, attr))
-    #     if not has_keyframe(vvol, attr):
-    #     for k in range(scn.frame_start, scn.frame_end):
-    #         scn.frame_set(k)
-    #         exec('vvol.%s[idx] = kfdefault' % prop.lower())
-    #         vvol.keyframe_insert(data_path=prop.lower(), index=idx)
-
-        # remove all keyframes in animation range
-    #     for k in range(anim.frame_start, anim.frame_end):
-    #         scn.frame_set(k)
-    #         vvol.keyframe_delete(data_path=prop.lower(), index=idx)
-
-        # insert the animation
-        for k, v in kfs.items():
-            scn.frame_set(k)
-            exec('vvol.%s[idx] = v' % prop.lower())
-            vvol.keyframe_insert(data_path=prop.lower(), index=idx)
-
-        scn.frame_set(frame_current)
-
-    def has_keyframe(self, ob, attr):
-        """Check if a property has keyframes set."""
-
-        anim = ob.animation_data
-        if anim is not None and anim.action is not None:
-            for fcu in anim.action.fcurves:
-                fcu.update()
-                if attr.startswith(fcu.data_path):
-                    path_has_keyframe = len(fcu.keyframe_points) > 0
-                    # FIXME: fcu.array_index is always at the first value (fcurves[0])
-                    if attr.endswith('.x'):
-                        return ((path_has_keyframe) & (fcu.array_index == 0))
-                    elif attr.endswith('.y'):
-                        return ((path_has_keyframe) & (fcu.array_index == 1))
-                    elif attr.endswith('.z'):
-                        return ((path_has_keyframe) & (fcu.array_index == 2))
-                    else:
-                        return path_has_keyframe
-
-        return False
+        # update
+        bpy.context.scene.frame_current = scn.frame_current
 
 
 class AnimateTimeSeries(Operator):
     bl_idname = "nb.animate_timeseries"
     bl_label = "Set time series animation"
-    bl_description = """Set time series animation"""
+    bl_description = "Add a time series animation"""
     bl_options = {"REGISTER", "UNDO", "PRESET"}
 
-    index_animations = IntProperty(
-        name="animation index",
-        description="index of the animations collection",
-        default=0)
+    name = StringProperty(
+        name="Name",
+        description="Specify a name for the animation",
+        default="TimeSeriesAnimation")
+
+    timeseries_object = StringProperty(
+        name="Object",
+        description="Select object to animate")
 
     def execute(self, context):
 
         scn = context.scene
         nb = scn.nb
 
-        nb_preset = nb.presets[nb.index_presets]
-        nb_anims = nb.animations
+        ca = [nb.animations]
+        name = nb_ut.check_name(self.name, "", ca)
 
-#         # time series
-#         time_anims = [
-#             anim for anim in nb_anims
-#             if ((anim.animationtype == "TimeSeries") & (anim.is_rendered))
-#                       ]
-#         for anim in time_anims:
-        anim 
-        self.animate_timeseries(context, anim)
+        animprops = {"name": name,
+                     "animationtype": 'timeseries',
+                     "icon": "TIME",
+                     "timeseries_object": self.timeseries_object}
+        anim = nb_ut.add_item(nb, "animations", animprops)
+        anim.animationtype = 'timeseries'
+
+        self.animate(anim)
 
         return {"FINISHED"}
 
-    def invoke(self, context, event):
+    @staticmethod
+    def animate(anim):
+        """Set up a texture time series animation."""
 
-        scn = context.scene
-        nb = scn.nb
-
-#         self.index = nb.index_animations
-
-        return self.execute(context)
-
-    def animate_timeseries(self, context, anim):
-        """Set up animation of a texture time series."""
-
-        scn = context.scene
+        scn = bpy.context.scene
         nb = scn.nb
 
         frame_current = scn.frame_current
 
-        sgs = self.find_ts_scalargroups(context, anim)
+        # Find the scalargroup to animate
+        sgs = find_ts_scalargroups(anim)
         ts_name = anim.anim_timeseries
         sg = sgs[ts_name]
 
@@ -610,12 +481,13 @@ class AnimateTimeSeries(Operator):
 
         if anim.timeseries_object.startswith("S: "):
 
-            # TODO: this is for per-frame jumps of texture
+            # FIXME: this is for per-frame jumps of texture
             nb_ma.load_surface_textures(ts_name, sg.texdir, nscalars)
 
-        elif anim.timeseries_object.startswith("V: "):
+        elif (anim.timeseries_object.startswith("V: ") or
+              anim.timeseries_object.startswith("T: ")):
 
-            # TODO: stepwise fcurve interpolation is not accurate in this way
+            # FIXME: stepwise fcurve interpolation is not accurate in this way
             nframes = anim.frame_end - anim.frame_start
             fptp = np.floor(nframes/nscalars)
 
@@ -629,22 +501,6 @@ class AnimateTimeSeries(Operator):
                 sg.keyframe_insert("index_scalars")
 
         scn.frame_set(frame_current)
-
-    def find_ts_scalargroups(self, context, anim):
-        """Get the scalargroup to animate."""
-
-        scn = context.scene
-        nb = scn.nb
-
-        aliases = {'T': 'tracts', 'S': 'surfaces', 'V': 'voxelvolumes'}
-
-        collkey = anim.timeseries_object[0]
-        ts_obname = anim.timeseries_object[3:]
-
-        coll = eval('nb.%s' % aliases[collkey])
-        sgs = coll[ts_obname].scalargroups
-
-        return sgs
 
     def animate_ts_vvol(self):  # scratch
 
@@ -727,6 +583,17 @@ class AddAnimation(Operator):
         description="The path to the parent of the object",
         default="nb")
 
+    animationtype = EnumProperty(
+        name="Animation type",
+        description="Switch between animation types",
+        items=[("camerapath", "Camera trajectory",
+                "Let the camera follow a trajectory", 0),
+               ("carver", "Carver",
+                "Animate a carver", 1),
+               ("timeseries", "Time series",
+                "Play a time series", 2)],
+        default='camerapath')
+
     def execute(self, context):
 
         scn = context.scene
@@ -734,14 +601,31 @@ class AddAnimation(Operator):
 
         ca = [nb.animations]
         name = nb_ut.check_name(self.name, "", ca)
-        animprops = {"name": name}
+
+        icondict = {"CameraPath": "ANIM",
+                    "Carver": "MOD_BOOLEAN",
+                    "TimeSeries": "TIME"}
+        animprops = {"name": name,
+                     "animationtype": self.animationtype,  # FIXME!! reverts back to default in properties (CameraPath) for some reason
+                     "icon": icondict[self.animationtype]}
         nb_ut.add_item(nb, "animations", animprops)
+#         op = 'bpy.ops.nb.animate_{}'.format(self.animationtype)
+#         op('INVOKE_DEFAULT')
 
         infostring = 'added animation "%s"'
         info = [infostring % (name)]
         self.report({'INFO'}, '; '.join(info))
 
         return {"FINISHED"}
+
+    def invoke(self, context, event):
+
+        scn = context.scene
+        nb = scn.nb
+
+        self.animationtype = nb.animationtype
+
+        return self.execute(context)
 
 
 class AddCamPoint(Operator):
@@ -1216,3 +1100,190 @@ class MassIsRenderedCP(Menu):
         layout.operator("nb.mass_select",
                         icon='SCENE',
                         text="Invert").action = 'INVERT_CP'
+
+
+def get_animation_fcurve(anim, data_path='', idx=-1, remove=False):
+    """Get or remove an fcurve for an animation."""
+
+    scn = bpy.context.scene
+    nb = scn.nb
+
+    prev = {}
+
+    actionname = '{}Action'.format(anim.animationtype)
+    ad = scn.animation_data_create()
+    try:
+        ad.action = bpy.data.actions[actionname]
+    except KeyError:
+        ad.action = bpy.data.actions.new(actionname)
+    try:
+        fcu = ad.action.fcurves.find(anim.fcurve_data_path,
+                                     anim.fcurve_array_index)
+    except RuntimeError:
+        fcu = ad.action.fcurves.new(data_path, index=idx,
+                                    action_group=anim.name)
+        fcu.keyframe_points.add(3)  # FIXME: flexibility
+    else:
+        # remember the path, index and value at frame 0
+        prev['data_path'] = fcu.data_path
+        prev['array_index'] = fcu.array_index
+        prev['value'] = fcu.keyframe_points[0].co[1]
+
+    if remove:
+        ad.action.fcurves.remove(fcu)
+        fcu = None
+
+    return fcu, prev
+
+
+def restore_state_carver(prev):
+    """Restore a previous state of a carver property."""
+
+    scn = bpy.context.scene
+
+    if not prev:
+        return
+
+    prev_prop = prev['data_path'].split('.')[-1]
+    cob_data_path = '.'.join(prev['data_path'].split('.')[:-1])
+    nb_cob = scn.path_resolve(cob_data_path)
+    exec('nb_cob.{}[{:d}] = {:f}'.format(prev_prop,
+                                         prev['array_index'],
+                                         prev['value']))
+
+
+def calculate_coefficients(campath, anim):
+    """Calculate the coefficients for a campath modifier."""
+
+    max_val = anim.repetitions * campath.data.path_duration
+    slope = max_val / (anim.frame_end - anim.frame_start)
+    intercept = -(anim.frame_start) * slope
+
+    if anim.reverse:
+        intercept = -intercept + 100  # TODO: check correctness of value 100
+        slope = -slope
+        max_val = -max_val
+
+    return intercept, slope, max_val
+
+
+def generate_timeline(scn, anims, trackcentre=False):
+    """Generate a timeline for a set of animations."""
+
+    timeline = np.zeros(scn.frame_end + 1)
+    if trackcentre:
+        timeline += 1
+
+    for anim in anims:
+        for i in range(anim.frame_start, anim.frame_end + 1):
+            if trackcentre:
+                timeline[i] = anim.tracktype == 'TrackObject'
+            else:
+                timeline[i] = 1
+
+    return timeline
+
+
+def restrict_trans_timeline(scn, cns, timeline, group=""):
+    """Restrict the loc/rot in a constraint according to timeline."""
+
+    frame_current = scn.frame_current
+
+    for prop in ["use_location_x", "use_location_y", "use_location_z",
+                 "use_rotation_x", "use_rotation_y", "use_rotation_z"]:
+        scn.frame_set(0)
+        exec("cns.%s = True" % prop)
+        cns.keyframe_insert(prop, group=group)
+        scn.frame_set(scn.frame_end + 1)
+        exec("cns.%s = True" % prop)
+        cns.keyframe_insert(prop, group=group)
+
+        scn.frame_set(scn.frame_start)
+        exec("cns.%s = not timeline[scn.frame_start]" % prop)
+        cns.keyframe_insert(prop, group=group)
+
+        for fr in range(scn.frame_start+1, scn.frame_end):
+            scn.frame_set(fr)
+            exec("cns.%s = not timeline[fr]" % prop)
+            if ((timeline[fr] != timeline[fr-1]) or
+                timeline[fr] != timeline[fr+1]):
+                cns.keyframe_insert(prop, group=group)
+
+        scn.frame_set(scn.frame_end)
+        exec("cns.%s = not timeline[scn.frame_end]" % prop)
+        cns.keyframe_insert(prop, group=group)
+
+    scn.frame_set(frame_current)
+
+
+def restrict_incluence_timeline(scn, cns, timeline, group=""):
+    """Restrict the influence of a constraint according to timeline."""
+
+    frame_current = scn.frame_current
+
+    scn.frame_set(scn.frame_start)
+    cns.influence = timeline[scn.frame_start]
+    cns.keyframe_insert("influence", group=group)
+
+    for fr in range(scn.frame_start+1, scn.frame_end):
+        scn.frame_set(fr)
+        cns.influence = timeline[fr]
+        if ((timeline[fr] != timeline[fr-1]) or
+            timeline[fr] != timeline[fr+1]):
+            cns.keyframe_insert("influence", group=group)
+
+    scn.frame_set(scn.frame_end)
+    cns.influence = timeline[scn.frame_end]
+    cns.keyframe_insert("influence", group=group)
+
+    scn.frame_set(frame_current)
+
+
+def restrict_incluence(cns, anim):
+    """Restrict the influence of a constraint to the animation interval."""
+
+    scn = bpy.context.scene
+
+    frame_current = scn.frame_current
+
+    interval_head = [scn.frame_start, anim.frame_start - 1]
+    interval_anim = [anim.frame_start, anim.frame_end]
+    interval_tail = [anim.frame_end + 1, scn.frame_end]
+    ivs = [interval_head, interval_tail, interval_anim]
+    vals = [0, 0, 1]
+    for iv, val in zip(ivs, vals):
+        for fr in iv:
+            scn.frame_set(fr)
+            cns.influence = val
+            cns.keyframe_insert(data_path="influence", index=-1)
+
+    scn.frame_set(frame_current)
+
+
+def setup_animation_rendering(filepath="render/anim",
+                              file_format="AVI_JPEG",
+                              blendpath=""):
+    """Set rendering properties for animations."""
+
+    scn = bpy.context.scene
+
+    scn.render.filepath = filepath
+    scn.render.image_settings.file_format = file_format
+    bpy.ops.render.render(animation=True)
+
+    bpy.ops.wm.save_as_mainfile(filepath=blendpath)
+
+
+def find_ts_scalargroups(anim):
+    """Find the scalargroup to animate."""
+
+    scn = bpy.context.scene
+    nb = scn.nb
+
+    aliases = {'T': 'tracts', 'S': 'surfaces', 'V': 'voxelvolumes'}
+    collkey = anim.timeseries_object[0]
+    ts_obname = anim.timeseries_object[3:]
+    coll = eval('nb.%s' % aliases[collkey])
+    sgs = coll[ts_obname].scalargroups
+
+    return sgs

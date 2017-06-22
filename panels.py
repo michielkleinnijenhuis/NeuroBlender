@@ -131,19 +131,12 @@ class NeuroBlenderBasePanel(bpy.types.Panel):
         col = row.column(align=True)
 
         if addopt:
-            if uilistlevel == "L2":
-                if isinstance(data, bpy.types.VoxelvolumeProperties):
-                    obtype = "voxelvolumes"
-                else:
-                    obtype = "overlays"
-            col.operator(
-                "nb.import_" + obtype,
-                icon='ZOOMIN',
-                text=""
-                ).parentpath = data.path_from_id()
+            rowsub = col.row()
+            self.drawunit_addopt(rowsub, nb, uilistlevel, data, obtype)
 
         if len(coll):
-            col.operator(
+            rowsub = col.row()
+            rowsub.operator(
                 "nb.oblist_ops",
                 icon='ZOOMOUT',
                 text=""
@@ -151,23 +144,64 @@ class NeuroBlenderBasePanel(bpy.types.Panel):
 
         if bpy.context.scene.nb.settingprops.advanced and (len(coll) > 1):
 
-            col.menu(
+            rowsub = col.row()
+            rowsub.menu(
                 "nb.mass_is_rendered_" + uilistlevel,
                 icon='DOWNARROW_HLT',
                 text=""
                 )
 
-            col.separator()
-            col.operator(
+            rowsub = col.row()
+            rowsub.separator()
+
+            rowsub = col.row()
+            rowsub.operator(
                 "nb.oblist_ops",
                 icon='TRIA_UP',
                 text=""
                 ).action = 'UP_' + uilistlevel
-            col.operator(
+            rowsub = col.row()
+            rowsub.operator(
                 "nb.oblist_ops",
                 icon='TRIA_DOWN',
                 text=""
                 ).action = 'DOWN_' + uilistlevel
+
+    def drawunit_addopt(self, layout, nb, uilistlevel, data, obtype):
+
+        if uilistlevel == "AN":
+            operator = 'nb.animate_' + nb.animationtype
+            layout.operator(
+                operator,
+                icon='ZOOMIN',
+                text=""
+                )
+            if nb.animationtype == 'camerapath':
+                try:
+                    nb.presets[nb.index_presets]
+                except IndexError:
+                    layout.enabled = False
+                else:
+                    layout.enabled = True
+            else:
+                layout.enabled = True
+
+            return
+
+        if uilistlevel == "L2":
+            if isinstance(data, bpy.types.VoxelvolumeProperties):
+                operator = "nb.import_voxelvolumes"
+                # TODO: move vvol overlay func to import_overlays.py
+            else:
+                operator = "nb.import_overlays"
+        else:
+            operator = "nb.import_" + obtype
+
+        layout.operator(
+            operator,
+            icon='ZOOMIN',
+            text=""
+            ).parentpath = data.path_from_id()
 
     def drawunit_tri(self, layout, triflag, nb, data):
 
@@ -559,6 +593,7 @@ class NeuroBlenderOverlayPanel(bpy.types.Panel):
     drawunit_switches = NeuroBlenderBasePanel.drawunit_switches
     drawunit_switch_to_main = NeuroBlenderBasePanel.drawunit_switch_to_main
     drawunit_UIList = NeuroBlenderBasePanel.drawunit_UIList
+    drawunit_addopt = NeuroBlenderBasePanel.drawunit_addopt
     drawunit_tri = NeuroBlenderBasePanel.drawunit_tri
     drawunit_basic_blender = NeuroBlenderBasePanel.drawunit_basic_blender
     drawunit_basic_cycles = NeuroBlenderBasePanel.drawunit_basic_cycles
@@ -825,6 +860,7 @@ class NeuroBlenderScenePanel(bpy.types.Panel):
     drawunit_switches = NeuroBlenderBasePanel.drawunit_switches
     drawunit_switch_to_main = NeuroBlenderBasePanel.drawunit_switch_to_main
     drawunit_UIList = NeuroBlenderBasePanel.drawunit_UIList
+    drawunit_addopt = NeuroBlenderBasePanel.drawunit_addopt
     drawunit_tri = NeuroBlenderBasePanel.drawunit_tri
     drawunit_basic_cycles = NeuroBlenderBasePanel.drawunit_basic_cycles
     drawunit_basic_cycles_mix = NeuroBlenderBasePanel.drawunit_basic_cycles_mix
@@ -998,6 +1034,7 @@ class NeuroBlenderAnimationPanel(bpy.types.Panel):
     drawunit_switches = NeuroBlenderBasePanel.drawunit_switches
     drawunit_switch_to_main = NeuroBlenderBasePanel.drawunit_switch_to_main
     drawunit_UIList = NeuroBlenderBasePanel.drawunit_UIList
+    drawunit_addopt = NeuroBlenderBasePanel.drawunit_addopt
     drawunit_tri = NeuroBlenderBasePanel.drawunit_tri
 
     def draw_nb_panel(self, context, layout):
@@ -1010,6 +1047,12 @@ class NeuroBlenderAnimationPanel(bpy.types.Panel):
         row.prop(bpy.context.scene, "frame_end")
 
         row = layout.row()
+        row.separator()
+
+        row = layout.row()
+        row.prop(nb, "animationtype", expand=True)
+
+        row = layout.row()
         self.drawunit_UIList(layout, "AN", nb, "animations")
 
         try:
@@ -1020,32 +1063,11 @@ class NeuroBlenderAnimationPanel(bpy.types.Panel):
             row = layout.row()
             row.separator()
 
-            row = layout.row()
-            row.prop(anim, "animationtype")
-
-            row = layout.row()
-            row.separator()
-
             self.drawunit_tri(layout, "timings", nb, nb)
 
-            animtype = anim.animationtype.lower()
+            animtype = anim.animationtype
             drawfun = eval('self.drawunit_animation_{}'.format(animtype))
             drawfun(layout, nb)
-
-            row = layout.row()
-            row.separator()
-            row = layout.row()
-            opstring = "nb.animate_{}".format(animtype)
-            row.operator(opstring,
-                         text="Set animation",
-                         icon="RENDER_ANIMATION")
-
-        row = layout.row()
-        row.separator()
-        row = layout.row()
-        row.operator("nb.set_animations",
-                     text="Set animations",
-                     icon="RENDER_ANIMATION")
 
     def drawunit_tri_timings(self, layout, nb, dummy):
 
@@ -1192,7 +1214,7 @@ class NeuroBlenderAnimationPanel(bpy.types.Panel):
         col.prop(anim, "reverse", toggle=True,
                  icon="ARROW_LEFTRIGHT", icon_only=True)
         col = row.column()
-        col.prop(anim, "anim_voxelvolume", expand=False, text="")
+        col.prop(anim, "carveobject_data_path", expand=False, text="")
         col = row.column()
         col.operator("nb.del_campath", icon='ZOOMOUT', text="")
         col.enabled = False
@@ -1228,7 +1250,7 @@ class NeuroBlenderAnimationPanel(bpy.types.Panel):
                  text="Time series")
 
         # FIXME: gives many errors on adding campath???
-#         sgs = find_ts_scalargroups(anim)
+#         sgs = nb_an.find_ts_scalargroups(anim)
 #         sg = sgs[anim.anim_timeseries]
 #
 #         npoints = len(sg.scalars)

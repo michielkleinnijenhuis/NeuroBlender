@@ -45,7 +45,8 @@ from bpy.props import (BoolProperty,
                        PointerProperty)
 from bpy.app.handlers import persistent
 
-from . import (materials as nb_ma,
+from . import (animations as nb_an,
+               materials as nb_ma,
                renderpresets as nb_rp,
                utils as nb_ut)
 
@@ -98,14 +99,16 @@ def index_scalars_handler(dummy):
 
     for anim in nb.animations:
 
-        if anim.animationtype == "TimeSeries":
+        if anim.animationtype == "timeseries":
 
-            sgs = nb_rp.find_ts_scalargroups(anim)
+            sgs = nb_an.find_ts_scalargroups(anim)
             sg = sgs[anim.anim_timeseries]
-
             scalar = sg.scalars[sg.index_scalars]
 
-            if sg.path_from_id().startswith("nb.surfaces"):
+            if sg.path_from_id().startswith("nb.tracts"):
+                sg.index_scalars = sg.index_scalars
+
+            elif sg.path_from_id().startswith("nb.surfaces"):
                 # TODO: update vertex group index
                 # TODO: try update vertex color selection
                 # update Image Sequence Texture index
@@ -283,7 +286,7 @@ def campaths_enum_callback(self, context):
     items = [(cp.name, cp.name, "List the camera paths", i)
              for i, cp in enumerate(nb.campaths)]
     if not items:
-        items = [("No_CamPaths", "No camera trajectories found", "", 0)]
+        items = [("no_camerapaths", "No camera trajectories found", "", 0)]
 
     return items
 
@@ -342,7 +345,7 @@ def animcarveobject_enum_callback(self, context):
     scn = context.scene
     nb = scn.nb
 
-    items = [(cob.name, cob.name, "List all carveobjects")
+    items = [(cob.path_from_id(), cob.name, "List all carveobjects")
              for nb_coll in [nb.surfaces, nb.voxelvolumes]
              for nb_ob in nb_coll
              for carver in nb_ob.carvers
@@ -368,7 +371,7 @@ def timeseries_enum_callback(self, context):
         items = [('no_timeseries', 'No timeseries found',
                   'No timeseries found', 0)]
     else:
-#     sgs = find_ts_scalargroups(self)
+#     sgs = nb_an.find_ts_scalargroups(self)
         items = [(scalargroup.name, scalargroup.name, "List the timeseries", i)
                  for i, scalargroup in enumerate(sgs)]
 
@@ -395,6 +398,72 @@ def timeseries_object_enum_callback(self, context):
     return items
 
 
+# def animtype_enum_update(self, context):
+#     """Update the animation."""
+# 
+#     scn = context.scene
+#     nb = scn.nb
+# 
+#     # TODO: clear the animation
+
+
+def timings_enum_update(self, context):
+    """Update the animation timings."""
+
+    scn = context.scene
+    nb = scn.nb
+
+    nb_preset = nb.presets[nb.index_presets]
+    nb_cam = nb_preset.cameras[nb_preset.index_cameras]
+    cam = bpy.data.objects[nb_cam.name]
+
+    if self.animationtype == "camerapath":
+        acp = bpy.types.NB_OT_animate_camerapath
+        campath = bpy.data.objects[self.campaths_enum]
+        # change the eval time keyframes on the new campath
+        acp.clear_CP_evaltime(self)
+        acp.animate_campath(campath, self)
+        # redo the keyframing of the cam constraints
+        cam_anims = [anim for anim in nb.animations
+                     if ((anim.animationtype == "camerapath") &
+                         (anim.campaths_enum != "no_camerapaths") &
+                         (anim.is_rendered))]
+        # FIXME: TODO: remove FollowPath keyframes here first
+        acp.animate_camera(cam, self, campath)
+        acp.update_cam_constraints(cam, cam_anims)
+    elif self.animationtype == "carver":
+        aca = bpy.types.NB_OT_animate_carver
+        aca.animate(self)
+    elif self.animationtype == "timeseries":
+        ats = bpy.types.NB_OT_animate_timeseries
+        ats.animate(self)
+
+
+def direction_toggle_update(self, context):
+    """Update the direction of animation on a curve."""
+
+    scn = context.scene
+    nb = scn.nb
+
+    if self.animationtype == "camerapath":
+        try:
+            campath = bpy.data.objects[self.campaths_enum]
+        except KeyError:
+            pass
+        else:
+            animdata = campath.data.animation_data
+            fcu = animdata.action.fcurves.find("eval_time")
+            mod = fcu.modifiers[0]  # FIXME: this is sloppy
+            intercept, slope, _ = nb_an.calculate_coefficients(campath, self)
+            mod.coefficients = (intercept, slope)
+    elif self.animationtype == "carver":
+        aca = bpy.types.NB_OT_animate_carver
+        aca.animate(self)
+    elif self.animationtype == "timeseries":
+        ats = bpy.types.NB_OT_animate_timeseries
+        ats.animate(self)
+
+
 def campaths_enum_update(self, context):
     """Update the camera path."""
 
@@ -403,16 +472,20 @@ def campaths_enum_update(self, context):
 
     nb_preset = nb.presets[nb.index_presets]
     cam = bpy.data.objects[nb_preset.cameras[nb_preset.index_cameras].name]
-    anim = nb.animations[nb.index_animations]
 
-    if anim.animationtype == "CameraPath":  # FIXME: overkill?
-        cam_anims = [anim for anim in nb.animations
-                     if ((anim.animationtype == "CameraPath") &
-                         (anim.campaths_enum != "No_CamPaths") &
-                         (anim.is_rendered))]
-        nb_rp.clear_camera_path_animations(cam, nb.animations,
-                                           [nb.index_animations])
-        nb_rp.create_camera_path_animations(cam, cam_anims)
+    if self.animationtype == "camerapath":
+        campath = bpy.data.objects[self.campaths_enum]
+        acp = bpy.types.NB_OT_animate_camerapath
+        # change the eval time keyframes on the new campath
+        acp.clear_CP_evaltime(self)
+        acp.animate_campath(campath, self)
+        # change the campath on the camera constraint
+        try:
+            cns = cam.constraints["FollowPath" + self.name]
+        except KeyError:
+            pass
+        else:
+            cns.target = bpy.data.objects[self.campaths_enum]
 
 
 def tracktype_enum_update(self, context):
@@ -422,23 +495,24 @@ def tracktype_enum_update(self, context):
     nb = scn.nb
 
     nb_preset = nb.presets[nb.index_presets]
-    cam = bpy.data.objects[nb_preset.cameras[nb_preset.index_cameras].name]
+    nb_cam = nb_preset.cameras[nb_preset.index_cameras]
+    cam = bpy.data.objects[nb_cam.name]
 
     cam_anims = [anim for anim in nb.animations
-                 if ((anim.animationtype == "CameraPath") &
+                 if ((anim.animationtype == "camerapath") &
                      (anim.is_rendered))]
 
     anim_blocks = [[anim.anim_block[0], anim.anim_block[1]]
                    for anim in cam_anims]
 
-    timeline = nb_rp.generate_timeline(scn, cam_anims, anim_blocks)
+    timeline = nb_an.generate_timeline(scn, cam_anims, anim_blocks)
     cnsTT = cam.constraints["TrackToObject"]
-    nb_rp.restrict_incluence_timeline(scn, cnsTT, timeline, group="TrackTo")
+    nb_an.restrict_incluence_timeline(scn, cnsTT, timeline, group="TrackTo")
 
     # TODO: if not yet executed/exists
-    cns = cam.constraints["FollowPath" + anim.campaths_enum]
-    cns.use_curve_follow = anim.tracktype == "TrackPath"
-    if anim.tracktype == 'TrackPath':
+    cns = cam.constraints["FollowPath" + self.name]
+    cns.use_curve_follow = self.tracktype == "TrackPath"
+    if self.tracktype == 'TrackPath':
         cns.forward_axis = 'TRACK_NEGATIVE_Z'
         cns.up_axis = 'UP_Y'
     else:
@@ -466,24 +540,11 @@ def trackobject_enum_update(self, context):
             print(infostring.format(self.trackobject))
 
 
-def direction_toggle_update(self, context):
-    """Update the direction of animation on a curve."""
+def anim_update(self, context):
+    """Update the animation."""
 
-    scn = context.scene
-    nb = scn.nb
-
-    anim = nb.animations[nb.index_animations]
-
-    try:
-        campath = bpy.data.objects[anim.campaths_enum]
-    except:
-        pass
-    else:
-        animdata = campath.data.animation_data
-        fcu = animdata.action.fcurves.find("eval_time")
-        mod = fcu.modifiers[0]  # TODO: sloppy
-        intercept, slope, _ = nb_rp.calculate_coefficients(campath, anim)
-        mod.coefficients = (intercept, slope)
+    cls = eval('bpy.types.NB_OT_animate_{}'.format(self.animationtype))
+    cls.animate(self)
 
 
 # ========================================================================== #
@@ -665,7 +726,7 @@ def index_scalars_update_func(group=None):
                 for mat in mats:
                     ob.data.materials.append(mat)
 
-        if isinstance(nb_ob, bpy.types.TractProperties):
+        elif isinstance(nb_ob, bpy.types.TractProperties):
             if isinstance(group, bpy.types.ScalarGroupProperties):
                 for i, spline in enumerate(ob.data.splines):
                     # FIXME: generalize with saved re variable
@@ -673,7 +734,7 @@ def index_scalars_update_func(group=None):
                     spline.material_index = ob.material_slots.find(splname)
 
         # FIXME: used texture slots
-        if isinstance(nb_ob, bpy.types.VoxelvolumeProperties):
+        elif isinstance(nb_ob, bpy.types.VoxelvolumeProperties):
             if isinstance(group, bpy.types.ScalarGroupProperties):
                 index_scalars_update_vvolscalar_func(group, scalar,
                                                      nb.settingprops.texmethod)
@@ -1089,10 +1150,10 @@ def colourmap_enum_update(self, context):
     nb = scn.nb
 
     if self.path_from_id().startswith("nb.tracts"):
-        ng = bpy.data.node_groups.get("TractOvGroup")
+        ngname = "TractOvGroup.{}".format(self.name)
+        ng = bpy.data.node_groups.get(ngname)
         cr = ng.nodes["ColorRamp"].color_ramp
-        ng_path = 'bpy.data.node_groups["TractOvGroup"]'
-        # FIXME: include self.name
+        ng_path = 'bpy.data.node_groups["{}"]'.format(ngname)
         cr_parentpath = '{}.nodes["ColorRamp"]'.format(ng_path)
     elif self.path_from_id().startswith("nb.surfaces"):
         nt = bpy.data.materials[self.name].node_tree
@@ -1186,6 +1247,26 @@ def carveobject_is_rendered_update(self, context):
 
     mod = carverob.modifiers.get(carveob.name)
     mod.show_render = mod.show_viewport = self.is_rendered
+
+
+def overlay_is_rendered_update(self, context):
+    """Update the render status of the overlay."""
+
+    scn = context.scene
+    nb = scn.nb
+
+    nb_ob = nb_ut.active_nb_object()[0]
+
+    if isinstance(nb_ob, bpy.types.TractProperties):
+        pass
+        # TODO: pop/reset the material slots
+        # FIXME: ensure naming ends in spl.....
+    elif isinstance(nb_ob, bpy.types.SurfaceProperties):
+        pass
+    elif isinstance(nb_ob, bpy.types.VoxelvolumeProperties):
+        mat = bpy.data.materials[nb_ob.name]
+        ts_idx = mat.texture_slots.find(self.name)
+        mat.use_textures[ts_idx] = self.is_rendered
 
 
 # ========================================================================== #
@@ -1357,6 +1438,7 @@ class CameraProperties(PropertyGroup):
         description="Choose an object to track with the camera",
         items=trackobject_enum_callback,
         update=trackobject_enum_update)
+    # FIXME: trackobject not set on creating camera
 
 
 class LightsProperties(PropertyGroup):
@@ -1520,35 +1602,37 @@ class AnimationProperties(PropertyGroup):
     animationtype = EnumProperty(
         name="Animation type",
         description="Switch between animation types",
-        items=[("CameraPath", "Camera trajectory",
-                "Let the camera follow a trajectory", 1),
-               ("Carver", "Carver",
-                "Animate a carver", 2),
-               ("TimeSeries", "Time series",
-                "Play a time series", 3)])
+        items=[("camerapath", "Camera trajectory",
+                "Let the camera follow a trajectory", 0),
+               ("carver", "Carver",
+                "Animate a carver", 1),
+               ("timeseries", "Time series",
+                "Play a time series", 2)])
 
     frame_start = IntProperty(
         name="startframe",
         description="first frame of the animation",
-        min=0,
+        min=1,
         default=1,
-        )  # update=campaths_enum_update
+        update=timings_enum_update)
     frame_end = IntProperty(
         name="endframe",
         description="last frame of the animation",
-        min=1,
+        min=2,
         default=100,
-        )  # update=campaths_enum_update
+        update=timings_enum_update)
     repetitions = FloatProperty(
         name="repetitions",
         description="number of repetitions",
         default=1,
-        )  # update=campaths_enum_update
+        update=timings_enum_update)
     offset = FloatProperty(
         name="offset",
-        description="offset",
+        description="offset (relative to full cycle)",
         default=0,
-        )  # update=campaths_enum_update
+        min=0,
+        max=1,
+        update=timings_enum_update)
 
     anim_block = IntVectorProperty(
         name="anim block",
@@ -1560,13 +1644,13 @@ class AnimationProperties(PropertyGroup):
         name="Reverse",
         description="Toggle direction of trajectory traversal",
         default=False,
-        )  # update=direction_toggle_update
+        update=direction_toggle_update)
 
     campaths_enum = EnumProperty(
         name="Camera trajectory",
         description="Choose the camera trajectory",
         items=campaths_enum_callback,
-        )  # update=campaths_enum_update
+        update=campaths_enum_update)
     tracktype = EnumProperty(
         name="Tracktype",
         description="Camera rotation options",
@@ -1586,7 +1670,8 @@ class AnimationProperties(PropertyGroup):
         items=[("X", "X", "X", 0),
                ("Y", "Y", "Y", 1),
                ("Z", "Z", "Z", 2)],
-        default="Z")
+        default="Z",
+        update=anim_update)
 
     anim_tract = EnumProperty(
         name="Animation streamline",
@@ -1603,47 +1688,46 @@ class AnimationProperties(PropertyGroup):
         description="Select curve to animate",
         items=curves_enum_callback)
 
-    anim_surface = EnumProperty(
-        name="Animation surface",
-        description="Select surface to animate",
-        items=surfaces_enum_callback)
-    anim_timeseries = EnumProperty(
-        name="Animation timeseries",
-        description="Select timeseries to animate",
-        items=timeseries_enum_callback)
-
-    anim_voxelvolume = EnumProperty(
+    carveobject_data_path = EnumProperty(
         name="Animation carveobject",
         description="Select carveobject to animate",
-        items=animcarveobject_enum_callback)
+        items=animcarveobject_enum_callback,
+        update=anim_update)
     sliceproperty = EnumProperty(
         name="Property to animate",
         description="Select property to animate",
         items=[("Thickness", "Thickness", "Thickness", 0),
                ("Position", "Position", "Position", 1),
                ("Angle", "Angle", "Angle", 2)],
-        default="Position")
+        default="Position",
+        update=anim_update)
 
     timeseries_object = EnumProperty(
         name="Object",
         description="Select object to animate",
         items=timeseries_object_enum_callback)
+    anim_timeseries = EnumProperty(
+        name="Animation timeseries",
+        description="Select timeseries to animate",
+        items=timeseries_enum_callback)
 
     cnsname = StringProperty(
         name="Constraint Name",
         description="Name of the campath constraint",
         default="")
 
-    # TODO: TimeSeries props
+    interpolation = StringProperty(
+        name="FCurve interpolation",
+        description="Specify the interpolation to use for the fcurve",
+        default='LINEAR')
 
-
-# class CamPointProperties(PropertyGroup):
-#
-#     location = FloatVectorProperty(
-#         name="campoint",
-#         description="...",
-#         default=[0.0, 0.0, 0.0],
-#         subtype="TRANSLATION")
+    fcurve_data_path = StringProperty(
+        name="FCurve path",
+        description="Path to this animation's fcurve")
+    fcurve_array_index = IntProperty(
+        name="index property",
+        description="index of the animated property",
+        default=-1)
 
 
 class CarveObjectProperties(PropertyGroup):
@@ -1673,11 +1757,11 @@ class CarveObjectProperties(PropertyGroup):
     slicethickness = FloatVectorProperty(
         name="Slice thickness",
         description="The thickness of the slices",
-        default=(1.0, 1.0, 1.0),
+        default=(0.9999, 0.9999, 0.9999),
         size=3,
         precision=4,
-        min=0,
-        max=1,
+        min=0.0001,
+        max=0.9999,
         subtype="TRANSLATION",
         update=carvers_update)
     sliceposition = FloatVectorProperty(
@@ -1686,8 +1770,8 @@ class CarveObjectProperties(PropertyGroup):
         default=(0, 0, 0),
         size=3,
         precision=4,
-        min=-1,
-        max=1,
+        min=-0.9999,
+        max=0.9999,
         subtype="TRANSLATION",
         update=carvers_update)
     sliceangle = FloatVectorProperty(
@@ -2073,7 +2157,8 @@ class ScalarGroupProperties(PropertyGroup):
     is_rendered = BoolProperty(
         name="Is Rendered",
         description="Indicates if the overlay is rendered",
-        default=True)
+        default=True,
+        update=overlay_is_rendered_update)
 
     scalars = CollectionProperty(
         type=ScalarProperties,
@@ -2203,7 +2288,8 @@ class LabelGroupProperties(PropertyGroup):
     is_rendered = BoolProperty(
         name="Is Rendered",
         description="Indicates if the label is rendered",
-        default=True)
+        default=True,
+        update=overlay_is_rendered_update)
 
     labels = CollectionProperty(
         type=LabelProperties,
@@ -2289,7 +2375,8 @@ class BorderGroupProperties(PropertyGroup):
     is_rendered = BoolProperty(
         name="Is Rendered",
         description="Indicates if the border is rendered",
-        default=True)
+        default=True,
+        update=overlay_is_rendered_update)
 
     borders = CollectionProperty(
         type=BorderProperties,
@@ -2899,6 +2986,16 @@ class NeuroBlenderProperties(PropertyGroup):
         name="overlay type",
         description="switch between overlay types",
         items=overlay_enum_callback)
+
+    animationtype = EnumProperty(
+        name="Animation type",
+        description="Switch between animation types",
+        items=[("camerapath", "Camera trajectory",
+                "Let the camera follow a trajectory", 1),
+               ("carver", "Carver",
+                "Animate a carver", 2),
+               ("timeseries", "Time series",
+                "Play a time series", 3)])
 
     # TODO: move elsewhere
     cr_keeprange = BoolProperty(

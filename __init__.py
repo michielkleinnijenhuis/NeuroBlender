@@ -326,8 +326,6 @@ class ObjectListOperations(Operator):
             self.index = preset.index_lights
             self.data_path = light.path_from_id()
         elif self.action.endswith('_AN'):
-            preset_path = "nb.presets[{:d}]".format(nb.index_presets)
-            preset = scn.path_resolve(preset_path)
             animation = nb.animations[nb.index_animations]
             self.type = "animations"
             self.name = animation.name
@@ -417,7 +415,7 @@ class ObjectListOperations(Operator):
         elif self.action.endswith('_AN'):
             anim = nb.animations[nb.index_animations]
             fun = eval("self.remove_animations_%s" %
-                       anim.animationtype.lower())
+                       anim.animationtype)
             fun(nb.animations, self.index)
         elif self.action.endswith('_CV'):
             self.remove_carvers(context, self.data_path)
@@ -561,7 +559,7 @@ class ObjectListOperations(Operator):
         cam = bpy.data.objects['Cam']
         nb_rp.clear_camera_path_animation(cam, anims[index])
         cam_anims = [anim for i, anim in enumerate(anims)
-                     if ((anim.animationtype == "CameraPath") &
+                     if ((anim.animationtype == "camerapath") &
                          (anim.is_rendered) &
                          (i != index))]
         nb_rp.update_cam_constraints(cam, cam_anims)
@@ -569,9 +567,20 @@ class ObjectListOperations(Operator):
     def remove_animations_carver(self, anims, index):
         """Remove slice animation."""
 
+        scn = bpy.context.scene
+
+        # get the fcurve
         anim = anims[index]
-        vvol = bpy.data.objects[anim.anim_voxelvolume]
-        vvol.animation_data_clear()
+        prop = "slice{}".format(anim.sliceproperty.lower())
+        prop_path = '{}.{}'.format(anim.carveobject_data_path, prop)
+        idx = 'XYZ'.index(anim.axis)
+        prev = nb_an.get_animation_fcurve(
+            anim,
+            data_path=prop_path,
+            idx=idx,
+            remove=True)[1]
+        # reset the property
+        nb_an.restore_state_carver(prev)
 
     def remove_animations_timeseries(self, anims, index):
         """Remove timeseries animation."""
@@ -616,6 +625,25 @@ class ObjectListOperations(Operator):
         scn.objects.active = carverob
         bpy.ops.object.mode_set(mode='EDIT')
         bpy.ops.object.mode_set(mode='OBJECT')
+
+
+class MassIsRendered(Menu):
+    bl_idname = "nb.mass_is_rendered"
+    bl_label = "Vertex Group Specials"
+    bl_description = "Menu for group selection of rendering option"
+    bl_options = {"REGISTER"}
+
+    def draw(self, context):
+        layout = self.layout
+        layout.operator("nb.mass_select",
+                        icon='SCENE',
+                        text="Select All").action = 'SELECT'
+        layout.operator("nb.mass_select",
+                        icon='SCENE',
+                        text="Deselect All").action = 'DESELECT'
+        layout.operator("nb.mass_select",
+                        icon='SCENE',
+                        text="Invert").action = 'INVERT'
 
 
 class MassIsRenderedL1(Menu):
@@ -683,6 +711,9 @@ class MassSelect(Operator):
 
     action = EnumProperty(
         items=(
+#             ('SELECT', "Select", ""),
+#             ('DESELECT', "Deselect", ""),
+#             ('INVERT', "Invert", ""),
             ('SELECT_L1', "Select_L1", ""),
             ('DESELECT_L1', "Deselect_L1", ""),
             ('INVERT_L1', "Invert_L1", ""),
