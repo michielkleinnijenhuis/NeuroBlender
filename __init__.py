@@ -40,7 +40,6 @@ if "bpy" in locals():
     imp.reload(nb_im)
     imp.reload(nb_ma)
     imp.reload(nb_ol)
-    imp.reload(nb_rp)
     imp.reload(nb_sp)
     imp.reload(nb_se)
     imp.reload(nb_ut)
@@ -64,7 +63,6 @@ else:
                    overlays as nb_ol,
                    panels as nb_pa,
                    properties as nb_pr,
-                   renderpresets as nb_rp,
                    scenepresets as nb_sp,
                    settings as nb_se,
                    utils as nb_ut)
@@ -557,12 +555,16 @@ class ObjectListOperations(Operator):
         """Remove camera path animation."""
 
         cam = bpy.data.objects['Cam']
-        nb_rp.clear_camera_path_animation(cam, anims[index])
+        anim = anims[index]
+        acp = bpy.types.NB_OT_animate_camerapath
+        acp.clear_CP_evaltime(anim)
+        acp.clear_CP_followpath(anim)
+        acp.remove_CP_followpath(cam, anim)
         cam_anims = [anim for i, anim in enumerate(anims)
                      if ((anim.animationtype == "camerapath") &
                          (anim.is_rendered) &
                          (i != index))]
-        nb_rp.update_cam_constraints(cam, cam_anims)
+        acp.update_cam_constraints(cam, cam_anims)
 
     def remove_animations_carver(self, anims, index):
         """Remove slice animation."""
