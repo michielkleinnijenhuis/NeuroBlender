@@ -473,19 +473,18 @@ def campaths_enum_update(self, context):
     nb_preset = nb.presets[nb.index_presets]
     cam = bpy.data.objects[nb_preset.cameras[nb_preset.index_cameras].name]
 
-    if self.animationtype == "camerapath":
-        campath = bpy.data.objects[self.campaths_enum]
-        acp = bpy.types.NB_OT_animate_camerapath
-        # change the eval time keyframes on the new campath
-        acp.clear_CP_evaltime(self)
-        acp.animate_campath(campath, self)
-        # change the campath on the camera constraint
-        try:
-            cns = cam.constraints["FollowPath" + self.name]
-        except KeyError:
-            pass
-        else:
-            cns.target = bpy.data.objects[self.campaths_enum]
+    campath = bpy.data.objects[self.campaths_enum]
+    acp = bpy.types.NB_OT_animate_camerapath
+    # change the eval time keyframes on the new campath
+    acp.clear_CP_evaltime(self)
+    acp.animate_campath(campath, self)
+    # change the campath on the camera constraint
+    try:
+        cns = cam.constraints["FollowPath" + self.name]
+    except KeyError:
+        acp.animate_camera(cam, self, campath)
+    else:
+        cns.target = bpy.data.objects[self.campaths_enum]
 
 
 def tracktype_enum_update(self, context):
@@ -543,8 +542,9 @@ def trackobject_enum_update(self, context):
 def anim_update(self, context):
     """Update the animation."""
 
-    cls = eval('bpy.types.NB_OT_animate_{}'.format(self.animationtype))
-    cls.animate(self)
+    if self.animationtype != 'camerapath':  # handled differently for now
+        cls = eval('bpy.types.NB_OT_animate_{}'.format(self.animationtype))
+        cls.animate(self)
 
 
 # ========================================================================== #

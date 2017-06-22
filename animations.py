@@ -108,26 +108,38 @@ class AnimateCameraPath(Operator):
         scn = context.scene
         nb = scn.nb
 
-        nb_preset = nb.presets[nb.index_presets]
-        nb_anims = nb.animations
-
         ca = [nb.animations]
         name = nb_ut.check_name(self.name, "", ca)
 
+        animprops = {"name": name,
+                     "animationtype": 'camerapath',
+                     "icon": "ANIM"}
+        anim = nb_ut.add_item(nb, "animations", animprops)
+        anim.animationtype = 'camerapath'
+
+        self.animate(anim)
+
+        return {"FINISHED"}
+
+    def animate(self, anim):
+        """Set up a camera trajectory animation."""
+
+        scn = bpy.context.scene
+        nb = scn.nb
+
+        nb_preset = nb.presets[nb.index_presets]
         preset = nb_preset.cameras[nb_preset.index_cameras]
         cam = bpy.data.objects[preset.name]
 
         del_indices, cam_anims = [], []
-        for i, anim in enumerate(nb_anims):
+        for i, anim in enumerate(nb.animations):
             if ((anim.animationtype == "camerapath") & (anim.is_rendered)):
                 del_indices.append(i)
                 cam_anims.append(anim)
 
-        self.clear_camera_path_animations(cam, nb_anims, del_indices)
+        self.clear_camera_path_animations(cam, nb.animations, del_indices)
 
         self.create_camera_path_animations(cam, cam_anims)
-
-        return {"FINISHED"}
 
     def clear_camera_path_animations(self, cam, anims, delete_indices):
         """Remove all camera trajectory animations."""
@@ -255,7 +267,11 @@ class AnimateCameraPath(Operator):
             try:
                 campath = bpy.data.objects[anim.campaths_enum]
             except:
-                pass
+                if len(nb.campaths) == 0:
+                    bpy.ops.nb.add_campath('INVOKE_DEFAULT')
+                    campath = nb.campaths[0]
+                else:
+                    return {'CANCELLED'}
             else:
                 self.animate_campath(campath, anim)
                 self.animate_camera(cam, anim, campath)
@@ -291,7 +307,8 @@ class AnimateCameraPath(Operator):
         mod.frame_start = anim.frame_start
         mod.frame_end = anim.frame_end
 
-    def animate_camera(self, cam, anim, campath):
+    @staticmethod
+    def animate_camera(cam, anim, campath):
         """Set up camera animation."""
 
         scn = bpy.context.scene
@@ -303,7 +320,6 @@ class AnimateCameraPath(Operator):
                                    campath, anim.tracktype)
         anim.cnsname = cns.name
         restrict_incluence(cns, anim)
-
         cns.offset = anim.offset * -100
 
         interval_head = [scn.frame_start, anim.frame_start - 1]
