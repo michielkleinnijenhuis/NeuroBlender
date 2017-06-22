@@ -42,7 +42,6 @@ from bpy.props import (BoolProperty,
 from bpy_extras.io_utils import ImportHelper
 
 from .. import (materials as nb_ma,
-                renderpresets as nb_rp,
                 utils as nb_ut)
 
 

@@ -209,7 +209,8 @@ class AnimateCameraPath(Operator):
         else:
             cam.constraints.remove(cns)
 
-    def update_cam_constraints(self, cam, cam_anims):
+    @staticmethod
+    def update_cam_constraints(cam, cam_anims):
         """Update the basic constraints of the camera."""
 
         scn = bpy.context.scene

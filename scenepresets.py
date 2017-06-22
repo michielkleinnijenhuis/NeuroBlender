@@ -39,21 +39,7 @@ from bpy.props import (StringProperty,
                        IntProperty)
 
 from . import (materials as nb_ma,
-               renderpresets as nb_rp,
                utils as nb_ut)
-
-
-class ScenePreset(Operator):
-    bl_idname = "nb.scene_preset"
-    bl_label = "Load scene preset"
-    bl_description = "Setup up camera and lighting for this brain"
-    bl_options = {"REGISTER", "UNDO", "PRESET"}
-
-    def execute(self, context):
-
-        nb_rp.scene_preset()
-
-        return {"FINISHED"}
 
 
 class ResetPresetCentre(Operator):
@@ -248,9 +234,9 @@ class AddPreset(Operator):
             driver = lights.driver_add("scale", idx).driver
             driver.type = 'SCRIPTED'
             driver.expression = "scale"
-            nb_rp.create_var(driver, "scale",
-                             'SINGLE_PROP', 'OBJECT',
-                             lights, "scale[2]")
+            create_var(driver, "scale",
+                       'SINGLE_PROP', 'OBJECT',
+                       lights, "scale[2]")
 
         return lights
 
@@ -846,3 +832,20 @@ def get_bbox_coordinates(obs):
     bb_max = np.amax(np.array(bb_world), 0)
 
     return bb_min, bb_max
+
+
+def create_var(driver, name, type, id_type, id, data_path,
+               transform_type="", transform_space=""):
+
+    var = driver.variables.new()
+    var.name = name
+    var.type = type
+    tar = var.targets[0]
+    if not transform_type:
+        tar.id_type = id_type
+    tar.id = id
+    tar.data_path = data_path
+    if transform_type:
+        tar.transform_type = transform_type
+    if transform_space:
+        tar.transform_space = transform_space

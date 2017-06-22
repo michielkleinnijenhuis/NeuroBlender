@@ -47,7 +47,6 @@ from bpy.app.handlers import persistent
 
 from . import (animations as nb_an,
                materials as nb_ma,
-               renderpresets as nb_rp,
                utils as nb_ut)
 
 
