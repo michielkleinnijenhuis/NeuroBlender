@@ -160,8 +160,9 @@ class ImportOverlays(Operator, ImportHelper):
             row = layout.row()
             row.prop(self, "texdir")
 
-            row = layout.row()
-            row.prop(self, "bake_on_import")
+            if parent.is_unwrapped:
+                row = layout.row()
+                row.prop(self, "bake_on_import")
 
     def import_overlay(self, context, name, fpath):
         """Import an overlay onto a NeuroBlender object."""
@@ -240,6 +241,7 @@ class ImportOverlays(Operator, ImportHelper):
                 expr = '{}.{}'.format('{}', self.spline_postfix)
                 splname = expr.format(item.name, j)
                 # FIXME: crazy to make a material/image per streamline!
+                # FIXME: ensure name end in splinenumber identifier
                 img = self.create_overlay_tract_img(splname, sl)
                 mat = nb_ma.make_cr_mat_tract_sg(splname, img, nodegroup)
                 ob.data.materials.append(mat)
