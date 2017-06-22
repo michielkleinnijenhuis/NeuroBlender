@@ -303,6 +303,10 @@ class ImportVoxelvolumes(Operator, ImportHelper):
               bpy.data.textures]
         name = nb_ut.check_name(self.name, fpath, ca)
 
+
+        if not self.sformfile:
+            self.sformfile = fpath
+
         texdict = {"fpath": fpath,
                    "name": name,
                    "sformfile": self.sformfile,
