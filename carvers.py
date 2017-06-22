@@ -120,12 +120,12 @@ class ImportCarver(Operator):
         box.location = glob_ctr
 
         # attach texture mapping (vvol) or boolean (surf)
-        ms = ob.material_slots.get(ob.name)
-        mat = ms.material
         if isinstance(nb_ob, bpy.types.SurfaceProperties):
             self.add_boolmod(ob.name, box, ob, 'BMESH', 'INTERSECT')
 
-        if isinstance(mat, bpy.types.Material):
+#         ms = ob.material_slots.get(ob.name)
+        for ms in ob.material_slots:
+            mat = ms.material
             box.data.materials.append(mat)
 
         # prevent the user from controlling the carver from the viewport
