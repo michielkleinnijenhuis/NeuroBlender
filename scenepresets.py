@@ -148,6 +148,9 @@ class AddPreset(Operator):
         self.add_lighting_rig(context, preset, centre, box)
 
         nb.presets_enum = name
+        # FIXME: trackobject set to None after adding camera
+#         nb_cam = nb_preset.cameras[nb_preset.index_cameras]
+#         nb_cam['trackobject'] = 'Centre'
 
         info = ['added preset "{}"'.format(name)]
         self.report({'INFO'}, '; '.join(info))

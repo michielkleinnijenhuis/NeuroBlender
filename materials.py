@@ -374,6 +374,8 @@ def load_surface_textures(name, directory, nframes):
             links = mat.node_tree.links
             itex = nodes["Image Texture"]
             srgb = nodes["Separate RGB"]
+            # TODO: cyclic timeseries
+#             itex.image_user.use_cyclic = True
             itex.image_user.use_auto_refresh = True
             itex.image_user.frame_duration = nframes
             itex.image = img
