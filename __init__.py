@@ -75,7 +75,7 @@ else:
 bl_info = {
     "name": "NeuroBlender",
     "author": "Michiel Kleinnijenhuis",
-    "version": (0, 0, 6),
+    "version": (1, 0, 0),
     "blender": (2, 78, 4),
     "location": "Properties -> Scene -> NeuroBlender",
     "description": "Create artwork from neuroscientific data.",
