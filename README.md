@@ -27,3 +27,4 @@ nb = bpy.context.scene.nb
 nb.settingprops.esp_path = <conda root dir>/envs/blender/lib/python3.5/site-packages
 ```
 Note: It's convenient to save this by creating a NeuroBlender Settings Preset or saving the Blender Startup File
+
