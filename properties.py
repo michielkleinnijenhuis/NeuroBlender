@@ -97,28 +97,9 @@ def index_scalars_handler(dummy):
     nb = scn.nb
 
     for anim in nb.animations:
-
         if anim.animationtype == "timeseries":
-
-            sgs = nb_an.find_ts_scalargroups(anim)
-            sg = sgs[anim.anim_timeseries]
-            scalar = sg.scalars[sg.index_scalars]
-
-            if sg.path_from_id().startswith("nb.tracts"):
-                sg.index_scalars = sg.index_scalars
-
-            elif sg.path_from_id().startswith("nb.surfaces"):
-                # TODO: update vertex group index
-                # TODO: try update vertex color selection
-                # update Image Sequence Texture index
-                mat = bpy.data.materials[sg.name]
-                itex = mat.node_tree.nodes["Image Texture"]
-                itex.image_user.frame_offset = scn.frame_current
-                # FIXME: more flexible indexing
-
-            elif sg.path_from_id().startswith("nb.voxelvolumes"):
-                texmethod = nb.settingprops.texmethod
-                index_scalars_update_vvolscalar_func(sg, scalar, texmethod)
+            sg = scn.path_resolve(anim.nb_object_data_path)
+            index_scalars_update_func(group=sg)
 
 
 bpy.app.handlers.frame_change_pre.append(index_scalars_handler)
@@ -338,72 +319,35 @@ def trackobject_enum_callback(self, context):
     return items
 
 
-def animcarveobject_enum_callback(self, context):
+def anim_nb_object_enum_callback(self, context):
     """Populate the enum based on available options."""
 
     scn = context.scene
     nb = scn.nb
 
-    items = [(cob.path_from_id(), cob.name, "List all carveobjects")
-             for nb_coll in [nb.surfaces, nb.voxelvolumes]
-             for nb_ob in nb_coll
-             for carver in nb_ob.carvers
-             for cob in carver.carveobjects]
-    if not items:
-        items = [("no_carveobjects", "No carveobjects found", "")]
+    if self.animationtype == 'carver':
+        items = [(cob.path_from_id(),
+                  cob.name,
+                  "List all carveobjects")
+                 for nb_coll in [nb.surfaces, nb.voxelvolumes]
+                 for nb_ob in nb_coll
+                 for carver in nb_ob.carvers
+                 for cob in carver.carveobjects]
+        if not items:
+            items = [("no_carveobjects", "No carveobjects found", "")]
+
+    if self.animationtype == 'timeseries':
+        items = [(sg.path_from_id(),
+                  '{}.{}'.format(nb_ob.name, sg.name),
+                  "List all timeseries")
+                 for nb_coll in [nb.tracts, nb.surfaces, nb.voxelvolumes]
+                 for nb_ob in nb_coll
+                 for sg in nb_ob.scalargroups
+                 if len(sg.scalars) > 1]
+        if not items:
+            items = [("no_timeseries", "No timeseries found", "")]
 
     return items
-
-
-def timeseries_enum_callback(self, context):
-    """Populate the enum based on available options."""
-
-    scn = context.scene
-    nb = scn.nb
-
-    # FIXME: crash when commenting/uncommenting this
-    aliases = {'T': 'tracts', 'S': 'surfaces', 'V': 'voxelvolumes'}
-    try:
-        coll = eval('nb.%s' % aliases[self.timeseries_object[0]])
-        sgs = coll[self.timeseries_object[3:]].scalargroups
-    except:
-        items = [('no_timeseries', 'No timeseries found',
-                  'No timeseries found', 0)]
-    else:
-#     sgs = nb_an.find_ts_scalargroups(self)
-        items = [(scalargroup.name, scalargroup.name, "List the timeseries", i)
-                 for i, scalargroup in enumerate(sgs)]
-
-    return items
-
-
-def timeseries_object_enum_callback(self, context):
-    """Populate the enum based on available options."""
-
-    scn = context.scene
-    nb = scn.nb
-
-    nb_obs = ["%s: %s" % (l, ob.name)
-              for l, coll in zip(['T', 'S', 'V'], [nb.tracts,
-                                                   nb.surfaces,
-                                                   nb.voxelvolumes])
-              for ob in coll if len(ob.scalargroups)]
-    items = [(obname, obname, "List the objects", i)
-             for i, obname in enumerate(nb_obs)]
-    if not items:
-        items = [('no_tsobjects', 'No objects with timeseries found',
-                  'No objects with timeseries found', 0)]
-
-    return items
-
-
-# def animtype_enum_update(self, context):
-#     """Update the animation."""
-# 
-#     scn = context.scene
-#     nb = scn.nb
-# 
-#     # TODO: clear the animation
 
 
 def timings_enum_update(self, context):
@@ -412,11 +356,10 @@ def timings_enum_update(self, context):
     scn = context.scene
     nb = scn.nb
 
-    nb_preset = nb.presets[nb.index_presets]
-    nb_cam = nb_preset.cameras[nb_preset.index_cameras]
-    cam = bpy.data.objects[nb_cam.name]
-
     if self.animationtype == "camerapath":
+        nb_preset = nb.presets[nb.index_presets]
+        nb_cam = nb_preset.cameras[nb_preset.index_cameras]
+        cam = bpy.data.objects[nb_cam.name]
         acp = bpy.types.NB_OT_animate_camerapath
         campath = bpy.data.objects[self.campaths_enum]
         # change the eval time keyframes on the new campath
@@ -703,7 +646,8 @@ def index_scalars_update_func(group=None):
 
                 # update Image Sequence Texture index
                 itex = mat.node_tree.nodes["Image Texture"]
-                itex.image_user.frame_offset = group.index_scalars
+                offset = group.index_scalars - scn.frame_current
+                itex.image_user.frame_offset = offset
 
                 # update Vertex Color attribute
                 attr = mat.node_tree.nodes["Attribute"]
@@ -1687,11 +1631,12 @@ class AnimationProperties(PropertyGroup):
         description="Select curve to animate",
         items=curves_enum_callback)
 
-    carveobject_data_path = EnumProperty(
-        name="Animation carveobject",
-        description="Select carveobject to animate",
-        items=animcarveobject_enum_callback,
+    nb_object_data_path = EnumProperty(
+        name="Animation object",
+        description="Specify path to object to animate",
+        items=anim_nb_object_enum_callback,
         update=anim_update)
+
     sliceproperty = EnumProperty(
         name="Property to animate",
         description="Select property to animate",
@@ -1700,15 +1645,6 @@ class AnimationProperties(PropertyGroup):
                ("Angle", "Angle", "Angle", 2)],
         default="Position",
         update=anim_update)
-
-    timeseries_object = EnumProperty(
-        name="Object",
-        description="Select object to animate",
-        items=timeseries_object_enum_callback)
-    anim_timeseries = EnumProperty(
-        name="Animation timeseries",
-        description="Select timeseries to animate",
-        items=timeseries_enum_callback)
 
     cnsname = StringProperty(
         name="Constraint Name",

@@ -1214,10 +1214,7 @@ class NeuroBlenderAnimationPanel(bpy.types.Panel):
         col.prop(anim, "reverse", toggle=True,
                  icon="ARROW_LEFTRIGHT", icon_only=True)
         col = row.column()
-        col.prop(anim, "carveobject_data_path", expand=False, text="")
-        col = row.column()
-        col.operator("nb.del_campath", icon='ZOOMOUT', text="")
-        col.enabled = False
+        col.prop(anim, "nb_object_data_path", expand=False, text="")
 
         row = layout.row()
         row.separator()
@@ -1241,21 +1238,10 @@ class NeuroBlenderAnimationPanel(bpy.types.Panel):
 
         row = layout.row()
         col = row.column()
-        col.prop(anim, "timeseries_object", expand=False,
-                 text="Object")
-
-        row = layout.row()
+        col.prop(anim, "reverse", toggle=True,
+                 icon="ARROW_LEFTRIGHT", icon_only=True)
         col = row.column()
-        col.prop(anim, "anim_timeseries", expand=False,
-                 text="Time series")
-
-        # FIXME: gives many errors on adding campath???
-#         sgs = nb_an.find_ts_scalargroups(anim)
-#         sg = sgs[anim.anim_timeseries]
-#
-#         npoints = len(sg.scalars)
-#         row = layout.row()
-#         row.label("%d points in time series" % npoints)
+        col.prop(anim, "nb_object_data_path", expand=False, text="")
 
 
 class NeuroBlenderSettingsPanel(bpy.types.Panel):

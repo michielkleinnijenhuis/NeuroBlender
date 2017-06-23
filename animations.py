@@ -355,9 +355,9 @@ class AnimateCarver(Operator):
         description="Specify a name for the animation",
         default="CarverAnimation")
 
-    carveobject_data_path = StringProperty(
+    nb_object_data_path = StringProperty(
         name="Carveobject data path",
-        description="Specify a the path to the camera")
+        description="Specify a the path to the carveobject")
     sliceproperty = EnumProperty(
         name="Property to animate",
         description="Select property to animate",
@@ -384,7 +384,7 @@ class AnimateCarver(Operator):
         animprops = {"name": name,
                      "animationtype": 'carver',
                      "icon": "MOD_BOOLEAN",
-                     "carveobject_data_path": self.carveobject_data_path,
+                     "nb_object_data_path": self.nb_object_data_path,
                      "sliceproperty": self.sliceproperty,
                      "axis": self.axis}
         anim = nb_ut.add_item(nb, "animations", animprops)
@@ -401,24 +401,21 @@ class AnimateCarver(Operator):
         scn = bpy.context.scene
         nb = scn.nb
 
-        prop = "slice{}".format(anim.sliceproperty.lower())
         # FIXME: the path might change on deleting objects
-        prop_path = '{}.{}'.format(anim.carveobject_data_path, prop)
+        prop = "slice{}".format(anim.sliceproperty.lower())
+        prop_path = '{}.{}'.format(anim.nb_object_data_path, prop)
         idx = 'XYZ'.index(anim.axis)
-        cob_path = '{}[{}]'.format(prop_path, idx)
-
         # get or create the fcurve for this animation
         fcu, prev = get_animation_fcurve(anim, data_path=prop_path, idx=idx)
-
         # update the data_path and index
         fcu.data_path = anim.fcurve_data_path = prop_path
         fcu.array_index = anim.fcurve_array_index = idx
-
         # reset the state of the previous prop to the frame-0 value
         restore_state_carver(prev)
 
         # Calculate the coordinates of the 3 points in the fcurve
         # FIXME: wrap around for position and thickness
+        cob_path = '{}[{}]'.format(prop_path, idx)
         fullrange = {'slicethickness': [0, 1],
                      'sliceposition': [-1, 1],
                      'sliceangle': [-1.5708, 1.5708]}
@@ -456,9 +453,9 @@ class AnimateTimeSeries(Operator):
         description="Specify a name for the animation",
         default="TimeSeriesAnimation")
 
-    timeseries_object = StringProperty(
-        name="Object",
-        description="Select object to animate")
+    nb_object_data_path = StringProperty(
+        name="Scalargroup data path",
+        description="Specify a the path to the scalargroup")
 
     def execute(self, context):
 
@@ -471,7 +468,7 @@ class AnimateTimeSeries(Operator):
         animprops = {"name": name,
                      "animationtype": 'timeseries',
                      "icon": "TIME",
-                     "timeseries_object": self.timeseries_object}
+                     "nb_object_data_path": self.nb_object_data_path}
         anim = nb_ut.add_item(nb, "animations", animprops)
         anim.animationtype = 'timeseries'
 
@@ -486,38 +483,39 @@ class AnimateTimeSeries(Operator):
         scn = bpy.context.scene
         nb = scn.nb
 
-        frame_current = scn.frame_current
+        # FIXME: the path might change on deleting objects
+        prop = 'index_scalars'
+        prop_path = '{}.{}'.format(anim.nb_object_data_path, prop)
+        # get or create the fcurve for this animation
+        fcu, prev = get_animation_fcurve(anim, data_path=prop_path)
+        # update the data_path and index
+        fcu.data_path = anim.fcurve_data_path = prop_path
+        # reset the state of the previous prop to the frame-0 value
+        restore_state_timeseries(prev)
 
-        # Find the scalargroup to animate
-        sgs = find_ts_scalargroups(anim)
-        ts_name = anim.anim_timeseries
-        sg = sgs[ts_name]
-
-        nframes = anim.frame_end - anim.frame_start
+        # Calculate the coordinates of the 3 points in the fcurve
+        sg = scn.path_resolve(anim.nb_object_data_path)
         nscalars = len(sg.scalars)
+        fullrange = [0, nscalars - 1]
+        prange = [fullrange[0] + anim.offset * nscalars,
+                  fullrange[1] * anim.repetitions + anim.offset]
+        if anim.reverse:
+            prange.reverse()
+        kfs = {0: scn.path_resolve(prop_path),
+               anim.frame_start: prange[0],
+               anim.frame_end: prange[1]}
 
-        if anim.timeseries_object.startswith("S: "):
+        # build the new fcurve
+        for i, (k, v) in enumerate(sorted(kfs.items())):
+            kp = fcu.keyframe_points[i]
+            kp.co = (k, v)
+            if k == 0:
+                kp.interpolation = 'CONSTANT'
+            else:
+                kp.interpolation = anim.interpolation
 
-            # FIXME: this is for per-frame jumps of texture
-            nb_ma.load_surface_textures(ts_name, sg.texdir, nscalars)
-
-        elif (anim.timeseries_object.startswith("V: ") or
-              anim.timeseries_object.startswith("T: ")):
-
-            # FIXME: stepwise fcurve interpolation is not accurate in this way
-            nframes = anim.frame_end - anim.frame_start
-            fptp = np.floor(nframes/nscalars)
-
-            kfs = {anim.frame_start-1: 0,
-                   anim.frame_start: 0,
-                   anim.frame_end: nscalars - 1,
-                   anim.frame_end+1: nscalars - 1}
-            for k, v in kfs.items():
-                scn.frame_set(k)
-                sg.index_scalars = v
-                sg.keyframe_insert("index_scalars")
-
-        scn.frame_set(frame_current)
+        # update
+        bpy.context.scene.frame_current = scn.frame_current
 
     def animate_ts_vvol(self):  # scratch
 
@@ -1127,7 +1125,7 @@ def get_animation_fcurve(anim, data_path='', idx=-1, remove=False):
 
     prev = {}
 
-    actionname = '{}Action'.format(anim.animationtype)
+    actionname = 'SceneAction'
     ad = scn.animation_data_create()
     try:
         ad.action = bpy.data.actions[actionname]
@@ -1162,11 +1160,26 @@ def restore_state_carver(prev):
         return
 
     prev_prop = prev['data_path'].split('.')[-1]
-    cob_data_path = '.'.join(prev['data_path'].split('.')[:-1])
-    nb_cob = scn.path_resolve(cob_data_path)
-    exec('nb_cob.{}[{:d}] = {:f}'.format(prev_prop,
-                                         prev['array_index'],
-                                         prev['value']))
+    data_path = '.'.join(prev['data_path'].split('.')[:-1])
+    item = scn.path_resolve(data_path)
+    exec('item.{}[{:d}] = {:f}'.format(prev_prop,
+                                       prev['array_index'],
+                                       prev['value']))
+
+
+def restore_state_timeseries(prev):
+    """Restore a previous state of a timeseries index property."""
+
+    scn = bpy.context.scene
+
+    if not prev:
+        return
+
+    # TODO: might do the same for labels?
+    prev_prop = 'index_scalars'
+    data_path = '.'.join(prev['data_path'].split('.')[:-1])
+    item = scn.path_resolve(data_path)
+    exec('item.{} = {:d}'.format(prev_prop, int(prev['value'])))
 
 
 def calculate_coefficients(campath, anim):
@@ -1289,18 +1302,3 @@ def setup_animation_rendering(filepath="render/anim",
     bpy.ops.render.render(animation=True)
 
     bpy.ops.wm.save_as_mainfile(filepath=blendpath)
-
-
-def find_ts_scalargroups(anim):
-    """Find the scalargroup to animate."""
-
-    scn = bpy.context.scene
-    nb = scn.nb
-
-    aliases = {'T': 'tracts', 'S': 'surfaces', 'V': 'voxelvolumes'}
-    collkey = anim.timeseries_object[0]
-    ts_obname = anim.timeseries_object[3:]
-    coll = eval('nb.%s' % aliases[collkey])
-    sgs = coll[ts_obname].scalargroups
-
-    return sgs

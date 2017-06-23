@@ -574,7 +574,7 @@ class ObjectListOperations(Operator):
         # get the fcurve
         anim = anims[index]
         prop = "slice{}".format(anim.sliceproperty.lower())
-        prop_path = '{}.{}'.format(anim.carveobject_data_path, prop)
+        prop_path = '{}.{}'.format(anim.nb_object_data_path, prop)
         idx = 'XYZ'.index(anim.axis)
         prev = nb_an.get_animation_fcurve(
             anim,
@@ -587,7 +587,18 @@ class ObjectListOperations(Operator):
     def remove_animations_timeseries(self, anims, index):
         """Remove timeseries animation."""
 
-        pass  # TODO
+        scn = bpy.context.scene
+
+        # get the fcurve
+        anim = anims[index]
+        prop = 'index_scalars'
+        prop_path = '{}.{}'.format(anim.nb_object_data_path, prop)
+        prev = nb_an.get_animation_fcurve(
+            anim,
+            data_path=prop_path,
+            remove=True)[1]
+        # reset the property
+        nb_an.restore_state_timeseries(prev)
 
     def remove_carvers(self, context, data_path):
         """Remove a carver."""
