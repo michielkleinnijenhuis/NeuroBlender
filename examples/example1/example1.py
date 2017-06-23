@@ -27,9 +27,11 @@ generating a simple voxelvolume animation.
 """
 
 
+import sys
 import os
 from subprocess import call
 import pickle
+from argparse import ArgumentParser
 
 import bpy
 from mathutils import Vector
@@ -37,7 +39,7 @@ from mathutils import Vector
 from NeuroBlender import utils as nb_ut
 from NeuroBlender import colourmaps as nb_cm
 # FIXME
-# from NeuroBlender.examples.YTproj_DB import (read_labelimage_nii,
+# from NeuroBlender.examples.example1 import (read_labelimage_nii,
 #                                              labels2meshes_vtk)
 # from . import read_labelimage_nii, labels2meshes_vtk
 
@@ -54,16 +56,13 @@ def import_volume(context, datadir, vol, cmdict, ext=".nii.gz"):
     nb = scn.nb
 
     # import volume
-    bpy.ops.nb.import_voxelvolumes(directory=datadir,
-                                   files=[{"name": vol + ext}],
-                                   name=vol,
-                                   texdir="//voltex_{}".format(vol))
+    bpy.ops.nb.import_voxelvolumes(
+        directory=datadir,
+        files=[{"name": vol + ext}],
+        name=vol,
+        texdir="//voltex_{}".format(vol)
+        )
     vvol = nb.voxelvolumes[nb.index_voxelvolumes]
-
-    # set the origin for the slices / slice animation
-    vvol.sliceposition = (0, 0, 0)
-    vvol.slicethickness = (1, 1, 1)
-    vvol.sliceangle = (0, 0, 0)
 
     # give the volume a smooth and clean appearance
     tex = bpy.data.textures[vvol.texname]
@@ -109,40 +108,13 @@ def animate_camera_rotation(context, preset, animname="camZ"):
     scn = context.scene
     nb = scn.nb
 
-    bpy.ops.nb.import_animations(name=animname)
-    anim = preset.animations[preset.index_animations]
-
-    # NOTE: almost all of these are the default on creating the animation,
-    # but made explicit here for the sake of the example
-    anim.animationtype = 'CameraPath'
-    # timings
-    anim.frame_end = 1
-    anim.frame_end = 250
-    anim.repetitions = 1
-    anim.offset = 1
-    # trajectory
-    anim.reverse = False
-    preset_index = nb.presets.find(preset.name)
-    animation_index = preset.animations.find(anim.name)
-    bpy.ops.nb.add_campath(name="CP_Z",
-                           pathtype='Circular',
-                           axis='Z',
-                           index_presets=preset_index,
-                           index_animations=animation_index)
-    cp = nb.campaths[nb.index_campaths]
-    anim.campaths_enum = cp.name
-    # tracking
-    anim.tracktype = 'TrackObject'
-    # FIXME: do something with this or remove
-#     nb_cam = preset.cameras[preset.index_cameras]
-#     cam = bpy.data.cameras[nb_cam.name]
-#     cam.clip_start = 30
-#     cam.clip_end = 500
+    bpy.ops.nb.animate_camerapath(name=animname)
+    anim = nb.animations[nb.index_animations]
 
     return anim
 
 
-def animate_volume_slicer(context, vvol, keyframes, index=2):
+def animate_volume_carver(context, vvol, keyframes, index=2):
     """Create a slicing animation building and removing the brain along Z."""
 
     scn = context.scene
@@ -159,32 +131,6 @@ def animate_volume_slicer(context, vvol, keyframes, index=2):
     for kfp in fcu.keyframe_points:
         kfp.interpolation = keyframes[kfp.co[0]][1]
         kfp.easing = keyframes[kfp.co[0]][2]
-
-
-# FIXME: remove or implement simple version of slice-anim
-# def animate_volume_slicer(context, preset, T1, animname="slcZ",
-#                           range, offset=0, reverse=False):
-#     """Create a slicing animation building and removing the brain along Z."""
-# 
-#     scn = context.scene
-#     nb = scn.nb
-# 
-#     bpy.ops.nb.import_animations(name=animname)
-#     animname = "{}.000".format(animname)  # TODO: get rid of forcefill
-#     anim = preset.animations[animname]
-#     anim.anim_voxelvolume = T1
-#     anim.animationtype = 'Slices'
-#     anim.frame_end = range  # FIXME: very dependent on order
-#     anim.sliceproperty = 'Thickness'
-#     anim.reverse = reverse
-#     action = bpy.data.actions['SceneAction']
-#     fcu = action.fcurves.find('nb.voxelvolumes["nustd"].slicethickness')
-#     FIXME!!?!!
-#     kfp = fcu.keyframe_points[0]
-#     kfp.interpolation = 'QUART'  # wrong context, needs fcurve context
-#     kfp.easing = 'EASE_OUT'
-# 
-#     return anim
 
 
 def animate_hide_switch(context, show_range):
@@ -450,13 +396,12 @@ def create_scene(context, blendpath, datadir,
     if exit_code:
         return exit_code
     vvol = import_volume(context, os.path.join(fs_subjdir, "mri"), T1, T1cmap)
-#     vvol = import_volume(context, datadir, T1, T1cmap)
 
     # load the (pial) surfaces (of both hemispheres)
     if fs_cort:
         fs_surf_dir = os.path.join(fs_subjdir, "surf")
-        # FIXME: get from fs/nibabel
-        tmat = os.path.join(fs_surf_dir, "transmat.txt")  # "affine.npy"
+        # FIXME: get affine matrix from fs/nibabel
+        tmat = os.path.join(fs_surf_dir, "transmat.txt")
         import_fs_cortical(context, fs_surf_dir,
                            sformfile=tmat,
                            hemis=["lh", "rh"],
@@ -470,8 +415,6 @@ def create_scene(context, blendpath, datadir,
         lut = get_lut(context, fs_subc_seg)
 
         # create the subcortical structure meshes from volume segmentation
-        # TODO: generate aseg/aparc surfaces here (including transmat.txt)?
-        # TODO: check if gen needed
         nb_ut.mkdir_p(fs_subc_dir)
         generate_fs_subcortical_meshes(context, fs_mri_dir, fs_subc_dir,
                                        lut, fs_subc_seg)
@@ -482,6 +425,19 @@ def create_scene(context, blendpath, datadir,
     # create the camera, lights, etc
     preset = create_preset(context)
 
+    # set a carver on the voxelvolume
+    bpy.ops.nb.import_carvers(parentpath=vvol.path_from_id())
+    carver = vvol.carvers[vvol.index_carvers]
+    bpy.ops.nb.import_carveobjects(
+        parentpath=carver.path_from_id(),
+        name="slice",
+        carveobject_type_enum='slice'
+        )
+    carveobject = carver.carveobjects[carver.index_carveobjects]
+    carveobject.slicethickness = [0.99, 0.99, 0.05]
+    carveobject.sliceposition = [0, 0, 0]
+    carveobject.sliceangle = [0, 0, 0]
+
     # generate the animation elements
     keyframes = [scn.frame_start,
                  int((scn.frame_end - scn.frame_start) / 2),
@@ -489,10 +445,11 @@ def create_scene(context, blendpath, datadir,
 
     animate_camera_rotation(context, preset)
 
+    # FIXME: 
     kfps = {keyframes[0]: (0.1, 'QUAD', 'EASE_OUT'),
             keyframes[1]: (0.8, 'QUART', 'EASE_OUT'),
             keyframes[2]: (0.4, 'BEZIER', 'EASE_IN')}
-    animate_volume_slicer(context, vvol, kfps, index=2)
+    animate_volume_carver(context, carveobject, kfps, index=2)
 
     if fs_cort | fs_subc:
         animate_hide_switch(context, [keyframes[1], keyframes[2]])
@@ -501,23 +458,31 @@ def create_scene(context, blendpath, datadir,
     bpy.ops.wm.save_mainfile()
 
 
-def run_example():
+def run_example(argv):
     """Generate and render this example."""
+
+    # FIXME: too much to pack into NeuroBlender.zip: provide download option
+
+    if "--" not in argv:
+        argv = []  # as if no args are passed
+    else:
+        argv = argv[argv.index("--") + 1:]  # get all args after "--"
+
+    parser = ArgumentParser(description='NeuroBlender example script.')
+    parser.add_argument('datadir', help='the input data directory')
+    args = parser.parse_args(argv)
+    datadir = args.datadir
 
     context = bpy.context
     scn = context.scene
     nb = scn.nb
-
-    # TODO: argument parser?
 
     # the path to this example's directory and it's name
     example_name = os.path.splitext(os.path.basename(__file__))[0]
 
     # <datadir> contains the T1 volume <T1name>.nii.gz;
     # <cmap> is a custom colourmap for the voxelvolume in this example
-    # FIXME: too much to pack into NeuroBlender.zip: provide download option
-    datadir = "/Users/michielk/workspace/NeuroBlender/examples/YTproj_DB/data"
-    T1name = "nu"  # FIXME: make more general?, e.g. from volume from fs?
+    T1name = "nu"
     cmap = {"name": example_name,
             "color_mode": "RGB",
             "interpolation": "LINEAR",
@@ -550,8 +515,8 @@ def run_example():
                  fs_subjdir=fs_subjdir, fs_subc_seg=fs_subc_seg)
 
     # render the scene
-#     bpy.ops.render.render(animation=True)
+    bpy.ops.render.render(animation=True)
 
 
 if __name__ == "__main__":
-    run_example()
+    run_example(sys.argv)
