@@ -114,7 +114,8 @@ class NeuroBlenderBasePanel(bpy.types.Panel):
                      text="Switch to main",
                      icon="FORWARD")
 
-    def drawunit_UIList(self, layout, uilistlevel, data, obtype, addopt=True):
+    def drawunit_UIList(self, layout, uilistlevel, data, obtype,
+                        addopt=True, delopt=True):
 
         scn = bpy.context.scene
         nb = scn.nb
@@ -128,13 +129,17 @@ class NeuroBlenderBasePanel(bpy.types.Panel):
             data, "index_" + obtype,
             rows=2
             )
-        col = row.column(align=True)
+
+        if (addopt |
+            (delopt & len(coll)) |
+                (nb.settingprops.advanced and (len(coll) > 1))):
+            col = row.column(align=True)
 
         if addopt:
             rowsub = col.row()
             self.drawunit_addopt(rowsub, nb, uilistlevel, data, obtype)
 
-        if len(coll):
+        if delopt & len(coll):
             rowsub = col.row()
             rowsub.operator(
                 "nb.oblist_ops",
@@ -142,7 +147,7 @@ class NeuroBlenderBasePanel(bpy.types.Panel):
                 text=""
                 ).action = 'REMOVE_' + uilistlevel
 
-        if bpy.context.scene.nb.settingprops.advanced and (len(coll) > 1):
+        if nb.settingprops.advanced and (len(coll) > 1):
 
             rowsub = col.row()
             rowsub.menu(
@@ -765,7 +770,8 @@ class NeuroBlenderOverlayPanel(bpy.types.Panel):
                 row.prop(ts, "emission_factor")
                 row.prop(ts, "emission_color_factor")
 
-        self.drawunit_UIList(layout, "L3", nb_ov, itemtype, addopt=False)
+        self.drawunit_UIList(layout, "L3", nb_ov, itemtype,
+                             addopt=False, delopt=False)
 
         self.drawunit_tri(layout, "itemprops", nb, nb_ov)
 #         if itemtype == "labels":

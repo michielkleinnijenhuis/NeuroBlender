@@ -513,13 +513,6 @@ class ObjectListOperations(Operator):
         bpy.data.textures.remove(bpy.data.textures[labelgroup.name])
         self.remove_material(ob, labelgroup.name)
 
-    def remove_voxelvolumes_labels(self, label, ob):  # FIXME
-        """Remove label from a labelgroup."""
-
-        self.remove_material(ob, label.name)
-        l_ob = bpy.data.objects[label.name]
-        bpy.data.objects.remove(l_ob)
-
     def remove_material(self, ob, name):
         """Remove a material."""
 
