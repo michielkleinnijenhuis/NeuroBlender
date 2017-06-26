@@ -10,7 +10,10 @@ Welcome to NeuroBlender's documentation!
    :maxdepth: 2
    :caption: Contents:
 
-
+.. automodule:: __init__
+   :members:
+.. automodule:: animations
+   :members:
 
 Indices and tables
 ==================

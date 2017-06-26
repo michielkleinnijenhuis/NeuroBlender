@@ -17,10 +17,57 @@
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 #
-# import os
-# import sys
-# sys.path.insert(0, os.path.abspath('.'))
+import os
+import sys
+sys.path.insert(0, os.path.abspath('.'))
+sys.path.insert(0, os.path.abspath('..'))
+hm = os.path.expanduser('~')
+ba = os.path.join(hm, 'workspace/blender-build/build_darwin/bin/blender.app')
+cres = 'Contents/Resources/2.78'
+mres = 'Contents/MacOS/../Resources/2.78'
+aps = os.path.join(hm, 'Library/Application Support/Blender/2.78')
+paths = [
+    os.path.join(ba, cres, 'scripts/addons'),
+    os.path.join(ba, cres, 'scripts/addons_contrib'),
+    os.path.join(ba, cres, 'scripts/modules'),
+    os.path.join(ba, cres, 'scripts/startup'),
+    os.path.join(ba, cres, 'python/lib/python3.5/site-packages/numpy-1.11.2-py3.5-macosx-10.6-intel.egg'),
+    os.path.join(ba, cres, 'python/lib/python35.zip'),
+    os.path.join(ba, cres, 'python/lib/python3.5'),
+    os.path.join(ba, cres, 'python/lib/python3.5/plat-darwin'),
+    os.path.join(ba, cres, 'python/lib/python3.5/lib-dynload'),
+    os.path.join(ba, cres, 'python/lib/python3.5/site-packages'),
+    os.path.join(ba, mres, 'scripts/modules'),
+    os.path.join(ba, mres, 'scripts/freestyle/modules'),
+    os.path.join(ba, mres, 'scripts/addons/modules'),
+    os.path.join(aps, 'scripts/addons'),
+    os.path.join(aps, 'scripts/addons/modules'),
+    '/Users/michielk/anaconda/envs/blender/lib/python3.5/site-packages/'
+    ]
 
+for path in paths:
+    sys.path.insert(0, os.path.abspath(path))
+
+# blres = os.path.join(hm, 'workspace/blender-build/build_darwin/bin/blender.app/Contents/Resources/2.78')
+# paths = ['scripts/addons',
+#          'scripts/modules',
+#          'scripts/startup',
+#          'python/lib/python3.5/site-packages/numpy-1.11.2-py3.5-macosx-10.6-intel.egg',
+#          'python/lib/python35.zip',
+#          'python/lib/python3.5',
+#          'python/lib/python3.5/plat-darwin',
+#          'python/lib/python3.5/lib-dynload',
+#          'python/lib/python3.5/site-packages']
+# sys.path.insert(0, os.path.abspath('scripts/addons_contrib'
+# 
+# '/Users/michielk/Library/Application Support/Blender/2.78/scripts/addons'
+# '/Users/michielk/workspace/blender-build/build_darwin/bin/blender.app/Contents/MacOS/../Resources/2.78/scripts/modules'
+# '/Users/michielk/workspace/blender-build/build_darwin/bin/blender.app/Contents/MacOS/../Resources/2.78/scripts/freestyle/modules'
+# '/Users/michielk/workspace/blender-build/build_darwin/bin/blender.app/Contents/MacOS/../Resources/2.78/scripts/addons/modules'
+# '/Users/michielk/Library/Application Support/Blender/2.78/scripts/addons/modules'
+# '/Users/michielk/anaconda/envs/blender/lib/python3.5/site-packages/'
+
+import sphinx_rtd_theme
 
 # -- General configuration ------------------------------------------------
 
@@ -32,10 +79,11 @@
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
 extensions = ['sphinx.ext.autodoc',
-    'sphinx.ext.todo',
-    'sphinx.ext.coverage',
-    'sphinx.ext.mathjax',
-    'sphinx.ext.viewcode']
+              'sphinx.ext.todo',
+              'sphinx.ext.coverage',
+              'sphinx.ext.mathjax',
+              'sphinx.ext.viewcode',
+              'sphinx.ext.intersphinx']
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
@@ -87,7 +135,8 @@ todo_include_todos = True
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
 #
-html_theme = 'alabaster'
+# html_theme = 'alabaster'
+html_theme = "sphinx_rtd_theme"
 
 # Theme options are theme-specific and customize the look and feel of a theme
 # further.  For a list of options available for each theme, see the
@@ -98,7 +147,8 @@ html_theme = 'alabaster'
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
-html_static_path = ['_static']
+# html_static_path = ['_static']
+html_theme_path = [sphinx_rtd_theme.get_html_theme_path()]
 
 
 # -- Options for HTMLHelp output ------------------------------------------
