@@ -728,11 +728,7 @@ class NeuroBlenderOverlayPanel(bpy.types.Panel):
 
         elif nb.objecttype == "voxelvolumes":
 
-            itemtype = nb.overlaytype.replace("groups", "s")
-            item = eval("nb_ov.{0}[nb_ov.index_{0}]".format(itemtype))
             dpath = nb_ov.path_from_id()
-#             item = scn.path_resolve("{0}.{1}[{0}.index_{1}]".format(dpath, itemtype))
-
             parentpath = '.'.join(dpath.split('.')[:-1])
             nb_parent = bpy.context.scene.path_resolve(parentpath)
             mat = bpy.data.materials[nb_parent.name]
@@ -757,6 +753,11 @@ class NeuroBlenderOverlayPanel(bpy.types.Panel):
             parentpath = '.'.join(dpath.split('.')[:-1])
             nb_parent = bpy.context.scene.path_resolve(parentpath)
             mat = bpy.data.materials[nb_parent.name]
+            ts = mat.texture_slots.get(nb_ov.name)
+
+            # TODO: texture mixing options and reorder textures from NB
+            row = layout.row()
+            row.prop(ts, "blend_type")
 
             if nb.settingprops.advanced:
                 ts = mat.texture_slots.get(nb_ov.name)

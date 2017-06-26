@@ -743,7 +743,9 @@ def index_scalars_update_vvolscalar_func(group, scalar, method=1):
 def index_labels_update(self, context):
     """Switch views on updating label index."""
 
-    if isinstance(self, bpy.types.LabelGroupProperties):
+    if isinstance(self, (bpy.types.TractProperties,
+                         bpy.types.SurfaceProperties,
+                         bpy.types.VoxelvolumeProperties)):
         try:
             lg = self.labelgroups[self.index_labelgroups]
         except IndexError:

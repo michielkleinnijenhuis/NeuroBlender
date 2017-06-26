@@ -343,6 +343,7 @@ class ImportVoxelvolumes(Operator, ImportHelper):
         if self.is_label:
 
             nb_ob = eval(self.parentpath)
+            ob = bpy.data.objects[nb_ob.name]
             mat = bpy.data.materials[nb_ob.name]
 
             for volnr, label in enumerate(item.labels):
