@@ -303,7 +303,6 @@ class ImportVoxelvolumes(Operator, ImportHelper):
               bpy.data.textures]
         name = nb_ut.check_name(self.name, fpath, ca)
 
-
         if not self.sformfile:
             self.sformfile = fpath
 
@@ -841,6 +840,8 @@ class ImportVoxelvolumes(Operator, ImportHelper):
         if texture_coords == 'OBJECT':
             texslot.object = ob
         texslot.use_map_emission = True
+        if self.is_label:
+            texslot.blend_type = 'ADD'
 
     @staticmethod
     def generate_label_ramp(tex, item):
