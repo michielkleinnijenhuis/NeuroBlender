@@ -116,7 +116,7 @@ class ImportCarver(Operator):
         datamin = np.amin(np.array(pts), axis=0)
         datamax = np.amax(np.array(pts), axis=0)
         dims = datamax - datamin
-        box.scale = dims / 2
+        box.scale = np.absolute(ob.scale) * dims / 2  # box is 2x2x2
         box.location = glob_ctr
 
         # attach texture mapping (vvol) or boolean (surf)
