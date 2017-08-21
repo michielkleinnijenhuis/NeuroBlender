@@ -792,6 +792,25 @@ class SwitchToMainScene(Operator):
         return {"FINISHED"}
 
 
+class InitializeNeuroBlender(Operator):
+    bl_idname = "nb.initialize"
+    bl_label = "Initialize NeuroBlender"
+    bl_description = "Initialize NeuroBlender"
+    bl_options = {"REGISTER"}
+
+    def execute(self, context):
+
+    #     bpy.utils.preset_paths(subdir)
+    #     bpy.utils.preset_find(name, preset_path, display_name=False, ext=".py")
+        sp = bpy.utils.script_path_user()
+        cmapdir = os.path.join(sp, 'presets', 'neuroblender_colourmaps')
+        bpy.ops.nb.reset_colourmaps()
+
+        bpy.context.scene.nb.settingprops.is_initialized = True
+
+        return {"FINISHED"}
+
+
 class SaveBlend(Operator, ExportHelper):
     bl_idname = "nb.save_blend"
     bl_label = "Save blend file"

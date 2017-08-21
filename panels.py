@@ -42,7 +42,12 @@ class NeuroBlenderBasePanel(bpy.types.Panel):
         scn = context.scene
         nb = scn.nb
 
-        if nb.is_enabled:
+        if (not nb.settingprops.is_initialized):
+            row = self.layout.row()
+            row.operator("nb.initialize",
+                         text="Initialize NeuroBlender",
+                         icon="FORWARD")
+        elif nb.is_enabled:
             self.draw_nb_panel(context, self.layout)
             if nb.settingprops.switches:
                 self.drawunit_switches(context, self.layout, nb)

@@ -1222,6 +1222,17 @@ def overlay_is_rendered_update(self, context):
 class SettingsProperties(PropertyGroup):
     """Properties for the NeuroBlender settings."""
 
+    nb_initialized = True
+    sp = bpy.utils.script_path_user()
+    cmapdir = os.path.join(sp, 'presets', 'neuroblender_colourmaps')
+    if (not os.path.isdir(cmapdir)):
+        nb_initialized = False
+
+    is_initialized = BoolProperty(
+        name="Show/hide NeuroBlender",
+        description="Show/hide the NeuroBlender panel contents",
+        default=nb_initialized)
+
     sp_presetlabel = StringProperty(
         name="SP label",
         default="")
