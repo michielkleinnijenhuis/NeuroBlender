@@ -598,6 +598,7 @@ class NeuroBlenderOverlayPanel(bpy.types.Panel):
     bl_space_type = "PROPERTIES"
     bl_region_type = "WINDOW"
     bl_context = "scene"
+    bl_options = {'DEFAULT_CLOSED'}
 
     draw = NeuroBlenderBasePanel.draw
     drawunit_switches = NeuroBlenderBasePanel.drawunit_switches
@@ -867,6 +868,7 @@ class NeuroBlenderScenePanel(bpy.types.Panel):
     bl_space_type = "PROPERTIES"
     bl_region_type = "WINDOW"
     bl_context = "scene"
+    bl_options = {'DEFAULT_CLOSED'}
 
     draw = NeuroBlenderBasePanel.draw
     drawunit_switches = NeuroBlenderBasePanel.drawunit_switches
@@ -1041,6 +1043,7 @@ class NeuroBlenderAnimationPanel(bpy.types.Panel):
     bl_space_type = "PROPERTIES"
     bl_region_type = "WINDOW"
     bl_context = "scene"
+    bl_options = {'DEFAULT_CLOSED'}
 
     draw = NeuroBlenderBasePanel.draw
     drawunit_switches = NeuroBlenderBasePanel.drawunit_switches
@@ -1263,6 +1266,7 @@ class NeuroBlenderSettingsPanel(bpy.types.Panel):
     bl_space_type = "PROPERTIES"
     bl_region_type = "WINDOW"
     bl_context = "scene"
+    bl_options = {'DEFAULT_CLOSED'}
 
     draw = NeuroBlenderBasePanel.draw
     drawunit_switches = NeuroBlenderBasePanel.drawunit_switches
