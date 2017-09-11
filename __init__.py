@@ -25,14 +25,8 @@ NeuroBlender is a Blender add-on to create artwork from neuroscientific data.
 """
 
 
-import os
-import sys
-from shutil import copy
-import re
-import numpy as np
-import mathutils
-
 if "bpy" in locals():
+    print("Reloading NeuroBlender")
     import imp
     imp.reload(nb_an)
     imp.reload(nb_ca)
@@ -44,6 +38,7 @@ if "bpy" in locals():
     imp.reload(nb_se)
     imp.reload(nb_ut)
 else:
+    print("Importing NeuroBlender")
     import bpy
     from bpy.types import (Operator,
                            OperatorFileListElement,
@@ -70,6 +65,12 @@ else:
                           import_surfaces as nb_is,
                           import_voxelvolumes as nb_iv,
                           import_overlays as nb_im)
+
+import os
+import sys
+from shutil import copy
+import re
+import numpy as np
 
 
 bl_info = {
@@ -836,13 +837,38 @@ class SaveBlend(Operator, ExportHelper):
 
 
 def register():
+
     bpy.utils.register_module(__name__)
+
+    handlers = bpy.app.handlers.frame_change_pre
+    handlers.append(nb_pr.carvers_handler)
+    handlers.append(nb_pr.rendertype_enum_handler)
+    handlers.append(nb_pr.index_scalars_handler)
+
+    handlers = bpy.app.handlers.load_post
+    handlers.append(nb_pr.init_settings_handler)
+
     bpy.types.Scene.nb = PointerProperty(type=nb_pr.NeuroBlenderProperties)
+    # FIXME: errors on reloading addons using F8 hotkey
+
+    print("Registered NeuroBlender")
 
 
-def unregister():  # TODO: unregister handlers
-    bpy.utils.unregister_module(__name__)
+def unregister():
+
     del bpy.types.Scene.nb
+
+    handlers = bpy.app.handlers.frame_change_pre
+    handlers.remove(nb_pr.carvers_handler)
+    handlers.remove(nb_pr.rendertype_enum_handler)
+    handlers.remove(nb_pr.index_scalars_handler)
+
+    handlers = bpy.app.handlers.load_post
+    handlers.remove(nb_pr.init_settings_handler)
+
+    bpy.utils.unregister_module(__name__)
+
+    print("Unregistered NeuroBlender")
 
 
 if __name__ == "__main__":

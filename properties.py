@@ -68,9 +68,6 @@ def carvers_handler(dummy):
                 carvers_update(carveob, bpy.context)
 
 
-bpy.app.handlers.frame_change_pre.append(carvers_handler)
-
-
 @persistent
 def rendertype_enum_handler(dummy):
     """Set surface or volume rendering for the voxelvolume."""
@@ -86,9 +83,6 @@ def rendertype_enum_handler(dummy):
             rendertype_enum_update(labelgroup, bpy.context)
 
 
-bpy.app.handlers.frame_change_pre.append(rendertype_enum_handler)
-
-
 @persistent
 def index_scalars_handler(dummy):
     """Update scalar overlays."""
@@ -100,9 +94,6 @@ def index_scalars_handler(dummy):
         if anim.animationtype == "timeseries":
             sg = scn.path_resolve(anim.nb_object_data_path)
             index_scalars_update_func(group=sg)
-
-
-bpy.app.handlers.frame_change_pre.append(index_scalars_handler)
 
 
 @persistent
@@ -122,9 +113,6 @@ def init_settings_handler(dummy):
     nb.settingprops.advanced = nb.settingprops.advanced
     nb.settingprops.verbose = nb.settingprops.verbose
     nb.settingprops.switches = nb.settingprops.switches
-
-
-bpy.app.handlers.load_post.append(init_settings_handler)
 
 
 # ========================================================================== #
