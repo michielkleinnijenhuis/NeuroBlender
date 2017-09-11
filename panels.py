@@ -80,6 +80,40 @@ class NeuroBlenderBasePanel(bpy.types.Panel):
                      icon_only=True, emboss=True, icon=icon)
 
     def draw_nb_panel(self, context, layout):
+        """The NeuroBlender Base Panel.
+
+        Import tracts, surfaces and voxelvolumes and control their appearance.
+
+        Tracts are imported as Blender Curve objects.
+        The attached datablock is a curve of type 'POLY'.
+        - formats...
+
+        Python example:
+        ```
+        scn = bpy.context.scene
+        nb = scn.nb
+        nb_tract = nb.tracts[<name>]
+        tract = scn.objects[<name>]
+        splines = tract.data.splines
+        i = 10
+        j = 40
+        spline = splines[i]
+        coords = spline.points[j].co
+        ```
+
+        On import, the following option are available to change the basic appearance of the tract.
+        - Interpolate streamlines [0, 1]
+        -- reduces the number of points by skipping a fraction
+        - Tract weeding [0, 1]
+        -- reduces the number of streamlines by skipping a fraction
+        - Beautify
+        -- sets the bevel of the curve to 'FULL', with depth 0.5 and resolution 10
+        - Colour:
+        -- sets the method to colour the tract
+        - Transparency:
+        -- sets the transparency of the streamlines
+
+        """
 
         scn = context.scene
         nb = scn.nb
@@ -231,6 +265,10 @@ class NeuroBlenderBasePanel(bpy.types.Panel):
             row.prop(nb, prop, icon=icon, emboss=False)
 
     def drawunit_tri_unwrap(self, layout, nb, nb_ob):
+        """Unwrap a NeuroBlender surface object.
+
+        Unwrapping should be performed for the sake of baking surface overlays to textures, which is the most flexible way in which blender can visualize e.g. timeseries on surfaces. For proper unwrapping, a spherical representation of the surface is needed with the same number of vertices as the object. The spherical surface can either be chosen from the list of NeuroBlender surfaces, or can be read directly from file (by default, this discards the sphere again such that it will not show up in the NeuroBlender surface list).
+        """
 
         self.drawunit_unwrap(layout, nb_ob)
 
@@ -242,6 +280,17 @@ class NeuroBlenderBasePanel(bpy.types.Panel):
         row.operator("nb.unwrap_surface", text="Unwrap from sphere")
 
     def drawunit_tri_carvers(self, layout, nb, nb_ob):
+        """Carve out a region of a surface or voxelvolume.
+
+        Carvers are implemented as copies of the original object.
+        The carver is a box with the same world coordinates as the world bounding box of the object.
+        By applying boolean operators (carveobjects) on this box, only that part of the box is rendered. In most cases, it's recommended to set the boolean operator of the first carveobject to 'Intersect' (with the 'bounding box-sized carvebox'), while setting the remaining carveobjects to 'Union' (adding the geometry to the 'intersected carvebox').
+        The carveobject can be any shape. A number of default options are provided such as slices, boxes, cylinders, suzanne, or other meshes available in the current blend-file. Carveobjects can be
+        - scaled ([0-1]; relative to the size of the box)
+        - moved ([-1, 1]; relative to the size and centre of the box)
+        - rotated ([-pi/2, pi/2])
+
+        """
 
         self.drawunit_carvers(layout, nb_ob)
 
@@ -328,6 +377,26 @@ class NeuroBlenderBasePanel(bpy.types.Panel):
         col.prop(nb_ob, "sliceangle", expand=True, text="Angle")
 
     def drawunit_tri_material(self, layout, nb, nb_ob):
+        """Change the material of a NeuroBlender object.
+
+        ### Tracts and surfaces:
+        - colourpicker
+        - transparency
+        A colour and transparency can be chosen directly from the NeuroBlender panel (many more options in the Properties window under the Materials tab).
+        In CYCLES render mode, a default nodal material is created that mixes a diffuse and glossy shader. Roughness and mixing factors are available in NeuroBlender Advanced mode.
+        In CYCLES render mode, a directional colour mode is available. For tracts, this colours the streamlines red-green-blue for tangent along the X-Y-Z (assumed RL-AP-SI) direction. For surfaces this colours the faces according to the normal pointing along X-Y-Z in teh same colour scheme.
+
+        ### Voxelvolumes:
+        For convenience, the most important texture properties are displayed in the NeuroBlender Base panel.
+        - The interpolation method used for the voxel data [ADVANCED only].
+        - Intensity, contrast and saturation [ADVANCED only].
+        - Use Colorramp switch [ADVANCED only].
+        - Predefined colourmaps can be loaded and saved as Colourmap Preset (a colourmap management tool is available in the NeuroBlender Settings panel). On loading the colourmap, you can either choose to retain the range of the colour ramp, or reset the range to [0, 1].
+        - either a colourpicker or a colour ramp (default).
+
+        ### A note on colour ramps and datarange:
+        NeuroBlender surface and volume textures are saved in .png format and when loaded expanded to the range [0, 1]. The original datarange is saved when writing the textures. The corresponding values of the colour stops in the colour ramp are shown as a list of values beneath the ramp [ADVANCED only]. The full min-max datarange is shown when expanding the 'Info' triangle [ADVANCED only].
+        """
 
         if isinstance(nb_ob, bpy.types.VoxelvolumeProperties):
             self.drawunit_rendertype(layout, nb_ob)
