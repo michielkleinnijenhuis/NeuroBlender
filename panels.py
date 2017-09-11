@@ -169,16 +169,17 @@ class NeuroBlenderBasePanel(bpy.types.Panel):
             rows=2
             )
 
-        if (addopt |
-            (delopt & len(coll)) |
-                (nb.settingprops.advanced and (len(coll) > 1))):
+        anyitems = bool(len(coll))
+        go_advanced = nb.settingprops.advanced and (len(coll) > 1)
+
+        if (addopt | (delopt & anyitems) | go_advanced):
             col = row.column(align=True)
 
         if addopt:
-            rowsub = col.row()
+            rowsub = col.row(align=True)
             self.drawunit_addopt(rowsub, nb, uilistlevel, data, obtype)
 
-        if delopt & len(coll):
+        if delopt & anyitems:
             rowsub = col.row()
             rowsub.operator(
                 "nb.oblist_ops",
@@ -186,7 +187,7 @@ class NeuroBlenderBasePanel(bpy.types.Panel):
                 text=""
                 ).action = 'REMOVE_' + uilistlevel
 
-        if nb.settingprops.advanced and (len(coll) > 1):
+        if go_advanced:
 
             rowsub = col.row()
             rowsub.menu(
