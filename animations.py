@@ -128,8 +128,9 @@ class AnimateCameraPath(Operator):
         nb = scn.nb
 
         nb_preset = nb.presets[nb.index_presets]
-        preset = nb_preset.cameras[nb_preset.index_cameras]
-        cam = bpy.data.objects[preset.name]
+        nb_cam = nb_preset.cameras[nb_preset.index_cameras]
+        cam_ob = bpy.data.objects[nb_cam.name]
+        anim.camera = nb_cam.name
 
         del_indices, cam_anims = [], []
         for i, anim in enumerate(nb.animations):
@@ -137,9 +138,9 @@ class AnimateCameraPath(Operator):
                 del_indices.append(i)
                 cam_anims.append(anim)
 
-        self.clear_camera_path_animations(cam, nb.animations, del_indices)
+        self.clear_camera_path_animations(cam_ob, nb.animations, del_indices)
 
-        self.create_camera_path_animations(cam, cam_anims)
+        self.create_camera_path_animations(cam_ob, cam_anims)
 
     def clear_camera_path_animations(self, cam, anims, delete_indices):
         """Remove all camera trajectory animations."""
@@ -323,6 +324,7 @@ class AnimateCameraPath(Operator):
         restrict_incluence(cns, anim)
         cns.offset = anim.offset * -100
 
+#         TODO: build fcurve instead of keyframing
         interval_head = [scn.frame_start, anim.frame_start - 1]
         interval_anim = [anim.frame_start, anim.frame_end]
         interval_tail = [anim.frame_end + 1, scn.frame_end]

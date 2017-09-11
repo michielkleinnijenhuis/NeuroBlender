@@ -130,7 +130,6 @@ class ObjectListL2(UIList):
             col.prop(item, "name", text="", emboss=False,
                      translate=False, icon=item_icon)
 
-            # TODO link this to mat.use_textures[idx] for vvol
             if context.scene.nb.settingprops.advanced:
                 col = layout.column()
                 col.alignment = "RIGHT"
@@ -385,7 +384,7 @@ class ObjectListOperations(Operator):
 
         info = []
 
-        name = collection[self.index].name  # TODO: nb_ob.name?
+        name = collection[self.index].name
 
         if self.action.endswith('_L1'):
             try:
@@ -801,8 +800,6 @@ class InitializeNeuroBlender(Operator):
 
     def execute(self, context):
 
-    #     bpy.utils.preset_paths(subdir)
-    #     bpy.utils.preset_find(name, preset_path, display_name=False, ext=".py")
         sp = bpy.utils.script_path_user()
         cmapdir = os.path.join(sp, 'presets', 'neuroblender_colourmaps')
         bpy.ops.nb.reset_colourmaps()

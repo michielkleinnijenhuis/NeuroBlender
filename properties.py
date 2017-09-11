@@ -353,6 +353,7 @@ def timings_enum_update(self, context):
         # change the eval time keyframes on the new campath
         acp.clear_CP_evaltime(self)
         acp.animate_campath(campath, self)
+
         # redo the keyframing of the cam constraints
         cam_anims = [anim for anim in nb.animations
                      if ((anim.animationtype == "camerapath") &
@@ -361,9 +362,11 @@ def timings_enum_update(self, context):
         # FIXME: TODO: remove FollowPath keyframes here first
         acp.animate_camera(cam, self, campath)
         acp.update_cam_constraints(cam, cam_anims)
+
     elif self.animationtype == "carver":
         aca = bpy.types.NB_OT_animate_carver
         aca.animate(self)
+
     elif self.animationtype == "timeseries":
         ats = bpy.types.NB_OT_animate_timeseries
         ats.animate(self)
