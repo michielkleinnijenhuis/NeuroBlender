@@ -115,27 +115,3 @@ class AddPresetNeuroBlenderSettings(AddPresetBase, Operator):
                      "nb.settingprops.advanced",
                      "nb.settingprops.verbose"]
     preset_subdir = "neuroblender_settings"
-
-
-class Reload(Operator):
-    bl_idname = "nb.reload"
-    bl_label = "Reload"
-    bl_description = "Reload"
-    bl_options = {"REGISTER", "UNDO", "PRESET"}
-
-    name = StringProperty(
-        name="name",
-        description="The name of the addon",
-        default="NeuroBlender")
-    path = StringProperty(
-        name="path",
-        description="The path to the NeuroBlender zip file",
-        # FIXME: remove hardcoded path
-        default="/Users/michielk/workspace/NeuroBlender/NeuroBlender.zip")
-
-    def execute(self, context):
-
-        bpy.ops.wm.addon_install(filepath=self.path)
-        bpy.ops.wm.addon_enable(module=self.name)
-
-        return {"FINISHED"}
