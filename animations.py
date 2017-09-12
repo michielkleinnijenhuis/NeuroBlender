@@ -392,7 +392,8 @@ class AnimateCarver(Operator):
         anim = nb_ut.add_item(nb, "animations", animprops)
         anim.animationtype = 'carver'
 
-        self.animate(anim)
+        if anim.nb_object_data_path != 'no_carveobjects':
+            self.animate(anim)
 
         return {"FINISHED"}
 
