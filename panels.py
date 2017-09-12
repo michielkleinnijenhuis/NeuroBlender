@@ -982,12 +982,22 @@ class NeuroBlenderScenePanel(bpy.types.Panel):
 
     def drawunit_tri_cameras(self, layout, nb, preset):
 
+        if bpy.context.scene.nb.settingprops.advanced:
+
+            cams = bpy.data.objects[preset.camerasempty]
+            row = layout.row(align=True)
+            col = row.column(align=True)
+            col.prop(cams, "rotation_euler", index=2, text="Rotate rig (Z)")
+            col = row.column(align=True)
+            col.prop(cams, "scale", index=2, text="Scale rig (XYZ)")
+
+            self.drawunit_UIList(layout, "CM", preset, "cameras",
+                                 addopt=True, delopt=True)
+
         try:
             cam = preset.cameras[preset.index_cameras]
-            # TODO: multiple cameras in a preset
-        except IndexError:
-            cam = preset.cameras.add()
-            preset.index_cameras = (len(preset.cameras)-1)
+\        except IndexError:
+            pass
         else:
             cam_ob = bpy.data.objects[cam.name]
 
@@ -1047,7 +1057,8 @@ class NeuroBlenderScenePanel(bpy.types.Panel):
         row = layout.row()
         row.separator()
 
-        self.drawunit_UIList(layout, "PL", preset, "lights", addopt=True)
+        self.drawunit_UIList(layout, "PL", preset, "lights",
+                             addopt=True, delopt=True)
         self.drawunit_lightprops(layout, preset.lights[preset.index_lights])
 
     def drawunit_lightprops(self, layout, light):
@@ -1393,6 +1404,12 @@ class NeuroBlenderSettingsPanel(bpy.types.Panel):
 
         row = layout.row()
         row.prop(settingprops, "switches", expand=True)
+
+        row = layout.row()
+        row.separator()
+
+        row = layout.row()
+        row.prop(settingprops, "camera_rig")
 
         row = layout.row()
         row.separator()

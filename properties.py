@@ -568,6 +568,18 @@ def table_update(self, context):
     table.hide_render = not self.is_rendered
 
 
+def index_cameras_update(self, context):
+    """Update the scene camera."""
+
+    try:
+        nb_cam = self.cameras[self.index_cameras]
+        cam_ob = bpy.data.objects[nb_cam.name]
+    except (KeyError, IndexError):
+        pass
+    else:
+        bpy.context.scene.camera = cam_ob
+
+
 # ========================================================================== #
 # update and callback functions: overlays
 # ========================================================================== #
@@ -954,12 +966,11 @@ def name_update(self, context):  # FIXME! there's no name checks!
                  bpy.data.curves,
                  bpy.data.materials]
 
-    elif colltype == "presets":
+    elif colltype == "presets":  # TODO: camera data
         colls = [bpy.data.objects]
 
-    elif colltype == "cameras":  # not implemented via Panels
-        colls = [bpy.data.objects,
-                 bpy.data.cameras]  # animations?
+    elif colltype == "cameras":
+        colls = [bpy.data.objects]  # animations?
 
     elif colltype == "lights":
         colls = [bpy.data.objects,
@@ -1318,6 +1329,15 @@ class SettingsProperties(PropertyGroup):
         description="Show a small bar with switches in each panel",
         default=True)
 
+    camera_rig = EnumProperty(
+        name="Default camera rig",
+        description="The number of default cameras to add in a preset",
+        default="single",
+        items=[("single", "single", "single", 0),
+               ("double", "double", "double", 1),
+               ("quartet", "quartet", "quartet", 2),
+               ("octet", "octet", "octet", 3)])
+
 
 class CameraProperties(PropertyGroup):
     """Properties of cameras."""
@@ -1593,6 +1613,9 @@ class AnimationProperties(PropertyGroup):
         default=False,
         update=direction_toggle_update)
 
+    camera = StringProperty(
+        name="Camera",
+        description="The camera to animate")
     campaths_enum = EnumProperty(
         name="Camera trajectory",
         description="Choose the camera trajectory",
@@ -1819,6 +1842,14 @@ class PresetProperties(PropertyGroup):
         name="Camera",
         description="Scene camera",
         default="PresetCam")
+    camerasempty = StringProperty(
+        name="CamerasEmpty",
+        description="Scene cameras empty",
+        default="PresetCameras")
+    campathsempty = StringProperty(
+        name="CamPathsEmpty",
+        description="Scene camera paths empty",
+        default="PresetCampaths")
     lightsempty = StringProperty(
         name="LightsEmpty",
         description="Scene lights empty",
@@ -1837,7 +1868,8 @@ class PresetProperties(PropertyGroup):
         name="camera index",
         description="index of the cameras collection",
         default=0,
-        min=0)
+        min=0,
+        update=index_cameras_update)
     lights = CollectionProperty(
         type=LightsProperties,
         name="lights",

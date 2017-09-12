@@ -196,6 +196,9 @@ class ObjectListOperations(Operator):
             ('UP_L3', "UpL3", ""),
             ('DOWN_L3', "DownL3", ""),
             ('REMOVE_L3', "RemoveL3", ""),
+            ('UP_CM', "UpCM", ""),
+            ('DOWN_CM', "DownCM", ""),
+            ('REMOVE_CM', "RemoveCM", ""),
             ('UP_PL', "UpPL", ""),
             ('DOWN_PL', "DownPL", ""),
             ('REMOVE_PL', "RemovePL", ""),
@@ -315,6 +318,14 @@ class ObjectListOperations(Operator):
             data_path = "{}.{}".format(nb_ov.path_from_id(), self.type)
             self.index = scn.path_resolve(data_path).find(self.name)
             self.data_path = nb_it.path_from_id()
+        elif self.action.endswith('_CM'):
+            preset_path = "nb.presets[{:d}]".format(nb.index_presets)
+            preset = scn.path_resolve(preset_path)
+            camera = preset.cameras[preset.index_cameras]
+            self.type = "cameras"
+            self.name = camera.name
+            self.index = preset.index_cameras
+            self.data_path = camera.path_from_id()
         elif self.action.endswith('_PL'):
             preset_path = "nb.presets[{:d}]".format(nb.index_presets)
             preset = scn.path_resolve(preset_path)
@@ -402,6 +413,15 @@ class ObjectListOperations(Operator):
                 fun(nb_ob, ob)
                 # remove the object itself
                 bpy.data.objects.remove(ob)
+        elif self.action.endswith('_CM'): 
+            try:
+                ob = bpy.data.objects[name]
+            except KeyError:
+                infostring = 'object "%s" not found'
+                info += [infostring % name]
+            else:
+                bpy.data.objects.remove(ob)
+                # TODO: bpy.data.cameras if no users
         elif self.action.endswith('_PL'):
             try:
                 ob = bpy.data.objects[name]
@@ -410,6 +430,7 @@ class ObjectListOperations(Operator):
                 info += [infostring % name]
             else:
                 bpy.data.objects.remove(ob)
+                # TODO: bpy.data.lamps if no users
         elif self.action.endswith('_AN'):
             anim = nb.animations[nb.index_animations]
             fun = eval("self.remove_animations_%s" %
@@ -729,6 +750,9 @@ class MassSelect(Operator):
             ('SELECT_L3', "Select_L3", ""),
             ('DESELECT_L3', "Deselect_L3", ""),
             ('INVERT_L3', "Invert_L3", ""),
+            ('SELECT_CM', "Select_CM", ""),
+            ('DESELECT_CM', "Deselect_CM", ""),
+            ('INVERT_CM', "Invert_CM", ""),
             ('SELECT_PL', "Select_PL", ""),
             ('DESELECT_PL', "Deselect_PL", ""),
             ('INVERT_PL', "Invert_PL", ""),
