@@ -485,25 +485,20 @@ def anim_update(self, context):
 # ========================================================================== #
 
 
-def presets_enum_callback(self, context):
-    """Populate the enum based on available options."""
-
-    items = [(ps.name, ps.name, "List the presets", i)
-             for i, ps in enumerate(self.presets)]
-
-    return items
-
-
-def presets_enum_update(self, context):
-    """Update the preset enum."""
+def index_presets_update(self, context):
+    """Update to a different preset."""
 
     scn = context.scene
     nb = scn.nb
 
-    self.index_presets = self.presets.find(self.presets_enum)
-    preset = self.presets[self.index_presets]
-    scn.camera = bpy.data.objects[preset.cameras[preset.index_cameras].name]
-    # TODO: switch cam view etc
+    try:
+        preset = self.presets[self.index_presets]
+    except IndexError:
+        pass
+    else:
+        index_cameras_update(preset, context)
+        for layer in range(10, 20):
+            scn.layers[layer] = (layer == preset.layer)
 
 
 def cam_view_enum_XX_update(self, context):
@@ -512,10 +507,10 @@ def cam_view_enum_XX_update(self, context):
     scn = context.scene
     nb = scn.nb
 
-    lud = {'Centre': 0,
-           'Left': -1, 'Right': 1,
-           'Anterior': 1, 'Posterior': -1,
-           'Superior': 1, 'Inferior': -1}
+    lud = {'C': 0,
+           'R': 1, 'L': -1,
+           'A': 1, 'P': -1,
+           'S': 1, 'I': -1}
 
     LR = lud[self.cam_view_enum_LR]
     AP = lud[self.cam_view_enum_AP]
@@ -1334,9 +1329,27 @@ class SettingsProperties(PropertyGroup):
         description="The number of default cameras to add in a preset",
         default="single",
         items=[("single", "single", "single", 0),
-               ("double", "double", "double", 1),
-               ("quartet", "quartet", "quartet", 2),
-               ("octet", "octet", "octet", 3)])
+               ("double_diag", "double_diag", "double_diag", 1),
+               ("double_LR", "double_LR", "double_LR", 2),
+               ("double_AP", "double_AP", "double_AP", 3),
+               ("double_IS", "double_IS", "double_IS", 4),
+               ("sextet", "sextet", "sextet", 5),
+               ("quartet", "quartet", "quartet", 6),
+               ("octet", "octet", "octet", 7)])
+
+    lighting_rig = EnumProperty(
+        name="Default lighting rig",
+        description="The number of default lights to add in a preset",
+        default="triple",
+        items=[("single", "single", "single", 0),
+               ("triple", "triple", "triple", 1)])
+
+    table_rig = EnumProperty(
+        name="Default table rig",
+        description="The default table to add in a preset",
+        default="none",
+        items=[("none", "none", "none", 0),
+               ("simple", "simple", "simple", 1)])
 
 
 class CameraProperties(PropertyGroup):
@@ -1372,26 +1385,26 @@ class CameraProperties(PropertyGroup):
     cam_view_enum_LR = EnumProperty(
         name="Camera LR viewpoint",
         description="Choose a LR position for the camera",
-        default="Right",
-        items=[("Left", "L", "Left", 0),
-               ("Centre", "C", "Centre", 1),
-               ("Right", "R", "Right", 2)],
+        default="R",
+        items=[("L", "L", "Left", 0),
+               ("C", "C", "Centre", 1),
+               ("R", "R", "Right", 2)],
         update=cam_view_enum_XX_update)
     cam_view_enum_AP = EnumProperty(
         name="Camera AP viewpoint",
         description="Choose a AP position for the camera",
-        default="Anterior",
-        items=[("Anterior", "A", "Anterior", 0),
-               ("Centre", "C", "Centre", 1),
-               ("Posterior", "P", "Posterior", 2)],
+        default="A",
+        items=[("A", "A", "Anterior", 0),
+               ("C", "C", "Centre", 1),
+               ("P", "P", "Posterior", 2)],
         update=cam_view_enum_XX_update)
     cam_view_enum_IS = EnumProperty(
         name="Camera IS viewpoint",
         description="Choose a IS position for the camera",
-        default="Superior",
-        items=[("Inferior", "I", "Inferior", 0),
-               ("Centre", "C", "Centre", 1),
-               ("Superior", "S", "Superior", 2)],
+        default="S",
+        items=[("I", "I", "Inferior", 0),
+               ("C", "C", "Centre", 1),
+               ("S", "S", "Superior", 2)],
         update=cam_view_enum_XX_update)
     cam_distance = FloatProperty(
         name="Camera distance",
@@ -1405,10 +1418,9 @@ class CameraProperties(PropertyGroup):
         description="Choose an object to track with the camera",
         items=trackobject_enum_callback,
         update=trackobject_enum_update)
-    # FIXME: trackobject not set on creating camera
 
 
-class LightsProperties(PropertyGroup):
+class LightProperties(PropertyGroup):
     """Properties of light."""
 
     name = StringProperty(
@@ -1488,8 +1500,8 @@ class TableProperties(PropertyGroup):
         default=True)
     is_rendered = BoolProperty(
         name="Is Rendered",
-        description="Indicates if the overlay is rendered",
-        default=False,
+        description="Indicates if the table is rendered",
+        default=True,
         update=table_update)
 
     colourtype = EnumProperty(
@@ -1819,7 +1831,7 @@ class PresetProperties(PropertyGroup):
     icon = StringProperty(
         name="Icon",
         description="Icon for preset",
-        default="CAMERA_DATA")
+        default="STICKY_UVS_LOC")
     is_valid = BoolProperty(
         name="Is Valid",
         description="Indicates if the preset passed validity checks",
@@ -1828,6 +1840,12 @@ class PresetProperties(PropertyGroup):
         name="Is Rendered",
         description="Indicates if the preset is rendered",
         default=True)
+
+    layer = IntProperty(
+        name="preset renderlayer",
+        description="the renderlayer for this preset",
+        default=10,
+        min=0)
 
     centre = StringProperty(
         name="Centre",
@@ -1841,7 +1859,7 @@ class PresetProperties(PropertyGroup):
     cam = StringProperty(
         name="Camera",
         description="Scene camera",
-        default="PresetCam")
+        default="")
     camerasempty = StringProperty(
         name="CamerasEmpty",
         description="Scene cameras empty",
@@ -1854,6 +1872,10 @@ class PresetProperties(PropertyGroup):
         name="LightsEmpty",
         description="Scene lights empty",
         default="PresetLights")
+    tablesempty = StringProperty(
+        name="TablesEmpty",
+        description="Scene tables empty",
+        default="PresetTables")
     dims = FloatVectorProperty(
         name="dims",
         description="Dimension of the scene",
@@ -1871,7 +1893,7 @@ class PresetProperties(PropertyGroup):
         min=0,
         update=index_cameras_update)
     lights = CollectionProperty(
-        type=LightsProperties,
+        type=LightProperties,
         name="lights",
         description="The collection of loaded lights")
     index_lights = IntProperty(
@@ -2919,12 +2941,8 @@ class NeuroBlenderProperties(PropertyGroup):
         name="preset index",
         description="index of the presets",
         default=0,
-        min=0)
-    presets_enum = EnumProperty(
-        name="presets",
-        description="switch between presets",
-        items=presets_enum_callback,
-        update=presets_enum_update)
+        min=0,
+        update=index_presets_update)
 
     animations = CollectionProperty(
         type=AnimationProperties,

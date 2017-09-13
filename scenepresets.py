@@ -21,7 +21,8 @@
 
 """The NeuroBlender scene presets module.
 
-NeuroBlender is a Blender add-on to create artwork from neuroscientific data.
+NeuroBlender is a Blender add-on
+to create artwork from neuroscientific data.
 This module implements the scene building system.
 """
 
@@ -48,6 +49,11 @@ class ResetPresetCentre(Operator):
     bl_description = "Revert location changes to preset centre"
     bl_options = {"REGISTER"}
 
+    index_presets = IntProperty(
+        name="preset index",
+        description="Specify preset index",
+        default=-1)
+
     def execute(self, context):
 
         scn = bpy.context.scene
@@ -56,14 +62,15 @@ class ResetPresetCentre(Operator):
         obs = get_render_objects(nb)
         cloc = get_brainbounds(obs)[0]
 
-        nb_preset = nb.presets[nb.index_presets]
+        nb_preset = nb.presets[self.index_presets]
 
         centre = bpy.data.objects[nb_preset.centre]
         centre.location = cloc
 
-        info = ['reset location of preset "{}"'.format(nb_preset.name)]
-        info += ['location is now "{:.2f} {:.2f} {:.2f}"'.format(*cloc)]
-        self.report({'INFO'}, '; '.join(info))
+        if nb.settingprops.verbose:
+            istring = 'set location of "{}" to "{:.2f} {:.2f} {:.2f}"'
+            info = [istring.format(nb_preset.name, *dims)]
+            self.report({'INFO'}, '; '.join(info))
 
         return {"FINISHED"}
 
@@ -74,6 +81,11 @@ class ResetPresetDims(Operator):
     bl_description = "Recalculate scene dimension"
     bl_options = {"REGISTER"}
 
+    index_presets = IntProperty(
+        name="preset index",
+        description="Specify preset index",
+        default=-1)
+
     def execute(self, context):
 
         scn = bpy.context.scene
@@ -82,7 +94,7 @@ class ResetPresetDims(Operator):
         obs = get_render_objects(nb)
         dims = get_brainbounds(obs)[1]
 
-        nb_preset = nb.presets[nb.index_presets]
+        nb_preset = nb.presets[self.index_presets]
         nb_preset.dims = dims
 
         centre = bpy.data.objects[nb_preset.centre]
@@ -91,20 +103,20 @@ class ResetPresetDims(Operator):
         box = bpy.data.objects[nb_preset.box]
         box.scale = 0.5 * Vector([max(dims), max(dims), max(dims)])
 
-        nb_cam = nb_preset.cameras[nb_preset.index_cameras]
-        camdata = bpy.data.cameras[nb_cam.name]
+        camdata = bpy.data.cameras[nb_preset.cam]
         camdata.clip_start = box.scale[0] / 5
         camdata.clip_end = box.scale[0] * 10
 
-        info = ['reset dimensions of preset "{}"'.format(nb_preset.name)]
-        info += ['dimensions are now "{:.2f} {:.2f} {:.2f}"'.format(*dims)]
-        self.report({'INFO'}, '; '.join(info))
+        if nb.settingprops.verbose:
+            istring = 'set dimensions of "{}" to "{:.2f} {:.2f} {:.2f}"'
+            info = [istring.format(nb_preset.name, *dims)]
+            self.report({'INFO'}, '; '.join(info))
 
         return {"FINISHED"}
 
 
 class AddPreset(Operator):
-    bl_idname = "nb.add_preset"
+    bl_idname = "nb.import_presets"
     bl_label = "New preset"
     bl_description = "Create a new preset"
     bl_options = {"REGISTER", "UNDO", "PRESET"}
@@ -123,57 +135,66 @@ class AddPreset(Operator):
         scn = context.scene
         nb = scn.nb
 
-        ca = [nb.presets]  # TODO: preset.name + "Cam"
+        obs = get_render_objects(nb)
+        cloc, dims, info = get_brainbounds(obs)
+
+        # preset
+        ca = [nb.presets]
         name = nb_ut.check_name(self.name, "", ca,
                                 forcefill=True, firstfill=1)
-
-        obs = get_render_objects(nb)
-        cloc, dims = get_brainbounds(obs)
-
         nb_preset, preset = self.add_preset(context, name)
-        nb_preset["dims"] = dims
+        nb_preset.dims = dims
+        nb_preset.layer = len(nb.presets) + 9
 
+        # centre
         centre = self.add_centre(context, preset, cloc, dims)
-        nb_preset["centre"] = centre.name
+        nb_preset.centre = centre.name
 
+        # box
         box = self.add_box(context, preset, centre, dims)
-        nb_preset["box"] = box.name
+        nb_preset.box = box.name
 
-        ps_idx = nb.presets.find(preset.name)
-
+        # cameras
         ca = [bpy.data.objects]
         rigname = nb_ut.check_name("Cameras", "", ca,
                                    forcefill=True, firstfill=1)
         cameras = self.add_rigempty(context, name=rigname)
         cameras.parent = preset
-        nb_preset["camerasempty"] = cameras.name
-        rigdict = {'single': ['RAS'],
-                   'double': ['RAS', 'LPI'],
-                   'quartet': ['RAS', 'LAS', 'LPS', 'RPS'],
-                   'octet': ['RAS', 'LAS', 'LPS', 'RPS',
-                             'RAI', 'LAI', 'LPI', 'RPI']}
+        nb_preset.camerasempty = cameras.name
         self.add_camera_rig(context, preset, centre, box,
-                            rigdict[nb.settingprops.camera_rig])
+                            nb.settingprops.camera_rig)
 
-        # TODO: light groups
+        # lights  # TODO: light groups?
         ca = [bpy.data.objects]
         rigname = nb_ut.check_name("Lights", "", ca,
                                    forcefill=True, firstfill=1)
         lights = self.add_rigempty(context, name=rigname)
         lights.parent = box
-        nb_preset["lightsempty"] = lights.name
-        self.add_lighting_rig(context, preset, centre, box)
+        nb_preset.lightsempty = lights.name
+        self.add_lighting_rig(context, preset, centre, box,
+                              nb.settingprops.lighting_rig)
 
-        bpy.ops.nb.import_tables(index_presets=ps_idx)
-#         table.hide = table.hide_render = True
+        # tables
+        ca = [bpy.data.objects]
+        rigname = nb_ut.check_name("Tables", "", ca,
+                                   forcefill=True, firstfill=1)
+        tables = self.add_rigempty(context, name=rigname)
+        tables.parent = centre
+        nb_preset.tablesempty = tables.name
+        self.add_table_rig(context, preset, centre, box,
+                           nb.settingprops.table_rig)
 
-        nb.presets_enum = name
-        # FIXME: trackobject set to None after adding camera
-#         nb_cam = nb_preset.cameras[nb_preset.index_cameras]
-#         nb_cam['trackobject'] = 'Centre'
+        # renderlayer
+        preset_obs = [preset, centre, box,
+                      cameras, lights, tables]
+        for ob in preset_obs:
+            nb_ut.move_to_layer(ob, nb_preset.layer)
+        for layer in range(10, 20):
+            scn.layers[layer] = (layer == nb_preset.layer)
 
-        info = ['added preset "{}"'.format(name)]
-        self.report({'INFO'}, '; '.join(info))
+        if nb.settingprops.verbose:
+            info += ['added preset "{}"'.format(name)]
+            self.report({'INFO'}, '; '.join(info))
 
         return {"FINISHED"}
 
@@ -189,13 +210,17 @@ class AddPreset(Operator):
 
         preset = bpy.data.objects.new(name=name, object_data=None)
         scn.objects.link(preset)
-        props = [preset.lock_location, preset.lock_rotation, preset.lock_scale]
+        props = [preset.lock_location,
+                 preset.lock_rotation,
+                 preset.lock_scale]
         for prop in props:
             for dim in prop:
                 dim = True
 
         presetprops = {"name": name}
         nb_preset = nb_ut.add_item(nb, "presets", presetprops)
+
+        nb_ut.move_to_layer(preset, nb_preset.layer)
 
         return nb_preset, preset
 
@@ -254,47 +279,63 @@ class AddPreset(Operator):
 
         return box
 
-    def add_camera_rig(self, context, preset, centre, box,
-                       RAScodes, distance=2.88675):
-        """Add a camera rig to the NeuroBlender scene."""
-
-        scn = context.scene
-        nb = scn.nb
-
-        name = "Cam"
-        d = distance
-        RASdict = {'C': 0,
-                   'R': d, 'L': -d,
-                   'A': d, 'P': -d,
-                   'S': d, 'I': -d}
-
-        ps_idx = nb.presets.find(preset.name)
-        for RAScode in RAScodes:
-            camview = [RASdict[RAStoken] for RAStoken in RAScode]
-            bpy.ops.nb.import_cameras(
-                index_presets=ps_idx,
-                name="{}{}".format(name, RAScode),
-                cam_view=camview,
-                )
-
     def add_rigempty(self, context, name="Lights"):
         """Add an empty to hold the lighting rig."""
 
         scn = context.scene
 
-        lights = bpy.data.objects.new(name, None)
-        scn.objects.link(lights)
+        rigempty = bpy.data.objects.new(name, None)
+        scn.objects.link(rigempty)
         for idx in [0, 1]:
-            driver = lights.driver_add("scale", idx).driver
+            driver = rigempty.driver_add("scale", idx).driver
             driver.type = 'SCRIPTED'
             driver.expression = "scale"
             create_var(driver, "scale",
                        'SINGLE_PROP', 'OBJECT',
-                       lights, "scale[2]")
+                       rigempty, "scale[2]")
 
-        return lights
+        return rigempty
 
-    def add_lighting_rig(self, context, preset, centre, box):
+    def add_camera_rig(self, context, preset, centre, box,
+                       camera_rig, distance=5):
+        """Add a camera rig to the NeuroBlender scene."""
+
+        scn = context.scene
+        nb = scn.nb
+
+        lud = {'C': 0,
+               'R': 1, 'L': -1,
+               'A': 1, 'P': -1,
+               'S': 1, 'I': -1}
+
+        rigdict = {
+            'single': ['RAS'],
+            'double_diag': ['RAS', 'LPI'],
+            'double_LR': ['RCC', 'LCC'],
+            'double_AP': ['CAC', 'CPC'],
+            'double_IS': ['CCI', 'CCS'],
+            'quartet': ['RAS', 'LAS', 'LPS', 'RPS'],
+            'sextet': ['RCC', 'LCC', 'CAC', 'CPC', 'CCI', 'CCS'],
+            'octet': ['RAS', 'LAS', 'LPS', 'RPS',
+                      'RAI', 'LAI', 'LPI', 'RPI']
+                   }
+
+        for RAScode in rigdict[camera_rig]:
+
+            cv_unit = Vector([lud[RAScode[0]],
+                              lud[RAScode[1]],
+                              lud[RAScode[2]]]).normalized()
+
+            bpy.ops.nb.import_cameras(
+                index_presets=nb.presets.find(preset.name),
+                name=RAScode,
+                cam_view=list(cv_unit * distance),
+                RAScode=RAScode,
+                trackobject=centre.name,
+                )
+
+    def add_lighting_rig(self, context, preset, centre, box,
+                         lighting_rig):
         """Add a lighting rig to the NeuroBlender scene."""
 
         scn = context.scene
@@ -302,8 +343,9 @@ class AddPreset(Operator):
 
         # NOTE: setting these all to SUN/HEMI,
         # because they work well in both BI and CYCLES
-        keystrength = 1
         ltype = ["HEMI", "HEMI", "HEMI"]
+        keystrength = 1
+
         lp_key = {'name': "Key",
                   'type': ltype[0],
                   'colour': (1.0, 1.0, 1.0),
@@ -320,15 +362,41 @@ class AddPreset(Operator):
                    'strength': 0.1 * keystrength,
                    'location': (-4, -4, 3)}
 
-        ps_idx = nb.presets.find(preset.name)
-        for lightprops in [lp_key, lp_fill, lp_back]:
+        rigdict = {'single': [lp_key],
+                   'triple': [lp_key, lp_fill, lp_back]}
+
+        for lightprops in rigdict[lighting_rig]:
             bpy.ops.nb.import_lights(
-                index_presets=ps_idx,
+                index_presets=nb.presets.find(preset.name),
                 name=lightprops['name'],
                 type=lightprops['type'],
                 colour=lightprops['colour'],
                 strength=lightprops['strength'],
                 location=lightprops['location']
+                )
+
+    def add_table_rig(self, context, preset, centre, box,
+                      table_rig):
+        """Add a table setup to the NeuroBlender scene."""
+
+        scn = context.scene
+        nb = scn.nb
+
+        tableprops = {'simple':
+                      {'colourpicker': [0.5, 0.5, 0.5],
+                       'scale': [4.0, 4.0, 1.0],
+                       'location': [0.0, 0.0, -1.0]},
+                      }
+
+        rigdict = {'none': [],
+                   'simple': [tableprops['simple']]}
+
+        for tableprops in rigdict[table_rig]:
+            bpy.ops.nb.import_tables(
+                index_presets=nb.presets.find(preset.name),
+                colourpicker=tableprops['colourpicker'],
+                scale=tableprops['scale'],
+                location=tableprops['location'],
                 )
 
 
@@ -379,7 +447,8 @@ class DelPreset(Operator):
             nb.presets_enum = name
             info += ['preset is now "{}"'.format(name)]
 
-        self.report({'INFO'}, '; '.join(info))
+        if nb.settingprops.verbose:
+            self.report({'INFO'}, '; '.join(info))
 
         return {"FINISHED"}
 
@@ -408,25 +477,23 @@ class DelPreset(Operator):
                     scn.objects.unlink(ob)
                 bpy.data.scenes.remove(scn)
 
-        # delete all preset objects and data
-        ps_obnames = [nb_ob.name
-                      for nb_coll in [nb_preset.cameras,
-                                      nb_preset.lights,
-                                      nb_preset.tables]
+        # delete all preset objects
+        nb_colls = [nb_preset.cameras,
+                    nb_preset.lights,
+                    nb_preset.tables]
+        ps_obnames = [nb_ob.name for nb_coll in nb_colls
                       for nb_ob in nb_coll]
         ps_obnames += [nb_preset.camerasempty,
                        nb_preset.lightsempty,
+                       nb_preset.tablesempty,
                        nb_preset.box,
                        nb_preset.centre,
                        nb_preset.name]
-        for ps_obname in ps_obnames:
-            try:
-                ob = bpy.data.objects[ps_obname]
-            except KeyError:
-                info += ['object "{}" not found'.format(ps_obname)]
-            else:
-                bpy.data.objects.remove(ob)
+        for name in ps_obnames:
+            self.delete_datablock(bpy.data.objects,
+                                  name, info=[])
 
+        # delete all preset data
         psdictlist = [{'nb_collection': nb_preset.cameras,
                        'data_collection': bpy.data.cameras},
                       {'nb_collection': nb_preset.lights,
@@ -434,7 +501,9 @@ class DelPreset(Operator):
                       {'nb_collection': nb_preset.tables,
                        'data_collection': bpy.data.meshes}]
         for psdict in psdictlist:
-            info = self.delete_presetdata(psdict, info)
+            for item in psdict['nb_collection']:
+                self.delete_datablock(psdict['data_collection'],
+                                      item.name, info=[])
 
         # TODO:
         # delete animations from objects
@@ -443,21 +512,16 @@ class DelPreset(Operator):
 
         return info
 
-    def delete_presetdata(self, psdict, info=[]):
+    def delete_datablock(self, data_coll, name, info=[]):
+        """Remove a datablock from a collection."""
 
-        nb_coll = psdict['nb_collection']
-        data_coll = psdict['data_collection']
-
-        for ps_item in nb_coll:
-            try:
-                datablock = data_coll[ps_item.name]
-            except KeyError:
-                info += ['"{}" not found in {}'.format(ps_item.name,
-                                                       data_coll.rna_type.name)]
-            else:
-                data_coll.remove(datablock)
-
-        return info
+        try:
+            datablock = data_coll[name]
+        except KeyError:
+            infostring = '"{}" not found in "{}"'
+            info += [infostring.format(name, data_coll.rna_type.name)]
+        else:
+            data_coll.remove(datablock)
 
 
 class AddCamera(Operator):
@@ -485,17 +549,15 @@ class AddCamera(Operator):
         default=[2.88675, 2.88675, 2.88675],
         size=3,
         subtype="TRANSLATION")
-
     RAScode = StringProperty(
         name="RAS code",
-        description="Three-letter code, one picked from each 'LCR-ACP-ICS'",
+        description="Three-letter code, one each from'LCR-ACP-ICS'",
         default="RAS")
     cam_distance = FloatProperty(
         name="Camera distance",
         description="Relative distance of the camera (to bounding box)",
         default=5,
         min=0)
-
     trackobject = StringProperty(
         name="Track object",
         description="Choose an object to track with the camera",
@@ -512,33 +574,44 @@ class AddCamera(Operator):
         box = bpy.data.objects[nb_preset.box]
         cameras = bpy.data.objects[nb_preset.camerasempty]
 
+        if nb_preset.cam:
+            camdata = bpy.data.cameras.get(nb_preset.cam)
+        else:
+            cdname = preset.name + '_Camera'
+            camdata = self.create_camera_data(cdname, box.scale[0])
+            nb_preset.cam = camdata.name
+
         ca = [ps.cameras for ps in nb.presets]
         name = nb_ut.check_name(self.name, "", ca,
                                 forcefill=True, firstfill=1)
 
-        cdname = preset.name + 'Cam'
-        camdata = bpy.data.cameras.get(cdname) or \
-            self.create_camera_data(cdname, box.scale[0])
+        cam = self.create_camera_object(name, centre, box,
+                                        cameras, camdata)
+        nb_ut.move_to_layer(cam, nb_preset.layer)
 
-        RASdict = {'C': 'Centre',
-                   'L': 'Left', 'R': 'Right',
-                   'A': 'Anterior', 'P': 'Posterior',
-                   'I': 'Inferior', 'S': 'Superior'}
         camprops = {
-            "name": name,
+            "name": cam.name,
             "cam_view": self.cam_view,
-            "cam_view_enum_LR": RASdict[self.RAScode[0]],
-            "cam_view_enum_AP": RASdict[self.RAScode[1]],
-            "cam_view_enum_SI": RASdict[self.RAScode[2]],
+            "cam_view_enum_LR": self.RAScode[0],
+            "cam_view_enum_AP": self.RAScode[1],
+            "cam_view_enum_SI": self.RAScode[2],
             "cam_distance": self.cam_distance,
-            "trackobject": self.trackobject
+            "trackobject": self.trackobject,
             }
-        nb_ut.add_item(nb_preset, "cameras", camprops)
-        cam = self.create_camera_object(name, preset, centre, box, cameras, camdata)
-        nb_preset.cameras[nb_preset.index_cameras].name = cam.name
+        nb_cam = nb_ut.add_item(nb_preset, "cameras", camprops)
+        nb_cam.name = cam.name
+        nb_cam.cam_view = self.cam_view
+        nb_cam.cam_view_enum_LR = self.RAScode[0]
+        nb_cam.cam_view_enum_AP = self.RAScode[1]
+        nb_cam.cam_view_enum_IS = self.RAScode[2]
+        nb_cam.cam_distance = self.cam_distance
+        nb_cam.trackobject = self.trackobject  # FIXME
+        nb_cam.trackobject = self.trackobject  # FIXME
 
-        info = ['added camera "{}" to preset "{}"'.format(cam.name, nb_preset.name)]
-        self.report({'INFO'}, '; '.join(info))
+        if nb.settingprops.verbose:
+            infostring = 'added camera "{}" to preset "{}"'
+            info = [infostring.format(cam.name, nb_preset.name)]
+            self.report({'INFO'}, '; '.join(info))
 
         return {"FINISHED"}
 
@@ -548,10 +621,11 @@ class AddCamera(Operator):
         nb = scn.nb
 
         self.index_presets = nb.index_presets
+        self.trackobject = nb.presets[self.index_presets].centre
 
         return self.execute(context)
 
-    def create_camera_object(self, name, preset, centre, box, cameras, camdata):
+    def create_camera_object(self, name, centre, box, cameras, camdata):
         """Add a camera to the scene."""
 
         scn = bpy.context.scene
@@ -619,7 +693,6 @@ class AddTable(Operator):
         description="Pick a colour",
         default=[0.5, 0.5, 0.5],
         subtype="COLOR")
-
     scale = FloatVectorProperty(
         name="Table scale",
         description="Relative size of the table",
@@ -637,27 +710,28 @@ class AddTable(Operator):
         nb = scn.nb
 
         nb_preset = nb.presets[self.index_presets]
-        preset = bpy.data.objects[nb_preset.name]
-        centre = bpy.data.objects[nb_preset.centre]
-        box = bpy.data.objects[nb_preset.box]
+        tables = bpy.data.objects[nb_preset.tablesempty]
 
         ca = [ps.tables for ps in nb.presets]
         name = nb_ut.check_name(self.name, "", ca,
                                 forcefill=True, firstfill=1)
 
+        table = self.create_table(name, tables)
+        nb_ut.move_to_layer(table, nb_preset.layer)
+
         tableprops = {
-            "name": name,
+            "name": table.name,
             "colourpicker": self.colourpicker,
             "scale": self.scale,
             "location": self.location,
             }
-        nb_ut.add_item(nb_preset, "tables", tableprops)
-        table = self.create_table(name, centre)
-        nb_preset.tables[nb_preset.index_tables].name = table.name
+        nb_table = nb_ut.add_item(nb_preset, "tables", tableprops)
+        nb_table.name = table.name
 
-        info = ['added table "{}" to preset "{}"'.format(table.name,
-                                                         nb_preset.name)]
-        self.report({'INFO'}, '; '.join(info))
+        if nb.settingprops.verbose:
+            infostring = 'added camera "{}" to preset "{}"'
+            info = [infostring.format(table.name, nb_preset.name)]
+            self.report({'INFO'}, '; '.join(info))
 
         return {"FINISHED"}
 
@@ -680,6 +754,7 @@ class AddTable(Operator):
         diffcol = list(self.colourpicker) + [1.0]
         mat = nb_ma.make_cr_mat_basic(table.name, diffcol, mix=0.8)
         nb_ma.set_materials(table.data, mat)
+        table.show_transparent = True
 
         table.parent = parent
 
@@ -722,6 +797,7 @@ class AddLight(Operator):
         name="Name",
         description="Specify a name for the light",
         default="Light")
+
     type = EnumProperty(
         name="Light type",
         description="type of lighting",
@@ -768,18 +844,24 @@ class AddLight(Operator):
         name = nb_ut.check_name(self.name, "", ca,
                                 forcefill=True, firstfill=1)
 
-        lp = {'name': name,
-              'type': self.type,
-              'size': self.size,
-              'colour': self.colour,
-              'strength': self.strength,
-              'location': self.location}
-        nb_light = nb_ut.add_item(nb_preset, "lights", lp)
         light = self.create_light(name, preset, centre, box, lights)
-        nb_preset.lights[nb_preset.index_lights].name = light.name
+        nb_ut.move_to_layer(light, nb_preset.layer)
 
-        info = ['added light "{}" in preset "{}"'.format(light.name, nb_preset.name)]
-        self.report({'INFO'}, '; '.join(info))
+        lightprops = {
+            'name': light.name,
+            'type': self.type,
+            'size': self.size,
+            'colour': self.colour,
+            'strength': self.strength,
+            'location': self.location,
+            }
+        nb_light = nb_ut.add_item(nb_preset, "lights", lightprops)
+        nb_light.name = light.name
+
+        if nb.settingprops.verbose:
+            infostring = 'added light "{}" in preset "{}"'
+            info = [infostring.format(light.name, nb_preset.name)]
+            self.report({'INFO'}, '; '.join(info))
 
         return {"FINISHED"}
 
@@ -828,6 +910,48 @@ class AddLight(Operator):
         return light
 
 
+class ObjectListPS(UIList):
+
+    def draw_item(self, context, layout, data, item, icon,
+                  active_data, active_propname, index):
+
+        if item.is_valid:
+            item_icon = item.icon
+        else:
+            item_icon = "CANCEL"
+
+        if self.layout_type in {'DEFAULT', 'COMPACT'}:
+
+            col = layout.column()
+            col.prop(item, "name", text="", emboss=False,
+                     translate=False, icon=item_icon)
+
+            if bpy.context.scene.nb.settingprops.advanced:
+                self.draw_advanced(layout, data, item, index)
+
+        elif self.layout_type in {'GRID'}:
+            layout.alignment = 'CENTER'
+            layout.prop(text="", icon=item_icon)
+
+    def draw_advanced(self, layout, data, item, index):
+
+        col = layout.column()
+        row = col.row(align=True)
+        props = [{'prop': 'location',
+                  'op': "nb.reset_presetcentre",
+                  'icon': 'CLIPUV_HLT',
+                  'text': 'Recentre'},
+                 {'prop': 'scale',
+                  'op': "nb.reset_presetdims",
+                  'icon': 'BBOX',
+                  'text': 'Rescale'}]
+        for propdict in props:
+            col1 = row.column(align=True)
+            col1.operator(propdict['op'],
+                          icon=propdict['icon'],
+                          text="").index_presets = index
+
+
 class ObjectListCM(UIList):
 
     def draw_item(self, context, layout, data, item, icon,
@@ -845,15 +969,19 @@ class ObjectListCM(UIList):
                      translate=False, icon=item_icon)
 
             if bpy.context.scene.nb.settingprops.advanced:
-                col = layout.column()
-                col.alignment = "RIGHT"
-                col.active = item.is_rendered
-                col.prop(item, "is_rendered", text="", emboss=False,
-                         translate=False, icon='SCENE')
+                self.draw_advanced(layout, data, item, index)
 
         elif self.layout_type in {'GRID'}:
             layout.alignment = 'CENTER'
             layout.prop(text="", icon=item_icon)
+
+    def draw_advanced(self, layout, data, item, index):
+
+        col = layout.column()
+        col.alignment = "RIGHT"
+        col.active = item.is_rendered
+        col.prop(item, "is_rendered", text="", emboss=False,
+                 translate=False, icon='SCENE')
 
 
 class MassIsRenderedCM(Menu):
@@ -863,6 +991,7 @@ class MassIsRenderedCM(Menu):
     bl_options = {"REGISTER"}
 
     def draw(self, context):
+
         layout = self.layout
         layout.operator("nb.mass_select",
                         icon='SCENE',
@@ -892,15 +1021,19 @@ class ObjectListPL(UIList):
                      translate=False, icon=item_icon)
 
             if bpy.context.scene.nb.settingprops.advanced:
-                col = layout.column()
-                col.alignment = "RIGHT"
-                col.active = item.is_rendered
-                col.prop(item, "is_rendered", text="", emboss=False,
-                         translate=False, icon='SCENE')
+                self.draw_advanced(layout, data, item, index)
 
         elif self.layout_type in {'GRID'}:
             layout.alignment = 'CENTER'
             layout.prop(text="", icon=item_icon)
+
+    def draw_advanced(self, layout, data, item, index):
+
+        col = layout.column()
+        col.alignment = "RIGHT"
+        col.active = item.is_rendered
+        col.prop(item, "is_rendered", text="", emboss=False,
+                 translate=False, icon='SCENE')
 
 
 class MassIsRenderedPL(Menu):
@@ -910,6 +1043,7 @@ class MassIsRenderedPL(Menu):
     bl_options = {"REGISTER"}
 
     def draw(self, context):
+
         layout = self.layout
         layout.operator("nb.mass_select",
                         icon='SCENE',
@@ -922,6 +1056,58 @@ class MassIsRenderedPL(Menu):
                         text="Invert").action = 'INVERT_PL'
 
 
+class ObjectListTB(UIList):
+
+    def draw_item(self, context, layout, data, item, icon,
+                  active_data, active_propname, index):
+
+        if item.is_valid:
+            item_icon = item.icon
+        else:
+            item_icon = "CANCEL"
+
+        if self.layout_type in {'DEFAULT', 'COMPACT'}:
+
+            col = layout.column()
+            col.prop(item, "name", text="", emboss=False,
+                     translate=False, icon=item_icon)
+
+            if bpy.context.scene.nb.settingprops.advanced:
+                self.draw_advanced(layout, data, item, index)
+
+        elif self.layout_type in {'GRID'}:
+            layout.alignment = 'CENTER'
+            layout.prop(text="", icon=item_icon)
+
+    def draw_advanced(self, layout, data, item, index):
+
+        col = layout.column()
+        col.alignment = "RIGHT"
+        col.active = item.is_rendered
+        col.prop(item, "is_rendered", text="", emboss=False,
+                 translate=False, icon='SCENE')
+
+
+class MassIsRenderedTB(Menu):
+    bl_idname = "nb.mass_is_rendered_TB"
+    bl_label = "Vertex Group Specials"
+    bl_description = "Menu for group selection of rendering option"
+    bl_options = {"REGISTER"}
+
+    def draw(self, context):
+
+        layout = self.layout
+        layout.operator("nb.mass_select",
+                        icon='SCENE',
+                        text="Select All").action = 'SELECT_TB'
+        layout.operator("nb.mass_select",
+                        icon='SCENE',
+                        text="Deselect All").action = 'DESELECT_TB'
+        layout.operator("nb.mass_select",
+                        icon='SCENE',
+                        text="Invert").action = 'INVERT_TB'
+
+
 def get_render_objects(nb):
     """Gather all objects listed for render."""
 
@@ -930,10 +1116,14 @@ def get_render_objects(nb):
     carvers += [carver for vvol in nb.voxelvolumes
                 for carver in vvol.carvers]
     obnames = [[nb_ob.name for nb_ob in nb_coll if nb_ob.is_rendered]
-               for nb_coll in [nb.tracts, nb.surfaces, nb.voxelvolumes,
+               for nb_coll in [nb.tracts,
+                               nb.surfaces,
+                               nb.voxelvolumes,
                                carvers]]
 
-    obs = [bpy.data.objects[item] for sublist in obnames for item in sublist]
+    obs = [bpy.data.objects[item]
+           for sublist in obnames
+           for item in sublist]
 
     return obs
 
@@ -942,18 +1132,17 @@ def get_brainbounds(obs):
     """Find the boundingbox, dimensions and centre of the objects."""
 
     if not obs:
-        print("""
-              no objects selected for render:
-              setting location and dimensions to default.
-              """)
+        info = "no objects selected for render: "
+        info += "setting location and dimensions to default."
         centre_location = [0, 0, 0]
         dims = [100, 100, 100]
     else:
+        info = "calculating bounds from objects"
         bb_min, bb_max = np.array(get_bbox_coordinates(obs))
         dims = np.subtract(bb_max, bb_min)
         centre_location = bb_min + dims / 2
 
-    return centre_location, dims
+    return centre_location, dims, info
 
 
 def get_bbox_coordinates(obs):
@@ -982,3 +1171,4 @@ def create_var(driver, name, type, id_type, id, data_path,
         tar.transform_type = transform_type
     if transform_space:
         tar.transform_space = transform_space
+

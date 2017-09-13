@@ -180,32 +180,43 @@ class NeuroBlenderBasePanel(bpy.types.Panel):
             self.drawunit_addopt(rowsub, nb, uilistlevel, data, obtype)
 
         if delopt & anyitems:
-            rowsub = col.row()
-            rowsub.operator(
-                "nb.oblist_ops",
-                icon='ZOOMOUT',
-                text=""
-                ).action = 'REMOVE_' + uilistlevel
+            rowsub = col.row(align=True)
+            if uilistlevel not in ('PS'):
+                rowsub.operator(
+                    "nb.oblist_ops",
+                    icon='ZOOMOUT',
+                    text=""
+                    ).action = 'REMOVE_' + uilistlevel
+            else:
+                rowsub.operator(
+                    "nb.del_preset",
+                    icon='ZOOMOUT',
+                    text=""
+                    )
 
         if go_advanced:
 
-            rowsub = col.row()
-            rowsub.menu(
-                "nb.mass_is_rendered_" + uilistlevel,
-                icon='DOWNARROW_HLT',
-                text=""
-                )
-
-            rowsub = col.row()
+            rowsub = col.row(align=True)
             rowsub.separator()
 
-            rowsub = col.row()
+            if uilistlevel not in ('PS'):
+                rowsub = col.row(align=True)
+                rowsub.menu(
+                    "nb.mass_is_rendered_" + uilistlevel,
+                    icon='DOWNARROW_HLT',
+                    text=""
+                    )
+
+                rowsub = col.row(align=True)
+                rowsub.separator()
+
+            rowsub = col.row(align=True)
             rowsub.operator(
                 "nb.oblist_ops",
                 icon='TRIA_UP',
                 text=""
                 ).action = 'UP_' + uilistlevel
-            rowsub = col.row()
+            rowsub = col.row(align=True)
             rowsub.operator(
                 "nb.oblist_ops",
                 icon='TRIA_DOWN',
@@ -946,6 +957,8 @@ class NeuroBlenderScenePanel(bpy.types.Panel):
     drawunit_UIList = NeuroBlenderBasePanel.drawunit_UIList
     drawunit_addopt = NeuroBlenderBasePanel.drawunit_addopt
     drawunit_tri = NeuroBlenderBasePanel.drawunit_tri
+    drawunit_material = NeuroBlenderBasePanel.drawunit_material
+    drawunit_basic_blender = NeuroBlenderBasePanel.drawunit_basic_blender
     drawunit_basic_cycles = NeuroBlenderBasePanel.drawunit_basic_cycles
     drawunit_basic_cycles_mix = NeuroBlenderBasePanel.drawunit_basic_cycles_mix
 
@@ -962,8 +975,8 @@ class NeuroBlenderScenePanel(bpy.types.Panel):
         except IndexError:
             pass
         else:
-            row = layout.row()
-            row.prop(preset, "name")
+
+            self.drawunit_bounds(layout, nb, preset)
 
             row = layout.row()
             row.separator()
@@ -971,97 +984,104 @@ class NeuroBlenderScenePanel(bpy.types.Panel):
             self.drawunit_tri(layout, "cameras", nb, preset)
             self.drawunit_tri(layout, "lights", nb, preset)
             self.drawunit_tri(layout, "tables", nb, preset)
-            self.drawunit_tri(layout, "bounds", nb, preset)
 
     def drawunit_presets(self, layout, nb):
 
-        row = layout.row()
-        row.operator("nb.add_preset", icon='ZOOMIN', text="")
-        row.prop(nb, "presets_enum", expand=False, text="")
-        row.operator("nb.del_preset", icon='ZOOMOUT', text="")
+        self.drawunit_UIList(layout, "PS", nb, "presets",
+                             addopt=True, delopt=True)
 
     def drawunit_tri_cameras(self, layout, nb, preset):
 
-        if bpy.context.scene.nb.settingprops.advanced:
+        cams = bpy.data.objects[preset.camerasempty]
+        row = layout.row(align=True)
+        col = row.column(align=True)
+        col.prop(cams, "rotation_euler", index=2,
+                 text="Rotate rig (Z)")
+        col = row.column(align=True)
+        col.prop(cams, "scale", index=2,
+                 text="Scale rig (XYZ)")
 
-            cams = bpy.data.objects[preset.camerasempty]
-            row = layout.row(align=True)
-            col = row.column(align=True)
-            col.prop(cams, "rotation_euler", index=2, text="Rotate rig (Z)")
-            col = row.column(align=True)
-            col.prop(cams, "scale", index=2, text="Scale rig (XYZ)")
-
-            self.drawunit_UIList(layout, "CM", preset, "cameras",
-                                 addopt=True, delopt=True)
+        self.drawunit_UIList(layout, "CM", preset, "cameras",
+                             addopt=True, delopt=True)
 
         try:
             cam = preset.cameras[preset.index_cameras]
-\        except IndexError:
+        except IndexError:
             pass
         else:
-            cam_ob = bpy.data.objects[cam.name]
+            self.drawunit_cameraprops(layout, nb, cam)
 
+    def drawunit_cameraprops(self, layout, nb, cam):
+
+        cam_ob = bpy.data.objects[cam.name]
+
+        row = layout.row()
+
+        split = row.split(percentage=0.55)
+        col = split.column(align=True)
+        col.label("Quick camera view:")
+        row1 = col.row(align=True)
+        row1.prop(cam, "cam_view_enum_LR", expand=True)
+        row1 = col.row(align=True)
+        row1.prop(cam, "cam_view_enum_AP", expand=True)
+        row1 = col.row(align=True)
+        row1.prop(cam, "cam_view_enum_IS", expand=True)
+
+        col.prop(cam, "cam_distance", text="distance")
+
+        split = split.split(percentage=0.1)
+        col = split.column()
+        col.separator()
+
+        col = split.column(align=True)
+        col.prop(cam_ob, "location", index=-1)
+
+        row = layout.row()
+        row.separator()
+
+        if nb.settingprops.advanced:
             row = layout.row()
 
             split = row.split(percentage=0.55)
             col = split.column(align=True)
-            col.label("Quick camera view:")
-            row1 = col.row(align=True)
-            row1.prop(cam, "cam_view_enum_LR", expand=True)
-            row1 = col.row(align=True)
-            row1.prop(cam, "cam_view_enum_AP", expand=True)
-            row1 = col.row(align=True)
-            row1.prop(cam, "cam_view_enum_IS", expand=True)
-
-            col.prop(cam, "cam_distance", text="distance")
+            col.label(text="Track object:")
+            col.prop(cam, "trackobject", text="")
+            if cam.trackobject == "None":
+                col.prop(cam_ob, "rotation_euler", index=2,
+                         text="tumble")
 
             split = split.split(percentage=0.1)
             col = split.column()
             col.separator()
 
+            camdata = cam_ob.data
             col = split.column(align=True)
-            col.prop(cam_ob, "location", index=-1)
-
-            row = layout.row()
-            row.separator()
-
-            if nb.settingprops.advanced:
-                row = layout.row()
-
-                split = row.split(percentage=0.55)
-                col = split.column(align=True)
-                col.label(text="Track object:")
-                col.prop(cam, "trackobject", text="")
-                if cam.trackobject == "None":
-                    col.prop(cam_ob, "rotation_euler", index=2, text="tumble")
-
-                split = split.split(percentage=0.1)
-                col = split.column()
-                col.separator()
-
-                camdata = cam_ob.data
-                col = split.column(align=True)
-                col.label(text="Clipping:")
-                col.prop(camdata, "clip_start", text="Start")
-                col.prop(camdata, "clip_end", text="End")
+            col.label(text="Clipping:")
+            col.prop(camdata, "clip_start", text="Start")
+            col.prop(camdata, "clip_end", text="End")
 
     def drawunit_tri_lights(self, layout, nb, preset):
 
         lights = bpy.data.objects[preset.lightsempty]
         row = layout.row(align=True)
         col = row.column(align=True)
-        col.prop(lights, "rotation_euler", index=2, text="Rotate rig (Z)")
+        col.prop(lights, "rotation_euler", index=2,
+                 text="Rotate rig (Z)")
         col = row.column(align=True)
-        col.prop(lights, "scale", index=2, text="Scale rig (XYZ)")
-
-        row = layout.row()
-        row.separator()
+        col.prop(lights, "scale", index=2,
+                 text="Scale rig (XYZ)")
 
         self.drawunit_UIList(layout, "PL", preset, "lights",
                              addopt=True, delopt=True)
-        self.drawunit_lightprops(layout, preset.lights[preset.index_lights])
 
-    def drawunit_lightprops(self, layout, light):
+        try:
+            light = preset.lights[preset.index_lights]
+        except IndexError:
+            pass
+        else:
+            self.drawunit_lightprops(layout, nb, light)
+
+    def drawunit_lightprops(self, layout, nb, light):
 
         light_ob = bpy.data.objects[light.name]
 
@@ -1085,36 +1105,45 @@ class NeuroBlenderScenePanel(bpy.types.Panel):
 
     def drawunit_tri_tables(self, layout, nb, preset):
 
+        tables = bpy.data.objects[preset.tablesempty]
+        row = layout.row(align=True)
+        col = row.column(align=True)
+        col.prop(tables, "rotation_euler", index=2,
+                 text="Rotate rig (Z)")
+        col = row.column(align=True)
+        col.prop(tables, "scale", index=2,
+                 text="Scale rig (XYZ)")
+
+        self.drawunit_UIList(layout, "TB", preset, "tables",
+                             addopt=True, delopt=True)
+
         try:
-            tab = preset.tables[0]
+            table = preset.tables[preset.index_tables]
         except IndexError:
-            tab = preset.tables.add()
-            preset.index_tables = (len(preset.tables)-1)
+            pass
         else:
-            row = layout.row()
-            row.prop(tab, "is_rendered", toggle=True)
-            row = layout.row()
-            self.drawunit_basic_cycles(layout, tab)
+            self.drawunit_tableprops(layout, nb, table)
+
+    def drawunit_tableprops(self, layout, nb, table):
+
+        row = layout.row()
+        self.drawunit_material(layout, table)
 
     def drawunit_tri_bounds(self, layout, nb, preset):
+
+        self.drawunit_bounds(layout, nb, preset)
+
+    def drawunit_bounds(self, layout, nb, preset):
 
         preset_ob = bpy.data.objects[preset.centre]
 
         row = layout.row()
-        props = [{'prop': 'location',
-                  'op': "nb.reset_presetcentre",
-                  'text': 'Recentre'},
-                 {'prop': 'scale',
-                  'op': "nb.reset_presetdims",
-                  'text': 'Rescale'}]
-        for propdict in props:
+        for prop in ['location', 'scale']:
             col = row.column()
-            row1 = col.row()
-            row1.operator(propdict['op'], icon='BACK', text=propdict['text'])
             if nb.settingprops.advanced:
                 row1 = col.row()
                 col1 = row1.column()
-                col1.prop(preset_ob, propdict['prop'])
+                col1.prop(preset_ob, prop)
 
 
 class NeuroBlenderAnimationPanel(bpy.types.Panel):
@@ -1408,8 +1437,21 @@ class NeuroBlenderSettingsPanel(bpy.types.Panel):
         row = layout.row()
         row.separator()
 
+        # TODO: drawunit_tri
         row = layout.row()
         row.prop(settingprops, "camera_rig")
+
+        row = layout.row()
+        row.separator()
+
+        row = layout.row()
+        row.prop(settingprops, "lighting_rig")
+
+        row = layout.row()
+        row.separator()
+
+        row = layout.row()
+        row.prop(settingprops, "table_rig")
 
         row = layout.row()
         row.separator()

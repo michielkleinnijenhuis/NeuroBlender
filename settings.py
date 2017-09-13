@@ -110,6 +110,8 @@ class AddPresetNeuroBlenderSettings(AddPresetBase, Operator):
                      "nb.settingprops.mode",
                      "nb.settingprops.engine",
                      "nb.settingprops.camera_rig",
+                     "nb.settingprops.lighting_rig",
+                     "nb.settingprops.table_rig",
                      "nb.settingprops.texformat",
                      "nb.settingprops.texmethod",
                      "nb.settingprops.uv_resolution",
