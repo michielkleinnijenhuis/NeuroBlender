@@ -598,8 +598,8 @@ class ObjectListOperations(Operator):
     def remove_animations_camerapath(self, anims, index):
         """Remove camera path animation."""
 
-        cam = bpy.data.objects['Cam']
         anim = anims[index]
+        cam = bpy.data.objects[anim.camera]
         acp = bpy.types.NB_OT_animate_camerapath
         acp.clear_CP_evaltime(anim)
         acp.clear_CP_followpath(anim)
