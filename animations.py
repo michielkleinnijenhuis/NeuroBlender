@@ -1261,6 +1261,7 @@ def restrict_incluence_timeline(scn, cns, timeline, group=""):
     for fr in range(scn.frame_start+1, scn.frame_end):
         scn.frame_set(fr)
         cns.influence = timeline[fr]
+        cns.keyframe_delete("influence", group=group)
         if ((timeline[fr] != timeline[fr-1]) or
             timeline[fr] != timeline[fr+1]):
             cns.keyframe_insert("influence", group=group)

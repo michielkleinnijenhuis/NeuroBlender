@@ -427,12 +427,12 @@ def tracktype_enum_update(self, context):
     nb = scn.nb
 
     nb_preset = nb.presets[nb.index_presets]
-    nb_cam = nb_preset.cameras[nb_preset.index_cameras]
-    cam = bpy.data.objects[nb_cam.name]
+    cam = bpy.data.objects[self.camera]
 
     cam_anims = [anim for anim in nb.animations
                  if ((anim.animationtype == "camerapath") &
-                     (anim.is_rendered))]
+                     (anim.is_rendered) &
+                     (anim.camera == self.camera))]
 
     anim_blocks = [[anim.anim_block[0], anim.anim_block[1]]
                    for anim in cam_anims]
@@ -442,7 +442,7 @@ def tracktype_enum_update(self, context):
     nb_an.restrict_incluence_timeline(scn, cnsTT, timeline, group="TrackTo")
 
     # TODO: if not yet executed/exists
-    cns = cam.constraints["FollowPath" + self.name]
+    cns = cam.constraints[self.cnsname]
     cns.use_curve_follow = self.tracktype == "TrackPath"
     if self.tracktype == 'TrackPath':
         cns.forward_axis = 'TRACK_NEGATIVE_Z'
