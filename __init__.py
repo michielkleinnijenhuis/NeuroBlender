@@ -86,143 +86,129 @@ bl_info = {
     "category": "Import-Export"}
 
 
-class ObjectListL1(UIList):
+class NBList(UIList):
+
+    ui = ''
 
     def draw_item(self, context, layout, data, item, icon,
                   active_data, active_propname, index):
 
-        if item.is_valid:
-            item_icon = item.icon
-        else:
-            item_icon = "CANCEL"
+        item_icon = "CANCEL"
+        if hasattr(item, 'is_valid'):
+            if item.is_valid:
+                item_icon = item.icon
 
         if self.layout_type in {'DEFAULT', 'COMPACT'}:
 
-            col = layout.column()
-            col.prop(item, "name", text="", emboss=False,
-                     translate=False, icon=item_icon)
+            if self.ui == 'CP':
+                fun = self.draw_default_CP
+            elif self.ui == 'TS':
+                fun = self.draw_default_TS
+            else:
+                fun = self.draw_default
+
+            fun(layout, item, item_icon)
 
             if context.scene.nb.settingprops.advanced:
-                col = layout.column()
-                col.alignment = "RIGHT"
-                col.active = item.is_rendered
-                col.prop(item, "is_rendered", text="", emboss=False,
-                         translate=False, icon='SCENE')
+                if self.ui == 'L3':
+                    fun = self.draw_advanced_L3
+                elif self.ui == 'PS':
+                    fun = self.draw_advanced_PS
+                elif self.ui == 'CR':
+                    fun = self.draw_advanced_CR
+                else:
+                    fun = self.draw_advanced
+
+                fun(layout, data, item, index)
 
         elif self.layout_type in {'GRID'}:
+
             layout.alignment = 'CENTER'
             layout.prop(text="", icon=item_icon)
 
+    def draw_default(self, layout, item, item_icon):
 
-class ObjectListL2(UIList):
+        col = layout.column()
+        col.prop(item, "name", text="", emboss=False,
+                 translate=False, icon=item_icon)
 
-    def draw_item(self, context, layout, data, item, icon,
-                  active_data, active_propname, index):
+    def draw_default_CP(self, layout, item, item_icon):
 
-        if item.is_valid:
-            item_icon = item.icon
-        else:
-            item_icon = "CANCEL"
+        row = layout.row()
+        row.prop(item, "co", text="cp", emboss=True, icon=item_icon)
 
-        if self.layout_type in {'DEFAULT', 'COMPACT'}:
+    def draw_default_TS(self, layout, item, item_icon):
 
+        layout.label(text="Time index:")
+
+    def draw_advanced(self, layout, data, item, index):
+
+        if hasattr(item, 'is_rendered'):
             col = layout.column()
-            col.prop(item, "name", text="", emboss=False,
-                     translate=False, icon=item_icon)
+            col.alignment = "RIGHT"
+            col.active = item.is_rendered
+            col.prop(item, "is_rendered", text="", emboss=False,
+                     translate=False, icon='SCENE')
 
-            if context.scene.nb.settingprops.advanced:
-                col = layout.column()
-                col.alignment = "RIGHT"
-                col.active = item.is_rendered
-                col.prop(item, "is_rendered", text="", emboss=False,
-                         translate=False, icon='SCENE')
+    def draw_advanced_L3(self, layout, data, item, index):
 
-        elif self.layout_type in {'GRID'}:
-            layout.alignment = 'CENTER'
-            layout.prop(text="", icon=item_icon)
+        col = layout.column()
+        col.alignment = "RIGHT"
+        col.enabled = False
+        col.prop(item, "value", text="", emboss=False)
 
+        col = layout.column()
+        col.alignment = "RIGHT"
+        col.enabled = False
+        col.prop(item, "colour", text="")
 
-class ObjectListL3(UIList):
+        col = layout.column()
+        col.alignment = "RIGHT"
+        col.active = item.is_rendered
+        col.prop(item, "is_rendered", text="", emboss=False,
+                 translate=False, icon='SCENE')
 
-    def draw_item(self, context, layout, data, item, icon,
-                  active_data, active_propname, index):
+    def draw_advanced_PS(self, layout, data, item, index):
 
-        if item.is_valid:
-            item_icon = item.icon
-        else:
-            item_icon = "CANCEL"
+        col = layout.column()
+        row = col.row(align=True)
+        props = [{'prop': 'location',
+                  'op': "nb.reset_presetcentre",
+                  'icon': 'CLIPUV_HLT',
+                  'text': 'Recentre'},
+                 {'prop': 'scale',
+                  'op': "nb.reset_presetdims",
+                  'icon': 'BBOX',
+                  'text': 'Rescale'}]
+        for propdict in props:
+            col1 = row.column(align=True)
+            col1.operator(propdict['op'],
+                          icon=propdict['icon'],
+                          text="").index_presets = index
 
-        if self.layout_type in {'DEFAULT', 'COMPACT'}:
+    def draw_advanced_CR(self, layout, data, item, index):
 
-            col = layout.column()
-            col.prop(item, "name", text="", emboss=False,
-                     translate=False, icon=item_icon)
-
-            if context.scene.nb.settingprops.advanced:
-                col = layout.column()
-                col.alignment = "RIGHT"
-                col.enabled = False
-                col.prop(item, "value", text="", emboss=False)
-
-                col = layout.column()
-                col.alignment = "RIGHT"
-                col.enabled = False
-                col.prop(item, "colour", text="")
-
-                col = layout.column()
-                col.alignment = "RIGHT"
-                col.active = item.is_rendered
-                col.prop(item, "is_rendered", text="", emboss=False,
-                         translate=False, icon='SCENE')
-
-        elif self.layout_type in {'GRID'}:
-            layout.alignment = 'CENTER'
-            layout.prop(text="", icon=item_icon)
+        col = layout.column()
+        col.prop(item, "nn_position", text="")
 
 
-class ObjectListOperations(Operator):
-    bl_idname = "nb.oblist_ops"
-    bl_label = "Objectlist operations"
+for ui in ['L1', 'L2', 'L3', 'PS', 'CM', 'PL', 'TB',
+           'AN', 'CP', 'CV', 'CO', 'CR', 'TS']:
+
+    uilistclass = type("NBList{}".format(ui), (NBList,), {"ui": ui})
+
+    bpy.utils.register_class(uilistclass)
+
+
+class NBListOperations(Operator):
+    bl_idname = "nb.nblist_ops"
+    bl_label = "NBlist operations"
     bl_options = {"REGISTER", "UNDO"}
 
-    action = EnumProperty(
-        items=(
-            ('UP_L1', "UpL1", ""),
-            ('DOWN_L1', "DownL1", ""),
-            ('REMOVE_L1', "RemoveL1", ""),
-            ('UP_L2', "UpL2", ""),
-            ('DOWN_L2', "DownL2", ""),
-            ('REMOVE_L2', "RemoveL2", ""),
-            ('UP_L3', "UpL3", ""),
-            ('DOWN_L3', "DownL3", ""),
-            ('REMOVE_L3', "RemoveL3", ""),
-            ('UP_PS', "UpPS", ""),
-            ('DOWN_PS', "DownPS", ""),
-            ('REMOVE_PS', "RemovePS", ""),
-            ('UP_CM', "UpCM", ""),
-            ('DOWN_CM', "DownCM", ""),
-            ('REMOVE_CM', "RemoveCM", ""),
-            ('UP_PL', "UpPL", ""),
-            ('DOWN_PL', "DownPL", ""),
-            ('REMOVE_PL', "RemovePL", ""),
-            ('UP_TB', "UpTB", ""),
-            ('DOWN_TB', "DownTB", ""),
-            ('REMOVE_TB', "RemoveTB", ""),
-            ('UP_CP', "UpCP", ""),
-            ('DOWN_CP', "DownCP", ""),
-            ('REMOVE_CP', "RemoveCP", ""),
-            ('UP_AN', "UpAN", ""),
-            ('DOWN_AN', "DownAN", ""),
-            ('REMOVE_AN', "RemoveAN", ""),
-            ('UP_CV', "UpCV", ""),
-            ('DOWN_CV', "DownCV", ""),
-            ('REMOVE_CV', "RemoveCV", ""),
-            ('UP_CO', "UpCO", ""),
-            ('DOWN_CO', "DownCO", ""),
-            ('REMOVE_CO', "RemoveCO", "")
-            )
-                          )
-
+    action = StringProperty(
+        name="action",
+        description="Specify operator action",
+        default="")
     data_path = StringProperty(
         name="data path",
         description="Specify object data path",
@@ -690,74 +676,31 @@ class MassIsRendered(Menu):
     bl_description = "Menu for group selection of rendering option"
     bl_options = {"REGISTER"}
 
-    def draw(self, context):
-        layout = self.layout
-        layout.operator("nb.mass_select",
-                        icon='SCENE',
-                        text="Select All").action = 'SELECT'
-        layout.operator("nb.mass_select",
-                        icon='SCENE',
-                        text="Deselect All").action = 'DESELECT'
-        layout.operator("nb.mass_select",
-                        icon='SCENE',
-                        text="Invert").action = 'INVERT'
-
-
-class MassIsRenderedL1(Menu):
-    bl_idname = "nb.mass_is_rendered_L1"
-    bl_label = "Vertex Group Specials"
-    bl_description = "Menu for group selection of rendering option"
-    bl_options = {"REGISTER"}
+    ui = ''
 
     def draw(self, context):
+
         layout = self.layout
-        layout.operator("nb.mass_select",
-                        icon='SCENE',
-                        text="Select All").action = 'SELECT_L1'
-        layout.operator("nb.mass_select",
-                        icon='SCENE',
-                        text="Deselect All").action = 'DESELECT_L1'
-        layout.operator("nb.mass_select",
-                        icon='SCENE',
-                        text="Invert").action = 'INVERT_L1'
+
+        items = [('SELECT_{}'.format(self.ui), "Select All"),
+                 ('DESELECT_{}'.format(self.ui), "Deselect All"),
+                 ('INVERT_{}'.format(self.ui), "Invert")]
+
+        for act, txt in items:
+            layout.operator("nb.mass_select",
+                            icon='SCENE',
+                            text=txt).action = act
 
 
-class MassIsRenderedL2(Menu):
-    bl_idname = "nb.mass_is_rendered_L2"
-    bl_label = "Vertex Group Specials"
-    bl_description = "Menu for group selection of rendering option"
-    bl_options = {"REGISTER"}
+for ui in ['L1', 'L2', 'L3', 'CM', 'PL', 'TB', 'AN', 'CP', 'CO']:
 
-    def draw(self, context):
-        layout = self.layout
-        layout.operator("nb.mass_select",
-                        icon='SCENE',
-                        text="Select All").action = 'SELECT_L2'
-        layout.operator("nb.mass_select",
-                        icon='SCENE',
-                        text="Deselect All").action = 'DESELECT_L2'
-        layout.operator("nb.mass_select",
-                        icon='SCENE',
-                        text="Invert").action = 'INVERT_L2'
+    idname = "nb.mass_is_rendered_{}".format(ui)
 
+    menuclass = type("MassIsRendered{}".format(ui),
+                     (MassIsRendered,),
+                     {"bl_idname": idname, "ui": ui})
 
-class MassIsRenderedL3(Menu):
-    bl_idname = "nb.mass_is_rendered_L3"
-    bl_label = "Vertex Group Specials"
-    bl_description = "Menu for group selection of rendering option"
-    bl_options = {"REGISTER"}
-
-    def draw(self, context):
-        layout = self.layout
-        layout.operator("nb.mass_select",
-                        icon='SCENE',
-                        text="Select All").action = 'SELECT_L3'
-        layout.operator("nb.mass_select",
-                        icon='SCENE',
-                        text="Deselect All").action = 'DESELECT_L3'
-        layout.operator("nb.mass_select",
-                        icon='SCENE',
-                        text="Invert").action = 'INVERT_L3'
+    bpy.utils.register_class(menuclass)
 
 
 class MassSelect(Operator):
@@ -766,44 +709,10 @@ class MassSelect(Operator):
     bl_description = "Select/Deselect/Invert rendered objects/overlays"
     bl_options = {"REGISTER"}
 
-    action = EnumProperty(
-        items=(
-#             ('SELECT', "Select", ""),
-#             ('DESELECT', "Deselect", ""),
-#             ('INVERT', "Invert", ""),
-            ('SELECT_L1', "Select_L1", ""),
-            ('DESELECT_L1', "Deselect_L1", ""),
-            ('INVERT_L1', "Invert_L1", ""),
-            ('SELECT_L2', "Select_L2", ""),
-            ('DESELECT_L2', "Deselect_L2", ""),
-            ('INVERT_L2', "Invert_L2", ""),
-            ('SELECT_L3', "Select_L3", ""),
-            ('DESELECT_L3', "Deselect_L3", ""),
-            ('INVERT_L3', "Invert_L3", ""),
-            ('SELECT_PS', "Select_PS", ""),
-            ('DESELECT_PS', "Deselect_PS", ""),
-            ('INVERT_PS', "Invert_PS", ""),
-            ('SELECT_CM', "Select_CM", ""),
-            ('DESELECT_CM', "Deselect_CM", ""),
-            ('INVERT_CM', "Invert_CM", ""),
-            ('SELECT_PL', "Select_PL", ""),
-            ('DESELECT_PL', "Deselect_PL", ""),
-            ('INVERT_PL', "Invert_PL", ""),
-            ('SELECT_TB', "Select_TB", ""),
-            ('DESELECT_TB', "Deselect_TB", ""),
-            ('INVERT_TB', "Invert_TB", ""),
-            ('SELECT_AN', "Select_AN", ""),
-            ('DESELECT_AN', "Deselect_AN", ""),
-            ('INVERT_AN', "Invert_AN", ""),
-            ('SELECT_CP', "Select_CP", ""),
-            ('DESELECT_CP', "Deselect_CP", ""),
-            ('INVERT_CP', "Invert_CP", ""),
-            ('SELECT_CO', "Select_CO", ""),
-            ('DESELECT_CO', "Deselect_CO", ""),
-            ('INVERT_CO', "Invert_CO", ""),
-                )
-                          )
-
+    action = StringProperty(
+        name="action",
+        description="Specify operator action",
+        default="")
     data_path = StringProperty(
         name="data path",
         description="Specify object data path",
@@ -821,8 +730,8 @@ class MassSelect(Operator):
         description="Specify object name",
         default="")
 
-    invoke = ObjectListOperations.invoke
-    get_collection = ObjectListOperations.get_collection
+    invoke = NBListOperations.invoke
+    get_collection = NBListOperations.get_collection
 
     def execute(self, context):
 

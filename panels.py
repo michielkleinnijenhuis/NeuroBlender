@@ -163,7 +163,7 @@ class NeuroBlenderBasePanel(bpy.types.Panel):
 
         row = layout.row()
         row.template_list(
-            "ObjectList" + uilistlevel, "",
+            "NBList" + uilistlevel, "",
             data, obtype,
             data, "index_" + obtype,
             rows=2
@@ -183,7 +183,7 @@ class NeuroBlenderBasePanel(bpy.types.Panel):
             rowsub = col.row(align=True)
             if uilistlevel not in ('PS'):
                 rowsub.operator(
-                    "nb.oblist_ops",
+                    "nb.nblist_ops",
                     icon='ZOOMOUT',
                     text=""
                     ).action = 'REMOVE_' + uilistlevel
@@ -199,7 +199,7 @@ class NeuroBlenderBasePanel(bpy.types.Panel):
             rowsub = col.row(align=True)
             rowsub.separator()
 
-            if uilistlevel not in ('PS'):
+            if uilistlevel not in ('PS', 'CV'):
                 rowsub = col.row(align=True)
                 rowsub.menu(
                     "nb.mass_is_rendered_" + uilistlevel,
@@ -212,13 +212,13 @@ class NeuroBlenderBasePanel(bpy.types.Panel):
 
             rowsub = col.row(align=True)
             rowsub.operator(
-                "nb.oblist_ops",
+                "nb.nblist_ops",
                 icon='TRIA_UP',
                 text=""
                 ).action = 'UP_' + uilistlevel
             rowsub = col.row(align=True)
             rowsub.operator(
-                "nb.oblist_ops",
+                "nb.nblist_ops",
                 icon='TRIA_DOWN',
                 text=""
                 ).action = 'DOWN_' + uilistlevel
@@ -326,7 +326,7 @@ class NeuroBlenderBasePanel(bpy.types.Panel):
         row = layout.row()
         row.operator("nb.import_carvers", icon='ZOOMIN', text="")
         row.prop(nb_ob, "carvers_enum", text="")
-        row.operator("nb.oblist_ops",
+        row.operator("nb.nblist_ops",
                      icon='ZOOMOUT',
                      text="").action = 'REMOVE_CV'
         row.enabled = not isinstance(nb_ob, bpy.types.TractProperties)
@@ -547,7 +547,7 @@ class NeuroBlenderBasePanel(bpy.types.Panel):
             self.calc_nn_elpos(nb_coll, ramp)
             row = layout.row()
             row.enabled = False
-            row.template_list("ObjectListCR", "",
+            row.template_list("NBListCR", "",
                               nb_coll, "nn_elements",
                               nb_coll, "index_nn_elements",
                               rows=2)
@@ -743,7 +743,7 @@ class NeuroBlenderOverlayPanel(bpy.types.Panel):
             # (time)series
             if len(nb_ov.scalars) > 1:
                 row = layout.row()
-                row.template_list("ObjectListTS", "",
+                row.template_list("NBListTS", "",
                                   nb_ov, "scalars",
                                   nb_ov, "index_scalars",
                                   rows=2, type="COMPACT")
@@ -1296,7 +1296,7 @@ class NeuroBlenderAnimationPanel(bpy.types.Panel):
                 ps = "points"
 
             row = layout.row()
-            row.template_list("ObjectListCP", "",
+            row.template_list("NBListCP", "",
                               data, ps,
                               data, "material_index", rows=2,
                               maxrows=4, type="DEFAULT")

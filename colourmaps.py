@@ -343,20 +343,3 @@ def replace_colourmap(cr, cmdict):
         el = cre.new(elem["position"])
         el.color = elem["color"]
 
-
-class ObjectListCR(UIList):
-
-    def draw_item(self, context, layout, data, item, icon,
-                  active_data, active_propname, index):
-
-        item_icon = "FULLSCREEN_ENTER"
-
-        if self.layout_type in {'DEFAULT', 'COMPACT'}:
-            col = layout.column()
-            col.prop(item, "name", text="", emboss=False,
-                     translate=False, icon=item_icon)
-            col = layout.column()
-            col.prop(item, "nn_position", text="")
-        elif self.layout_type in {'GRID'}:
-            layout.alignment = 'CENTER'
-            layout.prop(text="", icon=item_icon)

@@ -430,20 +430,3 @@ class UnwrapSurface(Operator, ImportHelper):
         else:
             context.window_manager.fileselect_add(self)
             return {"RUNNING_MODAL"}
-
-
-class ObjectListTS(UIList):
-
-    def draw_item(self, context, layout, data, item, icon,
-                  active_data, active_propname, index):
-
-        if item.is_valid:
-            item_icon = item.icon
-        else:
-            item_icon = "CANCEL"
-
-        if self.layout_type in {'DEFAULT', 'COMPACT'}:
-            layout.label(text="Time index:")
-        elif self.layout_type in {'GRID'}:
-            layout.alignment = 'CENTER'
-            layout.prop(text="", icon=item_icon)

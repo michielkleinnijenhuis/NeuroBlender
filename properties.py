@@ -1933,6 +1933,14 @@ class ColorRampProperties(PropertyGroup):
     name_mem = StringProperty(
         name="NameMem",
         description="Memory for updating name")
+    icon = StringProperty(
+        name="Icon",
+        description="Icon for colorramp elements",
+        default="FULLSCREEN_ENTER")
+    is_valid = BoolProperty(
+        name="Is Valid",
+        description="Indicates if the object passed validity checks",
+        default=True)
     nn_position = FloatProperty(
         name="nn_position",
         description="The non-normalized position of the color stop",
