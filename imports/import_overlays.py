@@ -46,7 +46,7 @@ from .. import (materials as nb_ma,
                 utils as nb_ut)
 
 
-class ImportOverlays(Operator, ImportHelper):
+class NB_OT_import_overlays(Operator, ImportHelper):
     bl_idname = "nb.import_overlays"
     bl_label = "Import overlays"
     bl_description = "Import overlays onto a NeuroBlender tract/surface"
@@ -403,11 +403,13 @@ class ImportOverlays(Operator, ImportHelper):
                 context.scene.objects.active = ob
                 bpy.ops.object.mode_set(mode="TEXTURE_PAINT")
             else:
-                bpy.ops.nb.vw2uv(filepath=group.texdir,
-                                 check_existing=True,
-                                 data_path=item.path_from_id(),
-                                 uv_bakeall=True,
-                                 matname=mat.name)
+                bpy.ops.nb.vertexweight_to_vertexcolors(
+                    filepath=group.texdir,
+                    check_existing=True,
+                    data_path=item.path_from_id(),
+                    uv_bakeall=True,
+                    matname=mat.name
+                    )
 
         return "done"
 

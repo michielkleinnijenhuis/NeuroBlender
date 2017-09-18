@@ -46,7 +46,7 @@ from .. import (materials as nb_ma,
                 utils as nb_ut)
 
 
-class ImportTracts(Operator, ImportHelper):
+class NB_OT_import_tracts(Operator, ImportHelper):
     bl_idname = "nb.import_tracts"
     bl_label = "Import tracts"
     bl_description = "Import tracts as curves"

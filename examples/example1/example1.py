@@ -83,7 +83,7 @@ def create_preset(context, presetname="Preset",
     nb = scn.nb
 
     # add a standard scene setup
-    bpy.ops.nb.add_preset(name=presetname)
+    bpy.ops.nb.add_preset(name=presetname)  # FIXME
     preset = nb.presets[presetname]
 
     # move the camera position and tracking object to get max view

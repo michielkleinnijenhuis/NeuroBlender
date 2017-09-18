@@ -21,7 +21,8 @@
 
 """The NeuroBlender main module.
 
-NeuroBlender is a Blender add-on to create artwork from neuroscientific data.
+NeuroBlender is a Blender add-on 
+to create artwork from neuroscientific data.
 """
 
 
@@ -77,16 +78,15 @@ bl_info = {
     "name": "NeuroBlender",
     "author": "Michiel Kleinnijenhuis",
     "version": (1, 0, 1),
-    "blender": (2, 78, 4),
+    "blender": (2, 79, 1),
     "location": "Properties -> Scene -> NeuroBlender",
     "description": "Create artwork from neuroscientific data.",
     "warning": "",
-    "wiki_url": "",
-    "tracker_url": "",
-    "category": "Import-Export"}
+    "wiki_url": "http://neuroblender.readthedocs.io/en/latest/",
+    "category": "Science"}
 
 
-class NBList(UIList):
+class NB_UL_collection(UIList):
 
     ui = ''
 
@@ -195,12 +195,14 @@ class NBList(UIList):
 for ui in ['L1', 'L2', 'L3', 'PS', 'CM', 'PL', 'TB',
            'AN', 'CP', 'CV', 'CO', 'CR', 'TS']:
 
-    uilistclass = type("NBList{}".format(ui), (NBList,), {"ui": ui})
+    uilistclass = type("NB_UL_collection_{}".format(ui),
+                       (NB_UL_collection,),
+                       {"ui": ui})
 
     bpy.utils.register_class(uilistclass)
 
 
-class NBListOperations(Operator):
+class NB_OT_collection(Operator):
     bl_idname = "nb.nblist_ops"
     bl_label = "NBlist operations"
     bl_options = {"REGISTER", "UNDO"}
@@ -670,9 +672,9 @@ class NBListOperations(Operator):
         bpy.ops.object.mode_set(mode='OBJECT')
 
 
-class MassIsRendered(Menu):
-    bl_idname = "nb.mass_is_rendered"
-    bl_label = "Vertex Group Specials"
+class NB_MT_mass_select(Menu):
+    bl_idname = "NB_MT_mass_select"
+    bl_label = "NeuroBlender collection switches"
     bl_description = "Menu for group selection of rendering option"
     bl_options = {"REGISTER"}
 
@@ -694,16 +696,16 @@ class MassIsRendered(Menu):
 
 for ui in ['L1', 'L2', 'L3', 'CM', 'PL', 'TB', 'AN', 'CP', 'CO']:
 
-    idname = "nb.mass_is_rendered_{}".format(ui)
+    idname = "NB_MT_mass_select_{}".format(ui)
 
-    menuclass = type("MassIsRendered{}".format(ui),
-                     (MassIsRendered,),
+    menuclass = type("NB_MT_mass_select_{}".format(ui),
+                     (NB_MT_mass_select,),
                      {"bl_idname": idname, "ui": ui})
 
     bpy.utils.register_class(menuclass)
 
 
-class MassSelect(Operator):
+class NB_OT_mass_select(Operator):
     bl_idname = "nb.mass_select"
     bl_label = "Mass select"
     bl_description = "Select/Deselect/Invert rendered objects/overlays"
@@ -730,8 +732,8 @@ class MassSelect(Operator):
         description="Specify object name",
         default="")
 
-    invoke = NBListOperations.invoke
-    get_collection = NBListOperations.get_collection
+    invoke = NB_OT_collection.invoke
+    get_collection = NB_OT_collection.get_collection
 
     def execute(self, context):
 
@@ -748,7 +750,7 @@ class MassSelect(Operator):
         return {"FINISHED"}
 
 
-class SwitchToMainScene(Operator):
+class NB_OT_switch_to_main(Operator):
     bl_idname = "nb.switch_to_main"
     bl_label = "Switch to main"
     bl_description = "Switch to main NeuroBlender scene to import"
@@ -761,8 +763,8 @@ class SwitchToMainScene(Operator):
         return {"FINISHED"}
 
 
-class InitializeNeuroBlender(Operator):
-    bl_idname = "nb.initialize"
+class NB_OT_initialize_neuroblender(Operator):
+    bl_idname = "nb.initialize_neuroblender"
     bl_label = "Initialize NeuroBlender"
     bl_description = "Initialize NeuroBlender"
     bl_options = {"REGISTER"}
@@ -778,7 +780,7 @@ class InitializeNeuroBlender(Operator):
         return {"FINISHED"}
 
 
-class SaveBlend(Operator, ExportHelper):
+class NB_OT_save_blend(Operator, ExportHelper):
     bl_idname = "nb.save_blend"
     bl_label = "Save blend file"
     bl_description = "Prompt to save a blend file"

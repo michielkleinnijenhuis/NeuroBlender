@@ -29,9 +29,9 @@ This module implements drawing the NeuroBlender panels.
 import bpy
 
 
-class NeuroBlenderBasePanel(bpy.types.Panel):
+class NB_PT_base(bpy.types.Panel):
     """Host the NeuroBlender base geometry"""
-    bl_idname = "OBJECT_PT_nb_basegeom"
+    bl_idname = "NB_PT_base"
     bl_label = "NeuroBlender - Base"
     bl_space_type = "PROPERTIES"
     bl_region_type = "WINDOW"
@@ -44,7 +44,7 @@ class NeuroBlenderBasePanel(bpy.types.Panel):
 
         if (not nb.settingprops.is_initialized):
             row = self.layout.row()
-            row.operator("nb.initialize",
+            row.operator("nb.initialize_neuroblender",
                          text="Initialize NeuroBlender",
                          icon="FORWARD")
         elif nb.is_enabled:
@@ -163,7 +163,7 @@ class NeuroBlenderBasePanel(bpy.types.Panel):
 
         row = layout.row()
         row.template_list(
-            "NBList" + uilistlevel, "",
+            "NB_UL_collection_" + uilistlevel, "",
             data, obtype,
             data, "index_" + obtype,
             rows=2
@@ -189,7 +189,7 @@ class NeuroBlenderBasePanel(bpy.types.Panel):
                     ).action = 'REMOVE_' + uilistlevel
             else:
                 rowsub.operator(
-                    "nb.del_preset",
+                    "nb.preset_remove",
                     icon='ZOOMOUT',
                     text=""
                     )
@@ -202,7 +202,7 @@ class NeuroBlenderBasePanel(bpy.types.Panel):
             if uilistlevel not in ('PS', 'CV'):
                 rowsub = col.row(align=True)
                 rowsub.menu(
-                    "nb.mass_is_rendered_" + uilistlevel,
+                    "NB_MT_mass_select_" + uilistlevel,
                     icon='DOWNARROW_HLT',
                     text=""
                     )
@@ -547,7 +547,7 @@ class NeuroBlenderBasePanel(bpy.types.Panel):
             self.calc_nn_elpos(nb_coll, ramp)
             row = layout.row()
             row.enabled = False
-            row.template_list("NBListCR", "",
+            row.template_list("NB_UL_collection_CR", "",
                               nb_coll, "nn_elements",
                               nb_coll, "index_nn_elements",
                               rows=2)
@@ -672,29 +672,29 @@ class NeuroBlenderBasePanel(bpy.types.Panel):
         row.enabled = False
 
 
-class NeuroBlenderOverlayPanel(bpy.types.Panel):
+class NB_PT_overlays(bpy.types.Panel):
     """Host the NeuroBlender overlay functions"""
-    bl_idname = "OBJECT_PT_nb_overlays"
+    bl_idname = "NB_PT_overlays"
     bl_label = "NeuroBlender - Overlays"
     bl_space_type = "PROPERTIES"
     bl_region_type = "WINDOW"
     bl_context = "scene"
     bl_options = {'DEFAULT_CLOSED'}
 
-    draw = NeuroBlenderBasePanel.draw
-    drawunit_switches = NeuroBlenderBasePanel.drawunit_switches
-    drawunit_switch_to_main = NeuroBlenderBasePanel.drawunit_switch_to_main
-    drawunit_UIList = NeuroBlenderBasePanel.drawunit_UIList
-    drawunit_addopt = NeuroBlenderBasePanel.drawunit_addopt
-    drawunit_tri = NeuroBlenderBasePanel.drawunit_tri
-    drawunit_basic_blender = NeuroBlenderBasePanel.drawunit_basic_blender
-    drawunit_basic_cycles = NeuroBlenderBasePanel.drawunit_basic_cycles
-    drawunit_basic_cycles_mix = NeuroBlenderBasePanel.drawunit_basic_cycles_mix
-    drawunit_rendertype = NeuroBlenderBasePanel.drawunit_rendertype
-    drawunit_texture = NeuroBlenderBasePanel.drawunit_texture
-    calc_nn_elpos = NeuroBlenderBasePanel.calc_nn_elpos
-    drawunit_colourmap = NeuroBlenderBasePanel.drawunit_colourmap
-    drawunit_colourramp = NeuroBlenderBasePanel.drawunit_colourramp
+    draw = NB_PT_base.draw
+    drawunit_switches = NB_PT_base.drawunit_switches
+    drawunit_switch_to_main = NB_PT_base.drawunit_switch_to_main
+    drawunit_UIList = NB_PT_base.drawunit_UIList
+    drawunit_addopt = NB_PT_base.drawunit_addopt
+    drawunit_tri = NB_PT_base.drawunit_tri
+    drawunit_basic_blender = NB_PT_base.drawunit_basic_blender
+    drawunit_basic_cycles = NB_PT_base.drawunit_basic_cycles
+    drawunit_basic_cycles_mix = NB_PT_base.drawunit_basic_cycles_mix
+    drawunit_rendertype = NB_PT_base.drawunit_rendertype
+    drawunit_texture = NB_PT_base.drawunit_texture
+    calc_nn_elpos = NB_PT_base.calc_nn_elpos
+    drawunit_colourmap = NB_PT_base.drawunit_colourmap
+    drawunit_colourramp = NB_PT_base.drawunit_colourramp
 
     def draw_nb_panel(self, context, layout):
 
@@ -743,7 +743,7 @@ class NeuroBlenderOverlayPanel(bpy.types.Panel):
             # (time)series
             if len(nb_ov.scalars) > 1:
                 row = layout.row()
-                row.template_list("NBListTS", "",
+                row.template_list("NB_UL_collection_TS", "",
                                   nb_ov, "scalars",
                                   nb_ov, "index_scalars",
                                   rows=2, type="COMPACT")
@@ -771,11 +771,14 @@ class NeuroBlenderOverlayPanel(bpy.types.Panel):
 
         row = layout.row()
         col = row.column()
-        col.operator("nb.wp_preview", text="", icon="GROUP_VERTEX")
+        col.operator("nb.weightpaint", text="",
+                     icon="GROUP_VERTEX")
         col = row.column()
-        col.operator("nb.vw2vc", text="", icon="GROUP_VCOL")
+        col.operator("nb.vertexweight_to_vertexcolors", text="",
+                     icon="GROUP_VCOL")
         col = row.column()
-        col.operator("nb.vw2uv", text="", icon="GROUP_UVS")
+        col.operator("nb.vertexweight_to_uv", text="",
+                     icon="GROUP_UVS")
         col.enabled = nb_ob.is_unwrapped
         col = row.column()
         col.prop(nb.settingprops, "uv_bakeall", toggle=True)
@@ -942,25 +945,25 @@ class NeuroBlenderOverlayPanel(bpy.types.Panel):
             row.prop(nb_ov, "range")
 
 
-class NeuroBlenderScenePanel(bpy.types.Panel):
+class NB_PT_scene(bpy.types.Panel):
     """Host the NeuroBlender scene setup functionality"""
-    bl_idname = "OBJECT_PT_nb_scene"
+    bl_idname = "NB_PT_scene"
     bl_label = "NeuroBlender - Scene setup"
     bl_space_type = "PROPERTIES"
     bl_region_type = "WINDOW"
     bl_context = "scene"
     bl_options = {'DEFAULT_CLOSED'}
 
-    draw = NeuroBlenderBasePanel.draw
-    drawunit_switches = NeuroBlenderBasePanel.drawunit_switches
-    drawunit_switch_to_main = NeuroBlenderBasePanel.drawunit_switch_to_main
-    drawunit_UIList = NeuroBlenderBasePanel.drawunit_UIList
-    drawunit_addopt = NeuroBlenderBasePanel.drawunit_addopt
-    drawunit_tri = NeuroBlenderBasePanel.drawunit_tri
-    drawunit_material = NeuroBlenderBasePanel.drawunit_material
-    drawunit_basic_blender = NeuroBlenderBasePanel.drawunit_basic_blender
-    drawunit_basic_cycles = NeuroBlenderBasePanel.drawunit_basic_cycles
-    drawunit_basic_cycles_mix = NeuroBlenderBasePanel.drawunit_basic_cycles_mix
+    draw = NB_PT_base.draw
+    drawunit_switches = NB_PT_base.drawunit_switches
+    drawunit_switch_to_main = NB_PT_base.drawunit_switch_to_main
+    drawunit_UIList = NB_PT_base.drawunit_UIList
+    drawunit_addopt = NB_PT_base.drawunit_addopt
+    drawunit_tri = NB_PT_base.drawunit_tri
+    drawunit_material = NB_PT_base.drawunit_material
+    drawunit_basic_blender = NB_PT_base.drawunit_basic_blender
+    drawunit_basic_cycles = NB_PT_base.drawunit_basic_cycles
+    drawunit_basic_cycles_mix = NB_PT_base.drawunit_basic_cycles_mix
 
     def draw_nb_panel(self, context, layout):
 
@@ -1146,21 +1149,21 @@ class NeuroBlenderScenePanel(bpy.types.Panel):
                 col1.prop(preset_ob, prop)
 
 
-class NeuroBlenderAnimationPanel(bpy.types.Panel):
+class NB_PT_animation(bpy.types.Panel):
     """Host the NeuroBlender animation functionality"""
-    bl_idname = "OBJECT_PT_nb_animation"
+    bl_idname = "NB_PT_animation"
     bl_label = "NeuroBlender - Animations"
     bl_space_type = "PROPERTIES"
     bl_region_type = "WINDOW"
     bl_context = "scene"
     bl_options = {'DEFAULT_CLOSED'}
 
-    draw = NeuroBlenderBasePanel.draw
-    drawunit_switches = NeuroBlenderBasePanel.drawunit_switches
-    drawunit_switch_to_main = NeuroBlenderBasePanel.drawunit_switch_to_main
-    drawunit_UIList = NeuroBlenderBasePanel.drawunit_UIList
-    drawunit_addopt = NeuroBlenderBasePanel.drawunit_addopt
-    drawunit_tri = NeuroBlenderBasePanel.drawunit_tri
+    draw = NB_PT_base.draw
+    drawunit_switches = NB_PT_base.drawunit_switches
+    drawunit_switch_to_main = NB_PT_base.drawunit_switch_to_main
+    drawunit_UIList = NB_PT_base.drawunit_UIList
+    drawunit_addopt = NB_PT_base.drawunit_addopt
+    drawunit_tri = NB_PT_base.drawunit_tri
 
     def draw_nb_panel(self, context, layout):
 
@@ -1237,7 +1240,7 @@ class NeuroBlenderAnimationPanel(bpy.types.Panel):
         col = row.column()
         col.prop(anim, "campaths_enum", expand=False, text="")
         col = row.column()
-        col.operator("nb.del_campath", icon='ZOOMOUT', text="")
+        col.operator("nb.campath_remove", icon='ZOOMOUT', text="")
         col.enabled = True
 
         row = layout.row()
@@ -1281,7 +1284,7 @@ class NeuroBlenderAnimationPanel(bpy.types.Panel):
     def drawunit_tri_points(self, layout, nb, anim):
 
         row = layout.row()
-        row.operator("nb.add_campoint",
+        row.operator("nb.campoint_add",
                      text="Add point at camera position")
 
         try:
@@ -1296,7 +1299,7 @@ class NeuroBlenderAnimationPanel(bpy.types.Panel):
                 ps = "points"
 
             row = layout.row()
-            row.template_list("NBListCP", "",
+            row.template_list("NB_UL_collection_CP", "",
                               data, ps,
                               data, "material_index", rows=2,
                               maxrows=4, type="DEFAULT")
@@ -1324,7 +1327,7 @@ class NeuroBlenderAnimationPanel(bpy.types.Panel):
         row.separator()
 
         row = layout.row()
-        row.operator("nb.add_campath", text="Add trajectory")
+        row.operator("nb.campath_add", text="Add trajectory")
 
     def drawunit_animation_carver(self, layout, nb):
 
@@ -1369,19 +1372,19 @@ class NeuroBlenderAnimationPanel(bpy.types.Panel):
         col.prop(anim, "nb_object_data_path", expand=False, text="")
 
 
-class NeuroBlenderSettingsPanel(bpy.types.Panel):
+class NB_PT_settings(bpy.types.Panel):
     """Host the NeuroBlender settings"""
-    bl_idname = "OBJECT_PT_nb_settings"
+    bl_idname = "NB_PT_settings"
     bl_label = "NeuroBlender - Settings"
     bl_space_type = "PROPERTIES"
     bl_region_type = "WINDOW"
     bl_context = "scene"
     bl_options = {'DEFAULT_CLOSED'}
 
-    draw = NeuroBlenderBasePanel.draw
-    drawunit_switches = NeuroBlenderBasePanel.drawunit_switches
-    drawunit_switch_to_main = NeuroBlenderBasePanel.drawunit_switch_to_main
-    drawunit_tri = NeuroBlenderBasePanel.drawunit_tri
+    draw = NB_PT_base.draw
+    drawunit_switches = NB_PT_base.drawunit_switches
+    drawunit_switch_to_main = NB_PT_base.drawunit_switch_to_main
+    drawunit_tri = NB_PT_base.drawunit_tri
 
     def draw_nb_panel(self, context, layout):
 

@@ -43,7 +43,7 @@ from . import (materials as nb_ma,
                utils as nb_ut)
 
 
-class ResetPresetCentre(Operator):
+class NB_OT_reset_presetcentre(Operator):
     bl_idname = "nb.reset_presetcentre"
     bl_label = "Reset preset centre"
     bl_description = "Revert location changes to preset centre"
@@ -75,7 +75,7 @@ class ResetPresetCentre(Operator):
         return {"FINISHED"}
 
 
-class ResetPresetDims(Operator):
+class NB_OT_reset_presetdims(Operator):
     bl_idname = "nb.reset_presetdims"
     bl_label = "Recalculate scene dimensions"
     bl_description = "Recalculate scene dimension"
@@ -115,7 +115,7 @@ class ResetPresetDims(Operator):
         return {"FINISHED"}
 
 
-class AddPreset(Operator):
+class NB_OT_import_presets(Operator):
     bl_idname = "nb.import_presets"
     bl_label = "New preset"
     bl_description = "Create a new preset"
@@ -400,8 +400,8 @@ class AddPreset(Operator):
                 )
 
 
-class DelPreset(Operator):
-    bl_idname = "nb.del_preset"
+class NB_OT_preset_remove(Operator):
+    bl_idname = "nb.preset_remove"
     bl_label = "Delete preset"
     bl_description = "Delete a preset"
     bl_options = {"REGISTER", "UNDO", "PRESET"}
@@ -524,7 +524,7 @@ class DelPreset(Operator):
             data_coll.remove(datablock)
 
 
-class AddCamera(Operator):
+class NB_OT_import_cameras(Operator):
     bl_idname = "nb.import_cameras"
     bl_label = "New camera"
     bl_description = "Create a new camera"
@@ -669,7 +669,7 @@ class AddCamera(Operator):
         return camdata
 
 
-class AddTable(Operator):
+class NB_OT_import_tables(Operator):
     bl_idname = "nb.import_tables"
     bl_label = "New table"
     bl_description = "Create a new table"
@@ -779,7 +779,7 @@ class AddTable(Operator):
         return ob
 
 
-class AddLight(Operator):
+class NB_OT_import_lights(Operator):
     bl_idname = "nb.import_lights"
     bl_label = "New light"
     bl_description = "Create a new light"

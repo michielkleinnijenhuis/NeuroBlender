@@ -105,7 +105,7 @@ def h5_dataset_callback(self, context):
     return items
 
 
-class ImportVoxelvolumes(Operator, ImportHelper):
+class NB_OT_import_voxelvolumes(Operator, ImportHelper):
     bl_idname = "nb.import_voxelvolumes"
     bl_label = "Import voxelvolumes"
     bl_description = "Import voxelvolumes to textures"

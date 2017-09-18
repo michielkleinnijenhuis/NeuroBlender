@@ -35,7 +35,7 @@ from bl_operators.presets import (AddPresetBase,
                                   ExecutePreset)
 
 
-class OBJECT_MT_colourmap_presets(Menu):
+class NB_MT_colourmap_presets(Menu):
     bl_label = "Colourmap Presets"
     bl_description = "Choose a NeuroBlender Colourmap Preset"
     preset_subdir = "neuroblender_colourmaps"
@@ -43,7 +43,7 @@ class OBJECT_MT_colourmap_presets(Menu):
     draw = Menu.draw_preset
 
 
-class ExecutePreset_CR(ExecutePreset, Operator):
+class NB_OT_execute_preset_cr(ExecutePreset, Operator):
     """Execute a preset"""
     bl_idname = "script.execute_preset_cr"
     bl_label = "NeuroBlender Colourmap Presets"
@@ -154,11 +154,11 @@ class ExecutePreset_CR(ExecutePreset, Operator):
             el.position = crrange[0] + el.position * crdiff
 
 
-class AddPresetNeuroBlenderColourmap(AddPresetBase, Operator):
+class NB_OT_colourmap_presets(AddPresetBase, Operator):
     bl_idname = "nb.colourmap_presets"
     bl_label = "NeuroBlender Colourmap Presets"
     bl_description = "Add/Delete a NeuroBlender Colourmap Preset"
-    preset_menu = "OBJECT_MT_colourmap_presets"
+    preset_menu = "NB_MT_colourmap_presets"
 
     preset_subdir = "neuroblender_colourmaps"
 
@@ -197,7 +197,7 @@ class AddPresetNeuroBlenderColourmap(AddPresetBase, Operator):
         return preset_values
 
 
-class ResetColourmaps(Operator):
+class NB_OT_reset_colourmaps(Operator):
     bl_idname = "nb.reset_colourmaps"
     bl_label = "Reset NeuroBlender Colourmap Presets"
     bl_description = "Reset all NeuroBlender Colourmap Presets to defaults"

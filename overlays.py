@@ -47,7 +47,7 @@ from . import (materials as nb_ma,
                utils as nb_ut)
 
 
-class RevertLabel(Operator):
+class NB_OT_revert_label(Operator):
     bl_idname = "nb.revert_label"
     bl_label = "Revert label"
     bl_description = "Revert changes to imported label colour/transparency"
@@ -81,8 +81,8 @@ class RevertLabel(Operator):
         return self.execute(context)
 
 
-class WeightPaintMode(Operator):
-    bl_idname = "nb.wp_preview"
+class NB_OT_weightpaint(Operator):
+    bl_idname = "nb.weightpaint"
     bl_label = "wp_mode button"
     bl_description = "Go to weight paint mode for preview"
     bl_options = {"REGISTER", "UNDO", "PRESET"}
@@ -101,8 +101,8 @@ class WeightPaintMode(Operator):
         return {"FINISHED"}
 
 
-class VertexWeight2VertexColors(Operator):
-    bl_idname = "nb.vw2vc"
+class NB_OT_vertexweight_to_vertexcolors(Operator):
+    bl_idname = "nb.vertexweight_to_vertexcolors"
     bl_label = "VW to VC"
     bl_description = "Bake vertex group weights to vertex colours"
     bl_options = {"REGISTER"}
@@ -172,8 +172,8 @@ class VertexWeight2VertexColors(Operator):
         return self.execute(context)
 
 
-class VertexWeight2UV(Operator, ExportHelper):
-    bl_idname = "nb.vw2uv"
+class NB_OT_vertexweight_to_uv(Operator, ExportHelper):
+    bl_idname = "nb.vertexweight_to_uv"
     bl_label = "Bake vertex weights"
     bl_description = "Bake vertex weights to texture (via vcol)"
     bl_options = {"REGISTER", "UNDO", "PRESET"}
@@ -261,8 +261,10 @@ class VertexWeight2UV(Operator, ExportHelper):
         vcs = surf.data.vertex_colors
         for i, item in enumerate(items):
             dp = item.path_from_id()
-            bpy.ops.nb.vw2vc(itemname=item.name, data_path=dp,
-                             index=i, matname="bake_vcol")
+            bpy.ops.nb.vertexweight_to_vertexcolors(
+                itemname=item.name, data_path=dp,
+                index=i, matname="bake_vcol"
+                )
             img.source = 'GENERATED'
             bpy.ops.object.bake()
             if len(items) > 1:
@@ -347,7 +349,7 @@ class VertexWeight2UV(Operator, ExportHelper):
         return img
 
 
-class UnwrapSurface(Operator, ImportHelper):
+class NB_OT_unwrap_surface(Operator, ImportHelper):
     bl_idname = "nb.unwrap_surface"
     bl_label = "Unwrap surface"
     bl_description = "Unwrap a surface with sphere projection"
@@ -414,7 +416,7 @@ class UnwrapSurface(Operator, ImportHelper):
 
         if self.delete_sphere:
             data_path = 'nb.surfaces["{}"]'.format(self.name_sphere)
-            bpy.ops.nb.oblist_ops(action='REMOVE_L1', data_path=data_path)
+            bpy.ops.nb.nblist_ops(action='REMOVE_L1', data_path=data_path)
 
         return {"FINISHED"}
 

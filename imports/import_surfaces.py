@@ -45,7 +45,7 @@ from .. import (materials as nb_ma,
                 utils as nb_ut)
 
 
-class ImportSurfaces(Operator, ImportHelper):
+class NB_OT_import_surfaces(Operator, ImportHelper):
     bl_idname = "nb.import_surfaces"
     bl_label = "Import surfaces"
     bl_description = "Import surfaces as mesh data"

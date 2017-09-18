@@ -40,7 +40,7 @@ from . import (materials as nb_ma,
                utils as nb_ut)
 
 
-class ImportCarver(Operator):
+class NB_OT_import_carvers(Operator):
     bl_idname = "nb.import_carvers"
     bl_label = "New carver"
     bl_description = "Create a new carver"
@@ -223,7 +223,7 @@ class ImportCarver(Operator):
 #     draw = Menu.draw_preset
 
 
-class ImportCarveObjects(Operator):
+class NB_OT_import_carveobjects(Operator):
     bl_idname = "nb.import_carveobjects"
     bl_label = "New carveobject"
     bl_description = "Create a new carveobject"

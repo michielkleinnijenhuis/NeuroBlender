@@ -36,7 +36,7 @@ from bl_operators.presets import (AddPresetBase,
 from . import animations as nb_an
 
 
-class OBJECT_MT_setting_presets(Menu):
+class NB_MT_setting_presets(Menu):
     # https://docs.blender.org/api/blender_python_api_2_77_0/bpy.types.Menu.html
     bl_label = "NeuroBlender Settings Presets"
     bl_description = "Load a NeuroBlender Settings Preset"
@@ -45,7 +45,7 @@ class OBJECT_MT_setting_presets(Menu):
     draw = Menu.draw_preset
 
 
-class ExecutePreset_SE(ExecutePreset, Operator):
+class NB_OT_execute_preset_se(ExecutePreset, Operator):
     """Execute a preset"""
     bl_idname = "script.execute_preset_se"
     bl_label = "NeuroBlender Settings Presets"
@@ -97,7 +97,7 @@ class ExecutePreset_SE(ExecutePreset, Operator):
 
 
 
-class AddPresetNeuroBlenderSettings(AddPresetBase, Operator):
+class NB_OT_setting_presets(AddPresetBase, Operator):
     bl_idname = "nb.setting_presets"
     bl_label = "NeuroBlender Setting Presets"
     bl_description = "Add/Delete a NeuroBlender Settings Preset"
@@ -105,6 +105,7 @@ class AddPresetNeuroBlenderSettings(AddPresetBase, Operator):
 
     preset_defines = ["scn = bpy.context.scene",
                       "nb = scn.nb"]
+
     preset_values = ["nb.settingprops.projectdir",
                      "nb.settingprops.esp_path",
                      "nb.settingprops.mode",
@@ -117,4 +118,5 @@ class AddPresetNeuroBlenderSettings(AddPresetBase, Operator):
                      "nb.settingprops.uv_resolution",
                      "nb.settingprops.advanced",
                      "nb.settingprops.verbose"]
+
     preset_subdir = "neuroblender_settings"

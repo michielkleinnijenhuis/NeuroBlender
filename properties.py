@@ -233,7 +233,7 @@ def managecmap_update(self, context):
         cr_path = '{}.color_ramp'.format(cr_parentpath)
         nb.cr_path = cr_path
 
-        preset_class = getattr(bpy.types, "OBJECT_MT_colourmap_presets")
+        preset_class = getattr(bpy.types, "NB_MT_colourmap_presets")
         preset_class.bl_label = bpy.path.display_name("Colourmap Presets")
 
     else:

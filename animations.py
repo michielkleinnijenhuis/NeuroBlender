@@ -42,7 +42,7 @@ from . import (materials as nb_ma,
                utils as nb_ut)
 
 
-class SetAnimations(Operator):
+class NB_OT_set_animations(Operator):
     bl_idname = "nb.set_animations"
     bl_label = "Set animations"
     bl_description = "(Re)set all animations in the preset"""
@@ -92,7 +92,7 @@ class SetAnimations(Operator):
         return {"FINISHED"}
 
 
-class AnimateCameraPath(Operator):
+class NB_OT_animate_camerapath(Operator):
     bl_idname = "nb.animate_camerapath"
     bl_label = "Set animations"
     bl_description = "Add a camera trajectory animation"""
@@ -270,7 +270,7 @@ class AnimateCameraPath(Operator):
                 campath = bpy.data.objects[anim.campaths_enum]
             except:
                 if len(nb.campaths) == 0:
-                    bpy.ops.nb.add_campath('INVOKE_DEFAULT')
+                    bpy.ops.nb.campath_add('INVOKE_DEFAULT')
                     campath = nb.campaths[0]
                 else:
                     return {'CANCELLED'}
@@ -346,7 +346,7 @@ class AnimateCameraPath(Operator):
         scn.frame_set(frame_current)
 
 
-class AnimateCarver(Operator):
+class NB_OT_animate_carver(Operator):
     bl_idname = "nb.animate_carver"
     bl_label = "Set carver animation"
     bl_description = "Add a carver animation"""
@@ -445,7 +445,7 @@ class AnimateCarver(Operator):
         bpy.context.scene.frame_current = scn.frame_current
 
 
-class AnimateTimeSeries(Operator):
+class NB_OT_animate_timeseries(Operator):
     bl_idname = "nb.animate_timeseries"
     bl_label = "Set time series animation"
     bl_description = "Add a time series animation"""
@@ -586,7 +586,7 @@ class AnimateTimeSeries(Operator):
         scn.frame_set(frame_current)
 
 
-class AddAnimation(Operator):
+class NB_OT_import_animation(Operator):
     bl_idname = "nb.import_animations"
     bl_label = "New animation"
     bl_description = "Create a new animation"
@@ -646,8 +646,8 @@ class AddAnimation(Operator):
         return self.execute(context)
 
 
-class AddCamPoint(Operator):
-    bl_idname = "nb.add_campoint"
+class NB_OT_campoint_add(Operator):
+    bl_idname = "nb.campoint_add"
     bl_label = "New camera position"
     bl_description = "Create a new camera position in campath"
     bl_options = {"REGISTER", "UNDO", "PRESET"}
@@ -713,8 +713,8 @@ class AddCamPoint(Operator):
         return self.execute(context)
 
 
-class AddCamPath(Operator):
-    bl_idname = "nb.add_campath"
+class NB_OT_campath_add(Operator):
+    bl_idname = "nb.campath_add"
     bl_label = "New camera path"
     bl_description = "Create a new path for the camera"
     bl_options = {"REGISTER", "UNDO", "PRESET"}
@@ -989,8 +989,8 @@ class AddCamPath(Operator):
         return ob
 
 
-class DelCamPath(Operator):
-    bl_idname = "nb.del_campath"
+class NB_OT_campath_remove(Operator):
+    bl_idname = "nb.campath_remove"
     bl_label = "Delete camera path"
     bl_description = "Delete a camera path"
     bl_options = {"REGISTER", "UNDO", "PRESET"}
