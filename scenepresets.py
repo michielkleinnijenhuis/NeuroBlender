@@ -606,7 +606,6 @@ class NB_OT_import_cameras(Operator):
         nb_cam.cam_view_enum_IS = self.RAScode[2]
         nb_cam.cam_distance = self.cam_distance
         nb_cam.trackobject = self.trackobject  # FIXME
-        nb_cam.trackobject = self.trackobject  # FIXME
 
         if nb.settingprops.verbose:
             infostring = 'added camera "{}" to preset "{}"'
