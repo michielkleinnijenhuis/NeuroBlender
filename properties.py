@@ -352,8 +352,9 @@ def timings_enum_update(self, context):
                      if ((anim.animationtype == "camerapath") &
                          (anim.campaths_enum != "no_camerapaths") &
                          (anim.is_rendered))]
-        # FIXME: TODO: remove FollowPath keyframes here first
-        acp.animate_camera(cam, self, campath)
+        acp.clear_CP_followpath(self)
+        cns = cam.constraints[self.cnsname]
+        acp.animate_camera(cam, self, campath, cns=cns)
         acp.update_cam_constraints(cam, cam_anims)
 
     elif self.animationtype == "carver":
@@ -396,8 +397,7 @@ def campaths_enum_update(self, context):
     scn = context.scene
     nb = scn.nb
 
-    nb_preset = nb.presets[nb.index_presets]
-    cam = bpy.data.objects[nb_preset.cameras[nb_preset.index_cameras].name]
+    cam = bpy.data.objects[self.camera]
 
     campath = bpy.data.objects[self.campaths_enum]
     acp = bpy.types.NB_OT_animate_camerapath
@@ -406,7 +406,7 @@ def campaths_enum_update(self, context):
     acp.animate_campath(campath, self)
     # change the campath on the camera constraint
     try:
-        cns = cam.constraints["FollowPath" + self.name]
+        cns = cam.constraints[self.cnsname]
     except KeyError:
         acp.animate_camera(cam, self, campath)
     else:
@@ -980,6 +980,13 @@ def name_update(self, context):  # FIXME! there's no name checks!
     elif colltype == "lights":
         colls = [bpy.data.objects,
                  bpy.data.lamps]
+
+    elif colltype == "animations":
+        if self.animationtype == "camerapath":
+            cam = bpy.data.objects[self.camera]
+            cns = cam.constraints[self.cnsname]
+            self.cnsname = cns.name = "FollowPath_{}".format(self.name)
+        colls = []  # TODO
 
     elif colltype == "campaths":  # not implemented via Panels
         colls = [bpy.data.objects,

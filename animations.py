@@ -130,12 +130,22 @@ class NB_OT_animate_camerapath(Operator):
         nb_preset = nb.presets[nb.index_presets]
         nb_cam = nb_preset.cameras[nb_preset.index_cameras]
         cam_ob = bpy.data.objects[nb_cam.name]
-        anim.camera = nb_cam.name
 
         del_indices, cam_anims = [], []
+
         for i, anim in enumerate(nb.animations):
-            if ((anim.animationtype == "camerapath") & (anim.is_rendered)):
+            if ((anim.animationtype == "camerapath") &
+                    (anim.is_rendered) &
+                    (anim.camera == nb_cam.name)):
                 del_indices.append(i)
+        del_indices, cam_anims = [], []
+
+        anim.camera = nb_cam.name
+
+        for i, anim in enumerate(nb.animations):
+            if ((anim.animationtype == "camerapath") &
+                    (anim.is_rendered) &
+                    (anim.camera == nb_cam.name)):
                 cam_anims.append(anim)
 
         self.clear_camera_path_animations(cam_ob, nb.animations, del_indices)
@@ -187,17 +197,17 @@ class NB_OT_animate_camerapath(Operator):
     def clear_CP_followpath(anim):
         """Remove the keyframes on the FollowPath constraint."""
 
-    #     action = bpy.data.actions['CamAction']
+        actname = '{}Action'.format(anim.camera)
         props = ['use_fixed_location', 'offset_factor',
                  'forward_axis', 'influence']
         for prop in props:
             dpath = 'constraints["{}"].{}'.format(anim.cnsname, prop)
             try:
-                fcu = bpy.data.actions['CamAction'].fcurves.find(dpath)
+                fcu = bpy.data.actions[actname].fcurves.find(dpath)
             except:
                 pass
             else:
-                bpy.data.actions['CamAction'].fcurves.remove(fcu)
+                bpy.data.actions[actname].fcurves.remove(fcu)
 
     @staticmethod
     def remove_CP_followpath(cam, anim):
@@ -217,7 +227,7 @@ class NB_OT_animate_camerapath(Operator):
         scn = bpy.context.scene
 
         try:
-            action = bpy.data.actions['CamAction']
+            action = bpy.data.actions['{}Action'.format(cam.name)]
         except KeyError:
             pass
         else:
@@ -310,18 +320,22 @@ class NB_OT_animate_camerapath(Operator):
         mod.frame_end = anim.frame_end
 
     @staticmethod
-    def animate_camera(cam, anim, campath):
+    def animate_camera(cam, anim, campath, cns=None):
         """Set up camera animation."""
 
         scn = bpy.context.scene
 
         frame_current = scn.frame_current
 
-        cnsname = "FollowPath{}".format(anim.name)
-        cns = nb_ut.add_constraint(cam, "FOLLOW_PATH", cnsname,
-                                   campath, anim.tracktype)
-        anim.cnsname = cns.name
-        restrict_incluence(cns, anim)
+        if cns is None:
+            cnsname = "FollowPath_{}".format(anim.name)
+            cns = nb_ut.add_constraint(cam, "FOLLOW_PATH", cnsname,
+                                       campath, anim.tracktype)
+            anim.cnsname = cns.name
+        else:
+            cnsname = anim.cnsname
+
+        restrict_incluence(cns, anim, group=cnsname)
         cns.offset = anim.offset * -100
 
 #         TODO: build fcurve instead of keyframing
@@ -339,9 +353,9 @@ class NB_OT_animate_camerapath(Operator):
                 cns.use_fixed_location = val[0]
                 cns.offset_factor = val[1]
                 cns.forward_axis = val[2]
-                cns.keyframe_insert("use_fixed_location")
-                cns.keyframe_insert("offset_factor")
-                cns.keyframe_insert("forward_axis")
+                cns.keyframe_insert("use_fixed_location", group=cnsname)
+                cns.keyframe_insert("offset_factor", group=cnsname)
+                cns.keyframe_insert("forward_axis", group=cnsname)
 
         scn.frame_set(frame_current)
 
@@ -784,6 +798,16 @@ class NB_OT_campath_add(Operator):
         elif self.pathtype == "Create":
             name = "CP_%s" % ("fromCam")
 
+        nb_preset = nb.presets[self.index_presets]
+        cpsname = nb_preset.name + 'Campaths'
+        # TODO: homogenize naming system with Box/Centre
+        nb_preset["campathsempty"] = cpsname
+        campathsempty = bpy.data.objects.get(cpsname)
+        if not campathsempty:
+            campathsempty = bpy.data.objects.new(cpsname, None)
+            scn.objects.link(campathsempty)
+            campathsempty.parent = bpy.data.objects[nb_preset.camerasempty]
+
         ca = [nb.campaths]
         name = self.name or name
         name = nb_ut.check_name(name, "", ca)
@@ -792,7 +816,7 @@ class NB_OT_campath_add(Operator):
 
         if campath is not None:
             campath.hide_render = True
-#             campath.parent = bpy.data.objects[preset.name]  # TODO: test
+            campath.parent = campathsempty
             cpprops = {"name": name}
             nb_ut.add_item(nb, "campaths", cpprops)
             infostring = 'added camera path "%s"'
@@ -1059,7 +1083,7 @@ def get_animation_fcurve(anim, data_path='', idx=-1,
     except RuntimeError:
         fcu = ad.action.fcurves.new(data_path, index=idx,
                                     action_group=anim.name)
-        fcu.keyframe_points.add(3)  # FIXME: flexibility
+        fcu.keyframe_points.add(npoints)  # TODO: flexibility
     else:
         # remember the path, index and value at frame 0
         prev['data_path'] = fcu.data_path
@@ -1192,7 +1216,7 @@ def restrict_incluence_timeline(scn, cns, timeline, group=""):
     scn.frame_set(frame_current)
 
 
-def restrict_incluence(cns, anim):
+def restrict_incluence(cns, anim, group=""):
     """Restrict the influence of a constraint to the animation interval."""
 
     scn = bpy.context.scene
@@ -1208,7 +1232,7 @@ def restrict_incluence(cns, anim):
         for fr in iv:
             scn.frame_set(fr)
             cns.influence = val
-            cns.keyframe_insert(data_path="influence", index=-1)
+            cns.keyframe_insert(data_path="influence", index=-1, group=group)
 
     scn.frame_set(frame_current)
 
