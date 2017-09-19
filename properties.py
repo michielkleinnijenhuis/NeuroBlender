@@ -33,7 +33,7 @@ from glob import glob
 import mathutils
 
 import bpy
-from bpy.types import PropertyGroup
+from bpy.types import PropertyGroup as pg
 from bpy.props import (BoolProperty,
                        StringProperty,
                        CollectionProperty,
@@ -599,9 +599,10 @@ def overlay_enum_callback(self, context):
 def index_scalars_update(self, context):
     """Switch views on updating scalar index."""
 
-    if isinstance(self, (bpy.types.TractProperties,
-                         bpy.types.SurfaceProperties,
-                         bpy.types.VoxelvolumeProperties)):
+    pg_sc1 = pg.bl_rna_get_subclass_py("TractProperties")
+    pg_sc2 = pg.bl_rna_get_subclass_py("SurfaceProperties")
+    pg_sc3 = pg.bl_rna_get_subclass_py("VoxelvolumeProperties")
+    if isinstance(self, (pg_sc1, pg_sc2, pg_sc3)):
         try:
             sg = self.scalargroups[self.index_scalargroups]
         except IndexError:
@@ -633,12 +634,16 @@ def index_scalars_update_func(group=None):
     else:
         name = scalar.name
 
-        if isinstance(nb_ob, bpy.types.SurfaceProperties):
+        pg_sc1 = pg.bl_rna_get_subclass_py("TractProperties")
+        pg_sc2 = pg.bl_rna_get_subclass_py("SurfaceProperties")
+        pg_sc3 = pg.bl_rna_get_subclass_py("VoxelvolumeProperties")
+        pg_sc4 = pg.bl_rna_get_subclass_py("ScalarGroupProperties")
+        if isinstance(nb_ob, pg_sc2):
 
             vg_idx = ob.vertex_groups.find(name)
             ob.vertex_groups.active_index = vg_idx
 
-            if isinstance(group, bpy.types.ScalarGroupProperties):
+            if isinstance(group, pg_sc4):
 
                 mat = bpy.data.materials[group.name]
 
@@ -667,16 +672,16 @@ def index_scalars_update_func(group=None):
                 for mat in mats:
                     ob.data.materials.append(mat)
 
-        elif isinstance(nb_ob, bpy.types.TractProperties):
-            if isinstance(group, bpy.types.ScalarGroupProperties):
+        elif isinstance(nb_ob, pg_sc1):
+            if isinstance(group, pg_sc4):
                 for i, spline in enumerate(ob.data.splines):
                     # FIXME: generalize with saved re variable
                     splname = name + '.spl' + str(i).zfill(8)
                     spline.material_index = ob.material_slots.find(splname)
 
         # FIXME: used texture slots
-        elif isinstance(nb_ob, bpy.types.VoxelvolumeProperties):
-            if isinstance(group, bpy.types.ScalarGroupProperties):
+        elif isinstance(nb_ob, pg_sc3):
+            if isinstance(group, pg_sc4):
                 index_scalars_update_vvolscalar_func(group, scalar,
                                                      nb.settingprops.texmethod)
 
@@ -741,9 +746,10 @@ def index_scalars_update_vvolscalar_func(group, scalar, method=1):
 def index_labels_update(self, context):
     """Switch views on updating label index."""
 
-    if isinstance(self, (bpy.types.TractProperties,
-                         bpy.types.SurfaceProperties,
-                         bpy.types.VoxelvolumeProperties)):
+    pg_sc1 = pg.bl_rna_get_subclass_py("TractProperties")
+    pg_sc2 = pg.bl_rna_get_subclass_py("SurfaceProperties")
+    pg_sc3 = pg.bl_rna_get_subclass_py("VoxelvolumeProperties")
+    if isinstance(self, (pg_sc1, pg_sc2, pg_sc3)):
         try:
             lg = self.labelgroups[self.index_labelgroups]
         except IndexError:
@@ -774,7 +780,8 @@ def index_labels_update_func(group=None):
         pass
     else:
         name = label.name
-        if isinstance(nb_ob, bpy.types.SurfaceProperties):
+        pg_sc = pg.bl_rna_get_subclass_py("SurfaceProperties")
+        if isinstance(nb_ob, pg_sc):
             vg_idx = ob.vertex_groups.find(name)
             ob.vertex_groups.active_index = vg_idx
 
@@ -856,7 +863,8 @@ def carvers_update(self, context):
     nb = scn.nb
 
     ob = bpy.data.objects.get(self.name, [])
-    if ob and isinstance(self, bpy.types.CarveObjectProperties):
+    pg_sc = pg.bl_rna_get_subclass_py("CarveObjectProperties")
+    if ob and isinstance(self, pg_sc):
         ob.scale = self.slicethickness
         # TODO: calculate position regarding the slicethickness
         ob.location = self.sliceposition
@@ -1111,7 +1119,7 @@ def colourmap_enum_update(self, context):
     # load preset
     cr_path = '{}.color_ramp'.format(cr_parentpath)
     nb.cr_path = cr_path
-    menu_idname = "OBJECT_MT_colourmap_presets"
+    menu_idname = "NB_MT_colourmap_presets"
 
     cmap_dir = os.path.join("presets", "neuroblender_colourmaps")
     preset_path = bpy.utils.user_resource('SCRIPTS', cmap_dir, create=False)
@@ -1199,13 +1207,16 @@ def overlay_is_rendered_update(self, context):
 
     nb_ob = nb_ut.active_nb_object()[0]
 
-    if isinstance(nb_ob, bpy.types.TractProperties):
+    pg_sc1 = pg.bl_rna_get_subclass_py("TractProperties")
+    pg_sc2 = pg.bl_rna_get_subclass_py("SurfaceProperties")
+    pg_sc3 = pg.bl_rna_get_subclass_py("VoxelvolumeProperties")
+    if isinstance(nb_ob, pg_sc1):
         pass
         # TODO: pop/reset the material slots
         # FIXME: ensure naming ends in spl.....
-    elif isinstance(nb_ob, bpy.types.SurfaceProperties):
+    elif isinstance(nb_ob, pg_sc2):
         pass
-    elif isinstance(nb_ob, bpy.types.VoxelvolumeProperties):
+    elif isinstance(nb_ob, pg_sc3):
         mat = bpy.data.materials[nb_ob.name]
         ts_idx = mat.texture_slots.find(self.name)
         mat.use_textures[ts_idx] = self.is_rendered
@@ -1216,7 +1227,7 @@ def overlay_is_rendered_update(self, context):
 # ========================================================================== #
 
 
-class SettingsProperties(PropertyGroup):
+class SettingsProperties(pg):
     """Properties for the NeuroBlender settings."""
 
     nb_initialized = True
@@ -1352,7 +1363,7 @@ class SettingsProperties(PropertyGroup):
                ("simple", "simple", "simple", 1)])
 
 
-class CameraProperties(PropertyGroup):
+class CameraProperties(pg):
     """Properties of cameras."""
 
     name = StringProperty(
@@ -1420,7 +1431,7 @@ class CameraProperties(PropertyGroup):
         update=trackobject_enum_update)
 
 
-class LightProperties(PropertyGroup):
+class LightProperties(pg):
     """Properties of light."""
 
     name = StringProperty(
@@ -1480,7 +1491,7 @@ class LightProperties(PropertyGroup):
         subtype="TRANSLATION")
 
 
-class TableProperties(PropertyGroup):
+class TableProperties(pg):
     """Properties of table."""
 
     name = StringProperty(
@@ -1531,7 +1542,7 @@ class TableProperties(PropertyGroup):
         subtype="TRANSLATION")
 
 
-class CamPathProperties(PropertyGroup):
+class CamPathProperties(pg):
     """Properties of a camera path."""
 
     name = StringProperty(
@@ -1555,7 +1566,7 @@ class CamPathProperties(PropertyGroup):
         default=True)
 
 
-class AnimationProperties(PropertyGroup):
+class AnimationProperties(pg):
     """Properties of animation."""
 
     name = StringProperty(
@@ -1704,7 +1715,7 @@ class AnimationProperties(PropertyGroup):
         default=-1)
 
 
-class CarveObjectProperties(PropertyGroup):
+class CarveObjectProperties(pg):
     """Properties of carver."""
 
     name = StringProperty(
@@ -1764,7 +1775,7 @@ class CarveObjectProperties(PropertyGroup):
         description="Specify a type for the carve object")
 
 
-class CarverProperties(PropertyGroup):
+class CarverProperties(pg):
     """Properties of carver."""
 
     name = StringProperty(
@@ -1815,7 +1826,7 @@ class CarverProperties(PropertyGroup):
                ("activeob", "Active object", "Active object", 6)])
 
 
-class PresetProperties(PropertyGroup):
+class PresetProperties(pg):
     """Properties of a preset."""
 
     name = StringProperty(
@@ -1923,7 +1934,7 @@ class PresetProperties(PropertyGroup):
         default=100)
 
 
-class ColorRampProperties(PropertyGroup):
+class ColorRampProperties(pg):
     """Custom properties of color ramps."""
 
     name = StringProperty(
@@ -1956,7 +1967,7 @@ class ColorRampProperties(PropertyGroup):
         self.nn_position = position * drange + dmin
 
 
-class ScalarProperties(PropertyGroup):
+class ScalarProperties(pg):
     """Properties of scalar overlays."""
 
     name = StringProperty(
@@ -2059,7 +2070,7 @@ class ScalarProperties(PropertyGroup):
         description="The name of the scalar overlay")
 
 
-class LabelProperties(PropertyGroup):
+class LabelProperties(pg):
     """Properties of label overlays."""
 
     name = StringProperty(
@@ -2096,7 +2107,7 @@ class LabelProperties(PropertyGroup):
         update=material_update)
 
 
-class BorderProperties(PropertyGroup):
+class BorderProperties(pg):
     """Properties of border overlays."""
 
     name = StringProperty(
@@ -2133,7 +2144,7 @@ class BorderProperties(PropertyGroup):
         update=material_update)
 
 
-class ScalarGroupProperties(PropertyGroup):
+class ScalarGroupProperties(pg):
     """Properties of time series overlays."""
 
     name = StringProperty(
@@ -2264,7 +2275,7 @@ class ScalarGroupProperties(PropertyGroup):
         default='spl{:08d}')
 
 
-class LabelGroupProperties(PropertyGroup):
+class LabelGroupProperties(pg):
     """Properties of label groups."""
 
     name = StringProperty(
@@ -2351,7 +2362,7 @@ class LabelGroupProperties(PropertyGroup):
         default='spl{:08d}')
 
 
-class BorderGroupProperties(PropertyGroup):
+class BorderGroupProperties(pg):
     """Properties of border groups."""
 
     name = StringProperty(
@@ -2416,7 +2427,7 @@ class BorderGroupProperties(PropertyGroup):
         default='spl{:08d}')
 
 
-class TractProperties(PropertyGroup):
+class TractProperties(pg):
     """Properties of tracts."""
 
     name = StringProperty(
@@ -2519,7 +2530,7 @@ class TractProperties(PropertyGroup):
         items=carvers_enum_callback)
 
 
-class SurfaceProperties(PropertyGroup):
+class SurfaceProperties(pg):
     """Properties of surfaces."""
 
     name = StringProperty(
@@ -2631,7 +2642,7 @@ class SurfaceProperties(PropertyGroup):
         items=carvers_enum_callback)
 
 
-class VoxelvolumeProperties(PropertyGroup):
+class VoxelvolumeProperties(pg):
     """Properties of voxelvolumes."""
 
     name = StringProperty(
@@ -2805,7 +2816,7 @@ class VoxelvolumeProperties(PropertyGroup):
         items=carvers_enum_callback)
 
 
-class NeuroBlenderProperties(PropertyGroup):
+class NeuroBlenderProperties(pg):
     """Properties for the NeuroBlender panel."""
 
     is_enabled = BoolProperty(

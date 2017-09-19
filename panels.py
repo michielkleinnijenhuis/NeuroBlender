@@ -27,6 +27,7 @@ This module implements drawing the NeuroBlender panels.
 
 
 import bpy
+from bpy.types import PropertyGroup as pg
 
 
 class NB_PT_base(bpy.types.Panel):
@@ -245,7 +246,8 @@ class NB_PT_base(bpy.types.Panel):
             return
 
         if uilistlevel == "L2":
-            if isinstance(data, bpy.types.VoxelvolumeProperties):
+            pg_sc = pg.bl_rna_get_subclass_py("VoxelvolumeProperties")
+            if isinstance(data, pg_sc):
                 operator = "nb.import_voxelvolumes"
                 # TODO: move vvol overlay func to import_overlays.py
             else:
@@ -329,7 +331,8 @@ class NB_PT_base(bpy.types.Panel):
         row.operator("nb.nblist_ops",
                      icon='ZOOMOUT',
                      text="").action = 'REMOVE_CV'
-        row.enabled = not isinstance(nb_ob, bpy.types.TractProperties)
+        pg_sc = pg.bl_rna_get_subclass_py("TractProperties")
+        row.enabled = not isinstance(nb_ob, pg_sc)
 
     def drawunit_carveroptions(self, layout, nb_ob):
 
@@ -410,7 +413,8 @@ class NB_PT_base(bpy.types.Panel):
         NeuroBlender surface and volume textures are saved in .png format and when loaded expanded to the range [0, 1]. The original datarange is saved when writing the textures. The corresponding values of the colour stops in the colour ramp are shown as a list of values beneath the ramp [ADVANCED only]. The full min-max datarange is shown when expanding the 'Info' triangle [ADVANCED only].
         """
 
-        if isinstance(nb_ob, bpy.types.VoxelvolumeProperties):
+        pg_sc = pg.bl_rna_get_subclass_py("VoxelvolumeProperties")
+        if isinstance(nb_ob, pg_sc):
             self.drawunit_rendertype(layout, nb_ob)
             tex = bpy.data.textures[nb_ob.name]
             self.drawunit_texture(layout, tex, nb_ob)
@@ -444,8 +448,9 @@ class NB_PT_base(bpy.types.Panel):
         row = layout.row(align=True)
         row.prop(mat, "diffuse_color", text="")
         row.prop(mat, "alpha", text="Transparency")
-        if isinstance(nb_ob, (bpy.types.LabelProperties,
-                              bpy.types.BorderProperties)):
+        pg_sc1 = pg.bl_rna_get_subclass_py("LabelProperties")
+        pg_sc2 = pg.bl_rna_get_subclass_py("BorderProperties")
+        if isinstance(nb_ob, (pg_sc1, pg_sc2)):
             row.operator("nb.revert_label", icon='BACK', text="")
 
     def drawunit_basic_cycles(self, layout, nb_ob):
@@ -460,8 +465,9 @@ class NB_PT_base(bpy.types.Panel):
         row = layout.row(align=True)
         row.prop(colour, "default_value", text="")
         row.prop(trans, "default_value", text="Transparency")
-        if isinstance(nb_ob, (bpy.types.LabelProperties,
-                              bpy.types.BorderProperties)):
+        pg_sc1 = pg.bl_rna_get_subclass_py("LabelProperties")
+        pg_sc2 = pg.bl_rna_get_subclass_py("BorderProperties")
+        if isinstance(nb_ob, (pg_sc1, pg_sc2)):
             row.operator("nb.revert_label", icon='BACK', text="")
 
         if nb.settingprops.advanced:
@@ -1494,7 +1500,7 @@ class NB_PT_settings(bpy.types.Panel):
 
     def drawunit_manage_colourmaps(self, layout, nb):
 
-        menu_name = 'OBJECT_MT_colourmap_presets'
+        menu_name = 'NB_MT_colourmap_presets'
         label = bpy.context.scene.nb.cm_presetlabel
         preset_op_name = "nb.colourmap_presets"
 

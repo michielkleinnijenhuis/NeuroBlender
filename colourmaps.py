@@ -57,7 +57,7 @@ class NB_OT_execute_preset_cr(ExecutePreset, Operator):
         name="Menu ID Name",
         description="ID name of the menu this was called from",
         options={'SKIP_SAVE'},
-        default="OBJECT_MT_colourmap_presets"  # FIXME: not as default
+        default="NB_MT_colourmap_presets"  # FIXME: not as default
         )
     cr_path = StringProperty(name="CR path",
         description="Data path to colour ramp",
