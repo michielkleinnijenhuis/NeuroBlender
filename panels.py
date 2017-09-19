@@ -1471,7 +1471,7 @@ class NB_PT_settings(bpy.types.Panel):
 
     def drawunit_settings_preset(self, layout):
 
-        menu_name = 'OBJECT_MT_setting_presets'
+        menu_name = 'NB_MT_setting_presets'
         label = bpy.context.scene.nb.settingprops.sp_presetlabel
         preset_op_name = "nb.setting_presets"
 

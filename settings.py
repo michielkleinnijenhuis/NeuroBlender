@@ -59,7 +59,7 @@ class NB_OT_execute_preset_se(ExecutePreset, Operator):
         name="Menu ID Name",
         description="ID name of the menu this was called from",
         options={'SKIP_SAVE'},
-        default="OBJECT_MT_setting_presets"  # FIXME: not as default
+        default="NB_MT_setting_presets"  # FIXME: not as default
         )
 
     def execute(self, context):
@@ -101,7 +101,7 @@ class NB_OT_setting_presets(AddPresetBase, Operator):
     bl_idname = "nb.setting_presets"
     bl_label = "NeuroBlender Setting Presets"
     bl_description = "Add/Delete a NeuroBlender Settings Preset"
-    preset_menu = "OBJECT_MT_setting_presets"
+    preset_menu = "NB_MT_setting_presets"
 
     preset_defines = ["scn = bpy.context.scene",
                       "nb = scn.nb"]
