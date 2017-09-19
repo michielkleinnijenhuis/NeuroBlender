@@ -221,23 +221,16 @@ def managecmap_update(self, context):
 
     name = "manage_colourmaps"
 
-    if self.show_manage_colourmaps:
+    if bpy.data.objects.get(name):
+        del_dummies(name)
+    else:
         gen_dummies(name)
 
-        # FIXME: this is unsafe
-        cr_parentpath = "bpy.data.textures['{}']".format(name)
-        cr_path = '{}.color_ramp'.format(cr_parentpath)
-        context.scene.nb.cr_path = cr_path
-
         # load preset
-        cr_path = '{}.color_ramp'.format(cr_parentpath)
-        nb.cr_path = cr_path
-
+        cr_parentpath = "bpy.data.textures['{}']".format(name)
+        nb.cr_path = '{}.color_ramp'.format(cr_parentpath)
         preset_class = getattr(bpy.types, "NB_MT_colourmap_presets")
-        preset_class.bl_label = bpy.path.display_name("Colourmap Presets")
-
-    else:
-        del_dummies(name)
+        preset_class.bl_label = bpy.path.display_name("Grey")
 
 
 # ========================================================================== #

@@ -313,13 +313,16 @@ class NB_OT_reset_colourmaps(Operator):
         show_manage_colourmaps = nb.show_manage_colourmaps
 
         # this will generate dummy texture and set nb.cr_path
-        nb.show_manage_colourmaps = not show_manage_colourmaps
-        nb.show_manage_colourmaps = True
+        if not nb.show_manage_colourmaps:
+            nb.show_manage_colourmaps = True
 
         tex = bpy.data.textures['manage_colourmaps']
         for cmdict in cmdictlist:
             replace_colourmap(tex.color_ramp, cmdict)
             bpy.ops.nb.colourmap_presets(name=cmdict["name"])
+
+        if not show_manage_colourmaps:
+            nb.show_manage_colourmaps = False
 
         info = ['all original colour maps have been reset to default values']
         self.report({'INFO'}, '; '.join(info))
