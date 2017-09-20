@@ -1428,42 +1428,9 @@ class NB_PT_settings(bpy.types.Panel):
         row = layout.row()
         row.separator()
 
-        row = layout.row()
-        row.prop(settingprops, "verbose", toggle=True)
+        self.drawunit_tri(layout, "scene_preferences", nb, data=None)
 
-        row = layout.row()
-        row.separator()
-
-        row = layout.row()
-        row.prop(settingprops, "advanced", toggle=True)
-
-        row = layout.row()
-        row.separator()
-
-        row = layout.row()
-        row.prop(settingprops, "switches", expand=True)
-
-        row = layout.row()
-        row.separator()
-
-        # TODO: drawunit_tri
-        row = layout.row()
-        row.prop(settingprops, "camera_rig")
-
-        row = layout.row()
-        row.separator()
-
-        row = layout.row()
-        row.prop(settingprops, "lighting_rig")
-
-        row = layout.row()
-        row.separator()
-
-        row = layout.row()
-        row.prop(settingprops, "table_rig")
-
-        row = layout.row()
-        row.separator()
+        self.drawunit_tri(layout, "panel_preferences", nb, data=None)
 
         self.drawunit_tri(layout, "texture_preferences", nb, data=None)
 
@@ -1485,14 +1452,32 @@ class NB_PT_settings(bpy.types.Panel):
         row.operator(preset_op, text="", icon='ZOOMIN')
         row.operator(preset_op, text="", icon='ZOOMOUT').remove_active = True
 
+    def drawunit_tri_scene_preferences(self, layout, nb, data):
+
+        row = layout.row()
+        row.prop(nb.settingprops, "camera_rig")
+        row = layout.row()
+        row.prop(nb.settingprops, "lighting_rig")
+        row = layout.row()
+        row.prop(nb.settingprops, "table_rig")
+
+    def drawunit_tri_panel_preferences(self, layout, nb, data):
+
+        row = layout.row()
+        row.prop(nb.settingprops, "switches", toggle=True,
+                 text="Switchbar")
+        row.prop(nb.settingprops, "verbose", toggle=True,
+                 text="Verbose")
+        row.prop(nb.settingprops, "advanced", toggle=True,
+                 text="Advanced")
+
     def drawunit_tri_texture_preferences(self, layout, nb, data):
 
         row = layout.row()
         row.prop(nb.settingprops, "texformat")
         row = layout.row()
-        row.prop(nb.settingprops, "texmethod")
-        row = layout.row()
-        row.prop(nb.settingprops, "uv_resolution")
+#         row.prop(nb.settingprops, "texmethod")
+        row.prop(nb.settingprops, "uv_resolution", text="UV resolution")
 
     def drawunit_tri_manage_colourmaps(self, layout, nb, data):
 

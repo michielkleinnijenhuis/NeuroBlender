@@ -1336,7 +1336,7 @@ class SettingsProperties(pg):
         default=True)
 
     camera_rig = EnumProperty(
-        name="Default camera rig",
+        name="Camera rig",
         description="The number of default cameras to add in a preset",
         default="single",
         items=[("single", "single", "single", 0),
@@ -1349,14 +1349,14 @@ class SettingsProperties(pg):
                ("octet", "octet", "octet", 7)])
 
     lighting_rig = EnumProperty(
-        name="Default lighting rig",
+        name="Lighting rig",
         description="The number of default lights to add in a preset",
         default="triple",
         items=[("single", "single", "single", 0),
                ("triple", "triple", "triple", 1)])
 
     table_rig = EnumProperty(
-        name="Default table rig",
+        name="Table rig",
         description="The default table to add in a preset",
         default="none",
         items=[("none", "none", "none", 0),
@@ -2923,6 +2923,14 @@ class NeuroBlenderProperties(pg):
         name="Texture preferences",
         default=False,
         description="Show/hide the texture preferences")
+    show_panel_preferences = BoolProperty(
+        name="Panel preferences",
+        default=False,
+        description="Show/hide the panel preferences")
+    show_scene_preferences = BoolProperty(
+        name="Scene preferences",
+        default=False,
+        description="Show/hide the scene preferences")
 
     tracts = CollectionProperty(
         type=TractProperties,
