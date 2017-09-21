@@ -281,6 +281,9 @@ class NB_PT_base(bpy.types.Panel):
             fun = eval("self.drawunit_tri_{}".format(triflag))
             fun(layout_tri, nb, data)
 
+            row = layout.row()
+            row.separator()
+
         else:
             row = layout.row()
             row.prop(nb, prop, icon='TRIA_RIGHT', emboss=False)
