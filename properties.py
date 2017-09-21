@@ -112,6 +112,7 @@ def init_settings_handler(dummy):
     nb.settingprops.uv_resolution = nb.settingprops.uv_resolution
     nb.settingprops.advanced = nb.settingprops.advanced
     nb.settingprops.verbose = nb.settingprops.verbose
+    nb.settingprops.goboxy = nb.settingprops.goboxy
     nb.settingprops.switches = nb.settingprops.switches
 
 
@@ -1334,6 +1335,11 @@ class SettingsProperties(pg):
         name="Show switchbar",
         description="Show a small bar with switches in each panel",
         default=True)
+
+    goboxy = BoolProperty(
+        name="Show boxes",
+        description="Show items in boxes when expanded",
+        default=False)
 
     camera_rig = EnumProperty(
         name="Camera rig",

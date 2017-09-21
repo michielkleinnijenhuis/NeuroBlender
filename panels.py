@@ -265,18 +265,25 @@ class NB_PT_base(bpy.types.Panel):
 
         scn = bpy.context.scene
 
-        row = layout.row()
         prop = "show_{}".format(triflag)
+
         if scn.path_resolve("nb.{}".format(prop)):
+
+            if nb.settingprops.goboxy:
+                col = layout.column(align=True)
+                layout_hdr = col.box()
+                layout_tri = col.box()
+            else:
+                layout_hdr = layout.row()
+                layout_tri = layout
+
+            layout_hdr.prop(nb, prop, icon='TRIA_DOWN', emboss=False)
             fun = eval("self.drawunit_tri_{}".format(triflag))
-            fun(layout, nb, data)
-            icon = 'TRIA_DOWN'
-            row.prop(nb, prop, icon=icon, emboss=False)
-            row = layout.row()
-            row.separator()
+            fun(layout_tri, nb, data)
+
         else:
-            icon = 'TRIA_RIGHT'
-            row.prop(nb, prop, icon=icon, emboss=False)
+            row = layout.row()
+            row.prop(nb, prop, icon='TRIA_RIGHT', emboss=False)
 
     def drawunit_tri_unwrap(self, layout, nb, nb_ob):
         """Unwrap a NeuroBlender surface object.
@@ -1470,6 +1477,9 @@ class NB_PT_settings(bpy.types.Panel):
                  text="Verbose")
         row.prop(nb.settingprops, "advanced", toggle=True,
                  text="Advanced")
+        row = layout.row()
+        row.prop(nb.settingprops, "goboxy", toggle=True,
+                 text="Boxy dropdowns")
 
     def drawunit_tri_texture_preferences(self, layout, nb, data):
 
