@@ -276,17 +276,8 @@ class NB_OT_animate_camerapath(Operator):
             bpy.ops.constraint.delete(override)
 
         for anim in anims:
-            try:
-                campath = bpy.data.objects[anim.campaths_enum]
-            except:
-                if len(nb.campaths) == 0:
-                    bpy.ops.nb.campath_add('INVOKE_DEFAULT')
-                    campath = nb.campaths[0]
-                else:
-                    return {'CANCELLED'}
-            else:
-                self.animate_campath(campath, anim)
-                self.animate_camera(cam, anim, campath)
+            self.animate_campath(anim)
+            self.animate_camera(anim)
 
         cnsCO = nb_ut.add_constraint(cam, "CHILD_OF", "Child Of", box)
         timeline = generate_timeline(scn, anims)
@@ -297,10 +288,15 @@ class NB_OT_animate_camerapath(Operator):
         restrict_incluence_timeline(scn, cnsTT, timeline, group="TrackTo")
 
     @staticmethod
-    def animate_campath(campath=None, anim=None):
+    def animate_campath(anim=None):
         """Set up camera path animation."""
 
         scn = bpy.context.scene
+
+        try:
+            campath = bpy.data.objects[anim.campaths_enum]
+        except KeyError:
+            return
 
         campath.data.use_path = True
         actname = "{}Action".format(campath.data.name)
@@ -320,15 +316,21 @@ class NB_OT_animate_camerapath(Operator):
         mod.frame_end = anim.frame_end
 
     @staticmethod
-    def animate_camera(cam, anim, campath, cns=None):
+    def animate_camera(anim, cns=None):
         """Set up camera animation."""
 
         scn = bpy.context.scene
+
+        try:
+            cam = bpy.data.objects[anim.camera]
+        except KeyError:
+            return
 
         frame_current = scn.frame_current
 
         if cns is None:
             cnsname = "FollowPath_{}".format(anim.name)
+            campath = bpy.data.objects.get(anim.campaths_enum)
             cns = nb_ut.add_constraint(cam, "FOLLOW_PATH", cnsname,
                                        campath, anim.tracktype)
             anim.cnsname = cns.name
@@ -666,10 +668,10 @@ class NB_OT_campoint_add(Operator):
     bl_description = "Create a new camera position in campath"
     bl_options = {"REGISTER", "UNDO", "PRESET"}
 
-    index_animations = IntProperty(
-        name="index animations",
-        description="Specify animation index",
-        default=-1)
+    campathname = StringProperty(
+        name="Camera trajectory",
+        description="Specify the curve for the camera trajectory",
+        default="")
     co = FloatVectorProperty(
         name="camera coordinates",
         description="Specify camera coordinates",
@@ -678,10 +680,8 @@ class NB_OT_campoint_add(Operator):
     def execute(self, context):
 
         scn = context.scene
-        nb = scn.nb
 
-        anim = nb.animations[self.index_animations]
-        campath = bpy.data.objects[anim.campaths_enum]
+        campath = bpy.data.objects[self.campathname]
 
         try:
             spline = campath.data.splines[0]
@@ -712,17 +712,17 @@ class NB_OT_campoint_add(Operator):
         scn = context.scene
         nb = scn.nb
 
-        self.index_presets = nb.index_presets
-        preset = nb.presets[self.index_presets]
-
-        self.index_animations = nb.index_animations
-
-        cam = bpy.data.objects[preset.cameras[preset.index_cameras].name]
+        cam = scn.camera
+        presetname = cam.data.name[:-7]  # TODO
+        preset = scn.path_resolve('nb.presets["{}"]'.format(presetname))
         centre = bpy.data.objects[preset.centre]
 
-        self.co[0] = cam.location[0] * preset.dims[0] / 2 + centre.location[0]
-        self.co[1] = cam.location[1] * preset.dims[1] / 2 + centre.location[1]
-        self.co[2] = cam.location[2] * preset.dims[2] / 2 + centre.location[2]
+        for dim in [0, 1, 2]:
+            print(cam.location[dim], preset.dims[dim] / 2, centre.location[dim])
+            self.co[dim] = cam.location[dim] * preset.dims[dim] / 2 + centre.location[dim]
+
+        anim = nb.animations[nb.index_animations]
+        self.campathname = anim.campaths_enum
 
         return self.execute(context)
 

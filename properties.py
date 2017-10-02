@@ -343,10 +343,9 @@ def timings_enum_update(self, context):
         nb_cam = nb_preset.cameras[nb_preset.index_cameras]
         cam = bpy.data.objects[nb_cam.name]
         acp = bpy.types.NB_OT_animate_camerapath
-        campath = bpy.data.objects[self.campaths_enum]
         # change the eval time keyframes on the new campath
         acp.clear_CP_evaltime(self)
-        acp.animate_campath(campath, self)
+        acp.animate_campath(self)
 
         # redo the keyframing of the cam constraints
         cam_anims = [anim for anim in nb.animations
@@ -355,7 +354,7 @@ def timings_enum_update(self, context):
                          (anim.is_rendered))]
         acp.clear_CP_followpath(self)
         cns = cam.constraints[self.cnsname]
-        acp.animate_camera(cam, self, campath, cns=cns)
+        acp.animate_camera(self, cns=cns)
         acp.update_cam_constraints(cam, cam_anims)
 
     elif self.animationtype == "carver":
@@ -398,18 +397,19 @@ def campaths_enum_update(self, context):
     scn = context.scene
     nb = scn.nb
 
-    cam = bpy.data.objects[self.camera]
-
-    campath = bpy.data.objects[self.campaths_enum]
     acp = bpy.types.NB_OT_animate_camerapath
     # change the eval time keyframes on the new campath
     acp.clear_CP_evaltime(self)
-    acp.animate_campath(campath, self)
+    acp.animate_campath(self)
     # change the campath on the camera constraint
+    try:
+        cam = bpy.data.objects[self.camera]
+    except KeyError:
+        return
     try:
         cns = cam.constraints[self.cnsname]
     except KeyError:
-        acp.animate_camera(cam, self, campath)
+        acp.animate_camera(self)
     else:
         cns.target = bpy.data.objects[self.campaths_enum]
 
@@ -985,8 +985,10 @@ def name_update(self, context):  # FIXME! there's no name checks!
     elif colltype == "animations":
         if self.animationtype == "camerapath":
             cam = bpy.data.objects[self.camera]
-            cns = cam.constraints[self.cnsname]
-            self.cnsname = cns.name = "FollowPath_{}".format(self.name)
+            cns = cam.constraints.get(self.cnsname)
+            if cns is not None:
+                cnsname = "FollowPath_{}".format(self.name)
+                self.cnsname = cns.name = cnsname
         colls = []  # TODO
 
     elif colltype == "campaths":  # not implemented via Panels
