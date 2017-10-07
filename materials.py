@@ -40,7 +40,9 @@ import bpy
 # =========================================================================== #
 
 
-def materialise(ob, colourtype='primary6', colourpicker=(1, 1, 1), trans=1):
+def materialise(ob, colourtype='primary6',
+                colourpicker=(1, 1, 1), trans=1,
+                name_pf='', idx=-1):
     """Attach material to an object."""
 
     if ob is None:
@@ -55,13 +57,14 @@ def materialise(ob, colourtype='primary6', colourpicker=(1, 1, 1), trans=1):
 
     ob.show_transparent = True
 
-    matname = ob.name
+    matname = ob.name + name_pf
 
     diffcol = [1, 1, 1]
     mix = 0.05
     diff_rn = 0.1
 
-    idx = eval("nb.index_%s" % nb.objecttype)
+    if idx < 0:
+        idx = eval("nb.index_%s" % nb.objecttype)
     if colourtype == "none":
         mix = 0.0
         diff_rn = 0.0

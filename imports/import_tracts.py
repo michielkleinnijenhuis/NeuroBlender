@@ -219,6 +219,23 @@ class NB_OT_import_tracts(Operator, ImportHelper):
         ob = bpy.data.objects.new(name, curve)
         scn.objects.link(ob)
 
+        # swc colouring
+        if ext[1:] == 'swc':
+            structs = [(0, '.apical_dendrite'),
+                       (1, '.basal_dendrite'),
+                       (2, '.axon'),
+                       (3, '.soma'),
+                       (4, '')]
+        else:
+            structs = [(-1, '')]
+
+        for i, struct in structs:
+            info_mat = nb_ma.materialise(ob,
+                                         self.colourtype,
+                                         self.colourpicker,
+                                         self.transparency,
+                                         struct, i)
+
         nsamples = int(len(streamlines) * self.weed_tract)
         streamlines_sample = sample(range(len(streamlines)), nsamples)
         # TODO: remember 'sample' for scalars import?
@@ -257,10 +274,6 @@ class NB_OT_import_tracts(Operator, ImportHelper):
         ob.select = True
         scn.update()
 
-        info_mat = nb_ma.materialise(ob,
-                                     self.colourtype,
-                                     self.colourpicker,
-                                     self.transparency)
         beaudict = {"mode": "FULL",
                     "depth": 0.5,
                     "res": 10}
@@ -585,6 +598,76 @@ class NB_OT_import_tracts(Operator, ImportHelper):
         streamlinevec = np.delete(streamlinevec, indices, 0)
 
         return streamline, streamlinevec
+
+    def read_streamlines_swc(self, fpath):
+        """Return all neuron branches in a swc file."""
+
+        swcdict = {}
+        streamlines = []
+        streamline = []
+        with open(fpath, 'rb') as f:
+            data = f.read()
+            lines = data.split(b'\n')
+            for line in lines:
+
+                if line.startswith(b'#') or line == b'':
+                    continue
+
+                idx, cp = self.decode_line_swc(line)
+                swcdict[idx] = cp
+
+                if cp['parent'] < 0:  # skip master parent point
+                    continue
+
+                pp = swcdict[cp['parent']]
+
+                if cp['structure'] == pp['structure'] == 1:  # no soma
+                    continue
+                if cp['parent'] < idx - 1:  # new branch
+                    if streamline:
+                        streamlines.append(streamline)
+                    point = pp['co'] + [pp['radius']] + [pp['structure']]
+                    streamline = [point]
+                    if pp['colourcode'] is not None:
+                        streamline += [pp['colourcode']]
+
+                point = cp['co'] + [cp['radius']] + [cp['structure']]
+                if cp['colourcode'] is not None:
+                    point += [cp['colourcode']]
+                streamline.append(point)
+
+            if streamline:
+                streamlines.append(streamline)
+
+        return streamlines
+
+    def decode_line_swc(self, line):
+        """Parse a line of a swc file.
+        structure lookup:
+        Standardized swc files (www.neuromorpho.org)
+        0 - undefined
+        1 - soma
+        2 - axon
+        3 - (basal) dendrite
+        4 - apical dendrite
+        5+ - custom
+        """
+
+        tokens = line.decode("utf-8").rstrip("\n").split(' ')
+        idx = int(tokens[0])
+        pointdict = {
+            'structure': int(tokens[1]),
+            'co': [float(token) for token in tokens[2:5]],
+            'radius': float(tokens[5]),
+            'parent': int(tokens[6]),
+            }
+
+        try:
+            pointdict['colourcode'] = int(tokens[7])  # TODO: implement
+        except IndexError:
+            pointdict['colourcode'] = None
+
+        return idx, pointdict
 
     @staticmethod
     def beautification(ob, argdict={"mode": "FULL", "depth": 0.5, "res": 10}):

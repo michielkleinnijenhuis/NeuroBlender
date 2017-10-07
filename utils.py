@@ -534,12 +534,16 @@ def make_polyline(curvedata, clist,
     polyline = curvedata.splines.new('POLY')
     polyline.points.add(len(clist)-1)
     for num in range(len(clist)):
-        x, y, z = clist[num]
-        polyline.points[num].co = (x, y, z, 1)
+        polyline.points[num].co = tuple(clist[num][0:3]) + (1,)
+        if len(clist[num]) > 3:
+            polyline.points[num].radius = clist[num][3]
+    if len(clist[-1]) > 4:
+        polyline.material_index = int(clist[-1][4])
+    if len(clist[-1]) > 5:
+        polyline.material_index = int(clist[-1][5])
     polyline.order_u = len(polyline.points)-1
     polyline.use_endpoint_u = use_endpoint_u
     polyline.use_cyclic_u = use_cyclic_u
-
 
 def normalize_data(data):
     """Normalize data between 0 and 1."""
