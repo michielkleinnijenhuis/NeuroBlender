@@ -593,9 +593,14 @@ def overlay_enum_callback(self, context):
 def index_scalars_update(self, context):
     """Switch views on updating scalar index."""
 
-    pg_sc1 = pg.bl_rna_get_subclass_py("TractProperties")
-    pg_sc2 = pg.bl_rna_get_subclass_py("SurfaceProperties")
-    pg_sc3 = pg.bl_rna_get_subclass_py("VoxelvolumeProperties")
+    try:
+        pg_sc1 = bpy.types.TractProperties
+        pg_sc2 = bpy.types.SurfaceProperties
+        pg_sc3 = bpy.types.VoxelvolumeProperties
+    except AttributeError:
+        pg_sc1 = pg.bl_rna_get_subclass_py("TractProperties")
+        pg_sc2 = pg.bl_rna_get_subclass_py("SurfaceProperties")
+        pg_sc3 = pg.bl_rna_get_subclass_py("VoxelvolumeProperties")
     if isinstance(self, (pg_sc1, pg_sc2, pg_sc3)):
         try:
             sg = self.scalargroups[self.index_scalargroups]
@@ -628,10 +633,16 @@ def index_scalars_update_func(group=None):
     else:
         name = scalar.name
 
-        pg_sc1 = pg.bl_rna_get_subclass_py("TractProperties")
-        pg_sc2 = pg.bl_rna_get_subclass_py("SurfaceProperties")
-        pg_sc3 = pg.bl_rna_get_subclass_py("VoxelvolumeProperties")
-        pg_sc4 = pg.bl_rna_get_subclass_py("ScalarGroupProperties")
+        try:
+            pg_sc1 = bpy.types.TractProperties
+            pg_sc2 = bpy.types.SurfaceProperties
+            pg_sc3 = bpy.types.VoxelvolumeProperties
+            pg_sc4 = bpy.types.ScalarGroupProperties
+        except AttributeError:
+            pg_sc1 = pg.bl_rna_get_subclass_py("TractProperties")
+            pg_sc2 = pg.bl_rna_get_subclass_py("SurfaceProperties")
+            pg_sc3 = pg.bl_rna_get_subclass_py("VoxelvolumeProperties")
+            pg_sc4 = pg.bl_rna_get_subclass_py("ScalarGroupProperties")
         if isinstance(nb_ob, pg_sc2):
 
             vg_idx = ob.vertex_groups.find(name)
@@ -740,9 +751,14 @@ def index_scalars_update_vvolscalar_func(group, scalar, method=1):
 def index_labels_update(self, context):
     """Switch views on updating label index."""
 
-    pg_sc1 = pg.bl_rna_get_subclass_py("TractProperties")
-    pg_sc2 = pg.bl_rna_get_subclass_py("SurfaceProperties")
-    pg_sc3 = pg.bl_rna_get_subclass_py("VoxelvolumeProperties")
+    try:
+        pg_sc1 = bpy.types.TractProperties
+        pg_sc2 = bpy.types.SurfaceProperties
+        pg_sc3 = bpy.types.VoxelvolumeProperties
+    except AttributeError:
+        pg_sc1 = pg.bl_rna_get_subclass_py("TractProperties")
+        pg_sc2 = pg.bl_rna_get_subclass_py("SurfaceProperties")
+        pg_sc3 = pg.bl_rna_get_subclass_py("VoxelvolumeProperties")
     if isinstance(self, (pg_sc1, pg_sc2, pg_sc3)):
         try:
             lg = self.labelgroups[self.index_labelgroups]
@@ -774,7 +790,10 @@ def index_labels_update_func(group=None):
         pass
     else:
         name = label.name
-        pg_sc = pg.bl_rna_get_subclass_py("SurfaceProperties")
+        try:
+            pg_sc = bpy.types.SurfaceProperties
+        except AttributeError:
+            pg_sc = pg.bl_rna_get_subclass_py("SurfaceProperties")
         if isinstance(nb_ob, pg_sc):
             vg_idx = ob.vertex_groups.find(name)
             ob.vertex_groups.active_index = vg_idx
@@ -857,7 +876,10 @@ def carvers_update(self, context):
     nb = scn.nb
 
     ob = bpy.data.objects.get(self.name, [])
-    pg_sc = pg.bl_rna_get_subclass_py("CarveObjectProperties")
+    try:
+        pg_sc = bpy.types.CarveObjectProperties
+    except AttributeError:
+        pg_sc = pg.bl_rna_get_subclass_py("CarveObjectProperties")
     if ob and isinstance(self, pg_sc):
         ob.scale = self.slicethickness
         # TODO: calculate position regarding the slicethickness
@@ -1210,9 +1232,14 @@ def overlay_is_rendered_update(self, context):
 
     nb_ob = nb_ut.active_nb_object()[0]
 
-    pg_sc1 = pg.bl_rna_get_subclass_py("TractProperties")
-    pg_sc2 = pg.bl_rna_get_subclass_py("SurfaceProperties")
-    pg_sc3 = pg.bl_rna_get_subclass_py("VoxelvolumeProperties")
+    try:
+        pg_sc1 = bpy.types.TractProperties
+        pg_sc2 = bpy.types.SurfaceProperties
+        pg_sc3 = bpy.types.VoxelvolumeProperties
+    except AttributeError:
+        pg_sc1 = pg.bl_rna_get_subclass_py("TractProperties")
+        pg_sc2 = pg.bl_rna_get_subclass_py("SurfaceProperties")
+        pg_sc3 = pg.bl_rna_get_subclass_py("VoxelvolumeProperties")
     if isinstance(nb_ob, pg_sc1):
         pass
         # TODO: pop/reset the material slots

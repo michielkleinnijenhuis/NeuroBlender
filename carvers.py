@@ -121,7 +121,10 @@ class NB_OT_import_carvers(Operator):
         box.location = glob_ctr
 
         # attach texture mapping (vvol) or boolean (surf)
-        pg_sc = pg.bl_rna_get_subclass_py("SurfaceProperties")
+        try:
+            pg_sc = bpy.types.SurfaceProperties
+        except AttributeError:
+            pg_sc = pg.bl_rna_get_subclass_py("SurfaceProperties")
         if isinstance(nb_ob, pg_sc):
             self.add_boolmod(ob.name, box, ob, 'BMESH', 'INTERSECT')
 

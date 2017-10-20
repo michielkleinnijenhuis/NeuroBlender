@@ -246,7 +246,10 @@ class NB_PT_base(bpy.types.Panel):
             return
 
         if uilistlevel == "L2":
-            pg_sc = pg.bl_rna_get_subclass_py("VoxelvolumeProperties")
+            try:
+                pg_sc = bpy.types.VoxelvolumeProperties
+            except AttributeError:
+                pg_sc = pg.bl_rna_get_subclass_py("VoxelvolumeProperties")
             if isinstance(data, pg_sc):
                 operator = "nb.import_voxelvolumes"
                 # TODO: move vvol overlay func to import_overlays.py
@@ -341,7 +344,10 @@ class NB_PT_base(bpy.types.Panel):
         row.operator("nb.nblist_ops",
                      icon='ZOOMOUT',
                      text="").action = 'REMOVE_CV'
-        pg_sc = pg.bl_rna_get_subclass_py("TractProperties")
+        try:
+            pg_sc = bpy.types.TractProperties
+        except AttributeError:
+            pg_sc = pg.bl_rna_get_subclass_py("TractProperties")
         row.enabled = not isinstance(nb_ob, pg_sc)
 
     def drawunit_carveroptions(self, layout, nb_ob):
@@ -423,7 +429,10 @@ class NB_PT_base(bpy.types.Panel):
         NeuroBlender surface and volume textures are saved in .png format and when loaded expanded to the range [0, 1]. The original datarange is saved when writing the textures. The corresponding values of the colour stops in the colour ramp are shown as a list of values beneath the ramp [ADVANCED only]. The full min-max datarange is shown when expanding the 'Info' triangle [ADVANCED only].
         """
 
-        pg_sc = pg.bl_rna_get_subclass_py("VoxelvolumeProperties")
+        try:
+            pg_sc = bpy.types.VoxelvolumeProperties
+        except AttributeError:
+            pg_sc = pg.bl_rna_get_subclass_py("VoxelvolumeProperties")
         if isinstance(nb_ob, pg_sc):
             self.drawunit_rendertype(layout, nb_ob)
             tex = bpy.data.textures[nb_ob.name]
@@ -458,8 +467,12 @@ class NB_PT_base(bpy.types.Panel):
         row = layout.row(align=True)
         row.prop(mat, "diffuse_color", text="")
         row.prop(mat, "alpha", text="Transparency")
-        pg_sc1 = pg.bl_rna_get_subclass_py("LabelProperties")
-        pg_sc2 = pg.bl_rna_get_subclass_py("BorderProperties")
+        try:
+            pg_sc1 = bpy.types.LabelProperties
+            pg_sc2 = bpy.types.BorderProperties
+        except AttributeError:
+            pg_sc1 = pg.bl_rna_get_subclass_py("LabelProperties")
+            pg_sc2 = pg.bl_rna_get_subclass_py("BorderProperties")
         if isinstance(nb_ob, (pg_sc1, pg_sc2)):
             row.operator("nb.revert_label", icon='BACK', text="")
 
@@ -475,8 +488,12 @@ class NB_PT_base(bpy.types.Panel):
         row = layout.row(align=True)
         row.prop(colour, "default_value", text="")
         row.prop(trans, "default_value", text="Transparency")
-        pg_sc1 = pg.bl_rna_get_subclass_py("LabelProperties")
-        pg_sc2 = pg.bl_rna_get_subclass_py("BorderProperties")
+        try:
+            pg_sc1 = bpy.types.LabelProperties
+            pg_sc2 = bpy.types.BorderProperties
+        except AttributeError:
+            pg_sc1 = pg.bl_rna_get_subclass_py("LabelProperties")
+            pg_sc2 = pg.bl_rna_get_subclass_py("BorderProperties")
         if isinstance(nb_ob, (pg_sc1, pg_sc2)):
             row.operator("nb.revert_label", icon='BACK', text="")
 
