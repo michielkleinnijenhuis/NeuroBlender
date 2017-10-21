@@ -430,8 +430,7 @@ class NB_OT_import_overlays(Operator, ImportHelper):
         elif fpath.endswith('.gii'):
             nib = nb_ut.validate_nibabel('.gii')
             if nb.settingprops.nibabel_valid:
-                gio = nib.gifti.giftiio
-                img = gio.read(fpath)
+                img = nib.load(fpath)
                 scalars = []
                 for darray in img.darrays:
                     scalars.append(darray.data)
@@ -440,9 +439,8 @@ class NB_OT_import_overlays(Operator, ImportHelper):
         elif fpath.endswith('dscalar.nii'):
             nib = nb_ut.validate_nibabel('dscalar.nii')
             if nb.settingprops.nibabel_valid:
-                gio = nib.gifti.giftiio
-                nii = gio.read(fpath)
-                scalars = np.squeeze(nii.get_data())
+                img = nib.load(fpath)
+                scalars = np.squeeze(img.get_data())
 
         else:  # I will try to read it as a freesurfer binary
             nib = nb_ut.validate_nibabel('')
@@ -604,8 +602,7 @@ class NB_OT_import_overlays(Operator, ImportHelper):
                 labels, ctab, bnames = fsio.read_annot(fpath, orig_ids=False)
                 names = [name.decode('utf-8') for name in bnames]
             elif fpath.endswith(".gii"):
-                gio = nib.gifti.giftiio
-                img = gio.read(fpath)
+                img = nib.load(fpath)
                 img.labeltable.get_labels_as_dict()
                 labels = img.darrays[0].data
                 labtab = img.labeltable
@@ -641,8 +638,7 @@ class NB_OT_import_overlays(Operator, ImportHelper):
 
         nib = nb_ut.validate_nibabel('.annot')
         if nb.settingprops.nibabel_valid:
-            gio = nib.gifti.giftiio
-            img = gio.read(fpath)
+            img = nib.load(fpath)
             img.labeltable.get_labels_as_dict()
             labels = img.darrays[0].data
             labeltable = img.labeltable

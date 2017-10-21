@@ -284,8 +284,7 @@ class NB_OT_import_surfaces(Operator, ImportHelper):
 
         nib = nb_ut.validate_nibabel('.gifti')
 
-        gio = nib.gifti.giftiio
-        img = gio.read(fpath)
+        img = nib.load(fpath)
         verts = [tuple(vert) for vert in img.darrays[0].data]
         faces = [tuple(face) for face in img.darrays[1].data]
         xform = img.darrays[0].coordsys.xform
