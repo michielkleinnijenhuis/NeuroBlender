@@ -60,7 +60,7 @@ class NB_OT_import_surfaces(Operator, ImportHelper):
         default="*.obj;*.stl;" +
                 "*.gii;" +
                 "*.white;*.pial;*.inflated;*.sphere;*.orig;" +
-                "*.blend")
+                "*.vtk;" + "*.blend;")
 
     name = StringProperty(
         name="Name",
@@ -346,6 +346,61 @@ class NB_OT_import_surfaces(Operator, ImportHelper):
                 surfaces.append((ob, affine, sformfile))
 
         return surfaces
+
+    def read_surfaces_vtk(self, fpath, name, sformfile=""):
+        """Return a surface in a .vtk polygon file."""
+
+        verts, faces = self.import_vtk_polygons(fpath)
+
+        verts = [tuple(vert) for vert in verts]
+        faces = [tuple(face) for face in faces]
+        affine = Matrix()
+
+        me = bpy.data.meshes.new(name)
+        me.from_pydata(verts, [], faces)
+        ob = bpy.data.objects.new(name, me)
+        bpy.context.scene.objects.link(ob)
+
+        return [(ob, affine, sformfile)]
+
+    @staticmethod
+    def import_vtk_polygons(vtkfile):
+        """Read points and polylines from file"""
+
+        with open(vtkfile) as f:
+            read_points = 0
+            read_polygons = 0
+            for line in f:
+                tokens = line.rstrip("\n").split(' ')
+
+                if tokens[0] == "POINTS":
+                    read_points = 1
+                    npoints = int(tokens[1])
+                    points = []
+                elif read_points == 1 and len(points) < npoints * 3:
+                    for token in tokens:
+                        if token:
+                            points.append(float(token))
+
+                elif tokens[0] == "POLYGONS":
+                    read_polygons = 1
+                    npolys = int(tokens[1])
+                    polygons = []
+                elif read_polygons == 1 and len(polygons) < npolys:
+                    polygon = []
+                    for token in tokens[1:]:
+                        if token:
+                            polygon.append(int(token))
+                    polygons.append(polygon)
+
+                elif tokens[0] == '':
+                    pass
+                else:
+                    pass
+
+            points = np.reshape(np.array(points), (npoints, 3))
+
+        return points, polygons
 
     @staticmethod
     def beautification(ob, argdict={"iterations": 10, "factor": 0.5,
