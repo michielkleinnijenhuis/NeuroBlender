@@ -578,9 +578,9 @@ class NB_OT_collection(Operator):
     def remove_vertexcoll(self, coll, name):
         """Remove vertexgroup or vertex_color attribute"""
 
-        mstring = '{}.vol....'.format(name)
+        mstring = '{}.vol'.format(name)
         for item in coll:
-            if re.match(mstring, item.name) is not None:
+            if item.name.startswith(mstring):
                 coll.remove(item)
 
     def remove_animations_camerapath(self, anims, index):
