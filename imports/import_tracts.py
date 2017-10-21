@@ -38,6 +38,7 @@ from bpy.props import (BoolProperty,
                        StringProperty,
                        CollectionProperty,
                        EnumProperty,
+                       IntProperty,
                        FloatVectorProperty,
                        FloatProperty)
 from bpy_extras.io_utils import ImportHelper
@@ -115,6 +116,33 @@ class NB_OT_import_tracts(Operator, ImportHelper):
         min=0.,
         max=1.)
 
+    use_quickbundles = BoolProperty(
+        name="QuickBundles",
+        description="Use QuickBundles to segment the tract",
+        default=False)
+
+    qb_points = IntProperty(
+        name="QuickBundles points",
+        description="Resample the streamlines to N points",
+        default=50,
+        min=2)
+
+    qb_threshold = FloatProperty(
+        name="QuickBundles threshold",
+        description="Set the threshold for QuickBundles",
+        default=30.,
+        min=0.)
+
+    qb_separation = BoolProperty(
+        name="QuickBundles separate",
+        description="Create a tract object for every QuickBundles cluster",
+        default=False)
+
+    qb_centroids = BoolProperty(
+        name="QuickBundles centroids",
+        description="Create a QuickBundles centroids object",
+        default=False)
+
     def execute(self, context):
 
         filenames = [f.name for f in self.files]
@@ -123,8 +151,7 @@ class NB_OT_import_tracts(Operator, ImportHelper):
 
         for f in filenames:
             fpath = os.path.join(self.directory, f)
-            info = self.import_tract(context, fpath)
-            self.report({'INFO'}, info)
+            self.import_tract(context, fpath)
 
         return {"FINISHED"}
 
@@ -152,6 +179,16 @@ class NB_OT_import_tracts(Operator, ImportHelper):
             row.prop(self, "colourpicker")
         row = layout.row()
         row.prop(self, "transparency")
+
+        row = layout.row()
+        row.prop(self, "use_quickbundles")
+        if self.use_quickbundles:
+            row = layout.row()
+            row.prop(self, "qb_points")
+            row.prop(self, "qb_threshold")
+            row = layout.row()
+            row.prop(self, "qb_centroids")
+            row.prop(self, "qb_separation")
 
     def invoke(self, context, event):
 
@@ -214,89 +251,82 @@ class NB_OT_import_tracts(Operator, ImportHelper):
             info = "import {}: {}".format(outcome, reason)
             raise
 
-        curve = bpy.data.curves.new(name=name, type='CURVE')
-        curve.dimensions = '3D'
-        ob = bpy.data.objects.new(name, curve)
-        scn.objects.link(ob)
-
-        # swc colouring
-        if ext[1:] == 'swc':
-            structs = [(0, '.apical_dendrite'),
-                       (1, '.basal_dendrite'),
-                       (2, '.axon'),
-                       (3, '.soma'),
-                       (4, '')]
+        if self.use_quickbundles:
+            obs = self.quickbundles(context, name, streamlines)
         else:
-            structs = [(-1, '')]
+            obs = [self.create_tract_object(context, name)]
+            self.add_streamlines(obs[0], streamlines)
+            # swc colouring
+            if ext[1:] == 'swc':
+                structs = [(0, '.apical_dendrite'),
+                           (1, '.basal_dendrite'),
+                           (2, '.axon'),
+                           (3, '.soma'),
+                           (4, '')]
+            else:
+                structs = [(-1, '')]
 
-        for i, struct in structs:
-            info_mat = nb_ma.materialise(ob,
-                                         self.colourtype,
-                                         self.colourpicker,
-                                         self.transparency,
-                                         struct, i)
-
-        nsamples = int(len(streamlines) * self.weed_tract)
-        streamlines_sample = sample(range(len(streamlines)), nsamples)
-        # TODO: remember 'sample' for scalars import?
-        # TODO: weed tract at reading stage where possible?
-
-        for i, streamline in enumerate(streamlines):
-            if i in streamlines_sample:
-                if self.interpolate_streamlines < 1.:
-                    subs_sl = int(1/self.interpolate_streamlines)
-                    streamline = np.array(streamline)[1::subs_sl, :]
-    #                 TODO: interpolation
-    #                 from scipy import interpolate
-    #                 x = interpolate.splprep(list(np.transpose(streamline)))
-                nb_ut.make_polyline(curve, streamline)
+            for i, struct in structs:
+                info_mat = nb_ma.materialise(obs[0],
+                                             self.colourtype,
+                                             self.colourpicker,
+                                             self.transparency,
+                                             struct, i)
 
         # TODO: handle cases where transform info is included in tractfile
         affine = nb_ut.read_affine_matrix(self.sformfile)
-        ob.matrix_world = affine
 
-        props = {"name": name,
-                 "filepath": fpath,
-                 "sformfile": self.sformfile,
-                 "nstreamlines": nsamples,
-                 "tract_weeded": self.weed_tract,
-                 "streamines_interpolated": self.interpolate_streamlines}
-        nb_ut.add_item(nb, "tracts", props)
+        for ob in obs:
 
-        nb_ut.move_to_layer(ob, 0)
-        scn.layers[0] = True
+            ob.matrix_world = affine
 
-        group = bpy.data.groups.get("tracts") or \
-            bpy.data.groups.new("tracts")
-        group.objects.link(ob)
+            props = {
+                "name": ob.name,
+                "filepath": fpath,
+                "sformfile": self.sformfile,
+                "nstreamlines": len(ob.data.splines),
+                "tract_weeded": self.weed_tract,
+                "streamlines_interpolated": self.interpolate_streamlines
+                }
+            nb_ut.add_item(nb, "tracts", props)
 
-        scn.objects.active = ob
-        ob.select = True
-        scn.update()
+            nb_ut.move_to_layer(ob, 0)
+            scn.layers[0] = True
 
-        beaudict = {"mode": "FULL",
-                    "depth": 0.5,
-                    "res": 10}
-        info_beau = self.beautification(ob, beaudict)
+            group = bpy.data.groups.get("tracts") or \
+                bpy.data.groups.new("tracts")
+            group.objects.link(ob)
 
-        info = "Tract import successful"
-        if nb.settingprops.verbose:
-            infostring = "{}\n"
-            infostring += "name: '{}'\n"
-            infostring += "path: '{}'\n"
-            infostring += "transform: \n"
-            infostring += "{}\n"
-            infostring += "decimate: "
-            infostring += "weeding: {}; "
-            infostring += "interpolation: {};\n"
-            infostring += "{}\n"
-            infostring += "{}"
-            info = infostring.format(info, name, fpath, affine,
-                                     self.weed_tract,
-                                     self.interpolate_streamlines,
-                                     info_mat, info_beau)
+#             scn.objects.active = ob
+#             ob.select = True
+#             scn.update()
 
-        return info
+            if self.beautify:
+                beaudict = {"mode": "FULL", "depth": 0.05, "res": 5}
+                info_beau = self.beautification(ob, beaudict)
+            else:
+                info_beau = "no bevel"
+
+            info_mat=''
+            info = "Tract import successful"
+            if nb.settingprops.verbose:
+                infostring = "{}\n"
+                infostring += "name: '{}'\n"
+                infostring += "path: '{}'\n"
+                infostring += "transform: \n"
+                infostring += "{}\n"
+                infostring += "decimate: "
+                infostring += "weeding: {}; "
+                infostring += "interpolation: {};\n"
+                infostring += "{}\n"
+                infostring += "{}"
+                info = infostring.format(info, name, fpath, affine,
+                                         self.weed_tract,
+                                         self.interpolate_streamlines,
+                                         info_mat, info_beau)
+            self.report({'INFO'}, info)
+
+        return "done"
 
     def read_streamlines_npy(self, fpath):
         """Read a [Npointsx3] streamline from a *.npy file."""
@@ -571,7 +601,7 @@ class NB_OT_import_tracts(Operator, ImportHelper):
         streamlines = []
         offset = 0
         while offset < len(streamlinevec):
-            npoints = streamlinevec[offset]
+            npoints = streamlinevec[offset].astype(int)
             ntokens = npoints * 3
             offset += 2
             streamline = streamlinevec[offset:ntokens + offset]
@@ -654,6 +684,9 @@ class NB_OT_import_tracts(Operator, ImportHelper):
         """
 
         tokens = line.decode("utf-8").rstrip("\n").split(' ')
+        if not tokens[0]:  # catch spaces in front of line
+            tokens = tokens[1:]
+
         idx = int(tokens[0])
         pointdict = {
             'structure': int(tokens[1]),
@@ -686,3 +719,129 @@ class NB_OT_import_tracts(Operator, ImportHelper):
                                  argdict["res"])
 
         return info
+
+    def quickbundles(self, context, name, streamlines):
+        """Segment tract with QuickBundles."""
+
+        # TODO: implement other metrics
+        try:
+            from dipy.segment.clustering import QuickBundles
+            from dipy.segment.metric import ResampleFeature
+            from dipy.segment.metric import AveragePointwiseEuclideanMetric
+        except ImportError:
+            obs = [self.create_tract_object(context, name)]
+            self.add_streamlines(obs[0], streamlines)
+            return obs
+        else:
+
+            feature = ResampleFeature(nb_points=self.qb_points)
+            metric = AveragePointwiseEuclideanMetric(feature=feature)
+            qb = QuickBundles(threshold=self.qb_threshold, metric=metric)
+            clusters = qb.cluster(streamlines)
+
+            obs = self.qb_separate(context, name, clusters, streamlines)
+            centroid_ob = self.qb_centroid_object(context, name, clusters)
+
+            if centroid_ob is not None:
+                obs.append(centroid_ob)
+
+            self.qb_materialise(context, name, clusters, centroid_ob)
+
+        return obs
+
+    def qb_separate(self, context, name, clusters, streamlines):
+        """Separate streamline clusters."""
+
+        obs = []
+        if self.qb_separation:
+            for cluster in clusters:
+                cname = '{}.cluster{:05d}'.format(name, cluster.id)
+                ob = self.create_tract_object(context, cname)
+                cstreamlines = [streamlines[idx]
+                                for idx in cluster.indices]
+                self.add_streamlines(ob, cstreamlines)
+                obs.append(ob)
+        else:
+            ob = self.create_tract_object(context, name)
+            self.add_streamlines(ob, streamlines)
+            obs.append(ob)
+
+        return obs
+
+    def qb_centroid_object(self, context, name, clusters):
+
+        if self.qb_centroids:
+            cname = '{}.centroids'.format(name)
+            centroid_ob = self.create_tract_object(context, cname)
+            centroids = [cluster.centroid for cluster in clusters]
+            self.add_streamlines_unfiltered(centroid_ob, centroids)
+            if self.beautify:
+                beaudict = {"mode": "FULL", "depth": 0.5, "res": 5}
+                self.beautification(centroid_ob, beaudict)
+        else:
+            centroid_ob = None
+
+        return centroid_ob
+
+    def qb_materialise(self, context, name, clusters, centroid_ob=None):
+        """Assign materials to streamline clusters."""
+
+        trans = 1.
+        diff_rn = 0.1
+        mix = 0.05
+        colourtype = "golden_angle"
+
+        for cluster in clusters:
+
+            cname = '{}.cluster{:05d}'.format(name, cluster.id)
+            diffcol = nb_ma.get_golden_angle_colour(cluster.id)
+            diffcol.append(trans)
+            mat = nb_ma.make_cr_mat_basic(cname, diffcol, mix, diff_rn)
+            nb_ma.link_innode(mat, colourtype)
+
+            if self.qb_separation:
+                ob = bpy.data.objects[cname]
+                ob.data.materials.append(mat)
+            else:
+                ob = bpy.data.objects[name]
+                ob.data.materials.append(mat)
+                for cl_idx in cluster.indices:
+                    spline = ob.data.splines[cl_idx]
+                    spline.material_index = cluster.id
+
+            if centroid_ob is not None:
+                centroid_ob.data.materials.append(mat)
+                cspline = centroid_ob.data.splines[cluster.id]
+                cspline.material_index = cluster.id
+
+    def create_tract_object(self, context, name):
+        """Create an empty tract object."""
+
+        curve = bpy.data.curves.new(name=name, type='CURVE')
+        curve.dimensions = '3D'
+        ob = bpy.data.objects.new(name, curve)
+        context.scene.objects.link(ob)
+
+        return ob
+
+    def add_streamlines(self, ob, streamlines):
+        """Add streamlines to a tract object."""
+
+        nsamples = int(len(streamlines) * self.weed_tract)
+        streamlines_sample = sample(range(len(streamlines)), nsamples)
+
+        for i, streamline in enumerate(streamlines):
+            if i in streamlines_sample:
+                if self.interpolate_streamlines < 1.:
+                    subs_sl = int(1/self.interpolate_streamlines)
+                    streamline = np.array(streamline)[::subs_sl, :]
+                nb_ut.make_polyline(ob.data, streamline)
+
+        return ob
+
+    def add_streamlines_unfiltered(self, ob, streamlines):
+        """Add streamlines to a tract object."""
+
+        for streamline in streamlines:
+            nb_ut.make_polyline(ob.data, streamline)
+

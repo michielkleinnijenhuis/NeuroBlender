@@ -378,7 +378,7 @@ def validate_nibabel(ext):
 #         return {'cannot read ' + ext + ': nibabel not found'}
 
 
-def validate_dipy(ext):
+def validate_dipy(ext='tck'):
     """Try to import dipy."""
 
     nb = bpy.context.scene.nb
