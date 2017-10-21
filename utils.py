@@ -493,7 +493,7 @@ def read_affine_matrix(filepath, fieldname='stack'):
     elif filepath.endswith('.gii'):
         nib = validate_nibabel('gifti')
         if nb.settingprops.nibabel_valid:
-            img = nib.load(fpath)
+            img = nib.load(filepath)
             xform = img.darrays[0].coordsys.xform
             if len(xform) == 16:
                 xform = np.reshape(xform, [4, 4])
