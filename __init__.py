@@ -110,7 +110,9 @@ class NB_UL_collection(UIList):
             fun(layout, item, item_icon)
 
             if context.scene.nb.settingprops.advanced:
-                if self.ui == 'L3':
+                if self.ui == 'L2':
+                    fun = self.draw_advanced_L2
+                elif self.ui == 'L3':
                     fun = self.draw_advanced_L3
                 elif self.ui == 'PS':
                     fun = self.draw_advanced_PS
@@ -149,6 +151,21 @@ class NB_UL_collection(UIList):
             col.active = item.is_rendered
             col.prop(item, "is_rendered", text="", emboss=False,
                      translate=False, icon='SCENE')
+
+    def draw_advanced_L2(self, layout, data, item, index):
+
+        if bpy.context.scene.nb.overlaytype == 'labelgroups':
+            col = layout.column()
+            col.alignment = "RIGHT"
+            col.operator('nb.separate_labels',
+                         icon='PARTICLE_PATH',
+                         text="")
+
+        col = layout.column()
+        col.alignment = "RIGHT"
+        col.active = item.is_rendered
+        col.prop(item, "is_rendered", text="", emboss=False,
+                 translate=False, icon='SCENE')
 
     def draw_advanced_L3(self, layout, data, item, index):
 

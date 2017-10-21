@@ -110,7 +110,6 @@ class NB_OT_import_surfaces(Operator, ImportHelper):
         for f in filenames:
             fpath = os.path.join(self.directory, f)
             info = self.import_surface(context, fpath)
-            self.report({'INFO'}, info)
 
         return {"FINISHED"}
 
@@ -189,9 +188,6 @@ class NB_OT_import_surfaces(Operator, ImportHelper):
             info = "import {}: {}".format(outcome, reason)
             raise
 
-        group = bpy.data.groups.get("surfaces") or \
-            bpy.data.groups.new("surfaces")
-
         for surf in surfaces:
 
             ob, affine, sformfile = surf
@@ -200,18 +196,12 @@ class NB_OT_import_surfaces(Operator, ImportHelper):
 
             if ext[1:] == 'blend':
                 name = ob.name
+
             props = {"name": name,
                      "filepath": fpath,
                      "sformfile": sformfile}
-            item = nb_ut.add_item(nb, "surfaces", props)
 
-            # force updates on surfaces
-            item.sformfile = item.sformfile
-
-            nb_ut.move_to_layer(ob, 1)
-            scn.layers[1] = True
-
-            group.objects.link(ob)
+            self.surface_to_nb(context, props, ob)
 
             if self.colourtype != "none":
                 info_mat = nb_ma.materialise(ob,
@@ -219,7 +209,7 @@ class NB_OT_import_surfaces(Operator, ImportHelper):
                                              self.colourpicker,
                                              self.transparency)
             else:
-                info_mat = "not materialisation"
+                info_mat = "no materialisation"
 
             beaudict = {"iterations": 10,
                         "factor": 0.5,
@@ -231,23 +221,47 @@ class NB_OT_import_surfaces(Operator, ImportHelper):
             else:
                 info_beau = 'no beautification'
 
-        scn.objects.active = ob
-        ob.select = True
-        scn.update()
+            scn.objects.active = ob
+            ob.select = True
+            scn.update()
 
-        info = "Surface import successful"
-        if nb.settingprops.verbose:
-            infostring = "{}\n"
-            infostring += "name: '{}'\n"
-            infostring += "path: '{}'\n"
-            infostring += "transform: \n"
-            infostring += "{}\n"
-            infostring += "{}\n"
-            infostring += "{}"
-            info = infostring.format(info, name, fpath, affine,
-                                     info_mat, info_beau)
+            info = "Surface import successful"
+            if nb.settingprops.verbose:
+                infostring = "{}\n"
+                infostring += "name: '{}'\n"
+                infostring += "path: '{}'\n"
+                infostring += "transform: \n"
+                infostring += "{}\n"
+                infostring += "{}\n"
+                infostring += "{}"
+                info = infostring.format(info, name, fpath, affine,
+                                         info_mat, info_beau)
+                self.report({'INFO'}, info)
 
-        return info
+        return "info"
+
+    @staticmethod
+    def surface_to_nb(context, props, ob):
+        """Import a surface into NeuroBlender."""
+
+        scn = context.scene
+        nb = scn.nb
+
+        group = bpy.data.groups.get("surfaces") or \
+            bpy.data.groups.new("surfaces")
+
+        item = nb_ut.add_item(nb, "surfaces", props)
+
+        # force updates on surfaces
+        item.sformfile = item.sformfile
+
+        nb_ut.move_to_layer(ob, 1)
+        scn.layers[1] = True
+
+        try:
+            group.objects.link(ob)
+        except:
+            pass
 
     def read_surfaces_obj(self, fpath, name, sformfile):
         """Import a surface from a .obj file."""

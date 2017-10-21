@@ -45,6 +45,9 @@ from bpy_extras.io_utils import (ImportHelper,
 from . import (materials as nb_ma,
                properties as nb_pr,
                utils as nb_ut)
+from .imports import (import_tracts as nb_it,
+                      import_surfaces as nb_is,
+                      import_voxelvolumes as nb_iv)
 
 
 class NB_OT_revert_label(Operator):
@@ -77,6 +80,85 @@ class NB_OT_revert_label(Operator):
 
         nb_it = nb_ut.active_nb_overlayitem()[0]
         self.data_path = nb_it.path_from_id()
+
+        return self.execute(context)
+
+
+class NB_OT_separate_labels(Operator):
+    bl_idname = "nb.separate_labels"
+    bl_label = "Separate labels"
+    bl_description = "Separate a surface by it's labels"
+    bl_options = {"REGISTER"}
+
+    data_path = StringProperty(
+        name="data path",
+        description="Specify object data path",
+        default="")
+
+    duplicate = BoolProperty(
+        name="Duplicate",
+        description="Retain a copy of the original surface",
+        default=True)
+
+    def execute(self, context):
+
+        scn = bpy.context.scene
+        nb = scn.nb
+
+        split_path = self.data_path.split('.')
+        nb_ob = scn.path_resolve('.'.join(split_path[:2]))
+        labelgroup = scn.path_resolve('.'.join(split_path[:3]))
+
+        bpy.ops.object.select_all(action='DESELECT')
+
+        surf = bpy.data.objects[nb_ob.name]
+        surf.select = True
+        bpy.context.scene.objects.active = surf
+        bpy.ops.object.duplicate()
+
+        # FIXME: make sure of material assignment according to labels
+
+        # separate
+        bpy.ops.object.mode_set(mode='EDIT')
+        bpy.ops.mesh.separate(type='MATERIAL')
+        bpy.ops.object.mode_set(mode='OBJECT')
+
+        # create empty
+        sepname = '{}.separated'.format(surf.name)
+        empty = bpy.data.objects.new(sepname, None)
+        scn.objects.link(empty)
+
+        # rename new objects
+        for ob in bpy.context.scene.objects:
+            if ob.select:
+                name = ob.data.materials[0].name
+
+                if name == surf.name:
+                    name = '{}.unassigned'.format(labelgroup.name)
+                    mat = surf.data.materials[0].copy()
+                    mat.name = name
+                    ob.data.materials[0] = mat
+
+                ob.name = ob.data.name = name
+                ob.parent = empty
+
+                for vg in ob.vertex_groups:
+                    ob.vertex_groups.remove(vg)
+
+                props = {"name": name}  # FIXME: check name
+                surface_to_nb = nb_is.NB_OT_import_surfaces.surface_to_nb
+                surface_to_nb(context, props, ob)
+
+        if not self.duplicate:
+            bpy.ops.nb.nblist_ops(action="REMOVE_L1",
+                                  data_path='.'.join(split_path[:2]))
+
+        return {"FINISHED"}
+
+    def invoke(self, context, event):
+
+        nb_ov = nb_ut.active_nb_overlay()[0]
+        self.data_path = nb_ov.path_from_id()
 
         return self.execute(context)
 
