@@ -346,7 +346,7 @@ class NB_OT_import_overlays(Operator, ImportHelper):
             labels = None
             timeseries = self.read_surfscalar(fpath)
             if len(ob.data.vertices) != len(timeseries[0]):
-                return
+                return "failed"
 
         # normalize between 0  and 1
         timeseries, timeseriesrange = nb_ut.normalize_data(timeseries)
