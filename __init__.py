@@ -571,7 +571,7 @@ class NB_OT_collection(Operator):
         """Remove data if it is only has a single user."""
 
         item = coll.get(name)
-        if (item is not None) and (item.users < 2):
+        if (item is not None) and (item.users < 1):
             item.user_clear()
             coll.remove(item)
 
