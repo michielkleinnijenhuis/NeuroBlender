@@ -255,7 +255,6 @@ class NB_OT_import_tracts(Operator, ImportHelper):
             obs = self.quickbundles(context, name, streamlines)
         else:
             obs = [self.create_tract_object(context, name)]
-            self.add_streamlines(obs[0], streamlines)
             # swc colouring
             if ext[1:] == 'swc':
                 structs = [(0, '.apical_dendrite'),
@@ -272,6 +271,7 @@ class NB_OT_import_tracts(Operator, ImportHelper):
                                              self.colourpicker,
                                              self.transparency,
                                              struct, i)
+            self.add_streamlines(obs[0], streamlines)
 
         # TODO: handle cases where transform info is included in tractfile
         affine = nb_ut.read_affine_matrix(self.sformfile)

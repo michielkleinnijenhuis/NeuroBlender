@@ -587,6 +587,7 @@ def make_polyline(curvedata, clist,
     polyline.use_endpoint_u = use_endpoint_u
     polyline.use_cyclic_u = use_cyclic_u
 
+
 def normalize_data(data):
     """Normalize data between 0 and 1."""
 
