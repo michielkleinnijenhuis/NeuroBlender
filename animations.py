@@ -102,11 +102,22 @@ class NB_OT_animate_camerapath(Operator):
         name="Name",
         description="Specify a name for the animation",
         default="CameraPathAnimation")
+    camera = StringProperty(
+        name="Cam",
+        description="Specify a name for the animation",
+        default="Cam")
 
     def execute(self, context):
 
         scn = context.scene
         nb = scn.nb
+
+        # TODO: validate preset
+        nb_preset = nb.presets[nb.index_presets]
+
+        if ((bpy.data.objects.get(self.camera) is None) or
+                (nb_preset.cameras.get(self.camera) is None)):
+            return {"CANCELLED"}
 
         ca = [nb.animations]
         name = nb_ut.check_name(self.name, "", ca)
@@ -116,10 +127,22 @@ class NB_OT_animate_camerapath(Operator):
                      "icon": "ANIM"}
         anim = nb_ut.add_item(nb, "animations", animprops)
         anim.animationtype = 'camerapath'
+        anim.camera = self.camera
 
         self.animate(anim)
 
         return {"FINISHED"}
+
+    def invoke(self, context, event):
+
+        scn = context.scene
+        nb = scn.nb
+
+        nb_preset = nb.presets[nb.index_presets]
+        nb_cam = nb_preset.cameras[nb_preset.index_cameras]
+        self.camera = nb_cam.name
+
+        return self.execute(context)
 
     def animate(self, anim):
         """Set up a camera trajectory animation."""
@@ -127,45 +150,20 @@ class NB_OT_animate_camerapath(Operator):
         scn = bpy.context.scene
         nb = scn.nb
 
-        nb_preset = nb.presets[nb.index_presets]
-        nb_cam = nb_preset.cameras[nb_preset.index_cameras]
-        cam_ob = bpy.data.objects[nb_cam.name]
+        cam = bpy.data.objects.get(self.camera)
 
-        del_indices, cam_anims = [], []
+        anims = self.select_animations(nb.animations, self.camera)
+        self.clear_camera_path_animations(cam, anims)
+        self.create_camera_path_animations(cam, anims)
+        nb_ut.validate_anims_campath(anims)
 
-        for i, anim in enumerate(nb.animations):
-            if ((anim.animationtype == "camerapath") &
-                    (anim.is_rendered) &
-                    (anim.camera == nb_cam.name)):
-                del_indices.append(i)
-        del_indices, cam_anims = [], []
-
-        anim.camera = nb_cam.name
-
-        for i, anim in enumerate(nb.animations):
-            if ((anim.animationtype == "camerapath") &
-                    (anim.is_rendered) &
-                    (anim.camera == nb_cam.name)):
-                cam_anims.append(anim)
-
-        self.clear_camera_path_animations(cam_ob, nb.animations, del_indices)
-
-        self.create_camera_path_animations(cam_ob, cam_anims)
-
-    def clear_camera_path_animations(self, cam, anims, delete_indices):
+    def clear_camera_path_animations(self, cam, anims):
         """Remove all camera trajectory animations."""
 
-        del_anims = [anim for i, anim in enumerate(anims)
-                     if i in delete_indices]
-        cam_anims = [anim for i, anim in enumerate(anims)
-                     if ((anim.animationtype == "camerapath") &
-                         (anim.is_rendered) &
-                         (i not in delete_indices))]
-
-        for anim in del_anims:
+        for anim in anims:
             self.clear_camera_path_animation(cam, anim)
 
-        self.update_cam_constraints(cam, cam_anims)
+        self.update_cam_constraints(cam, anims)
 
     def clear_camera_path_animation(self, cam, anim):
         """Remove a camera trajectory animation."""
@@ -203,11 +201,13 @@ class NB_OT_animate_camerapath(Operator):
         for prop in props:
             dpath = 'constraints["{}"].{}'.format(anim.cnsname, prop)
             try:
-                fcu = bpy.data.actions[actname].fcurves.find(dpath)
+                act = bpy.data.actions[actname]
             except:
                 pass
             else:
-                bpy.data.actions[actname].fcurves.remove(fcu)
+                fcu = act.fcurves.find(dpath)
+                if fcu is not None:
+                    bpy.data.actions[actname].fcurves.remove(fcu)
 
     @staticmethod
     def remove_CP_followpath(cam, anim):
@@ -360,6 +360,19 @@ class NB_OT_animate_camerapath(Operator):
                 cns.keyframe_insert("forward_axis", group=cnsname)
 
         scn.frame_set(frame_current)
+
+    @staticmethod
+    def select_animations(anims, camname=""):
+
+        cam_anims = [anim for anim in anims
+                     if anim.animationtype == "camerapath"]
+        ren_anims = [anim for anim in cam_anims
+                     if anim.is_rendered]
+        if camname:
+            return [anim for anim in ren_anims
+                    if anim.camera == camname]
+        else:
+            return ren_anims
 
 
 class NB_OT_animate_carver(Operator):

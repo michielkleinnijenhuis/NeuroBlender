@@ -290,6 +290,49 @@ def force_save(projectdir):
     return defaultpath[1]
 
 
+def validate_anims_campath(anims):
+    """Validate the set of camera trajectory animations."""
+
+    for i, anim in enumerate(anims):
+
+        if not validate_campath(anim.campaths_enum):
+            anim.is_valid = False
+            continue
+        if not validate_timings(anims, i):
+            anim.is_valid = False
+            continue
+
+        anim.is_valid = True
+
+        # TODO: validate cam and constraints
+
+
+def validate_timings(anims, index_animations):
+    """Check if an animation overlaps in time with others."""
+
+    anim = anims[index_animations]
+    frames = range(anim.frame_start, anim.frame_end + 1)
+    lca = [range(anim_ca.frame_start, anim_ca.frame_end + 1)
+           for j, anim_ca in enumerate(anims) if j != index_animations]
+    frames_ca = [item for sublist in lca for item in sublist]
+
+    return bool(len(set(frames) & set(frames_ca)))
+
+
+def validate_campath(campathname):
+    """Check if a camera trajectory curve is valid."""
+
+    scn = bpy.context.scene
+    nb = scn.nb
+
+    campath = nb.campaths.get(campathname)
+    if campath:
+        campath.is_valid = bool(bpy.data.objects.get(campath.name))
+        return campath.is_valid
+    else:
+        return False
+
+
 # ========================================================================== #
 # nibabel-related functions
 # ========================================================================== #

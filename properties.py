@@ -357,6 +357,8 @@ def timings_enum_update(self, context):
         acp.animate_camera(self, cns=cns)
         acp.update_cam_constraints(cam, cam_anims)
 
+        nb_ut.validate_anims_campath(nb.animations)
+
     elif self.animationtype == "carver":
         aca = bpy.types.NB_OT_animate_carver
         aca.animate(self)
@@ -397,6 +399,9 @@ def campaths_enum_update(self, context):
     scn = context.scene
     nb = scn.nb
 
+    if not nb_ut.validate_campath(self.campaths_enum):
+        return
+
     acp = bpy.types.NB_OT_animate_camerapath
     # change the eval time keyframes on the new campath
     acp.clear_CP_evaltime(self)
@@ -411,7 +416,10 @@ def campaths_enum_update(self, context):
     except KeyError:
         acp.animate_camera(self)
     else:
-        cns.target = bpy.data.objects[self.campaths_enum]
+        cns.target = bpy.data.objects.get(self.campaths_enum)
+
+    anims = acp.select_animations(nb.animations, self.camera)
+    nb_ut.validate_anims_campath(anims)
 
 
 def tracktype_enum_update(self, context):
