@@ -264,15 +264,21 @@ def set_materials_to_vertexgroups(ob, vgs, mats):
 def assign_materialslots_to_faces(ob, vgs=None, mat_idxs=[]):
     """Assign a material slot to faces in associated with a vertexgroup."""
 
-    vgs_idxs = [g.index for g in vgs]
+    idx_lookup = {g.index: mat_idx for g, mat_idx in zip(vgs, mat_idxs)}
     me = ob.data
     for poly in me.polygons:
+        loop_mat_idxs = []
         for vi in poly.vertices:
             allgroups = [g.group for g in me.vertices[vi].groups]
-            for vgs_idx, mat_idx in zip(reversed(vgs_idxs),
-                                        reversed(mat_idxs)):
-                if vgs_idx in allgroups:
-                    poly.material_index = mat_idx
+            if len(allgroups) == 1:
+                loop_mat_idxs.append(idx_lookup[allgroups[0]])
+            elif len(allgroups) > 1:
+                loop_mat_idxs.append(idx_lookup[allgroups[0]])
+                # TODO: multi-group membership?
+        if loop_mat_idxs:
+            mat_idx = max(set(loop_mat_idxs), key=loop_mat_idxs.count)
+            poly.material_index = mat_idx
+
     me.update()
 
     return ob
