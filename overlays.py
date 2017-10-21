@@ -149,7 +149,7 @@ class NB_OT_vertexweight_to_vertexcolors(Operator):
             vgs = [ob.vertex_groups[label.name] for label in group.labels]
             ob = nb_ma.assign_vc(ob, vc, vgs, group, colour=[0.5, 0.5, 0.5])
 
-        bpy.ops.object.mode_set(mode="VERTEX_PAINT")
+#         bpy.ops.object.mode_set(mode="VERTEX_PAINT")
 
         return {"FINISHED"}
 

@@ -404,11 +404,10 @@ class NB_OT_import_overlays(Operator, ImportHelper):
                 bpy.ops.object.mode_set(mode="TEXTURE_PAINT")
             else:
                 bpy.ops.nb.vertexweight_to_vertexcolors(
-                    filepath=group.texdir,
-                    check_existing=True,
+                    itemname=item.name,
                     data_path=item.path_from_id(),
-                    uv_bakeall=True,
-                    matname=mat.name
+                    index=group.index_scalars,
+                    matname=mat.name,
                     )
 
         return "done"
