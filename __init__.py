@@ -159,7 +159,7 @@ class NB_UL_collection(UIList):
             col.alignment = "RIGHT"
             col.operator('nb.separate_labels',
                          icon='PARTICLE_PATH',
-                         text="")
+                         text="").data_path = item.path_from_id()
 
         col = layout.column()
         col.alignment = "RIGHT"

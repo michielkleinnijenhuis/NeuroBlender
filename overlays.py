@@ -155,13 +155,6 @@ class NB_OT_separate_labels(Operator):
 
         return {"FINISHED"}
 
-    def invoke(self, context, event):
-
-        nb_ov = nb_ut.active_nb_overlay()[0]
-        self.data_path = nb_ov.path_from_id()
-
-        return self.execute(context)
-
 
 class NB_OT_weightpaint(Operator):
     bl_idname = "nb.weightpaint"
