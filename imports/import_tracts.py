@@ -847,6 +847,14 @@ class NB_OT_import_tracts(Operator, ImportHelper):
         mix = 0.05
         colourtype = "golden_angle"
 
+        if not self.qb_separation:
+            diffcol = [0.8, 0.8, 0.8]
+            diffcol.append(trans)
+            mat = nb_ma.make_cr_mat_basic(name, diffcol, mix, diff_rn)
+            nb_ma.link_innode(mat, colourtype)
+            ob = bpy.data.objects[name]
+            ob.data.materials.append(mat)
+
         for cluster in clusters:
 
             cname = '{}.cluster{:05d}'.format(name, cluster.id)
