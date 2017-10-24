@@ -109,7 +109,7 @@ class NB_OT_import_tracts(Operator, ImportHelper):
     radius_variation = BoolProperty(
         name="Tract radius variation",
         description="random variation on the streamline radius",
-        default=True)
+        default=False)
     radius_factor_soma = FloatProperty(
         name="Soma radius factor",
         description="Multiplication factor for soma radius",
