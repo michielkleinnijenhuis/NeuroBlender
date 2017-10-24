@@ -908,10 +908,10 @@ def name_update(self, context):  # FIXME! there's no name checks!
 
     def rename_voxelvolume(vvol):  # FIXME: update for carver
         colls = [bpy.data.objects,
-                 bpy.data.meshes,
-                 bpy.data.materials,
-                 bpy.data.textures,
-                 bpy.data.images]
+                 bpy.data.meshes]
+        rename_group(self, bpy.data.materials)
+        rename_group(self, bpy.data.textures)
+        rename_group(self, bpy.data.images)
 
         return colls
 
@@ -931,15 +931,15 @@ def name_update(self, context):  # FIXME! there's no name checks!
 
     if colltype == "tracts":
         colls = [bpy.data.objects,
-                 bpy.data.curves,
-                 bpy.data.materials]
+                 bpy.data.curves]
+        rename_group(self, bpy.data.materials)
 
     elif colltype == "surfaces":
         # NOTE/TODO: ref to sphere
         # TODO: rename carvers on surface rename
         colls = [bpy.data.objects,
-                 bpy.data.meshes,
-                 bpy.data.materials]
+                 bpy.data.meshes]
+        rename_group(self, bpy.data.materials)
 
     elif colltype == "voxelvolumes":
         # TODO: rename carvers on voxelvolume rename
