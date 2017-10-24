@@ -110,7 +110,9 @@ class NB_UL_collection(UIList):
             fun(layout, item, item_icon)
 
             if context.scene.nb.settingprops.advanced:
-                if self.ui == 'L2':
+                if self.ui == 'L1':
+                    fun = self.draw_advanced_L1
+                elif self.ui == 'L2':
                     fun = self.draw_advanced_L2
                 elif self.ui == 'L3':
                     fun = self.draw_advanced_L3
@@ -152,6 +154,22 @@ class NB_UL_collection(UIList):
             col.prop(item, "is_rendered", text="", emboss=False,
                      translate=False, icon='SCENE')
 
+    def draw_advanced_L1(self, layout, data, item, index):
+
+        if ((bpy.context.scene.nb.objecttype == 'tracts') or
+                (bpy.context.scene.nb.objecttype == 'surfaces')):
+            col = layout.column()
+            col.alignment = "RIGHT"
+            col.operator('nb.attach_neurons',
+                         icon='CURVE_PATH',
+                         text="").data_path = item.path_from_id()
+
+        col = layout.column()
+        col.alignment = "RIGHT"
+        col.active = item.is_rendered
+        col.prop(item, "is_rendered", text="", emboss=False,
+                 translate=False, icon='SCENE')
+
     def draw_advanced_L2(self, layout, data, item, index):
 
         if bpy.context.scene.nb.overlaytype == 'labelgroups':
@@ -184,6 +202,12 @@ class NB_UL_collection(UIList):
         col.active = item.is_rendered
         col.prop(item, "is_rendered", text="", emboss=False,
                  translate=False, icon='SCENE')
+
+        col = layout.column()
+        col.alignment = "RIGHT"
+        col.operator('nb.attach_neurons',
+                     icon='CURVE_PATH',
+                     text="").data_path = item.path_from_id()
 
     def draw_advanced_PS(self, layout, data, item, index):
 
