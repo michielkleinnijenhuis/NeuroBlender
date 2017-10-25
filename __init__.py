@@ -544,7 +544,8 @@ class NB_OT_collection(Operator):
 
         for scalar in scalargroup.scalars:
             for i, _ in enumerate(ob.data.splines):
-                splname = scalar.name + '_spl' + str(i).zfill(8)
+                splformat = '{}.' + scalargroup.spline_postfix
+                splname = splformat.format(scalar.name, i)
                 self.remove_material(ob, splname)
                 self.remove_image(ob, splname)
 
@@ -628,10 +629,11 @@ class NB_OT_collection(Operator):
         """Remove data if it is only has a single user."""
 
         item = coll.get(name)
-        minusers = 2 if item.use_fake_user else 1
-        if (item is not None) and (item.users < minusers):
-            item.user_clear()
-            coll.remove(item)
+        if item is not None:
+            minusers = 2 if item.use_fake_user else 1
+            if item.users < minusers:
+                item.user_clear()
+                coll.remove(item)
 
     def remove_vertexcoll(self, coll, name):
         """Remove vertexgroup or vertex_color attribute"""
