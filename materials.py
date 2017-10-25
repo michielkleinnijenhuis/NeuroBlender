@@ -42,7 +42,7 @@ import bpy
 
 def materialise(ob, colourtype='golden_angle',
                 colourpicker=(1, 1, 1), trans=1,
-                matname='', idx=-1):
+                matname='', idx=-1, mode='insert'):
     """Attach material to an object."""
 
     if ob is None:
@@ -90,7 +90,7 @@ def materialise(ob, colourtype='golden_angle',
 
     link_innode(mat, colourtype)
 
-    set_materials(ob.data, mat)
+    set_materials(ob.data, mat, mode)
 
     infostring = "material: "
     infostring += "type='{}'; "
@@ -145,7 +145,7 @@ def switch_mode_mat(mat, newmode):
             links.new(output, out.inputs["Surface"])
 
 
-def set_materials(me, mat):
+def set_materials(me, mat, mode='insert'):
     """Attach a material to a mesh.
 
     TODO: make sure shifting the material slots around
@@ -153,10 +153,13 @@ def set_materials(me, mat):
     """
 
     if isinstance(mat, bpy.types.Material):
-        mats = [mat for mat in me.materials]
-        mats.insert(0, mat)
-        me.materials.clear()
-        for mat in mats:
+        if mode == 'insert':
+            mats = [mat for mat in me.materials]
+            mats.insert(0, mat)
+            me.materials.clear()
+            for mat in mats:
+                me.materials.append(mat)
+        elif mode == 'append':
             me.materials.append(mat)
 
 
