@@ -87,6 +87,7 @@ def materialise(ob, colourtype='golden_angle',
         group = make_nodegroup_dirsurfaces()
 
     mat = make_cr_mat_basic(matname, diffcol, mix, diff_rn, group)
+    mat.use_fake_user = True
 
     link_innode(mat, colourtype)
 
