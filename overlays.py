@@ -78,8 +78,8 @@ class NB_OT_revert_label(Operator):
 
     def invoke(self, context, event):
 
-        nb_it = nb_ut.active_nb_overlayitem()[0]
-        self.data_path = nb_it.path_from_id()
+        nb_item = nb_ut.active_nb_overlayitem()[0]
+        self.data_path = nb_item.path_from_id()
 
         return self.execute(context)
 
@@ -232,16 +232,16 @@ class NB_OT_vertexweight_to_vertexcolors(Operator):
 
         nb_ob = nb_ut.active_nb_object()[0]
         nb_ov = nb_ut.active_nb_overlay()[0]
-        nb_it = nb_ut.active_nb_overlayitem()[0]
+        nb_item = nb_ut.active_nb_overlayitem()[0]
 
         if hasattr(nb_ov, 'scalars'):
             self.index = nb_ov.index_scalars
         elif hasattr(nb_ov, 'labels'):
             self.index = nb_ov.index_labels
 
-        self.data_path = nb_it.path_from_id()
+        self.data_path = nb_item.path_from_id()
 
-        self.itemname = nb_it.name
+        self.itemname = nb_item.name
         self.matname = nb_ov.name
 
         return self.execute(context)
@@ -385,14 +385,14 @@ class NB_OT_vertexweight_to_uv(Operator, ExportHelper):
 
         nb_ob = nb_ut.active_nb_object()[0]
         nb_ov = nb_ut.active_nb_overlay()[0]
-        nb_it = nb_ut.active_nb_overlayitem()[0]
+        nb_item = nb_ut.active_nb_overlayitem()[0]
 
         if hasattr(nb_ov, 'scalars'):
             self.index = nb_ov.index_scalars
         elif hasattr(nb_ov, 'labels'):
             self.index = nb_ov.index_labels
-        self.data_path = nb_it.path_from_id()
-        self.itemname = nb_it.name
+        self.data_path = nb_item.path_from_id()
+        self.itemname = nb_item.name
         self.matname = nb_ov.name
         self.uv_bakeall = nb.settingprops.uv_bakeall
 
