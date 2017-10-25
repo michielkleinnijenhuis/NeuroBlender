@@ -548,6 +548,17 @@ class NB_OT_collection(Operator):
                 self.remove_material(ob, splname)
                 self.remove_image(ob, splname)
 
+    def remove_tracts_labelgroups(self, labelgroup, ob):
+        """Remove label group."""
+
+        for label in labelgroup.labels:
+            self.remove_tracts_labels(label, ob)
+
+    def remove_tracts_labels(self, label, ob):
+        """Remove label from a labelgroup."""
+
+        self.remove_material(ob, label.name)
+
     def remove_surfaces_scalargroups(self, scalargroup, ob):  # TODO: check
         """Remove scalar overlay from a surface."""
 
@@ -617,7 +628,8 @@ class NB_OT_collection(Operator):
         """Remove data if it is only has a single user."""
 
         item = coll.get(name)
-        if (item is not None) and (item.users < 1):
+        minusers = 2 if item.use_fake_user else 1
+        if (item is not None) and (item.users < minusers):
             item.user_clear()
             coll.remove(item)
 
