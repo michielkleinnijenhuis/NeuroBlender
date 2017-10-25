@@ -570,6 +570,7 @@ def slice_rotations(matrix_world, index_ijk):
 
 
 def make_polyline(curvedata, clist,
+                  radius=0.2, radius_variation=False,
                   use_endpoint_u=True, use_cyclic_u=False):
     """Create a 3D curve from a list of points."""
 
@@ -578,11 +579,16 @@ def make_polyline(curvedata, clist,
     for num in range(len(clist)):
         polyline.points[num].co = tuple(clist[num][0:3]) + (1,)
         if len(clist[num]) > 3:
-            polyline.points[num].radius = clist[num][3]
-    if len(clist[-1]) > 4:
+            radius = clist[num][3]
+        elif radius_variation:
+            radius = radius + random.random() * radius
+        polyline.points[num].radius = radius
+        if len(clist[-1]) > 6:  # branchpoint
+            polyline.points[num].weight = clist[num][6]
+    if len(clist[-1]) > 4:  # structure
         polyline.material_index = int(clist[-1][4])
-    if len(clist[-1]) > 5:
-        polyline.material_index = int(clist[-1][5])
+    if len(clist[-1]) > 7:  # colourcode
+        polyline.material_index = int(clist[-1][7])
     polyline.order_u = len(polyline.points)-1
     polyline.use_endpoint_u = use_endpoint_u
     polyline.use_cyclic_u = use_cyclic_u

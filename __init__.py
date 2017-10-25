@@ -160,6 +160,11 @@ class NB_UL_collection(UIList):
                 (bpy.context.scene.nb.objecttype == 'surfaces')):
             col = layout.column()
             col.alignment = "RIGHT"
+            col.operator('nb.create_labelgroup',
+                         icon='PARTICLE_TIP',
+                         text="").data_path = item.path_from_id()
+            col = layout.column()
+            col.alignment = "RIGHT"
             col.operator('nb.attach_neurons',
                          icon='CURVE_PATH',
                          text="").data_path = item.path_from_id()

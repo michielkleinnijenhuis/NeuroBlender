@@ -155,11 +155,6 @@ class NB_OT_import_tracts(Operator, ImportHelper):
         default=30.,
         min=0.)
 
-    qb_separation = BoolProperty(
-        name="QuickBundles separate",
-        description="Create a tract object for every QuickBundles cluster",
-        default=False)
-
     qb_centroids = BoolProperty(
         name="QuickBundles centroids",
         description="Create a QuickBundles centroids object",
@@ -173,7 +168,15 @@ class NB_OT_import_tracts(Operator, ImportHelper):
 
         for f in filenames:
             fpath = os.path.join(self.directory, f)
-            self.import_tract(context, fpath)
+            streamlines = self.read_streamlines_from_file(fpath)
+            # TODO: handle cases where transform info is included in tractfile
+            affine = nb_ut.read_affine_matrix(self.sformfile)
+            self.import_tract(
+                context, streamlines, fpath, affine, self.sformfile,
+                weed_tract=self.weed_tract,
+                interpolate_streamlines=self.interpolate_streamlines,
+                use_quickbundles=self.use_quickbundles,
+                )
 
         return {"FINISHED"}
 
@@ -203,6 +206,7 @@ class NB_OT_import_tracts(Operator, ImportHelper):
         row.prop(self, "transparency")
 
         # TODO: only show when dipy detected
+        # TODO: draw qb operator instead?
         row = layout.row()
         row.prop(self, "use_quickbundles")
         if self.use_quickbundles:
@@ -211,7 +215,6 @@ class NB_OT_import_tracts(Operator, ImportHelper):
             row.prop(self, "qb_threshold")
             row = layout.row()
             row.prop(self, "qb_centroids")
-            row.prop(self, "qb_separation")
 
     def invoke(self, context, event):
 
@@ -219,7 +222,13 @@ class NB_OT_import_tracts(Operator, ImportHelper):
 
         return {"RUNNING_MODAL"}
 
-    def import_tract(self, context, fpath):
+    def import_tract(self, context, streamlines,
+                     fpath='',
+                     affine=Matrix(),
+                     sformfile='',
+                     weed_tract=1.,
+                     interpolate_streamlines=1.,
+                     use_quickbundles=False):
         """Import a tract object.
 
         This imports the streamlines found in the specified file and
@@ -247,53 +256,59 @@ class NB_OT_import_tracts(Operator, ImportHelper):
         scn = context.scene
         nb = scn.nb
 
-        streamlines, info = self.read_streamlines_from_file(fpath)
-
+        # TODO: check names in groups
         ca = [bpy.data.objects,
               bpy.data.meshes,
               bpy.data.materials,
               bpy.data.textures]
         name = nb_ut.check_name(self.name, fpath, ca)
 
-        if self.use_quickbundles:
-            obs = self.quickbundles(context, name, streamlines)
-        else:
-            obs = [self.create_tract_object(context, name)]
-            # swc colouring
-            if os.path.splitext(fpath)[1][1:] == 'swc':
-                structs = [(0, '.apical_dendrite'),
-                           (1, '.basal_dendrite'),
-                           (2, '.axon'),
-                           (3, '.soma'),
-                           (4, '')]
-            else:
-                structs = [(-1, '')]
+        # create object
+        ob = self.create_tract_object(context, name)
+        nb_ob, info = self.tract_to_nb(context, ob, fpath, sformfile,
+                                       weed_tract, interpolate_streamlines)
 
-            for i, struct in structs:
-                info_mat = nb_ma.materialise(obs[0],
-                                             self.colourtype,
-                                             self.colourpicker,
-                                             self.transparency,
-                                             struct, i)
-            self.add_streamlines(obs[0], streamlines)
+        matgroup = [(-1, name)]
+        if os.path.splitext(fpath)[1][1:] == 'swc':
+            matgroup += [(1, '{}.soma'.format(name)),
+                         (2, '{}.axon'.format(name)),
+                         (3, '{}.basal_dendrite'.format(name)),
+                         (4, '{}.apical_dendrite'.format(name))]
+            for i, matname in reversed(matgroup):
+                nb_ma.materialise(ob, matname=matname, idx=i)
+            self.labelgroup_to_nb(name, nb_ob, matgroup[1:])
+        elif not use_quickbundles:
+            for i, matname in reversed(matgroup):
+                nb_ma.materialise(ob, matname=matname, idx=i)
 
-        # TODO: handle cases where transform info is included in tractfile
-        affine = nb_ut.read_affine_matrix(self.sformfile)
+        # add streamlines
+        self.add_streamlines(
+            ob, streamlines,
+            weed_tract=weed_tract,
+            interpolate_streamlines=interpolate_streamlines,
+            )
 
-        for ob in obs:
-            if self.beautify:
-                self.beautification(ob)
-            ob.matrix_world = affine
-            info = self.add_to_neuroblender(context, ob, fpath)
-            self.report({'INFO'}, info)
+        if use_quickbundles:
+            bpy.ops.nb.create_labelgroup(
+                data_path=nb_ob.path_from_id(),
+                qb_points=self.qb_points,
+                qb_threshold=self.qb_threshold,
+                qb_centroids=self.qb_centroids,
+                )
 
-        return 'obs'
+        # beautify
+        if self.beautify:
+            self.beautification(ob)
+
+        ob.matrix_world = affine
+
+        self.report({'INFO'}, info)
+
+        return nb_ob
 
     @staticmethod
-    def add_to_neuroblender(context, ob,
-                            fpath='', sformfile='',
-                            weed_tract=1., interpolate_streamlines=1.,
-                            beautify=True):
+    def tract_to_nb(context, ob, fpath='', sformfile='',
+                    weed_tract=1., interpolate_streamlines=1.):
         """Add a tract object to NeuroBlender."""
 
         scn = context.scene
@@ -307,7 +322,7 @@ class NB_OT_import_tracts(Operator, ImportHelper):
             "tract_weeded": weed_tract,
             "streamlines_interpolated": interpolate_streamlines
             }
-        nb_ut.add_item(nb, "tracts", props)
+        nb_ob = nb_ut.add_item(nb, "tracts", props)
 
         nb_ut.move_to_layer(ob, 0)
         scn.layers[0] = True
@@ -339,7 +354,32 @@ class NB_OT_import_tracts(Operator, ImportHelper):
                                      interpolate_streamlines,
                                      info_mat)
 
-        return info
+        return nb_ob, info
+
+    @staticmethod
+    def labelgroup_to_nb(name, parent, matgroup):
+        """Add a labelgroup to NeuroBlender."""
+
+        # create the group
+        props = {"name": name,
+                 "filepath": '',
+                 "prefix_parentname": True,
+                 'spline_postfix': 'cluster{:05d}'}
+        group = nb_ut.add_item(parent, "labelgroups", props)
+
+        # add the items
+        for i, matname in matgroup:
+
+            value = i
+            mat = bpy.data.materials[matname]
+            diffcol = mat.node_tree.nodes["RGB"].outputs[0].default_value
+
+            props = {"name": matname,
+                     "value": int(value),
+                     "colour": diffcol}
+            nb_ut.add_item(group, "labels", props)
+
+        return group
 
     def read_streamlines_from_file(self, fpath):
         """Read a set of streamlines from file."""
@@ -367,7 +407,9 @@ class NB_OT_import_tracts(Operator, ImportHelper):
         else:
             info = "imported {} streamlines from {}".format(len(streamlines), fpath)
 
-        return streamlines, info
+        self.report({'INFO'}, info)
+
+        return streamlines
 
     def read_streamlines_npy(self, fpath):
         """Read a [Npointsx3] streamline from a *.npy file."""
@@ -760,7 +802,9 @@ class NB_OT_import_tracts(Operator, ImportHelper):
         return idx, pointdict
 
     @staticmethod
-    def beautification(ob, argdict={"mode": "FULL", "depth": 0.5, "res": 5}):
+    def beautification(ob, argdict={"mode": "FULL",
+                                    "depth": 0.2,
+                                    "res": 5}):
         """Bevel the streamlines."""
 
         ob.data.fill_mode = argdict["mode"]
@@ -777,108 +821,8 @@ class NB_OT_import_tracts(Operator, ImportHelper):
 
         return info
 
-    def quickbundles(self, context, name, streamlines):
-        """Segment tract with QuickBundles."""
-
-        # TODO: implement other metrics
-        try:
-            from dipy.segment.clustering import QuickBundles
-            from dipy.segment.metric import ResampleFeature
-            from dipy.segment.metric import AveragePointwiseEuclideanMetric
-        except ImportError:
-            obs = [self.create_tract_object(context, name)]
-            self.add_streamlines(obs[0], streamlines)
-            return obs
-        else:
-
-            feature = ResampleFeature(nb_points=self.qb_points)
-            metric = AveragePointwiseEuclideanMetric(feature=feature)
-            qb = QuickBundles(threshold=self.qb_threshold, metric=metric)
-            clusters = qb.cluster(streamlines)
-
-            obs = self.qb_separate(context, name, clusters, streamlines)
-            centroid_ob = self.qb_centroid_object(context, name, clusters)
-
-            if centroid_ob is not None:
-                obs.append(centroid_ob)
-
-            self.qb_materialise(context, name, clusters, centroid_ob)
-
-        return obs
-
-    def qb_separate(self, context, name, clusters, streamlines):
-        """Separate streamline clusters."""
-
-        obs = []
-        if self.qb_separation:
-            for cluster in clusters:
-                cname = '{}.cluster{:05d}'.format(name, cluster.id)
-                ob = self.create_tract_object(context, cname)
-                cstreamlines = [streamlines[idx]
-                                for idx in cluster.indices]
-                self.add_streamlines(ob, cstreamlines)
-                obs.append(ob)
-        else:
-            ob = self.create_tract_object(context, name)
-            self.add_streamlines(ob, streamlines)
-            obs.append(ob)
-
-        return obs
-
-    def qb_centroid_object(self, context, name, clusters):
-
-        if self.qb_centroids:
-            cname = '{}.centroids'.format(name)
-            centroid_ob = self.create_tract_object(context, cname)
-            centroids = [cluster.centroid for cluster in clusters]
-            self.add_streamlines_unfiltered(centroid_ob, centroids)
-            if self.beautify:
-                self.beautification(centroid_ob)
-        else:
-            centroid_ob = None
-
-        return centroid_ob
-
-    def qb_materialise(self, context, name, clusters, centroid_ob=None):
-        """Assign materials to streamline clusters."""
-
-        trans = 1.
-        diff_rn = 0.1
-        mix = 0.05
-        colourtype = "golden_angle"
-
-        if not self.qb_separation:
-            diffcol = [0.8, 0.8, 0.8]
-            diffcol.append(trans)
-            mat = nb_ma.make_cr_mat_basic(name, diffcol, mix, diff_rn)
-            nb_ma.link_innode(mat, colourtype)
-            ob = bpy.data.objects[name]
-            ob.data.materials.append(mat)
-
-        for cluster in clusters:
-
-            cname = '{}.cluster{:05d}'.format(name, cluster.id)
-            diffcol = nb_ma.get_golden_angle_colour(cluster.id)
-            diffcol.append(trans)
-            mat = nb_ma.make_cr_mat_basic(cname, diffcol, mix, diff_rn)
-            nb_ma.link_innode(mat, colourtype)
-
-            if self.qb_separation:
-                ob = bpy.data.objects[cname]
-                ob.data.materials.append(mat)
-            else:
-                ob = bpy.data.objects[name]
-                ob.data.materials.append(mat)
-                for cl_idx in cluster.indices:
-                    spline = ob.data.splines[cl_idx]
-                    spline.material_index = cluster.id
-
-            if centroid_ob is not None:
-                centroid_ob.data.materials.append(mat)
-                cspline = centroid_ob.data.splines[cluster.id]
-                cspline.material_index = cluster.id
-
-    def create_tract_object(self, context, name):
+    @staticmethod
+    def create_tract_object(context, name):
         """Create an empty tract object."""
 
         curve = bpy.data.curves.new(name=name, type='CURVE')
@@ -888,59 +832,38 @@ class NB_OT_import_tracts(Operator, ImportHelper):
 
         return ob
 
-    def add_streamlines(self, ob, streamlines):
+    @staticmethod
+    def add_streamlines(ob, streamlines,
+                        radius=0.2, radius_variation=False,
+                        weed_tract=1., interpolate_streamlines=1.):
         """Add streamlines to a tract object."""
 
-        nsamples = int(len(streamlines) * self.weed_tract)
-        streamlines_sample = random.sample(range(len(streamlines)), nsamples)
+        if (weed_tract == 1) and (interpolate_streamlines == 1):
+            for streamline in streamlines:
+                nb_ut.make_polyline(ob.data, streamline,
+                                    radius, radius_variation)
+        else:
 
-        for i, streamline in enumerate(streamlines):
-            if i in streamlines_sample:
-                if self.interpolate_streamlines < 1.:
-                    # TODO: spline interpolation
-                    subs_sl = int(1/self.interpolate_streamlines)
-                    idxs = set(list(range(0, len(streamline), subs_sl)))
-                    idxs.add(len(streamline))
-                    for i, point in enumerate(streamline):
-                        if point[6]:
-                            idxs.add(i)
-                    mask = [True if i in idxs else False
-                            for i, point in enumerate(streamline)]
-                    streamline = np.array(streamline)[mask, :]
-                self.make_polyline(ob.data, streamline)
+            nsamples = int(len(streamlines) * weed_tract)
+            streamlines_sample = random.sample(range(len(streamlines)), nsamples)
+
+            for i, streamline in enumerate(streamlines):
+                if i in streamlines_sample:
+                    if interpolate_streamlines < 1.:
+                        # TODO: spline interpolation
+                        subs_sl = int(1/interpolate_streamlines)
+                        idxs = set(list(range(0, len(streamline), subs_sl)))
+                        idxs.add(len(streamline))
+                        for i, point in enumerate(streamline):
+                            if point[6]:
+                                idxs.add(i)
+                        mask = [True if i in idxs else False
+                                for i, point in enumerate(streamline)]
+                        streamline = np.array(streamline)[mask, :]
+                    nb_ut.make_polyline(ob.data, streamline,
+                                        radius, radius_variation)
 
         return ob
-
-    def add_streamlines_unfiltered(self, ob, streamlines):
-        """Add streamlines to a tract object."""
-
-        for streamline in streamlines:
-            self.make_polyline(ob.data, streamline)
-
-    def make_polyline(self, curvedata, clist,
-                      use_endpoint_u=True, use_cyclic_u=False):
-        """Create a 3D curve from a list of points."""
-
-        polyline = curvedata.splines.new('POLY')
-        polyline.points.add(len(clist)-1)
-        for num in range(len(clist)):
-            polyline.points[num].co = tuple(clist[num][0:3]) + (1,)
-            if len(clist[num]) > 3:
-                radius = clist[num][3]
-            elif self.radius_variation:
-                radius = self.radius + random.random() * self.radius
-            else:
-                radius = self.radius
-            polyline.points[num].radius = radius
-            if len(clist[-1]) > 6:  # branchpoint
-                polyline.points[num].weight = clist[num][6]
-        if len(clist[-1]) > 4:  # structure
-            polyline.material_index = int(clist[-1][4])
-        if len(clist[-1]) > 7:  # colourcode
-            polyline.material_index = int(clist[-1][7])
-        polyline.order_u = len(polyline.points)-1
-        polyline.use_endpoint_u = use_endpoint_u
-        polyline.use_cyclic_u = use_cyclic_u
 
 
 class NB_OT_attach_neurons(Operator, ImportHelper):
@@ -1005,7 +928,7 @@ class NB_OT_attach_neurons(Operator, ImportHelper):
         ob = bpy.data.objects[nb_ob.name]
         if len(split_path) > 2:
             nb_it = scn.path_resolve(self.data_path)
-            buildtype = 'surfacelabel'
+            buildtype = '{}_labelgroup'.format(buildtype)
         else:
             nb_it = None
 
@@ -1021,13 +944,12 @@ class NB_OT_attach_neurons(Operator, ImportHelper):
             layerobs.append(layerob)
 
             if self.keep_layers:
-                NB_OT_import_tracts.add_to_neuroblender(
+                NB_OT_import_tracts.tract_to_nb(
                     context, layerob,
-                    interpolate_streamlines=layer['interpolate_streamlines'],
-                    beautify=True,
+                    interpolate_streamlines=layer['interpolate_streamlines']
                     )
 
-            if not self.keep_neurons:  # FIXME: not adequate?
+            if not self.keep_neurons:
                 self.remove_neurons(context, layer['neuronset'])
 
         if not self.keep_layers:
@@ -1036,7 +958,7 @@ class NB_OT_attach_neurons(Operator, ImportHelper):
             for layerob in layerobs:
                 layerob.select = True
 
-            if (buildtype == 'tracts') and self.merge_to_tract:
+            if buildtype.startswith('tracts') and self.merge_to_tract:
                 for mat in layerob.data.materials[1:]:
                     ob.data.materials.append(mat)
                     # FIXME: how does this combine with overlays?!
@@ -1045,17 +967,16 @@ class NB_OT_attach_neurons(Operator, ImportHelper):
                 # TODO: update NB object
             else:
                 cob = self.join(layerob, 'circuits')
-                if buildtype == 'tracts':
+                if buildtype.startswith('tracts'):
                     layerobs = [ob, cob]
                 else:
                     layerobs = [cob]
-                NB_OT_import_tracts.add_to_neuroblender(
+                NB_OT_import_tracts.tract_to_nb(
                     context, cob,
-                    interpolate_streamlines=layer['interpolate_streamlines'],
-                    beautify=True,
+                    interpolate_streamlines=layer['interpolate_streamlines']
                     )
         else:
-            if buildtype == 'tracts':
+            if buildtype.startswith('tracts'):
                 layerobs.append(ob)
 
         for layerob in layerobs:
@@ -1198,9 +1119,9 @@ class NB_OT_attach_neurons(Operator, ImportHelper):
             neuron = random.choice(layer['neuronset'])
             neuronob = bpy.data.objects[neuron['name']]
 
-            if buildtype == 'tracts':
+            if buildtype.startswith('tracts'):
                 v0, v1, spline, is_valid = self.target_tracts(ob, idx)
-            else:
+            elif buildtype.startswith('surfaces'):
                 v0, v1, _, is_valid = self.target_surfaces(ob, idx)
 
             if not is_valid:
@@ -1210,7 +1131,7 @@ class NB_OT_attach_neurons(Operator, ImportHelper):
             transmat = self.get_transmat(neuron, target)
             cob = self.place_neuron(context, neuronob, transmat)
 
-            if (buildtype == 'tracts') and layer['extend_streamline']:
+            if buildtype.startswith('tracts') and layer['extend_streamline']:
                 self.extend_axon(spline, cob, layer['snappoint'])
 
         self.join(cob, layer['name'])
@@ -1332,11 +1253,13 @@ class NB_OT_attach_neurons(Operator, ImportHelper):
 
         if buildtype == 'tracts':
             idxs = [i for i in range(0, len(ob.data.splines))]
-        else:
-            if buildtype == 'surfacelabel':
-                vgs = [ob.vertex_groups[nb_it.name]]
-                idxs = self.get_vertex_indices_in_groups(ob, vgs)
-            else:
-                idxs = [i for i in range(0, len(ob.data.vertices))]
+        elif buildtype == 'surfaces':
+            idxs = [i for i in range(0, len(ob.data.vertices))]
+        elif buildtype == 'tracts_labelgroup':
+            idxs = [i for i, spl in enumerate(ob.data.splines)
+                    if spl.material_index == nb_it.value]
+        elif buildtype == 'surfaces_labelgroup':
+            vgs = [ob.vertex_groups[nb_it.name]]
+            idxs = self.get_vertex_indices_in_groups(ob, vgs)
 
         return idxs

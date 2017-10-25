@@ -588,9 +588,8 @@ def overlay_enum_callback(self, context):
     items = []
     items.append(("scalargroups", "scalars",
                   "List the scalar overlays", 0))
-    if self.objecttype != 'tracts':
-        items.append(("labelgroups", "labels",
-                      "List the label overlays", 1))
+    items.append(("labelgroups", "labels",
+                  "List the label overlays", 1))
     if self.objecttype == 'surfaces':
         items.append(("bordergroups", "borders",
                       "List the border overlays", 2))
@@ -2518,6 +2517,16 @@ class TractProperties(pg):
         default=0,
         min=0,
         update=index_scalars_update)
+    labelgroups = CollectionProperty(
+        type=LabelGroupProperties,
+        name="labelgroups",
+        description="The collection of loaded labelgroups")
+    index_labelgroups = IntProperty(
+        name="labelgroup index",
+        description="index of the labelgroups collection",
+        default=0,
+        min=0,
+        update=index_labels_update)
 
     colourtype = EnumProperty(
         name="colourtype",

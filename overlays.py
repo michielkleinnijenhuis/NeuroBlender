@@ -38,6 +38,7 @@ from bpy.types import (Operator,
 from bpy.props import (BoolProperty,
                        StringProperty,
                        IntProperty,
+                       FloatProperty,
                        CollectionProperty)
 from bpy_extras.io_utils import (ImportHelper,
                                  ExportHelper)
@@ -84,10 +85,168 @@ class NB_OT_revert_label(Operator):
         return self.execute(context)
 
 
+class NB_OT_create_labelgroup(Operator):
+    bl_idname = "nb.create_labelgroup"
+    bl_label = "Label tracts"
+    bl_description = "Divide an object into clusters"
+    bl_options = {"REGISTER"}
+
+    data_path = StringProperty(
+        name="data path",
+        description="Specify object data path",
+        default="")
+
+    qb_points = IntProperty(
+        name="QuickBundles points",
+        description="Resample the streamlines to N points",
+        default=50,
+        min=2)
+
+    qb_threshold = FloatProperty(
+        name="QuickBundles threshold",
+        description="Set the threshold for QuickBundles",
+        default=30.,
+        min=0.)
+
+    qb_centroids = BoolProperty(
+        name="QuickBundles centroids",
+        description="Create a QuickBundles centroids object",
+        default=False)
+
+    qb_separation = BoolProperty(
+        name="QuickBundles separate",
+        description="Create a tract object for every QuickBundles cluster",
+        default=False)
+
+    def execute(self, context):
+
+        scn = bpy.context.scene
+        nb = scn.nb
+
+        split_path = self.data_path.split('.')
+        nb_ob = scn.path_resolve('.'.join(split_path[:2]))
+        obinfo = nb_ut.get_nb_objectinfo(nb_ob.name)
+        name = nb_ob.name
+        ob = bpy.data.objects[name]
+
+        streamlines = self.splines_to_streamlines(ob)
+        clusters = self.quickbundles(streamlines)
+        nb_ob = self.qb_labelgroup(ob, nb_ob, clusters)
+
+        if self.qb_centroids:
+            cob, nb_cob = self.qb_centroids_import(context, ob, clusters)
+            self.qb_labelgroup(cob, nb_cob, clusters, centroid=True)
+
+        if self.qb_separation:
+            bpy.ops.nb.separate_labels(
+                data_path=nb_ob.path_from_id(),
+                )
+
+        return {"FINISHED"}
+
+    def quickbundles(self, streamlines):
+        """Segment tract with QuickBundles."""
+
+        # TODO: implement other metrics
+        try:
+            from dipy.segment.clustering import QuickBundles
+            from dipy.segment.metric import ResampleFeature
+            from dipy.segment.metric import AveragePointwiseEuclideanMetric
+        except ImportError:
+            return None
+        else:
+
+            feature = ResampleFeature(nb_points=self.qb_points)
+            metric = AveragePointwiseEuclideanMetric(feature=feature)
+            qb = QuickBundles(threshold=self.qb_threshold, metric=metric)
+            clusters = qb.cluster(streamlines)
+
+        return clusters
+
+    def splines_to_streamlines(self, ob):
+        """Read curve object splines into list of numpy streamlines."""
+
+        streamlines = []
+        for spl in ob.data.splines:
+            streamline = []
+            for point in spl.points:
+                slpoint = list(point.co[:3])
+                slpoint.append(point.radius)
+                slpoint.append(spl.material_index)
+                slpoint.append(point.weight)
+                streamline.append(slpoint)
+            streamlines.append(np.array(streamline))
+
+        return streamlines
+
+    def qb_centroids_import(self, context, ob, clusters):
+        """Import a tract objects for QuickBundles centroids."""
+
+        cname = '{}.centroids'.format(ob.name)
+
+        centroids = [cluster.centroid for cluster in clusters]
+
+        it_class = nb_it.NB_OT_import_tracts
+        create_tract_object = it_class.create_tract_object
+        tract_to_nb = it_class.tract_to_nb
+        add_streamlines = it_class.add_streamlines
+        beautification = it_class.beautification
+
+        cob = create_tract_object(context, cname)
+        nb_cob, info = tract_to_nb(context, cob)
+        add_streamlines(cob, centroids)
+        nb_ma.materialise(cob, matname=cname, idx=0)
+        argdict = {"mode": ob.data.fill_mode,
+                   "depth": ob.data.bevel_depth,
+                   "res": ob.data.bevel_resolution}
+        beautification(cob, argdict)
+        cob.matrix_world = ob.matrix_world
+
+        self.report({'INFO'}, info)
+
+        return cob, nb_cob
+
+    def qb_labelgroup(self, ob, nb_ob,
+                      clusters=None, centroid=False):
+        """Create a labelgroup from QuickBundles clusters."""
+
+        name = '{}.qb'.format(nb_ob.name)
+
+        # TODO: remove/store previous material_slots...
+        matgroup = [(cluster.id + 1,
+                     '{}.cluster{:05d}'.format(name, cluster.id))
+                    for cluster in clusters]
+        for _ in range(1, len(ob.data.materials)):
+            ob.data.materials.pop(1)
+        for i, matname in matgroup:
+            nb_ma.materialise(ob, matname=matname, idx=i, mode='append')
+
+        self.set_material_indices(ob, clusters, centroid)
+
+        it_class = nb_it.NB_OT_import_tracts
+        labelgroup_to_nb = it_class.labelgroup_to_nb
+        labelgroup = labelgroup_to_nb(name, nb_ob, matgroup)
+
+        return labelgroup
+
+    def set_material_indices(self, ob, clusters, centroid=False):
+        """Set the material indices according to cluster id's."""
+
+        splines = ob.data.splines
+        mat_idxs = np.zeros(len(splines))
+        for i, cluster in enumerate(clusters):
+            if centroid:
+                mat_idxs[i] = cluster.id + 1
+            else:
+                mat_idxs[cluster.indices] = cluster.id + 1
+        for spl, mat_idx in zip(splines, mat_idxs):
+            spl.material_index = mat_idx
+
+
 class NB_OT_separate_labels(Operator):
     bl_idname = "nb.separate_labels"
     bl_label = "Separate labels"
-    bl_description = "Separate a surface by it's labels"
+    bl_description = "Separate the object by it's labels"
     bl_options = {"REGISTER"}
 
     data_path = StringProperty(
@@ -107,53 +266,114 @@ class NB_OT_separate_labels(Operator):
 
         split_path = self.data_path.split('.')
         nb_ob = scn.path_resolve('.'.join(split_path[:2]))
-        labelgroup = scn.path_resolve('.'.join(split_path[:3]))
+        obinfo = nb_ut.get_nb_objectinfo(nb_ob.name)
+        labelgroup = scn.path_resolve(self.data_path)
 
         bpy.ops.object.select_all(action='DESELECT')
 
-        surf = bpy.data.objects[nb_ob.name]
-        surf.select = True
-        bpy.context.scene.objects.active = surf
-        bpy.ops.object.duplicate()
+        ob = bpy.data.objects[nb_ob.name]
+        ob.select = True
+        bpy.context.scene.objects.active = ob
 
-        # FIXME: make sure of material assignment according to labels
+        # FIXME: make sure of material assignment according to labels in labelgroup
 
-        # separate
-        bpy.ops.object.mode_set(mode='EDIT')
-        bpy.ops.mesh.separate(type='MATERIAL')
-        bpy.ops.object.mode_set(mode='OBJECT')
+        if obinfo['type'] == 'tracts':
+            obs = self.separate_labels_tracts(context, ob, nb_ob)
+        elif obinfo['type'] == 'surfaces':
+            bpy.ops.object.duplicate()
+            obs = self.separate_labels_surfaces(context, labelgroup)
 
-        # create empty
-        sepname = '{}.separated'.format(surf.name)
+        # group under empty
+        sepname = '{}.separated'.format(ob.name)
         empty = bpy.data.objects.new(sepname, None)
         scn.objects.link(empty)
-
-        # rename new objects
-        for ob in bpy.context.scene.objects:
-            if ob.select:
-                name = ob.data.materials[0].name
-
-                if name == surf.name:
-                    name = '{}.unassigned'.format(labelgroup.name)
-                    mat = surf.data.materials[0].copy()
-                    mat.name = name
-                    ob.data.materials[0] = mat
-
-                ob.name = ob.data.name = name
-                ob.parent = empty
-
-                for vg in ob.vertex_groups:
-                    ob.vertex_groups.remove(vg)
-
-                props = {"name": name}  # FIXME: check name
-                surface_to_nb = nb_is.NB_OT_import_surfaces.surface_to_nb
-                surface_to_nb(context, props, ob)
+        for ob in obs:
+            ob.parent = empty
 
         if not self.duplicate:
             bpy.ops.nb.nblist_ops(action="REMOVE_L1",
                                   data_path='.'.join(split_path[:2]))
 
         return {"FINISHED"}
+
+    def separate_labels_tracts(self, context, ob, nb_ob):
+        """Separate tract labels according to material index."""
+
+        it_class = nb_it.NB_OT_import_tracts
+        beautification = it_class.beautification
+        argdict = {"mode": ob.data.fill_mode,
+                   "depth": ob.data.bevel_depth,
+                   "res": ob.data.bevel_resolution}
+
+        obs = []
+        for i, ms in enumerate(ob.material_slots):
+
+            if i == 0:
+                # TODO: unassigned
+                continue
+
+            mat = ms.material
+            it_class = nb_it.NB_OT_import_tracts
+            create_tract_object = it_class.create_tract_object
+            ms_ob = create_tract_object(context, mat.name)
+            beautification(ms_ob, argdict)
+            ms_ob.data.materials.append(mat)
+            obs.append(ms_ob)
+
+            for spl in ob.data.splines:
+                if spl.material_index == i:
+                    polyline = ms_ob.data.splines.new('POLY')
+                    self.copy_spline(spl, polyline)
+
+            tract_to_nb = nb_it.NB_OT_import_tracts.tract_to_nb
+            tract_to_nb(context, ms_ob,
+                        nb_ob.filepath,
+                        nb_ob.sformfile,
+                        nb_ob.tract_weeded,
+                        nb_ob.streamlines_interpolated)
+
+        return obs
+
+    def copy_spline(self, spline, newspline):
+        """Copy over a POLY spline."""
+
+        newspline.points.add(len(spline.points) - 1)
+        for point, newpoint in zip(spline.points, newspline.points):
+            newpoint.co = point.co
+            newpoint.radius = point.radius
+            newpoint.weight = point.weight
+
+    def separate_labels_surfaces(self, context, labelgroup):
+        """Separate surface labels according to material."""
+
+        # separate
+        bpy.ops.object.mode_set(mode='EDIT')
+        bpy.ops.mesh.separate(type='MATERIAL')
+        bpy.ops.object.mode_set(mode='OBJECT')
+
+        obs = bpy.context.selected_objects
+        # rename new objects
+        for ob in obs:
+            name = ob.data.materials[0].name
+
+            if name == ob.name:
+                name = '{}.unassigned'.format(labelgroup.name)
+                mat = ob.data.materials[0].copy()
+                mat.name = name
+                ob.data.materials[0] = mat
+
+            ob.name = ob.data.name = name
+
+            for vg in ob.vertex_groups:
+                ob.vertex_groups.remove(vg)
+
+            props = {"name": name}  # FIXME: check name
+            surface_to_nb = nb_is.NB_OT_import_surfaces.surface_to_nb
+            surface_to_nb(context, props, ob)
+
+            obs.append(ob)
+
+        return obs
 
 
 class NB_OT_weightpaint(Operator):
