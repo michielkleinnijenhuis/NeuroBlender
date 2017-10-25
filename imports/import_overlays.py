@@ -228,6 +228,9 @@ class NB_OT_import_overlays(Operator, ImportHelper):
         nodegroup = nb_ma.make_cr_matgroup_tract_sg(diffcol, 0.04, group)
 
         # add the items
+        for _ in range(1, len(ob.data.materials)):
+            ob.data.materials.pop(1)
+
         for itemname, scalardict in zip(itemnames, datadict['scalars']):
 
             props = {"name": itemname,
@@ -331,6 +334,7 @@ class NB_OT_import_overlays(Operator, ImportHelper):
         img = bpy.data.images.new(name, len(scalar), 1)
         img.pixels = pixels
         img.source = 'GENERATED'
+        img.use_fake_user = True
 
         return img
 
