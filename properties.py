@@ -687,10 +687,9 @@ def index_scalars_update_func(group=None):
 
         elif isinstance(nb_ob, pg_sc1):
             if isinstance(group, pg_sc4):
-                for i, spline in enumerate(ob.data.splines):
-                    # FIXME: generalize with saved re variable
-                    splname = name + '.spl' + str(i).zfill(8)
-                    spline.material_index = ob.material_slots.find(splname)
+                ob = bpy.data.objects[nb_ob.name]
+                remove_group_materials(ob)
+                render_tracts_scalargroup(group, ob)
 
         # FIXME: used texture slots
         elif isinstance(nb_ob, pg_sc3):
@@ -1232,6 +1231,44 @@ def carveobject_is_rendered_update(self, context):
     mod.show_render = mod.show_viewport = self.is_rendered
 
 
+def disable_tract_overlay(ob, reset_material_indices=True):
+    """Remove all materials but the first."""
+
+    for _ in range(1, len(ob.data.materials)):
+        ob.data.materials.pop(1)
+
+    if reset_material_indices:
+        for spl in ob.data.splines:
+            spl.material_index = 0
+
+
+def render_tracts_scalargroup(scalargroup, ob):
+    """Enable tract scalargroup materials."""
+
+    scalar = scalargroup.scalars[scalargroup.index_scalars]
+    splformat = '{}.'.format(scalar.name) + scalargroup.spline_postfix
+    for i, spl in enumerate(ob.data.splines):
+        mat = bpy.data.materials[splformat.format(i)]
+        ob.data.materials.append(mat)
+        spl.material_index = i + 1
+
+
+def render_tracts_labelgroup(labelgroup, ob):
+    """Enable tract scalargroup materials."""
+
+    for label in labelgroup.labels:
+        if label.is_rendered:
+            mat = bpy.data.materials[label.name]
+        else:
+            mat = None
+            # FIXME: will turn it grey:
+            # either replace with default tract material or with trans=0?
+        ob.data.materials.append(mat)
+        for splidx in label.spline_indices:
+            spl = ob.data.splines[splidx.spline_index]
+            spl.material_index = label.value
+
+
 def overlay_is_rendered_update(self, context):
     """Update the render status of the overlay."""
 
@@ -1239,19 +1276,46 @@ def overlay_is_rendered_update(self, context):
     nb = scn.nb
 
     nb_ob = nb_ut.active_nb_object()[0]
+    ob = bpy.data.objects[nb_ob.name]
 
     try:
         pg_sc1 = bpy.types.TractProperties
         pg_sc2 = bpy.types.SurfaceProperties
         pg_sc3 = bpy.types.VoxelvolumeProperties
+        pg_sc4 = bpy.types.ScalargroupProperties
+        pg_sc5 = bpy.types.LabelgroupProperties
+        pg_sc6 = bpy.types.BordergroupProperties
     except AttributeError:
         pg_sc1 = pg.bl_rna_get_subclass_py("TractProperties")
         pg_sc2 = pg.bl_rna_get_subclass_py("SurfaceProperties")
         pg_sc3 = pg.bl_rna_get_subclass_py("VoxelvolumeProperties")
+        pg_sc4 = pg.bl_rna_get_subclass_py("ScalarGroupProperties")
+        pg_sc5 = pg.bl_rna_get_subclass_py("LabelGroupProperties")
+        pg_sc6 = pg.bl_rna_get_subclass_py("BorderGroupProperties")
+
     if isinstance(nb_ob, pg_sc1):
-        pass
-        # TODO: pop/reset the material slots
-        # FIXME: ensure naming ends in spl.....
+
+        active_sgs = [sg for sg in nb_ob.scalargroups
+                      if sg.is_rendered]
+        active_lgs = [lg for lg in nb_ob.labelgroups
+                      if lg.is_rendered]
+        disable_tract_overlay(ob)
+
+        if isinstance(self, pg_sc4):
+            if self.is_rendered:
+                render_tracts_scalargroup(self, ob)
+            elif len(active_sgs):
+                render_tracts_scalargroup(active_sgs[0], ob)
+            elif len(active_lgs):
+                render_tracts_labelgroup(active_lgs[0], ob)
+        elif isinstance(self, pg_sc5):
+            if self.is_rendered:
+                render_tracts_labelgroup(self, ob)
+            elif len(active_lgs):
+                render_tracts_labelgroup(active_lgs[0], ob)
+            elif len(active_sgs):
+                render_tracts_scalargroup(active_sgs[0], ob)
+
     elif isinstance(nb_ob, pg_sc2):
         pass
     elif isinstance(nb_ob, pg_sc3):
