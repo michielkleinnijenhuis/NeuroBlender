@@ -636,7 +636,8 @@ def index_scalars_update_func(group=None):
     try:
         scalar = group.scalars[group.index_scalars]
     except IndexError:
-        pass
+        # prevents setting index too high in 'COMPACT' uilist mode
+        group.index_scalars = len(group.scalars) - 1
     else:
         name = scalar.name
 
