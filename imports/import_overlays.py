@@ -248,8 +248,9 @@ class NB_OT_import_overlays(Operator, ImportHelper):
                 img = self.create_overlay_tract_img(splname, sl)
                 mat = nb_ma.make_cr_mat_tract_sg(splname, img, nodegroup)
                 mat.use_fake_user = True
-                ob.data.materials.append(mat)
-                spl.material_index = len(ob.data.materials) - 1
+                if itemname == itemnames[0]:
+                    ob.data.materials.append(mat)
+                    spl.material_index = len(ob.data.materials) - 1
 
         return "done"
 
