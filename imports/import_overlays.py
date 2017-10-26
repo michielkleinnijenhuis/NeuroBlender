@@ -177,7 +177,10 @@ class NB_OT_import_overlays(Operator, ImportHelper):
             name = '{1}.{0}'.format(name, parent.name)
 
         if obinfo['type'] == 'tracts':
-            fun = self.import_tracts_scalargroups
+            if self.overlaytype == 'scalargroups':
+                fun = self.import_tracts_scalargroups
+            elif self.overlaytype == 'labelgroups':
+                fun = self.import_tracts_labelgroups
         else:
             if self.overlaytype == 'scalargroups':
                 fun = self.import_surfaces_scalargroups
@@ -338,6 +341,61 @@ class NB_OT_import_overlays(Operator, ImportHelper):
         img.use_fake_user = True
 
         return img
+
+    def import_tracts_labelgroups(self, context, name, fpath, parent, ob):
+        """Import a label overlay onto a tract object."""
+
+        # load the data (one value per spline) and flatten
+        lg_data = self.read_tractscalar(fpath)
+        lg_data = [int(val)
+                   for list1 in lg_data
+                   for list2 in list1
+                   for val in list2]
+
+        labelvalues = sorted(set(lg_data))
+        itemnames = ['label{:05d}'.format(labelvalue)
+                     for labelvalue in labelvalues]
+
+        # unique names for the group and items
+        _, ovc, oic = self.get_all_nb_collections(context)
+        coll_groupname = ovc
+        coll_itemnames = oic + [bpy.data.materials]
+
+        ca = [coll_groupname, coll_itemnames]
+        funs = [self.fun_groupname, self.fun_itemnames_labelgroups]
+        argdict = {'labelnames': itemnames}
+        groupnames, itemnames = nb_ut.compare_names(name, ca, funs, argdict)
+
+        # create the group
+        props = {"name": groupnames[0],
+                 "filepath": fpath,
+                 "prefix_parentname": self.prefix_parentname}
+        group = nb_ut.add_item(parent, "labelgroups", props)
+
+        # clear materials of active overlay
+        for _ in range(1, len(ob.data.materials)):
+            ob.data.materials.pop(1)
+
+        # add the items
+        for i, (itemname, labelvalue) in enumerate(zip(itemnames, labelvalues)):
+
+            nb_ma.materialise(ob, matname=itemname, idx=i+1, mode='append')
+            mat = bpy.data.materials[itemname]  # TODO: return mat from function
+            diffcol = mat.node_tree.nodes["RGB"].outputs[0].default_value
+
+            props = {"name": itemname,
+                     "filepath": fpath,
+                     "value": labelvalue,
+                     "colour": diffcol}
+            nb_ut.add_item(group, "labels", props)
+
+        # set the material indices
+        for spl, labelval in zip(ob.data.splines, lg_data):
+            itemname = '{}.label{:05d}'.format(name, labelval)
+            mat_idx = ob.material_slots.find(itemname)
+            spl.material_index = mat_idx
+
+        return "done"
 
     def import_surfaces_scalargroups(self, context, name, fpath, parent, ob):
         """Import a timeseries overlay onto a surface object."""
