@@ -2009,6 +2009,15 @@ class ColorRampProperties(pg):
         self.nn_position = position * drange + dmin
 
 
+class SplineGroupProperties(pg):
+    """Custom properties of splinegroups."""
+
+    spline_index = IntProperty(
+        name="Spline index",
+        description="Index of spline in the labelgroup",
+        default=0)
+
+
 class ScalarProperties(pg):
     """Properties of scalar overlays."""
 
@@ -2147,6 +2156,11 @@ class LabelProperties(pg):
         min=0,
         max=1,
         update=material_update)
+
+    spline_indices = CollectionProperty(
+        type=SplineGroupProperties,
+        name="spline indices",
+        description="The collection of splines belonging to this label")
 
 
 class BorderProperties(pg):

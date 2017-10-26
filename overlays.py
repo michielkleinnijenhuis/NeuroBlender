@@ -221,26 +221,33 @@ class NB_OT_create_labelgroup(Operator):
         for i, matname in matgroup:
             nb_ma.materialise(ob, matname=matname, idx=i, mode='append')
 
-        self.set_material_indices(ob, clusters, centroid)
-
         it_class = nb_it.NB_OT_import_tracts
         labelgroup_to_nb = it_class.labelgroup_to_nb
         labelgroup = labelgroup_to_nb(name, nb_ob, matgroup)
 
+        self.set_material_indices(ob, clusters, labelgroup, centroid)
+
         return labelgroup
 
-    def set_material_indices(self, ob, clusters, centroid=False):
+    def set_material_indices(self, ob, clusters, lg, centroid=False):
         """Set the material indices according to cluster id's."""
 
         splines = ob.data.splines
+        lab_idxs = np.zeros(len(splines), dtype='int')
         mat_idxs = np.zeros(len(splines))
         for i, cluster in enumerate(clusters):
             if centroid:
                 mat_idxs[i] = cluster.id + 1
+                lab_idxs[i] = cluster.id
             else:
                 mat_idxs[cluster.indices] = cluster.id + 1
-        for spl, mat_idx in zip(splines, mat_idxs):
+                lab_idxs[cluster.indices] = cluster.id
+
+        it = zip(splines, mat_idxs, lab_idxs)
+        for i, (spl, mat_idx, lab_idx) in enumerate(it):
             spl.material_index = mat_idx
+            splidx = lg.labels[lab_idx].spline_indices.add()
+            splidx.spline_index = i
 
 
 class NB_OT_separate_labels(Operator):
