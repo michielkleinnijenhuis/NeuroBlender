@@ -153,6 +153,7 @@ class NB_UL_collection(UIList):
             col.active = item.is_rendered
             col.prop(item, "is_rendered", text="", emboss=False,
                      translate=False, icon='SCENE')
+            col = layout.column()
 
     def draw_advanced_L1(self, layout, data, item, index):
 
