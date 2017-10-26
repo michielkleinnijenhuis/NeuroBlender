@@ -273,7 +273,8 @@ def assign_materialslots_to_faces(ob, vgs=None, mat_idxs=[]):
     for poly in me.polygons:
         loop_mat_idxs = []
         for vi in poly.vertices:
-            allgroups = [g.group for g in me.vertices[vi].groups]
+            allgroups = [g.group for g in me.vertices[vi].groups
+                         if g.group in idx_lookup.keys()]
             if len(allgroups) == 1:
                 loop_mat_idxs.append(idx_lookup[allgroups[0]])
             elif len(allgroups) > 1:
