@@ -116,6 +116,8 @@ class NB_UL_collection(UIList):
                     fun = self.draw_advanced_L2
                 elif self.ui == 'L3':
                     fun = self.draw_advanced_L3
+                elif self.ui == 'TS':
+                    fun = self.draw_advanced_TS
                 elif self.ui == 'PS':
                     fun = self.draw_advanced_PS
                 elif self.ui == 'CR':
@@ -214,6 +216,10 @@ class NB_UL_collection(UIList):
         col.operator('nb.attach_neurons',
                      icon='CURVE_PATH',
                      text="").data_path = item.path_from_id()
+
+    def draw_advanced_TS(self, layout, data, item, index):
+
+        pass
 
     def draw_advanced_PS(self, layout, data, item, index):
 
