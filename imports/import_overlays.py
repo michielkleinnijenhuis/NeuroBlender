@@ -99,8 +99,7 @@ class NB_OT_import_overlays(Operator, ImportHelper):
         for f in filenames:
             fpath = os.path.join(self.directory, f)
             name = self.name or os.path.basename(fpath)
-            info = self.import_overlay(context, name, fpath)
-            self.report({'INFO'}, info)
+            self.import_overlay(context, name, fpath)
 
         return {"FINISHED"}
 
@@ -188,7 +187,7 @@ class NB_OT_import_overlays(Operator, ImportHelper):
                 fun = self.import_surfaces_labelgroups
             elif self.overlaytype == 'bordergroups':
                 fun = self.import_surfaces_bordergroups
-        info = fun(context, name, fpath, parent, parent_ob)
+        group = fun(context, name, fpath, parent, parent_ob)
 
         context.scene.objects.active = parent_ob
         parent_ob.select = True
@@ -196,6 +195,10 @@ class NB_OT_import_overlays(Operator, ImportHelper):
         scn.update()
 
         return info  # TODO: error handling and info
+
+#         self.report({'INFO'}, info)
+
+        return 'info'  # TODO: error handling and info
 
     def import_tracts_scalargroups(self, context, name, fpath, parent, ob):
         """Import a scalar overlay onto a tract object."""
@@ -255,7 +258,7 @@ class NB_OT_import_overlays(Operator, ImportHelper):
                     ob.data.materials.append(mat)
                     spl.material_index = len(ob.data.materials) - 1
 
-        return "done"
+        return group
 
     @staticmethod
     def read_tractscalar(fpath):
@@ -395,7 +398,7 @@ class NB_OT_import_overlays(Operator, ImportHelper):
             mat_idx = ob.material_slots.find(itemname)
             spl.material_index = mat_idx
 
-        return "done"
+        return group
 
     def import_surfaces_scalargroups(self, context, name, fpath, parent, ob):
         """Import a timeseries overlay onto a surface object."""
@@ -473,7 +476,7 @@ class NB_OT_import_overlays(Operator, ImportHelper):
                     matname=mat.name,
                     )
 
-        return "done"
+        return group
 
     @staticmethod
     def read_surfscalar(fpath):
@@ -608,7 +611,7 @@ class NB_OT_import_overlays(Operator, ImportHelper):
         else:
             nb_ma.set_materials_to_vertexgroups(ob, vgs, mats)
 
-        return "done"
+        return group
 
     @staticmethod
     def read_surflabel(fpath, is_label=False):
@@ -801,7 +804,7 @@ class NB_OT_import_overlays(Operator, ImportHelper):
 
             nb_ma.set_materials(curveob.data, mat)
 
-        return "done"
+        return group
 
     @staticmethod
     def read_borders(fpath):
