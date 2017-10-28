@@ -195,10 +195,26 @@ class NB_UL_collection(UIList):
 
     def draw_advanced_L3(self, layout, data, item, index):
 
-        col = layout.column()
-        col.alignment = "RIGHT"
-        col.enabled = False
-        col.prop(item, "value", text="", emboss=False)
+        try:
+            pg_sc1 = bpy.types.TractProperties
+            pg_sc2 = bpy.types.SurfaceProperties
+            pg_sc3 = bpy.types.VoxelvolumeProperties
+            pg_sc4 = bpy.types.ScalarGroupProperties
+            pg_sc5 = bpy.types.LabelGroupProperties
+            pg_sc6 = bpy.types.BorderGroupProperties
+        except AttributeError:
+            pg_sc1 = pg.bl_rna_get_subclass_py("TractProperties")
+            pg_sc2 = pg.bl_rna_get_subclass_py("SurfaceProperties")
+            pg_sc3 = pg.bl_rna_get_subclass_py("VoxelvolumeProperties")
+            pg_sc4 = pg.bl_rna_get_subclass_py("ScalarGroupProperties")
+            pg_sc5 = pg.bl_rna_get_subclass_py("LabelGroupProperties")
+            pg_sc6 = pg.bl_rna_get_subclass_py("BorderGroupProperties")
+
+        if not isinstance(data, pg_sc6):
+            col = layout.column()
+            col.alignment = "RIGHT"
+            col.enabled = False
+            col.prop(item, "value", text="", emboss=False)
 
         col = layout.column()
         col.alignment = "RIGHT"
@@ -211,11 +227,14 @@ class NB_UL_collection(UIList):
         col.prop(item, "is_rendered", text="", emboss=False,
                  translate=False, icon='SCENE')
 
-        col = layout.column()
-        col.alignment = "RIGHT"
-        col.operator('nb.attach_neurons',
-                     icon='CURVE_PATH',
-                     text="").data_path = item.path_from_id()
+        if (isinstance(item, (pg_sc1, pg_sc2)) or
+                (isinstance(item, pg_sc5) and
+                 not isinstance(data, pg_sc3))):
+            col = layout.column()
+            col.alignment = "RIGHT"
+            col.operator('nb.attach_neurons',
+                         icon='CURVE_PATH',
+                         text="").data_path = item.path_from_id()
 
     def draw_advanced_TS(self, layout, data, item, index):
 
