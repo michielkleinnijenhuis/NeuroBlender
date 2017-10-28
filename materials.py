@@ -326,13 +326,15 @@ def assign_materialslots_to_faces_pls(ob, pl=None, mat_idxs=[]):
     return ob
 
 
-def assign_vc(ob, vertexcolours, vgs, labelgroup=None, colour=[0, 0, 0]):
+def assign_vc(ob, vertexcolours, vgs, labelgroup=None, colour=[0, 0, 0, 0]):
     """Assign RGB values to the vertex_colors attribute.
 
     TODO: find better ways to handle multiple assignments to vertexgroups
     """
 
     me = ob.data
+
+    vcolour = vertexcolours.data[0].color
 
     if labelgroup is not None:
         vgs_idxs = set([g.index for g in vgs])
@@ -343,10 +345,10 @@ def assign_vc(ob, vertexcolours, vgs, labelgroup=None, colour=[0, 0, 0]):
             try:
                 idx = list(lgroup)[0]
             except IndexError:
-                C.append(colour)
+                C.append(colour[:len(vcolour)])
             else:
                 idx = labelgroup.labels.find(ob.vertex_groups[idx].name)
-                C.append(labelgroup.labels[idx].colour[0:3])
+                C.append(labelgroup.labels[idx].colour[:len(vcolour)])
     else:
         # linear to sRGB
         gindex = vgs[0].index  # FIXME: assuming single vertex group here
@@ -354,7 +356,7 @@ def assign_vc(ob, vertexcolours, vgs, labelgroup=None, colour=[0, 0, 0]):
         m = W > 0.00313066844250063
         W[m] = 1.055 * (np.power(W[m], (1.0 / 2.4))) - 0.055
         W[~m] = 12.92 * W[~m]
-        C = np.transpose(np.tile(W, [3, 1]))
+        C = np.transpose(np.tile(W, [len(vcolour), 1]))
 
     for poly in me.polygons:
         for idx, vi in zip(poly.loop_indices, poly.vertices):
