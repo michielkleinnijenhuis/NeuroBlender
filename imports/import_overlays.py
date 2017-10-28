@@ -389,7 +389,8 @@ class NB_OT_import_overlays(Operator, ImportHelper):
             props = {"name": itemname,
                      "filepath": fpath,
                      "value": labelvalue,
-                     "colour": diffcol}
+                     "colour": diffcol,
+                     "colour_custom": diffcol}
             nb_ut.add_item(group, "labels", props)
 
         # set the material indices
@@ -599,7 +600,8 @@ class NB_OT_import_overlays(Operator, ImportHelper):
 
             props = {"name": itemname,
                      "value": int(value),
-                     "colour": diffcol}
+                     "colour": diffcol,
+                     "colour_custom": diffcol}
             nb_ut.add_item(group, "labels", props)
 
             vgs.append(nb_ma.set_vertex_group(ob, itemname, label))
@@ -771,7 +773,8 @@ class NB_OT_import_overlays(Operator, ImportHelper):
 
             props = {"name": itemname,
                      "group": group.name,
-                     "colour": diffcol}
+                     "colour": diffcol,
+                     "colour_custom": diffcol}
             nb_ut.add_item(group, "borders", props)
 
             # create the border object

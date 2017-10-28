@@ -935,6 +935,8 @@ class NB_PT_overlays(bpy.types.Panel):
             row = layout.row()
             row.prop(el, "color", text="")
 
+            row.operator("nb.revert_label", icon='BACK', text="")
+
         else:
 
             if nb.settingprops.engine.startswith("BLENDER"):

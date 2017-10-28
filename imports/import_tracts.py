@@ -376,7 +376,8 @@ class NB_OT_import_tracts(Operator, ImportHelper):
 
             props = {"name": matname,
                      "value": int(value),
-                     "colour": diffcol}
+                     "colour": diffcol,
+                     "colour_custom": diffcol}
             nb_ut.add_item(group, "labels", props)
 
         return group

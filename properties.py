@@ -2229,11 +2229,19 @@ class LabelProperties(pg):
 
     value = IntProperty(
         name="Label value",
-        description="The value of the label in vertexgroup 'scalarname'",
+        description="The value of the label",
         default=0)
     colour = FloatVectorProperty(
         name="Label color",
-        description="The color of the label in vertexgroup 'scalarname'",
+        description="The color of the label",
+        subtype="COLOR",
+        size=4,
+        min=0,
+        max=1,
+        update=material_update)
+    colour_custom = FloatVectorProperty(
+        name="Custom label color",
+        description="The color of the label",
         subtype="COLOR",
         size=4,
         min=0,
@@ -2277,6 +2285,14 @@ class BorderProperties(pg):
     colour = FloatVectorProperty(
         name="Border color",
         description="The color of the border",
+        subtype="COLOR",
+        size=4,
+        min=0,
+        max=1,
+        update=material_update)
+    colour_custom = FloatVectorProperty(
+        name="Custom label color",
+        description="The color of the label",
         subtype="COLOR",
         size=4,
         min=0,

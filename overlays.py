@@ -32,6 +32,7 @@ import re
 import numpy as np
 
 import bpy
+from bpy.types import PropertyGroup as pg
 from bpy.types import (Operator,
                        OperatorFileListElement,
                        UIList)
@@ -67,13 +68,27 @@ class NB_OT_revert_label(Operator):
         scn = bpy.context.scene
         nb = scn.nb
 
-        item = eval(self.data_path)
+        split_path = self.data_path.split('.')
+        nb_ob = scn.path_resolve('.'.join(split_path[:2]))
+        nb_ov = scn.path_resolve('.'.join(split_path[:3]))
+        item = scn.path_resolve(self.data_path)
 
-        mat = bpy.data.materials[item.name]
-        rgb = mat.node_tree.nodes["RGB"]
-        rgb.outputs[0].default_value = item.colour
-        trans = mat.node_tree.nodes["Transparency"]
-        trans.outputs[0].default_value = item.colour[3]
+        try:
+            pg_sc1 = bpy.types.VoxelvolumeProperties
+        except AttributeError:
+            pg_sc1 = pg.bl_rna_get_subclass_py("VoxelvolumeProperties")
+
+        if isinstance(nb_ob, pg_sc1):
+            tex = bpy.data.textures[nb_ov.name]
+            el_idx = nb_ov.labels.find(item.name) + 1
+            el = tex.color_ramp.elements[el_idx]
+            el.color = item.colour
+        else:
+            mat = bpy.data.materials[item.name]
+            rgb = mat.node_tree.nodes["RGB"]
+            rgb.outputs[0].default_value = item.colour
+            trans = mat.node_tree.nodes["Transparency"]
+            trans.outputs[0].default_value = item.colour[3]
 
         return {"FINISHED"}
 
