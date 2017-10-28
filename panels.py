@@ -754,6 +754,13 @@ class NB_PT_overlays(bpy.types.Panel):
         row = layout.row()
         row.separator()
 
+        if nb.objecttype != 'voxelvolumes':
+            row = layout.row()
+            row.prop(nb_ob, "active_overlay", expand=False)
+
+            row = layout.row()
+            row.separator()
+
         self.drawunit_UIList(layout, "L2", nb_ob, nb.overlaytype)
 
         row = layout.row()

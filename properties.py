@@ -639,7 +639,6 @@ def index_scalars_update_func(group=None):
         # prevents setting index too high in 'COMPACT' uilist mode
         group.index_scalars = len(group.scalars) - 1
     else:
-        name = scalar.name
 
         try:
             pg_sc1 = bpy.types.TractProperties
@@ -651,51 +650,40 @@ def index_scalars_update_func(group=None):
             pg_sc2 = pg.bl_rna_get_subclass_py("SurfaceProperties")
             pg_sc3 = pg.bl_rna_get_subclass_py("VoxelvolumeProperties")
             pg_sc4 = pg.bl_rna_get_subclass_py("ScalarGroupProperties")
-        if isinstance(nb_ob, pg_sc2):
 
-            vg_idx = ob.vertex_groups.find(name)
+        if isinstance(nb_ob, pg_sc1):
+            disable_tract_overlay(ob, ob.data.splines)
+            render_tracts_scalargroup(group, ob)
+
+        elif isinstance(nb_ob, pg_sc2):
+
+            vg_idx = ob.vertex_groups.find(scalar.name)
             ob.vertex_groups.active_index = vg_idx
 
-            if isinstance(group, pg_sc4):
+            mat = bpy.data.materials[group.name]
 
-                mat = bpy.data.materials[group.name]
+            # update Image Sequence Texture index
+            itex = mat.node_tree.nodes["Image Texture"]
+            offset = group.index_scalars - scn.frame_current
+            itex.image_user.frame_offset = offset
 
-                # update Image Sequence Texture index
-                itex = mat.node_tree.nodes["Image Texture"]
-                offset = group.index_scalars - scn.frame_current
-                itex.image_user.frame_offset = offset
-
-                # update Vertex Color attribute
-                attr = mat.node_tree.nodes["Attribute"]
-                attr.attribute_name = name  # FIXME
-
-                vc_idx = ob.data.vertex_colors.find(name)
+            # update Vertex Color attribute
+            vcname = scalar.name
+            vc_idx = ob.data.vertex_colors.find(vcname)
+            if vc_idx == -1:
+                vcname = group.name + '.volmean'
+                vc_idx = ob.data.vertex_colors.find(vcname)
+            if vc_idx > -1:
                 ob.data.vertex_colors.active_index = vc_idx
-
-                for scalar in group.scalars:
-                    scalar_index = group.scalars.find(scalar.name)
-                    scalar.is_rendered = scalar_index == group.index_scalars
-
-                # reorder materials: place active group on top
-                mats = [mat for mat in ob.data.materials]
-                mat_idx = ob.data.materials.find(group.name)
-                mat = mats.pop(mat_idx)
-                mats.insert(0, mat)
-                ob.data.materials.clear()
-                for mat in mats:
-                    ob.data.materials.append(mat)
-
-        elif isinstance(nb_ob, pg_sc1):
-            if isinstance(group, pg_sc4):
-                ob = bpy.data.objects[nb_ob.name]
-                remove_group_materials(ob)
-                render_tracts_scalargroup(group, ob)
+                for vc in ob.data.vertex_colors:
+                    vc.active_render = vc.name == vcname
+                attr = mat.node_tree.nodes["Attribute"]
+                attr.attribute_name = vcname
 
         # FIXME: used texture slots
         elif isinstance(nb_ob, pg_sc3):
-            if isinstance(group, pg_sc4):
-                index_scalars_update_vvolscalar_func(group, scalar,
-                                                     nb.settingprops.texmethod)
+            index_scalars_update_vvolscalar_func(group, scalar,
+                                                 nb.settingprops.texmethod)
 
 
 def index_scalars_update_vvolscalar_func(group, scalar, method=1):
@@ -1231,15 +1219,14 @@ def carveobject_is_rendered_update(self, context):
     mod.show_render = mod.show_viewport = self.is_rendered
 
 
-def disable_tract_overlay(ob, reset_material_indices=True):
+def disable_tract_overlay(ob, coll=[]):
     """Remove all materials but the first."""
 
     for _ in range(1, len(ob.data.materials)):
         ob.data.materials.pop(1)
 
-    if reset_material_indices:
-        for spl in ob.data.splines:
-            spl.material_index = 0
+    for item in coll:
+        item.material_index = 0
 
 
 def render_tracts_scalargroup(scalargroup, ob):
@@ -1269,6 +1256,81 @@ def render_tracts_labelgroup(labelgroup, ob):
             spl.material_index = label.value
 
 
+def render_surfaces_scalargroup(scalargroup, ob):
+    """Enable surface scalargroup materials."""
+
+    scalar = scalargroup.scalars[scalargroup.index_scalars]
+    mat = bpy.data.materials[scalargroup.name]
+    ob.data.materials.append(mat)
+    vg = ob.vertex_groups[scalar.name]
+    nb_ma.assign_materialslots_to_faces(ob, [vg], [1])
+
+
+def render_surfaces_labelgroup(labelgroup, ob):
+    """Enable surface labelgroup materials."""
+
+    vgs = []
+    mat_idxs = []
+    for label in labelgroup.labels:
+        if label.is_rendered:
+            mat = bpy.data.materials[label.name]
+        else:
+            mat = None
+            # FIXME: will turn it grey:
+            # either replace with default tract material or with trans=0?
+        ob.data.materials.append(mat)
+        vgs.append(ob.vertex_groups[label.name])
+        mat_idxs.append(len(ob.data.materials) - 1)
+
+    nb_ma.assign_materialslots_to_faces(ob, vgs, mat_idxs)
+
+
+def overlay_is_rendered_update(self, context):
+    """Update the render status of the overlay."""
+
+    scn = context.scene
+
+    split_path = self.path_from_id().split('.')
+    parent = scn.path_resolve('.'.join(split_path[:2]))
+
+    try:
+        pg_sc1 = bpy.types.VoxelvolumeProperties
+    except AttributeError:
+        pg_sc1 = pg.bl_rna_get_subclass_py("VoxelvolumeProperties")
+
+    if isinstance(parent, pg_sc1):
+        mat = bpy.data.materials[parent.name]
+        ts_idx = mat.texture_slots.find(self.name)
+        mat.use_textures[ts_idx] = self.is_rendered
+
+
+def label_is_rendered_update(self, context):
+    """Update the render status of the overlay."""
+
+    scn = context.scene
+
+    split_path = self.path_from_id().split('.')
+    nb_ob = scn.path_resolve('.'.join(split_path[:2]))
+    nb_ov = scn.path_resolve('.'.join(split_path[:3]))
+
+    try:
+        pg_sc1 = bpy.types.VoxelvolumeProperties
+    except AttributeError:
+        pg_sc1 = pg.bl_rna_get_subclass_py("VoxelvolumeProperties")
+
+    if isinstance(nb_ob, pg_sc1):
+        tex = bpy.data.textures[nb_ov.name]
+        el_idx = nb_ov.labels.find(self.name) + 1
+        el = tex.color_ramp.elements[el_idx]
+        if any(list(el.color)):
+            self.colour_custom = el.color
+        if self.is_rendered:
+            el.color = self.colour_custom
+        else:
+            el.color = [0, 0, 0, 0]
+        # FIXME: doesnt work for many-labeled cr option
+
+
 def bordergroup_is_rendered_update(self, context):
     """Update the render status of the overlay."""
 
@@ -1287,59 +1349,69 @@ def border_is_rendered_update(self, context):
     ob.hide = ob.hide_render = not self.is_rendered
 
 
-def overlay_is_rendered_update(self, context):
+def active_overlay_update(self, context):
     """Update the render status of the overlay."""
 
     scn = context.scene
     nb = scn.nb
 
-    nb_ob = nb_ut.active_nb_object()[0]
-    ob = bpy.data.objects[nb_ob.name]
+    ob = bpy.data.objects[self.name]
 
     try:
         pg_sc1 = bpy.types.TractProperties
         pg_sc2 = bpy.types.SurfaceProperties
-        pg_sc3 = bpy.types.VoxelvolumeProperties
         pg_sc4 = bpy.types.ScalargroupProperties
         pg_sc5 = bpy.types.LabelgroupProperties
-        pg_sc6 = bpy.types.BordergroupProperties
     except AttributeError:
         pg_sc1 = pg.bl_rna_get_subclass_py("TractProperties")
         pg_sc2 = pg.bl_rna_get_subclass_py("SurfaceProperties")
-        pg_sc3 = pg.bl_rna_get_subclass_py("VoxelvolumeProperties")
         pg_sc4 = pg.bl_rna_get_subclass_py("ScalarGroupProperties")
         pg_sc5 = pg.bl_rna_get_subclass_py("LabelGroupProperties")
-        pg_sc6 = pg.bl_rna_get_subclass_py("BorderGroupProperties")
 
-    if isinstance(nb_ob, pg_sc1):
+    if self.active_overlay == 'no_overlay':
+        nb_ov = None
+    else:
+        nb_ov_format = '{}.{}["{}"]'.format(self.path_from_id(), '{}',
+                                            self.active_overlay)
+        try:
+            nb_ov_path = nb_ov_format.format('scalargroups')
+            nb_ov = scn.path_resolve(nb_ov_path)
+        except:
+            nb_ov_path = nb_ov_format.format('labelgroups')
+            nb_ov = scn.path_resolve(nb_ov_path)
 
-        active_sgs = [sg for sg in nb_ob.scalargroups
-                      if sg.is_rendered]
-        active_lgs = [lg for lg in nb_ob.labelgroups
-                      if lg.is_rendered]
-        disable_tract_overlay(ob)
+    if isinstance(self, pg_sc1):
 
-        if isinstance(self, pg_sc4):
-            if self.is_rendered:
-                render_tracts_scalargroup(self, ob)
-            elif len(active_sgs):
-                render_tracts_scalargroup(active_sgs[0], ob)
-            elif len(active_lgs):
-                render_tracts_labelgroup(active_lgs[0], ob)
-        elif isinstance(self, pg_sc5):
-            if self.is_rendered:
-                render_tracts_labelgroup(self, ob)
-            elif len(active_lgs):
-                render_tracts_labelgroup(active_lgs[0], ob)
-            elif len(active_sgs):
-                render_tracts_scalargroup(active_sgs[0], ob)
+        disable_tract_overlay(ob, ob.data.splines)
 
-    elif isinstance(nb_ob, pg_sc2):
-        pass
-    elif isinstance(nb_ob, pg_sc3):
-        mat = bpy.data.materials[nb_ob.name]
-        ts_idx = mat.texture_slots.find(self.name)
-        mat.use_textures[ts_idx] = self.is_rendered
+        if isinstance(nb_ov, pg_sc4):
+            render_tracts_scalargroup(nb_ov, ob)
+        elif isinstance(nb_ov, pg_sc5):
+            render_tracts_labelgroup(nb_ov, ob)
+
+    elif isinstance(self, pg_sc2):
+
+        disable_tract_overlay(ob, ob.data.polygons)
+
+        if isinstance(nb_ov, pg_sc4):
+            render_surfaces_scalargroup(nb_ov, ob)
+        elif isinstance(nb_ov, pg_sc5):
+            render_surfaces_labelgroup(nb_ov, ob)
+
+
+def overlays_enum_callback(self, context):
+    """Populate the enum based on available options."""
+
+    scn = context.scene
+    nb = scn.nb
+
+    overlays = [sg for sg in self.scalargroups]
+    overlays += [lg for lg in self.labelgroups]
+    items = [("no_overlay", "No overlay", "No overlay", 0)]
+    items += [(ov.name, ov.name, "List the overlays", i + 1)
+              for i, ov in enumerate(overlays)]
+
+    return items
 
 
 # ========================================================================== #
@@ -2225,7 +2297,8 @@ class LabelProperties(pg):
     is_rendered = BoolProperty(
         name="Is Rendered",
         description="Indicates if the label is rendered",
-        default=True)
+        default=True,
+        update=label_is_rendered_update)
 
     value = IntProperty(
         name="Label value",
@@ -2621,6 +2694,11 @@ class TractProperties(pg):
         subtype="FILE_PATH",
         update=sformfile_update)
 
+    active_overlay = EnumProperty(
+        name="Active overlay",
+        description="Select the active overlay",
+        items=overlays_enum_callback,
+        update=active_overlay_update)
     scalargroups = CollectionProperty(
         type=ScalarGroupProperties,
         name="scalargroups",
@@ -2734,6 +2812,11 @@ class SurfaceProperties(pg):
         subtype="FILE_PATH",
         update=sformfile_update)
 
+    active_overlay = EnumProperty(
+        name="Active overlay",
+        description="Select the active overlay",
+        items=overlays_enum_callback,
+        update=active_overlay_update)
     scalargroups = CollectionProperty(
         type=ScalarGroupProperties,
         name="scalargroups",
@@ -2852,6 +2935,11 @@ class VoxelvolumeProperties(pg):
         size=4,
         subtype="TRANSLATION")
 
+    active_overlay = EnumProperty(
+        name="Active overlay",
+        description="Select the active overlay",
+        items=overlays_enum_callback,
+        update=active_overlay_update)
     scalargroups = CollectionProperty(
         type=ScalarGroupProperties,
         name="scalargroups",

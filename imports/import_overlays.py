@@ -43,6 +43,7 @@ from bpy.props import (BoolProperty,
 from bpy_extras.io_utils import ImportHelper
 
 from .. import (materials as nb_ma,
+                properties as nb_pr,
                 utils as nb_ut)
 
 
@@ -194,7 +195,9 @@ class NB_OT_import_overlays(Operator, ImportHelper):
 
         scn.update()
 
-        return info  # TODO: error handling and info
+        if self.overlaytype != 'bordergroups':
+            nb_pr.overlays_enum_callback(parent, context)
+            parent.active_overlay = group.name
 
 #         self.report({'INFO'}, info)
 
@@ -443,14 +446,22 @@ class NB_OT_import_overlays(Operator, ImportHelper):
         if timeseries.shape[0] == 1:
             group.icon = "FORCE_CHARGE"
 
+        # clear materials of active overlay
+        for _ in range(1, len(ob.data.materials)):
+            ob.data.materials.pop(1)
+
         # implement the (mean) overlay on the object
-        nb_ma.set_vertex_group(ob, itemnames[-1],
-                               label=labels,
-                               scalars=np.mean(timeseries, axis=0))
+        vg = nb_ma.set_vertex_group(ob, itemnames[-1],
+                                    label=labels,
+                                    scalars=np.mean(timeseries, axis=0))
         mat = nb_ma.make_cr_mat_surface_sg(group)
-        nb_ma.set_materials(ob.data, mat)
+        mat.use_fake_user = True
+        nb_ma.set_materials(ob.data, mat, mode='append')
+        self.vertexcolours(ob, itemnames[-1], vg, mat.name)
 
         # add the items
+        vgs = []
+        mat_idxs = []
         for itemname, scalars in zip(itemnames, timeseries):
 
             props = {"name": itemname,
@@ -458,26 +469,42 @@ class NB_OT_import_overlays(Operator, ImportHelper):
                      "range": timeseriesrange}
             item = nb_ut.add_item(group, "scalars", props)
 
-            nb_ma.set_vertex_group(ob, itemname,
-                                   label=labels,
-                                   scalars=scalars)
+            vg = nb_ma.set_vertex_group(ob, itemname,
+                                        label=labels,
+                                        scalars=scalars)
+            vgs.append(vg)
+            mat_idxs.append(1)
 
-        # load/bake the textures
-        if self.bake_on_import:
-            texdir_valid = nb_ut.validate_texdir(group.texdir, texformat='png')
-            if texdir_valid:
-                group.texdir = group.texdir
-                context.scene.objects.active = ob
-                bpy.ops.object.mode_set(mode="TEXTURE_PAINT")
-            else:
-                bpy.ops.nb.vertexweight_to_vertexcolors(
-                    itemname=item.name,
-                    data_path=item.path_from_id(),
-                    index=group.index_scalars,
-                    matname=mat.name,
-                    )
+        nb_ma.assign_materialslots_to_faces(ob, [vgs[0]], [mat_idxs[0]])
+
+#         # load/bake the textures
+#         if self.bake_on_import:
+#             texdir_valid = nb_ut.validate_texdir(group.texdir, texformat='png')
+#             if texdir_valid:
+#                 group.texdir = group.texdir
+#                 context.scene.objects.active = ob
+#                 bpy.ops.object.mode_set(mode="TEXTURE_PAINT")
+#             else:
+#                 bpy.ops.nb.vertexweight_to_vertexcolors(
+#                     itemname=item.name,
+#                     data_path=item.path_from_id(),
+#                     index=group.index_scalars,
+#                     matname=mat.name,
+#                     )
 
         return group
+
+    def vertexcolours(self, ob, itemname, vg, matname):
+        """Convert a vertex group to vertex colours."""
+
+        vcs = ob.data.vertex_colors
+        vc = vcs.new(name=itemname)
+        ob.data.vertex_colors.active = vc
+        ob = nb_ma.assign_vc(ob, vc, [vg])
+        mat = ob.data.materials[matname]
+        nodes = mat.node_tree.nodes
+        nodes["Attribute"].attribute_name = itemname
+
 
     @staticmethod
     def read_surfscalar(fpath):
@@ -573,6 +600,10 @@ class NB_OT_import_overlays(Operator, ImportHelper):
                  "prefix_parentname": self.prefix_parentname,
                  "texdir": self.texdir.format(groupname=groupnames[0])}
         group = nb_ut.add_item(parent, "labelgroups", props)
+
+        # clear materials of active overlay
+        for _ in range(1, len(ob.data.materials)):
+            ob.data.materials.pop(1)
 
         # implement the (mean) overlay on the object
         # TODO: find out if this is necessary

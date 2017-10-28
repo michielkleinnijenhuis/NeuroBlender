@@ -458,9 +458,11 @@ class NB_OT_vertexweight_to_vertexcolors(Operator):
             scalar = eval(self.data_path)
             vgs = [ob.vertex_groups[scalar.name]]
             ob = nb_ma.assign_vc(ob, vc, vgs)
-            mat = ob.data.materials[self.matname]
+            mat = bpy.data.materials[self.matname]
             nodes = mat.node_tree.nodes
             nodes["Attribute"].attribute_name = self.itemname
+            for vc in ob.data.vertex_colors:
+                vc.active_render = vc.name == scalar.name
 
         elif hasattr(group, 'labels'):
             vgs = [ob.vertex_groups[label.name] for label in group.labels]
