@@ -710,10 +710,11 @@ class NB_OT_import_voxelvolumes(Operator, ImportHelper):
                 props["range"] = (min(labelvals), max(labelvals))
                 item = nb_ut.add_item(nb_ob, "labelgroups", props)
                 for label in labels:
-                    colour = nb_ma.get_golden_angle_colour(label) + [1.]
+                    diffcol = nb_ma.get_golden_angle_colour(label) + [1.]
                     props = {"name": "label." + str(label).zfill(2),
                              "value": int(label),
-                             "colour": tuple(colour)}
+                             "colour": diffcol,
+                             "colour_custom": diffcol}
                     nb_ut.add_item(item, "labels", props)
             else:
                 props["range"] = datarange
