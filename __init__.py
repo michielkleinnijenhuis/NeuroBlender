@@ -161,26 +161,22 @@ class NB_UL_collection(UIList):
 
     def draw_advanced_L1(self, layout, data, item, index):
 
+        row = layout.row(align=True)
+
         if ((bpy.context.scene.nb.objecttype == 'tracts') or
                 (bpy.context.scene.nb.objecttype == 'surfaces')):
-            col = layout.column()
-            col.alignment = "RIGHT"
-            col.operator('nb.create_labelgroup',
+            row.operator('nb.create_labelgroup',
                          icon='PARTICLE_TIP',
                          text="").data_path = item.path_from_id()
-            col = layout.column()
-            col.alignment = "RIGHT"
-            col.operator('nb.attach_neurons',
+            row.operator('nb.attach_neurons',
                          icon='CURVE_PATH',
                          text="").data_path = item.path_from_id()
-
         if bpy.context.scene.nb.objecttype == 'surfaces':
-            row = layout.row()
             row.operator("nb.unwrap_surface",
                          icon='GROUP_UVS',
                          text="").data_path = item.path_from_id()
 
-        col = layout.column()
+        col = row.column()
         col.alignment = "RIGHT"
         col.active = item.is_rendered
         col.prop(item, "is_rendered", text="", emboss=False,
@@ -188,22 +184,24 @@ class NB_UL_collection(UIList):
 
     def draw_advanced_L2(self, layout, data, item, index):
 
+        row = layout.row(align=True)
+
         if bpy.context.scene.nb.overlaytype == 'labelgroups':
-            col = layout.column()
-            col.alignment = "RIGHT"
-            col.operator('nb.separate_labels',
+            row.operator('nb.separate_labels',
                          icon='PARTICLE_PATH',
                          text="").data_path = item.path_from_id()
 
         if ((bpy.context.scene.nb.objecttype == 'voxelvolumes') or
                 (bpy.context.scene.nb.overlaytype == 'bordergroups')):
-            col = layout.column()
+            col = row.column()
             col.alignment = "RIGHT"
             col.active = item.is_rendered
             col.prop(item, "is_rendered", text="", emboss=False,
                      translate=False, icon='SCENE')
 
     def draw_advanced_L3(self, layout, data, item, index):
+
+        row = layout.row(align=True)
 
         try:
             pg_sc1 = bpy.types.TractProperties
@@ -212,6 +210,9 @@ class NB_UL_collection(UIList):
             pg_sc4 = bpy.types.ScalarGroupProperties
             pg_sc5 = bpy.types.LabelGroupProperties
             pg_sc6 = bpy.types.BorderGroupProperties
+            pg_sc7 = bpy.types.ScalarProperties
+            pg_sc8 = bpy.types.LabelProperties
+            pg_sc9 = bpy.types.BorderProperties
         except AttributeError:
             pg_sc1 = pg.bl_rna_get_subclass_py("TractProperties")
             pg_sc2 = pg.bl_rna_get_subclass_py("SurfaceProperties")
@@ -219,32 +220,36 @@ class NB_UL_collection(UIList):
             pg_sc4 = pg.bl_rna_get_subclass_py("ScalarGroupProperties")
             pg_sc5 = pg.bl_rna_get_subclass_py("LabelGroupProperties")
             pg_sc6 = pg.bl_rna_get_subclass_py("BorderGroupProperties")
+            pg_sc7 = pg.bl_rna_get_subclass_py("ScalarProperties")
+            pg_sc8 = pg.bl_rna_get_subclass_py("LabelProperties")
+            pg_sc9 = pg.bl_rna_get_subclass_py("BorderProperties")
 
+        col = row.column()
+        col.alignment = "RIGHT"
+        row1 = col.row(align=True)
+        row1.alignment = "RIGHT"
+        row1.enabled = False
         if not isinstance(data, pg_sc6):
-            col = layout.column()
-            col.alignment = "RIGHT"
-            col.enabled = False
-            col.prop(item, "value", text="", emboss=False)
-
-        col = layout.column()
-        col.alignment = "RIGHT"
-        col.enabled = False
-        col.prop(item, "colour", text="")
-
-        col = layout.column()
-        col.alignment = "RIGHT"
-        col.active = item.is_rendered
-        col.prop(item, "is_rendered", text="", emboss=False,
-                 translate=False, icon='SCENE')
+            row1.prop(item, "value", text="", emboss=False)
+        row1.prop(item, "colour", text="")
+#         row1.prop(item, "colour_custom", text="")
+        if isinstance(item, (pg_sc8, pg_sc9)):
+            row.operator('nb.revert_label',
+                         icon='BACK',
+                         text="").data_path = item.path_from_id()
 
         if (isinstance(item, (pg_sc1, pg_sc2)) or
                 (isinstance(item, pg_sc5) and
                  not isinstance(data, pg_sc3))):
-            col = layout.column()
-            col.alignment = "RIGHT"
-            col.operator('nb.attach_neurons',
+            row.operator('nb.attach_neurons',
                          icon='CURVE_PATH',
                          text="").data_path = item.path_from_id()
+
+        col = row.column()
+        col.alignment = "RIGHT"
+        col.active = item.is_rendered
+        col.prop(item, "is_rendered", text="", emboss=False,
+                 translate=False, icon='SCENE')
 
     def draw_advanced_TS(self, layout, data, item, index):
 
@@ -252,8 +257,8 @@ class NB_UL_collection(UIList):
 
     def draw_advanced_PS(self, layout, data, item, index):
 
-        col = layout.column()
-        row = col.row(align=True)
+        row = layout.row(align=True)
+
         props = [{'prop': 'location',
                   'op': "nb.reset_presetcentre",
                   'icon': 'CLIPUV_HLT',
@@ -263,15 +268,15 @@ class NB_UL_collection(UIList):
                   'icon': 'BBOX',
                   'text': 'Rescale'}]
         for propdict in props:
-            col1 = row.column(align=True)
-            col1.operator(propdict['op'],
-                          icon=propdict['icon'],
-                          text="").index_presets = index
+            row.operator(propdict['op'],
+                         icon=propdict['icon'],
+                         text="").index_presets = index
 
     def draw_advanced_CR(self, layout, data, item, index):
 
-        col = layout.column()
-        col.prop(item, "nn_position", text="")
+        row = layout.row(align=True)
+
+        row.prop(item, "nn_position", text="")
 
 
 for ui in ['L1', 'L2', 'L3', 'PS', 'CM', 'PL', 'TB',
