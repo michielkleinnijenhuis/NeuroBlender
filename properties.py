@@ -1269,6 +1269,24 @@ def render_tracts_labelgroup(labelgroup, ob):
             spl.material_index = label.value
 
 
+def bordergroup_is_rendered_update(self, context):
+    """Update the render status of the overlay."""
+
+    for border in self.borders:
+        ob = bpy.data.objects[border.name]
+        if self.is_rendered:
+            ob.hide = ob.hide_render = not border.is_rendered
+        else:
+            ob.hide = ob.hide_render = True
+
+
+def border_is_rendered_update(self, context):
+    """Update the render status of the overlay."""
+
+    ob = bpy.data.objects[self.name]
+    ob.hide = ob.hide_render = not self.is_rendered
+
+
 def overlay_is_rendered_update(self, context):
     """Update the render status of the overlay."""
 
@@ -2249,7 +2267,8 @@ class BorderProperties(pg):
     is_rendered = BoolProperty(
         name="Is Rendered",
         description="Indicates if the border is rendered",
-        default=True)
+        default=True,
+        update=border_is_rendered_update)
 
     value = IntProperty(
         name="Label value",
@@ -2509,7 +2528,7 @@ class BorderGroupProperties(pg):
         name="Is Rendered",
         description="Indicates if the border is rendered",
         default=True,
-        update=overlay_is_rendered_update)
+        update=bordergroup_is_rendered_update)
 
     borders = CollectionProperty(
         type=BorderProperties,
