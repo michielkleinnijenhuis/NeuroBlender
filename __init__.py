@@ -73,6 +73,8 @@ from shutil import copy
 import re
 import numpy as np
 
+from bpy.types import PropertyGroup as pg
+
 
 bl_info = {
     "name": "NeuroBlender",
@@ -187,11 +189,13 @@ class NB_UL_collection(UIList):
                          icon='PARTICLE_PATH',
                          text="").data_path = item.path_from_id()
 
-        col = layout.column()
-        col.alignment = "RIGHT"
-        col.active = item.is_rendered
-        col.prop(item, "is_rendered", text="", emboss=False,
-                 translate=False, icon='SCENE')
+        if ((bpy.context.scene.nb.objecttype == 'voxelvolumes') or
+                (bpy.context.scene.nb.overlaytype == 'bordergroups')):
+            col = layout.column()
+            col.alignment = "RIGHT"
+            col.active = item.is_rendered
+            col.prop(item, "is_rendered", text="", emboss=False,
+                     translate=False, icon='SCENE')
 
     def draw_advanced_L3(self, layout, data, item, index):
 
