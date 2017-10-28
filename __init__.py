@@ -174,6 +174,12 @@ class NB_UL_collection(UIList):
                          icon='CURVE_PATH',
                          text="").data_path = item.path_from_id()
 
+        if bpy.context.scene.nb.objecttype == 'surfaces':
+            row = layout.row()
+            row.operator("nb.unwrap_surface",
+                         icon='GROUP_UVS',
+                         text="").data_path = item.path_from_id()
+
         col = layout.column()
         col.alignment = "RIGHT"
         col.active = item.is_rendered

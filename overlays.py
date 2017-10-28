@@ -699,23 +699,23 @@ class NB_OT_unwrap_surface(Operator, ImportHelper):
     bl_idname = "nb.unwrap_surface"
     bl_label = "Unwrap surface"
     bl_description = "Unwrap a surface with sphere projection"
-    bl_options = {"REGISTER", "UNDO", "PRESET"}
+    bl_options = {"REGISTER"}
 
-    name_surface = StringProperty(
-        name="Surface name",
-        description="Specify the name for the surface to unwrap",
+    data_path = StringProperty(
+        name="data path",
+        description="Specify object data path",
         default="")
+
     name_sphere = StringProperty(
-        name="Sphere name",
-        description="Specify the name for the sphere object to unwrap from",
-        default="")
+        name="Name",
+        description="Specify a name for the sphere object",
+        default="sphere")
     delete_sphere = BoolProperty(
         name="Delete",
         description="Delete sphere object after unwrapping",
         default=True)
     directory = StringProperty(subtype="FILE_PATH")
-    files = CollectionProperty(name="Filepath",
-                               type=OperatorFileListElement)
+    filename = StringProperty()
     filter_glob = StringProperty(
         options={"HIDDEN"},
         # NOTE: multiline comment """ """ not working here
@@ -724,20 +724,26 @@ class NB_OT_unwrap_surface(Operator, ImportHelper):
                 "*.white;*.pial;*.inflated;*.sphere;*.orig;" +
                 "*.blend")
 
+    def draw(self, context):
+
+        row = self.layout.row()
+        row.prop(self, "delete_sphere")
+
+        if not self.delete_sphere:
+            row = self.layout.row()
+            row.prop(self, "name_sphere")
+
     def execute(self, context):
 
         scn = context.scene
         nb = scn.nb
 
-        surf = bpy.data.objects[self.name_surface]
-        nb_ob = nb.surfaces.get(surf.name)
+        nb_ob = scn.path_resolve(self.data_path)
+        surf = bpy.data.objects[nb_ob.name]
 
-        if self.files:
-            fname = self.files[0].name
-            fpath = os.path.join(self.directory, fname)
-            bpy.ops.nb.import_surfaces(filepath=fpath,
-                                       directory=self.directory,
-                                       files=[{"name": fname, "name": fname}],
+        if self.filename:
+            bpy.ops.nb.import_surfaces(directory=self.directory,
+                                       files=[{"name": self.filename}],
                                        name=self.name_sphere)
             self.name_sphere = context.scene.objects.active.name
 
@@ -768,13 +774,6 @@ class NB_OT_unwrap_surface(Operator, ImportHelper):
 
     def invoke(self, context, event):
 
-        nb_ob = nb_ut.active_nb_object()[0]
-        self.name_surface = nb_ob.name
+        context.window_manager.fileselect_add(self)
 
-        if nb_ob.sphere != "Select":
-            self.name_sphere = nb_ob.sphere
-            self.delete_sphere = False
-            return self.execute(context)
-        else:
-            context.window_manager.fileselect_add(self)
-            return {"RUNNING_MODAL"}
+        return {"RUNNING_MODAL"}

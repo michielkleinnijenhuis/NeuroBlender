@@ -140,8 +140,6 @@ class NB_PT_base(bpy.types.Panel):
             self.drawunit_tri(layout, "material", nb, nb_ob)
             self.drawunit_tri(layout, "transform", nb, nb_ob)
             if nb.settingprops.advanced:
-                if nb.objecttype == "surfaces":
-                    self.drawunit_tri(layout, "unwrap", nb, nb_ob)
                 self.drawunit_tri(layout, "info", nb, nb_ob)
 
     def drawunit_switch_to_main(self, layout, nb):
@@ -290,21 +288,6 @@ class NB_PT_base(bpy.types.Panel):
         else:
             row = layout.row()
             row.prop(nb, prop, icon='TRIA_RIGHT', emboss=False)
-
-    def drawunit_tri_unwrap(self, layout, nb, nb_ob):
-        """Unwrap a NeuroBlender surface object.
-
-        Unwrapping should be performed for the sake of baking surface overlays to textures, which is the most flexible way in which blender can visualize e.g. timeseries on surfaces. For proper unwrapping, a spherical representation of the surface is needed with the same number of vertices as the object. The spherical surface can either be chosen from the list of NeuroBlender surfaces, or can be read directly from file (by default, this discards the sphere again such that it will not show up in the NeuroBlender surface list).
-        """
-
-        self.drawunit_unwrap(layout, nb_ob)
-
-    def drawunit_unwrap(self, layout, nb_ob):
-
-        row = layout.row()
-        row.prop(nb_ob, "sphere", text="")
-        row = layout.row()
-        row.operator("nb.unwrap_surface", text="Unwrap from sphere")
 
     def drawunit_tri_carvers(self, layout, nb, nb_ob):
         """Carve out a region of a surface or voxelvolume.
