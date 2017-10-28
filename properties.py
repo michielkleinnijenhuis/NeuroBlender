@@ -1360,8 +1360,8 @@ def active_overlay_update(self, context):
     try:
         pg_sc1 = bpy.types.TractProperties
         pg_sc2 = bpy.types.SurfaceProperties
-        pg_sc4 = bpy.types.ScalargroupProperties
-        pg_sc5 = bpy.types.LabelgroupProperties
+        pg_sc4 = bpy.types.ScalarGroupProperties
+        pg_sc5 = bpy.types.LabelGroupProperties
     except AttributeError:
         pg_sc1 = pg.bl_rna_get_subclass_py("TractProperties")
         pg_sc2 = pg.bl_rna_get_subclass_py("SurfaceProperties")
