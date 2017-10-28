@@ -112,26 +112,40 @@ class NB_OT_create_labelgroup(Operator):
         default="")
 
     qb_points = IntProperty(
-        name="QuickBundles points",
+        name="Points",
         description="Resample the streamlines to N points",
         default=50,
         min=2)
 
     qb_threshold = FloatProperty(
-        name="QuickBundles threshold",
+        name="Threshold",
         description="Set the threshold for QuickBundles",
         default=30.,
         min=0.)
 
     qb_centroids = BoolProperty(
-        name="QuickBundles centroids",
+        name="Centroids",
         description="Create a QuickBundles centroids object",
         default=False)
 
     qb_separation = BoolProperty(
-        name="QuickBundles separate",
+        name="Separate",
         description="Create a tract object for every QuickBundles cluster",
         default=False)
+
+    def draw(self, context):
+
+        row = self.layout.row()
+        row.prop(self, "qb_points")
+
+        row = self.layout.row()
+        row.prop(self, "qb_threshold")
+
+        row = self.layout.row()
+        row.prop(self, "qb_centroids")
+
+        row = self.layout.row()
+        row.prop(self, "qb_separation")
 
     def execute(self, context):
 
@@ -158,6 +172,10 @@ class NB_OT_create_labelgroup(Operator):
                 )
 
         return {"FINISHED"}
+
+    def invoke(self, context, event):
+
+        return context.window_manager.invoke_props_dialog(self)
 
     def quickbundles(self, streamlines):
         """Segment tract with QuickBundles."""
@@ -278,8 +296,13 @@ class NB_OT_separate_labels(Operator):
 
     duplicate = BoolProperty(
         name="Duplicate",
-        description="Retain a copy of the original surface",
+        description="Retain a copy of the original object",
         default=True)
+
+    def draw(self, context):
+
+        row = self.layout.row()
+        row.prop(self, "duplicate")
 
     def execute(self, context):
 
@@ -317,6 +340,10 @@ class NB_OT_separate_labels(Operator):
                                   data_path='.'.join(split_path[:2]))
 
         return {"FINISHED"}
+
+    def invoke(self, context, event):
+
+        return context.window_manager.invoke_props_dialog(self)
 
     def separate_labels_tracts(self, context, ob, nb_ob):
         """Separate tract labels according to material index."""
