@@ -39,7 +39,8 @@ from bpy.types import (Operator,
 from bpy.props import (BoolProperty,
                        StringProperty,
                        CollectionProperty,
-                       EnumProperty)
+                       EnumProperty,
+                       IntVectorProperty)
 from bpy_extras.io_utils import ImportHelper
 
 from .. import (materials as nb_ma,
@@ -73,6 +74,11 @@ class NB_OT_import_overlays(Operator, ImportHelper):
         name="Timepoint postfix",
         description="Specify an re for the timepoint naming",
         default='vol{:04d}')
+    timeseries_slice = IntVectorProperty(
+        name="Slice",
+        description="Numpy Slice (start, stop, step) for the timeseries",
+        default=[0, 0, 0],
+        size=3)
     spline_postfix = StringProperty(
         name="Spline postfix",
         description="Specify an re for the streamline naming",
@@ -132,6 +138,8 @@ class NB_OT_import_overlays(Operator, ImportHelper):
             if self.overlaytype in ('scalargroups'):
                 row = layout.row()
                 row.prop(self, "timepoint_postfix")
+                row = layout.row()
+                row.prop(self, "timeseries_slice")
             if obinfo['type'] == 'tracts':
                 row = layout.row()
                 row.prop(self, "spline_postfix")
@@ -207,7 +215,7 @@ class NB_OT_import_overlays(Operator, ImportHelper):
         """Import a scalar overlay onto a tract object."""
 
         # load the data
-        sg_data = self.read_tractscalar(fpath)
+        sg_data = self.read_tractscalar(fpath, self.timeseries_slice)
 
         # normalize between 0  and 1
         datadict = self.normalize_data(sg_data)
@@ -264,8 +272,11 @@ class NB_OT_import_overlays(Operator, ImportHelper):
         return group
 
     @staticmethod
-    def read_tractscalar(fpath):
+    def read_tractscalar(fpath, ts_slice=[]):
         """Read a tract scalar overlay file."""
+
+        if any(ts_slice):
+            ts_slice = slice(ts_slice[0], ts_slice[1], ts_slice[2])
 
         _, ext = os.path.splitext(fpath)
 
@@ -295,6 +306,8 @@ class NB_OT_import_overlays(Operator, ImportHelper):
         elif ext in ('.pickle'):
             with open(fpath, 'rb') as f:
                 scalars = pickle.load(f)
+
+        scalars = scalars[ts_slice]
 
         return scalars
 
@@ -414,7 +427,7 @@ class NB_OT_import_overlays(Operator, ImportHelper):
             labels, timeseries = self.read_surflabel(fpath, is_label=False)
         else:
             labels = None
-            timeseries = self.read_surfscalar(fpath)
+            timeseries = self.read_surfscalar(fpath, self.timeseries_slice)
             if len(ob.data.vertices) != len(timeseries[0]):
                 return "failed"
 
@@ -507,11 +520,14 @@ class NB_OT_import_overlays(Operator, ImportHelper):
 
 
     @staticmethod
-    def read_surfscalar(fpath):
+    def read_surfscalar(fpath, ts_slice=[]):
         """Read a surface scalar overlay file."""
 
         scn = bpy.context.scene
         nb = scn.nb
+
+        if any(ts_slice):
+            ts_slice = slice(ts_slice[0], ts_slice[1], ts_slice[2])
 
         if fpath.endswith('.npy'):
             scalars = np.load(fpath)
@@ -526,15 +542,24 @@ class NB_OT_import_overlays(Operator, ImportHelper):
             if nb.settingprops.nibabel_valid:
                 img = nib.load(fpath)
                 scalars = []
-                for darray in img.darrays:
-                    scalars.append(darray.data)
+                if ts_slice:
+                    for darray in img.darrays[ts_slice]:
+                        scalars.append(darray.data)
+                else:
+                    for darray in img.darrays:
+                        scalars.append(darray.data)
                 scalars = np.array(scalars)
 
-        elif fpath.endswith('dscalar.nii'):
+        elif (fpath.endswith('dscalar.nii') or
+              fpath.endswith('dtseries.nii')):
             nib = nb_ut.validate_nibabel('dscalar.nii')
             if nb.settingprops.nibabel_valid:
                 img = nib.load(fpath)
-                scalars = np.squeeze(img.get_data())
+                if ts_slice:
+                    scalars = img.dataobj[..., ts_slice, :]
+                else:
+                    scalars = img.get_data()
+                scalars = np.squeeze(scalars)
 
         else:  # I will try to read it as a freesurfer binary
             nib = nb_ut.validate_nibabel('')
