@@ -60,13 +60,16 @@ def carvers_handler(dummy):
 
     scn = bpy.context.scene
     nb = scn.nb
-    for surf in nb.surfaces:
-        carvers_update(surf, bpy.context)
-    for vvol in nb.voxelvolumes:
-        for carver in vvol.carvers:
+
+    def update_object_carvers(nb_ob):
+        for carver in nb_ob.carvers:
             for carveob in carver.carveobjects:
                 carvers_update(carveob, bpy.context)
 
+    for surf in nb.surfaces:
+        update_object_carvers(surf)
+    for vvol in nb.voxelvolumes:
+        update_object_carvers(vvol)
 
 @persistent
 def rendertype_enum_handler(dummy):
