@@ -38,7 +38,8 @@ from bpy.props import (BoolProperty,
                        StringProperty,
                        CollectionProperty,
                        EnumProperty,
-                       IntProperty)
+                       IntProperty,
+                       IntVectorProperty)
 from bpy_extras.io_utils import ImportHelper
 
 from .. import (materials as nb_ma,
@@ -179,10 +180,11 @@ class NB_OT_import_voxelvolumes(Operator, ImportHelper):
         name="Dataset",
         description="The the name of the hdf5 dataset",
         items=h5_dataset_callback)
-    vol_idx = IntProperty(
-        name="Volume index",
-        description="The index of the volume to import (-1 for all)",
-        default=-1)
+    timeseries_slice = IntVectorProperty(
+        name="Timeseries slice",
+        description="Numpy Slice (start, stop, step) for the timeseries",
+        default=[0, -1, 1],
+        size=3)
 
     def execute(self, context):
 
@@ -240,7 +242,7 @@ class NB_OT_import_voxelvolumes(Operator, ImportHelper):
                 row.prop(self, "dataset", expand=False)
 
         row = layout.row()
-        row.prop(self, "vol_idx")
+        row.prop(self, "timeseries_slice")
 
         row = layout.row()
         row.prop(self, "sformfile")
@@ -316,7 +318,7 @@ class NB_OT_import_voxelvolumes(Operator, ImportHelper):
                    "texformat": self.texformat,
                    "overwrite": self.overwrite,
                    "dataset": self.dataset,
-                   "vol_idx": self.vol_idx}
+                   "timeseries_slice": self.timeseries_slice}
 
         # prep texture directory
         if not bpy.data.is_saved:
@@ -417,7 +419,6 @@ class NB_OT_import_voxelvolumes(Operator, ImportHelper):
         """Load a volume texture previously generated in NeuroBlender."""
 
         texformat = texdict['texformat']
-        vol_idx = max(0, texdict['vol_idx'])
 
         abstexdir = bpy.path.abspath(texdict['texdir'])
         imdir = os.path.join(abstexdir, texformat)
@@ -426,7 +427,7 @@ class NB_OT_import_voxelvolumes(Operator, ImportHelper):
         vols = glob(os.path.join(absimdir, "*"))
 
         try:
-            vol = vols[vol_idx]
+            vol = vols[texdict['timeseries_slice'][0]]  # load first volume
             if texformat == "IMAGE_SEQUENCE":
                 slices = glob(os.path.join(vol, "*"))
                 vol = slices[0]
@@ -467,7 +468,6 @@ class NB_OT_import_voxelvolumes(Operator, ImportHelper):
         sformfile = texdict['sformfile']
         is_label = texdict['is_label']
         fieldname = texdict['dataset']
-        vol_idx = texdict['vol_idx']
 
         abstexdir = bpy.path.abspath(texdict['texdir'])
 
@@ -592,7 +592,7 @@ class NB_OT_import_voxelvolumes(Operator, ImportHelper):
         fpath = texdict['fpath']
         is_label = texdict['is_label']
         fieldname = texdict['dataset']
-        vol_idx = texdict['vol_idx']
+        ts_slice = texdict['timeseries_slice']
         texdir = texdict['texdir']
         texformat = texdict['texformat']
 
@@ -602,11 +602,13 @@ class NB_OT_import_voxelvolumes(Operator, ImportHelper):
             except ImportError:
                 raise  # TODO: error to indicate how to set up h5py
             else:
+                # TODO: make efficient
                 f = h5py.File(fpath, 'r')
                 in2out = nb_ut.h5_in2out(f[fieldname])
                 data = np.transpose(f[fieldname][:], in2out)
-                if vol_idx != -1:  # TODO: make efficient
-                    data = data[..., vol_idx]
+                ts_slicer = nb_ut.get_slicer(ts_slice, data.shape[-1])
+                if ts_slicer is not None:
+                    data = f[fieldname][..., ts_slicer]
 
         else:
             try:
@@ -614,10 +616,13 @@ class NB_OT_import_voxelvolumes(Operator, ImportHelper):
             except ImportError:
                 raise  # TODO: error to indicate how to set up nibabel
             else:
-                nii_proxy = nib.load(fpath)
-                data = nii_proxy.get_data()
-                if vol_idx != -1:
-                    data = data[..., vol_idx]
+                nii = nib.load(fpath)
+                # NOTE: assuming last dim is time
+                ts_slicer = nb_ut.get_slicer(ts_slice, nii.shape[-1])
+                if ts_slicer is not None:
+                    data = nii.dataobj[..., ts_slicer]
+                else:
+                    data = nii.get_data()
 
         data.shape += (1,) * (4 - data.ndim)
         dims = np.array(data.shape)

@@ -751,3 +751,16 @@ def add_constraint(ob, ctype, name, target, val=None):
                 exec("cns.{} = v".format(k))
 
     return cns
+
+
+def get_slicer(ts_slice, tdim=-1):
+    """Get slicer for timeseries."""
+
+    if list(ts_slice) != [0, -1, 1]:
+        if ts_slice[1] < 0:
+            ts_slice[1] = tdim
+        ts_slicer = slice(ts_slice[0], ts_slice[1], ts_slice[2])
+    else:
+        ts_slicer = None
+
+    return ts_slicer

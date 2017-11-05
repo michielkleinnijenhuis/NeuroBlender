@@ -75,9 +75,9 @@ class NB_OT_import_overlays(Operator, ImportHelper):
         description="Specify an re for the timepoint naming",
         default='vol{:04d}')
     timeseries_slice = IntVectorProperty(
-        name="Slice",
+        name="Timeseries slice",
         description="Numpy Slice (start, stop, step) for the timeseries",
-        default=[0, 0, 0],
+        default=[0, -1, 1],
         size=3)
     spline_postfix = StringProperty(
         name="Spline postfix",
@@ -133,6 +133,7 @@ class NB_OT_import_overlays(Operator, ImportHelper):
         row = layout.row()
         row.prop(self, "prefix_parentname")
 
+        # TODO: don't do advanced in operators, or create switch
         if context.scene.nb.settingprops.advanced:
 
             if self.overlaytype in ('scalargroups'):
@@ -272,11 +273,8 @@ class NB_OT_import_overlays(Operator, ImportHelper):
         return group
 
     @staticmethod
-    def read_tractscalar(fpath, ts_slice=[]):
+    def read_tractscalar(fpath, ts_slice=[0, -1, 1]):
         """Read a tract scalar overlay file."""
-
-        if any(ts_slice):
-            ts_slice = slice(ts_slice[0], ts_slice[1], ts_slice[2])
 
         _, ext = os.path.splitext(fpath)
 
@@ -307,7 +305,9 @@ class NB_OT_import_overlays(Operator, ImportHelper):
             with open(fpath, 'rb') as f:
                 scalars = pickle.load(f)
 
-        scalars = scalars[ts_slice]
+        ts_slicer = nb_ut.get_slicer(ts_slice, tdim=len(scalars))
+        if ts_slicer is not None:
+            scalars = scalars[ts_slicer]
 
         return scalars
 
@@ -520,17 +520,14 @@ class NB_OT_import_overlays(Operator, ImportHelper):
 
 
     @staticmethod
-    def read_surfscalar(fpath, ts_slice=[]):
+    def read_surfscalar(fpath, ts_slice=[0, -1, 1]):
         """Read a surface scalar overlay file."""
 
         scn = bpy.context.scene
         nb = scn.nb
 
-        if any(ts_slice):
-            ts_slice = slice(ts_slice[0], ts_slice[1], ts_slice[2])
-
         if fpath.endswith('.npy'):
-            scalars = np.load(fpath)
+            scalars = np.load(fpath, mmap_mode='r+')
 
         elif fpath.endswith('.npz'):
             npzfile = np.load(fpath)
@@ -541,25 +538,33 @@ class NB_OT_import_overlays(Operator, ImportHelper):
             nib = nb_ut.validate_nibabel('.gii')
             if nb.settingprops.nibabel_valid:
                 img = nib.load(fpath)
-                scalars = []
-                if ts_slice:
-                    for darray in img.darrays[ts_slice]:
-                        scalars.append(darray.data)
+                ts_slicer = nb_ut.get_slicer(ts_slice, tdim=len(img.darrays))
+                if ts_slicer is not None:
+                    darrays = img.darrays[ts_slicer]
                 else:
-                    for darray in img.darrays:
-                        scalars.append(darray.data)
+                    darrays = img.darrays
+                scalars = []
+                for darray in darrays:
+                    scalars.append(darray.data)
                 scalars = np.array(scalars)
 
-        elif (fpath.endswith('dscalar.nii') or
-              fpath.endswith('dtseries.nii')):
-            nib = nb_ut.validate_nibabel('dscalar.nii')
-            if nb.settingprops.nibabel_valid:
-                img = nib.load(fpath)
-                if ts_slice:
-                    scalars = img.dataobj[..., ts_slice, :]
-                else:
-                    scalars = img.get_data()
-                scalars = np.squeeze(scalars)
+        # prepare for CIFTI
+#         elif fpath.endswith('dscalar.nii'):
+#             nib = nb_ut.validate_nibabel('dscalar.nii')
+#             if nb.settingprops.nibabel_valid:
+#                 img = nib.load(fpath)
+#                 scalars = img.get_data()
+#                 scalars = np.squeeze(scalars)
+#         elif fpath.endswith('dtseries.nii'):
+#             nib = nb_ut.validate_nibabel('dtseries.nii')
+#             if nb.settingprops.nibabel_valid:
+#                 img = nib.load(fpath)
+#                 ts_slicer = nb_ut.get_slicer(ts_slice, tdim=img.shape[4])
+#                 if ts_slicer is not None:
+#                     scalars = img.dataobj[..., ts_slicer, :]
+#                 else:
+#                     scalars = img.get_data()
+#                 scalars = np.squeeze(scalars)
 
         else:  # I will try to read it as a freesurfer binary
             nib = nb_ut.validate_nibabel('')
