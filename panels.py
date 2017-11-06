@@ -1236,7 +1236,20 @@ class NB_PT_animation(bpy.types.Panel):
 
         row = layout.row(align=True)
         row.prop(anim, "repetitions")
-        row.prop(anim, "offset")
+#         row.prop(anim, "offset")
+        row.prop(anim, "mirror", toggle=True,
+                 icon="ARROW_LEFTRIGHT")
+
+        row = layout.row(align=True)
+        row.label(text="Value range")
+        row.prop(anim, "anim_range", text='')
+        row.prop(anim, "reverse", toggle=True,
+                 icon="ARROW_LEFTRIGHT")
+
+        row = layout.row(align=True)
+        row.label(text="Noise")
+        row.prop(anim, "noise_strength")
+        row.prop(anim, "noise_scale")
 
     def drawunit_animation_camerapath(self, layout, nb):
 
@@ -1356,18 +1369,14 @@ class NB_PT_animation(bpy.types.Panel):
 
     def drawunit_animation_carver(self, layout, nb):
 
-        self.drawunit_tri(layout, "carvers", nb, nb)
+        self.drawunit_tri(layout, "carver_properties", nb, nb)
 
-    def drawunit_tri_carvers(self, layout, nb, preset):
+    def drawunit_tri_carver_properties(self, layout, nb, preset):
 
         anim = nb.animations[nb.index_animations]
 
         row = layout.row()
-        col = row.column()
-        col.prop(anim, "reverse", toggle=True,
-                 icon="ARROW_LEFTRIGHT", icon_only=True)
-        col = row.column()
-        col.prop(anim, "nb_object_data_path", expand=False, text="")
+        row.prop(anim, "nb_object_data_path", expand=False, text="")
 
         row = layout.row()
         row.separator()
@@ -1375,11 +1384,12 @@ class NB_PT_animation(bpy.types.Panel):
         row = layout.row()
         row.prop(anim, "sliceproperty", expand=True)
 
-        row = layout.row()
-        row.separator()
+        if anim.sliceproperty in ("Thickness", "Position", "Angle"):
+            row = layout.row()
+            row.separator()
 
-        row = layout.row()
-        row.prop(anim, "axis", expand=True)
+            row = layout.row()
+            row.prop(anim, "axis", expand=True)
 
     def drawunit_animation_timeseries(self, layout, nb):
 
@@ -1390,11 +1400,16 @@ class NB_PT_animation(bpy.types.Panel):
         anim = nb.animations[nb.index_animations]
 
         row = layout.row()
-        col = row.column()
-        col.prop(anim, "reverse", toggle=True,
-                 icon="ARROW_LEFTRIGHT", icon_only=True)
-        col = row.column()
-        col.prop(anim, "nb_object_data_path", expand=False, text="")
+        row.prop(anim, "nb_object_data_path", expand=False, text="")
+
+    def drawunit_animation_grow(self, layout, nb):
+
+        anim = nb.animations[nb.index_animations]
+
+#         row = layout.row()
+#         col = row.column()
+#         col.prop(anim, "reverse_action", toggle=True,
+#                  icon="ARROW_LEFTRIGHT")
 
 
 class NB_PT_settings(bpy.types.Panel):

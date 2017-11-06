@@ -30,13 +30,15 @@ import numpy as np
 import mathutils
 
 import bpy
+from bpy.types import PropertyGroup as pg
 from bpy.types import (Operator,
                        UIList,
                        Menu)
 from bpy.props import (StringProperty,
                        EnumProperty,
                        FloatVectorProperty,
-                       IntProperty)
+                       IntProperty,
+                       FloatProperty)
 
 from . import (materials as nb_ma,
                utils as nb_ut)
@@ -433,45 +435,97 @@ class NB_OT_animate_carver(Operator):
         scn = bpy.context.scene
         nb = scn.nb
 
-        # FIXME: the path might change on deleting objects
-        prop = "slice{}".format(anim.sliceproperty.lower())
-        prop_path = '{}.{}'.format(anim.nb_object_data_path, prop)
-        idx = 'XYZ'.index(anim.axis)
-        # get or create the fcurve for this animation
-        fcu, prev = get_animation_fcurve(anim, data_path=prop_path, idx=idx)
-        # update the data_path and index
-        fcu.data_path = anim.fcurve_data_path = prop_path
-        fcu.array_index = anim.fcurve_array_index = idx
-        # reset the state of the previous prop to the frame-0 value
-        restore_state_carver(prev)
+        nb_ob = scn.path_resolve(anim.nb_object_data_path)
 
-        # Calculate the coordinates of the 3 points in the fcurve
-        # FIXME: wrap around for position and thickness
-        cob_path = '{}[{}]'.format(prop_path, idx)
-        fullrange = {'slicethickness': [0, 1],
-                     'sliceposition': [-1, 1],
-                     'sliceangle': [-1.5708, 1.5708]}
-        prange = [fullrange[prop][0] * anim.repetitions,
-                  fullrange[prop][1] * anim.repetitions]
-        if anim.reverse:
-            prange.reverse()
-        prange = [prange[0] + anim.offset,
-                  prange[1] + anim.offset]
-        kfs = {0: scn.path_resolve(cob_path),
-               anim.frame_start: prange[0],
-               anim.frame_end: prange[1]}
+        try:
+            pg_sc1 = bpy.types.TractProperties
+        except AttributeError:
+            pg_sc1 = pg.bl_rna_get_subclass_py("TractProperties")
 
-        # build the new fcurve
-        for i, (k, v) in enumerate(sorted(kfs.items())):
-            kp = fcu.keyframe_points[i]
-            kp.co = (k, v)
-            if k == 0:
-                kp.interpolation = 'CONSTANT'
-            else:
-                kp.interpolation = anim.interpolation
+        aca = bpy.types.NB_OT_animate_carver
+        if isinstance(nb_ob, pg_sc1):
+            aca.animate_carver_tracts(anim)
+        else:
+            aca.animate_carver_voxelvolumes(anim)
 
         # update
         bpy.context.scene.frame_current = scn.frame_current
+
+    @staticmethod
+    def animate_carver_tracts(anim):
+        """Animate a tract carver."""
+
+        scn = bpy.context.scene
+
+        nb_ob = scn.path_resolve(anim.nb_object_data_path)
+        tractob = bpy.data.objects[nb_ob.name]
+
+        rangedict = {'bevel_factor_start': [0, 1],
+                     'bevel_depth': [0, tractob.data.bevel_depth]}
+
+        prop = anim.sliceproperty
+        prop_path = '{}'.format(prop)
+        idx = 0
+        actionname = '{}Action'.format(anim.name)
+
+        if anim.rna_data_path:
+            prev_rna = eval(anim.rna_data_path)
+            if anim.rna_data_path == 'bpy.context.scene':
+                curve = None
+                ad = tractob.data.animation_data_create()
+                prev_rna.animation_data_clear()
+            elif prev_rna != tractob.data:
+                curve = prev_rna
+                ad = copy_animation_data(prev_rna, tractob.data)
+                prev_rna.animation_data_clear()
+            else:
+                curve = tractob.data
+                ad = tractob.data.animation_data_create()
+            restore_state_carver(anim, curve)
+        else:
+            ad = tractob.data.animation_data_create()
+
+        fcu = get_animation_fcurve(anim, ad, data_path=prop_path,
+                                   idx=idx, actionname=actionname)
+        fcu.data_path = anim.fcurve_data_path = prop_path
+        fcu.array_index = anim.fcurve_array_index = idx
+        anim.rna_data_path = 'bpy.data.objects["{}"].data'.format(tractob.name)
+        anim.default_value = eval('{}.{}'.format(anim.rna_data_path, prop_path))
+        build_fcurve(rangedict[prop], fcu, anim)
+
+    @staticmethod
+    def animate_carver_voxelvolumes(anim):
+        """Animate a voxelvolume carver."""
+
+        scn = bpy.context.scene
+
+        rangedict = {'slicethickness': [0, 1],
+                     'sliceposition': [-1, 1],
+                     'sliceangle': [-1.5708, 1.5708]}
+
+        prop = "slice{}".format(anim.sliceproperty.lower())
+        prop_path = '{}.{}'.format(anim.nb_object_data_path, prop)
+        idx = 'XYZ'.index(anim.axis)
+        actionname = 'SceneAction'
+
+        if anim.rna_data_path:
+            if anim.rna_data_path != 'bpy.context.scene':
+                prev_rna = eval(anim.rna_data_path)
+                prev_rna.animation_data_clear()
+                restore_state_carver(anim, prev_rna)
+            else:
+                restore_state_carver(anim)
+        else:
+            restore_state_carver(anim)
+
+        ad = scn.animation_data_create()
+        fcu = get_animation_fcurve(anim, ad, data_path=prop_path,
+                                   idx=idx, actionname=actionname)
+        fcu.data_path = anim.fcurve_data_path = prop_path
+        fcu.array_index = anim.fcurve_array_index = idx
+        anim.rna_data_path = 'bpy.context.scene'
+        anim.default_value = scn.path_resolve('{}[{}]'.format(prop_path, idx))
+        build_fcurve(rangedict[prop], fcu, anim)
 
 
 class NB_OT_animate_timeseries(Operator):
@@ -519,32 +573,17 @@ class NB_OT_animate_timeseries(Operator):
         prop = 'index_scalars'
         prop_path = '{}.{}'.format(anim.nb_object_data_path, prop)
         # get or create the fcurve for this animation
-        fcu, prev = get_animation_fcurve(anim, data_path=prop_path)
+        ad = scn.animation_data_create()
+        fcu = get_animation_fcurve(anim, ad, data_path=prop_path)
         # update the data_path and index
         fcu.data_path = anim.fcurve_data_path = prop_path
         # reset the state of the previous prop to the frame-0 value
-        restore_state_timeseries(prev)
+        restore_state_timeseries(anim)
+        anim.default_value = scn.path_resolve(prop_path)
 
-        # Calculate the coordinates of the 3 points in the fcurve
+        # Calculate the coordinates of the points in the fcurve
         sg = scn.path_resolve(anim.nb_object_data_path)
-        nscalars = len(sg.scalars)
-        fullrange = [0, nscalars - 1]
-        prange = [fullrange[0] + anim.offset * nscalars,
-                  fullrange[1] * anim.repetitions + anim.offset]
-        if anim.reverse:
-            prange.reverse()
-        kfs = {0: scn.path_resolve(prop_path),
-               anim.frame_start: prange[0],
-               anim.frame_end: prange[1]}
-
-        # build the new fcurve
-        for i, (k, v) in enumerate(sorted(kfs.items())):
-            kp = fcu.keyframe_points[i]
-            kp.co = (k, v)
-            if k == 0:
-                kp.interpolation = 'CONSTANT'
-            else:
-                kp.interpolation = anim.interpolation
+        build_fcurve([0, len(sg.scalars)], fcu, anim)
 
         # update
         bpy.context.scene.frame_current = scn.frame_current
@@ -1075,70 +1114,71 @@ class NB_OT_campath_remove(Operator):
         return self.execute(context)
 
 
-def get_animation_fcurve(anim, data_path='', idx=-1,
-                         remove=False, npoints=3):
+def get_animation_fcurve(anim, ad, data_path='', idx=-1,
+                         remove=False, npoints=2,
+                         actionname='SceneAction'):
     """Get or remove an fcurve for an animation."""
 
     scn = bpy.context.scene
     nb = scn.nb
 
-    prev = {}
-
-    actionname = 'SceneAction'
-    ad = scn.animation_data_create()
     try:
         ad.action = bpy.data.actions[actionname]
     except KeyError:
         ad.action = bpy.data.actions.new(actionname)
+
+    fcurves = ad.action.fcurves
     try:
-        fcu = ad.action.fcurves.find(anim.fcurve_data_path,
-                                     anim.fcurve_array_index)
+        fcu = fcurves.find(anim.fcurve_data_path, anim.fcurve_array_index)
     except RuntimeError:
-        fcu = ad.action.fcurves.new(data_path, index=idx,
-                                    action_group=anim.name)
+        fcu = fcurves.new(data_path, index=idx, action_group=anim.name)
         fcu.keyframe_points.add(npoints)  # TODO: flexibility
     else:
-        # remember the path, index and value at frame 0
-        prev['data_path'] = fcu.data_path
-        prev['array_index'] = fcu.array_index
-        prev['value'] = fcu.keyframe_points[0].co[1]
+        if fcu is None:
+            fcu = fcurves.new(data_path, index=idx, action_group=anim.name)
+            fcu.keyframe_points.add(npoints)  # TODO: flexibility
 
     if remove:
-        ad.action.fcurves.remove(fcu)
+        fcurves.remove(fcu)
         fcu = None
 
-    return fcu, prev
+    return fcu
 
 
-def restore_state_carver(prev):
+def restore_state_carver(anim, curve=None):
     """Restore a previous state of a carver property."""
 
     scn = bpy.context.scene
 
-    if not prev:
+    dp = anim.fcurve_data_path
+    ai = anim.fcurve_array_index
+    pv = anim.default_value
+
+    if not dp:
         return
 
-    prev_prop = prev['data_path'].split('.')[-1]
-    data_path = '.'.join(prev['data_path'].split('.')[:-1])
-    item = scn.path_resolve(data_path)
-    exec('item.{}[{:d}] = {:f}'.format(prev_prop,
-                                       prev['array_index'],
-                                       prev['value']))
+    if curve is None:
+        prev_prop = dp.split('.')[-1]
+        data_path = '.'.join(dp.split('.')[:-1])
+        item = scn.path_resolve(data_path)
+        exec('item.{}[{:d}] = {:f}'.format(prev_prop, ai, pv))
+    else:
+        exec('curve.{} = {:f}'.format(dp, pv))
 
 
-def restore_state_timeseries(prev):
+def restore_state_timeseries(anim):
     """Restore a previous state of a timeseries index property."""
 
     scn = bpy.context.scene
 
-    if not prev:
-        return
+    dp = anim.fcurve_data_path
+    pv = anim.default_value
 
     # TODO: might do the same for labels?
     prev_prop = 'index_scalars'
-    data_path = '.'.join(prev['data_path'].split('.')[:-1])
+    data_path = '.'.join(dp.split('.')[:-1])
     item = scn.path_resolve(data_path)
-    exec('item.{} = {:d}'.format(prev_prop, int(prev['value'])))
+    exec('item.{} = {:d}'.format(prev_prop, int(pv)))
 
 
 def calculate_coefficients(campath, anim):
@@ -1262,3 +1302,316 @@ def setup_animation_rendering(filepath="render/anim",
     bpy.ops.render.render(animation=True)
 
     bpy.ops.wm.save_as_mainfile(filepath=blendpath)
+
+
+def build_fcurve(animrange, fcu, anim):
+    """Build a new fcurve."""
+
+    vrange = animrange[1] - animrange[0]
+    trange = anim.anim_range[1] - anim.anim_range[0]
+    animrange[0] += anim.anim_range[0] * vrange
+    animrange[1] = animrange[0] + trange * vrange
+
+    add_fcurve_modifiers(fcu, anim, animrange)
+
+    kfs = get_fcurve_coordinates(animrange, anim)
+
+    for i, (k, v) in enumerate(sorted(kfs.items())):
+        kp = fcu.keyframe_points[i]
+        kp.co = (k, v)
+        if k == 0:
+            kp.interpolation = 'CONSTANT'
+        else:
+            kp.interpolation = anim.interpolation
+
+
+def add_fcurve_modifiers(fcu, anim, animrange=[]):
+    """Add FCurve modifiers."""
+
+    for mod in fcu.modifiers:
+        fcu.modifiers.remove(mod)
+
+    mod = fcu.modifiers.new('CYCLES')
+    mod.use_restricted_range = True
+    mod.frame_start = anim.frame_start
+    mod.frame_end = anim.frame_end
+    mod.mode_before = 'NONE'
+    if anim.mirror:
+        mod.mode_after = 'MIRROR'
+    else:
+        mod.mode_after = 'REPEAT'
+
+    mod = fcu.modifiers.new('NOISE')
+    mod.use_restricted_range = True
+    mod.frame_start = anim.frame_start
+    mod.frame_end = anim.frame_end
+    mod.scale = anim.noise_scale
+    mod.strength = anim.noise_strength
+
+    mod = fcu.modifiers.new('LIMITS')
+    if animrange:
+        mod.use_min_y = True
+        mod.use_max_y = True
+        mod.min_y = animrange[0]
+        mod.max_y = animrange[1]
+
+
+def get_fcurve_coordinates(prange, anim, default_value=None):
+    """Calculate the coordinates of the points in the fcurve."""
+
+    vrange = prange[1] - prange[0]
+    trange = anim.frame_end - anim.frame_start
+    start = anim.frame_start
+
+    if anim.repetitions > 1:
+        end = start + trange / anim.repetitions
+    else:
+        prange[1] *= anim.repetitions
+        end = start + trange
+
+    if anim.reverse:
+        prange.reverse()
+        prange[0] -= anim.offset * vrange
+    else:
+        prange[0] += anim.offset * vrange
+
+    kfs = {start: prange[0], end: prange[1]}
+
+    if default_value is not None:
+        kfs[0] = default_value
+
+    return kfs
+
+
+def copy_animation_data(source, target):
+    """Copy animation data between data blocks."""
+
+    ad = source.animation_data
+
+    properties = [p.identifier for p in ad.bl_rna.properties
+                  if not p.is_readonly]
+
+    if target.animation_data is None:
+        target.animation_data_create()
+    ad2 = target.animation_data
+#     ad2.action.name = '{}Action'.format(target.name)
+    for prop in properties:
+        setattr(ad2, prop, getattr(ad, prop))
+
+    return ad2
+
+
+# class NB_OT_animate_grow(Operator):
+#     bl_idname = "nb.animate_grow"
+#     bl_label = "Set growth animation"
+#     bl_description = "Add a growth animation"""
+#     bl_options = {"REGISTER", "UNDO", "PRESET"}
+# 
+#     name = StringProperty(
+#         name="Name",
+#         description="Specify a name for the animation",
+#         default="GrowAnimation")
+# 
+#     nb_object_data_path = StringProperty(
+#         name="Object data path",
+#         description="Specify a the path to the object")
+# 
+#     def execute(self, context):
+# 
+#         scn = context.scene
+#         nb = scn.nb
+# 
+#         ca = [nb.animations]
+#         name = nb_ut.check_name(self.name, "", ca)
+# 
+#         animprops = {"name": name,
+#                      "animationtype": 'grow',
+#                      "icon": "FULLSCREEN_ENTER",
+#                      "nb_object_data_path": self.nb_object_data_path}
+#         anim = nb_ut.add_item(nb, "animations", animprops)
+#         anim.animationtype = 'grow'
+# 
+#         self.animate(anim)
+# 
+#         return {"FINISHED"}
+# 
+#     @staticmethod
+#     def animate(anim):
+#         """Set up a grow animation."""
+# 
+#         scn = bpy.context.scene
+#         nb = scn.nb
+# 
+#         nb_ob = scn.path_resolve(anim.nb_object_data_path)
+#         tractob = bpy.data.objects[nb_ob.name]
+# 
+#         ad = tractob.data.animation_data_create()
+#         actname = '{}Action'.format(tractob.name)
+# 
+#         prop = 'bevel_factor_start'
+#         fcu, prev = get_animation_fcurve_data(anim, data_path=prop, idx=0,
+#                                               ad=ad, actionname=actname)
+#         fcu.data_path = anim.fcurve_data_path = prop
+#         if prev:
+#             tractob.data.bevel_factor_start = anim.default_value
+#         else:
+#             anim.default_value = tractob.data.bevel_factor_start
+# 
+#         build_fcurve([0, 1], fcu, anim)
+# 
+#         # update
+#         bpy.context.scene.frame_current = scn.frame_current
+# 
+#     def copy_tract(self, context, tractob, create_mirmod=False):
+#         """Grow tract via building point-by-point"""
+# 
+#         scn = bpy.context.scene
+#         scn.frame_current = 0
+# 
+#         # TODO: unique
+#         name = tractob.name + "_grow"
+#         tractob_copy = tractob.copy()
+#         curve_copy = tractob.data.copy()
+#         tractob_copy.data = curve_copy
+#         tractob_copy.name = name
+#         splines = tractob_copy.data.splines
+#         for spl in splines:
+#             splines.remove(spl)
+#         splines = tractob.data.splines
+#         for spl in splines:
+#             polyline = tractob_copy.data.splines.new('POLY')
+#             polyline.points[0].co = spl.points[0].co
+# 
+#         context.scene.objects.link(tractob_copy)
+# 
+#         # mirror over x
+#         if create_mirmod:
+#             mirmod = tractob_copy.modifiers.new('mirror_x', type='MIRROR')
+# 
+#         return tractob_copy
+# 
+#     def sort_splines(self, context, tractob):
+#         """"""
+# 
+#         centre = bpy.data.objects.get('Centre')
+#         loc = centre.location
+#         sldict = {}
+#         for idx, spl in enumerate(tractob.data.splines):
+#             points = [p.co for p in spl.points]
+#             cp_vox = np.mean(np.array(points), axis=0)
+#             cp = tractob.matrix_world * Vector(cp_vox[:3])
+#             distance = sqrt((loc[0]-cp[0])**2+(loc[1]-cp[1])**2+(loc[2]-cp[2])**2)
+#             sldict[idx] = {'cp': cp_vox, 'dist': distance}
+#         sldict_inv = {v['dist']: idx for idx, v in sldict.items()}
+#         idxlist = []
+#         for _, v in sorted(sldict_inv.items()):
+#             idxlist.append(v)
+#         sel_idx = idxlist
+# 
+#         return sldict, idxlist, sel_idx
+# 
+#     def grow_tract(dummy):
+#         """Grow 3D curves (from the middle, selected)."""
+# 
+#         scn = bpy.context.scene
+#         tractob = scn.objects['tracks_CC']
+#         growob = scn.objects['tracks_CC_grow']
+#         stepsize = growob['stepsize']
+#         steps_per_frame = growob['steps_per_frame']
+#         sel_idx = growob['sel_idx']['sel_idx']
+#         offsets = growob['offsets']['offsets']
+#         idxs_per_frame = steps_per_frame * stepsize
+#         for idx, offset in zip(sel_idx, offsets):
+#             spl_old = tractob.data.splines[idx]
+#             spl_new = growob.data.splines[idx]
+#             idx_block = (scn.frame_current - offset) * idxs_per_frame
+#             for step in range(0, steps_per_frame):
+#                 p_idx = idx_block + step * stepsize
+#                 if p_idx < 1:
+#                     continue
+#                 try:
+#                     old_point_co = spl_old.points[p_idx].co
+#                 except IndexError:
+#                     pass
+#                 else:
+#                     try:
+#                         new_point = spl_new.points[p_idx]
+#                     except IndexError:
+#                         spl_new.points.add(1)
+#                         new_point = spl_new.points[-1]
+#                     new_point.co = old_point_co
+
+
+class NB_OT_switch_direction(Operator):
+    bl_idname = "nb.switch_direction"
+    bl_label = "Switch spline directions"
+    bl_description = "Switch direction of subset of splines"
+    bl_options = {"REGISTER"}
+
+    data_path = StringProperty(
+        name="data path",
+        description="Specify object data path",
+        default="")
+
+    point_index = IntProperty(
+        name="Point index",
+        description="Index of the spline's reference point",
+        default=0,
+        min=0)
+
+    axis = EnumProperty(
+        name="Axis",
+        description="Symmetry axis",
+        items=[("X", "X", "X", 0),
+               ("Y", "Y", "Y", 1),
+               ("Z", "Z", "Z", 2)],
+        default="X")
+
+    co = FloatProperty(
+        name="Coordinate",
+        description="Coordinate",
+        default=0.)
+
+    def draw(self, context):
+
+        row = self.layout.row()
+        row.prop(self, "point_index")
+
+        row = self.layout.row()
+        row.prop(self, "axis", expand=True)
+
+        row = self.layout.row()
+        row.prop(self, "co")
+
+    def execute(self, context):
+
+        scn = bpy.context.scene
+        nb = scn.nb
+
+        split_path = self.data_path.split('.')
+        nb_ob = scn.path_resolve('.'.join(split_path[:2]))
+        name = nb_ob.name
+        tractob = bpy.data.objects[name]
+
+        self.switch_direction(tractob,
+                              idx=self.point_index,
+                              axis='XYZ'.index(self.axis),
+                              co=self.co)
+
+        return {"FINISHED"}
+
+    def invoke(self, context, event):
+
+        return context.window_manager.invoke_props_dialog(self)
+
+    def switch_direction(self, tractob, idx=0, axis=0, co=0.):
+        """Switch direction of splines."""
+
+        for spl in tractob.data.splines:
+            for point in spl.points:
+                point.select = spl.points[idx].co[axis] > co
+
+        bpy.ops.object.mode_set(mode='EDIT')
+        bpy.ops.curve.switch_direction()
+        bpy.ops.object.mode_set(mode='OBJECT')
+

@@ -318,6 +318,10 @@ def anim_nb_object_enum_callback(self, context):
                  for nb_ob in nb_coll
                  for carver in nb_ob.carvers
                  for cob in carver.carveobjects]
+        items += [(tract.path_from_id(),
+                   tract.name,
+                   "List all carveobjects")
+                  for tract in nb.tracts]
         if not items:
             items = [("no_carveobjects", "No carveobjects found", "")]
 
@@ -388,9 +392,11 @@ def direction_toggle_update(self, context):
             mod = fcu.modifiers[0]  # FIXME: this is sloppy
             intercept, slope, _ = nb_an.calculate_coefficients(campath, self)
             mod.coefficients = (intercept, slope)
+
     elif self.animationtype == "carver":
         aca = bpy.types.NB_OT_animate_carver
         aca.animate(self)
+
     elif self.animationtype == "timeseries":
         ats = bpy.types.NB_OT_animate_timeseries
         ats.animate(self)
@@ -1417,6 +1423,32 @@ def overlays_enum_callback(self, context):
     return items
 
 
+def sliceproperty_enum_callback(self, context):
+    """Populate the enum based on available options."""
+
+    scn = context.scene
+    nb = scn.nb
+
+    nb_ob = scn.path_resolve(self.nb_object_data_path)
+    # TODO: return if not defined
+
+    try:
+        pg_sc1 = bpy.types.TractProperties
+    except AttributeError:
+        pg_sc1 = pg.bl_rna_get_subclass_py("TractProperties")
+
+    if isinstance(nb_ob, pg_sc1):
+        items = [("bevel_depth", "Bevel depth", "Bevel depth", 0),
+                 ("bevel_factor_start", "Bevel factor start",
+                  "Bevel factor start", 1)]
+    else:
+        items = [("Thickness", "Thickness", "Thickness", 0),
+                 ("Position", "Position", "Position", 1),
+                 ("Angle", "Angle", "Angle", 2)]
+
+    return items
+
+
 # ========================================================================== #
 # NeuroBlender custom properties
 # ========================================================================== #
@@ -1824,6 +1856,15 @@ class AnimationProperties(pg):
         max=1,
         update=timings_enum_update)
 
+    anim_range = FloatVectorProperty(
+        name="anim range",
+        description="Relative limits on the values of the property",
+        size=2,
+        default=[0, 1],
+        min=0,
+        max=1,
+        update=timings_enum_update)
+
     anim_block = IntVectorProperty(
         name="anim block",
         description="",
@@ -1835,6 +1876,34 @@ class AnimationProperties(pg):
         description="Toggle direction of trajectory traversal",
         default=False,
         update=direction_toggle_update)
+
+    reverse_action = BoolProperty(
+        name="Reverse action",
+        description="Toggle direction of action grow/eat",
+        default=False,
+        update=direction_toggle_update)
+
+    mirror = BoolProperty(
+        name="Mirror",
+        description="Mirror repetition cycles",
+        default=False,
+        update=direction_toggle_update)
+
+    noise_scale = FloatProperty(
+        name="scale",
+        description="amplitude of added noise",
+        default=1,
+        update=direction_toggle_update)
+    noise_strength = FloatProperty(
+        name="strength",
+        description="amplitude of added noise",
+        default=0,
+        update=direction_toggle_update)
+
+    default_value = FloatProperty(
+        name="Default value",
+        description="Default value for animated property",
+        default=0)
 
     camera = StringProperty(
         name="Camera",
@@ -1890,10 +1959,7 @@ class AnimationProperties(pg):
     sliceproperty = EnumProperty(
         name="Property to animate",
         description="Select property to animate",
-        items=[("Thickness", "Thickness", "Thickness", 0),
-               ("Position", "Position", "Position", 1),
-               ("Angle", "Angle", "Angle", 2)],
-        default="Position",
+        items=sliceproperty_enum_callback,
         update=anim_update)
 
     cnsname = StringProperty(
@@ -1906,6 +1972,9 @@ class AnimationProperties(pg):
         description="Specify the interpolation to use for the fcurve",
         default='LINEAR')
 
+    rna_data_path = StringProperty(
+        name="RNA path",
+        description="Path to this animation's RNA")
     fcurve_data_path = StringProperty(
         name="FCurve path",
         description="Path to this animation's fcurve")
@@ -3139,6 +3208,10 @@ class NeuroBlenderProperties(pg):
         name="Timings",
         default=True,
         description="Show/hide the animation's timings")
+    show_carver_properties = BoolProperty(
+        name="Animation properties",
+        default=False,
+        description="Show/hide the animation properties")
     show_animcamerapath = BoolProperty(
         name="CameraPath",
         default=True,
@@ -3264,11 +3337,11 @@ class NeuroBlenderProperties(pg):
         name="Animation type",
         description="Switch between animation types",
         items=[("camerapath", "Camera trajectory",
-                "Let the camera follow a trajectory", 1),
+                "Let the camera follow a trajectory", 0),
                ("carver", "Carver",
-                "Animate a carver", 2),
+                "Animate a carver", 1),
                ("timeseries", "Time series",
-                "Play a time series", 3)])
+                "Play a time series", 2)])
 
     # TODO: move elsewhere
     cr_keeprange = BoolProperty(
