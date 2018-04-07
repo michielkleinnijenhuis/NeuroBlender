@@ -762,29 +762,59 @@ class NB_OT_collection(Operator):
         prop = "slice{}".format(anim.sliceproperty.lower())
         prop_path = '{}.{}'.format(anim.nb_object_data_path, prop)
         idx = 'XYZ'.index(anim.axis)
-        prev = nb_an.get_animation_fcurve(
-            anim,
+        ad_rna = scn  # voxelvolumes
+#         ad_rna = tractob.data  # tracts TODO
+        ad = ad_rna.animation_data
+        nb_an.get_animation_fcurve(
+            anim, ad,
             data_path=prop_path,
             idx=idx,
-            remove=True)[1]
+            remove=True)
+
         # reset the property
-        nb_an.restore_state_carver(prev)
+        nb_an.restore_state_carver(anim)  # curve=...
 
     def remove_animations_timeseries(self, anims, index):
         """Remove timeseries animation."""
 
         scn = bpy.context.scene
 
-        # get the fcurve
         anim = anims[index]
+
+        # get the fcurve
         prop = 'index_scalars'
         prop_path = '{}.{}'.format(anim.nb_object_data_path, prop)
-        prev = nb_an.get_animation_fcurve(
-            anim,
+        ad_rna = scn
+        ad = ad_rna.animation_data
+        nb_an.get_animation_fcurve(
+            anim, ad,
             data_path=prop_path,
-            remove=True)[1]
+            remove=True)
+
         # reset the property
-        nb_an.restore_state_timeseries(prev)
+        nb_an.restore_state_timeseries(anim)
+
+    def remove_animations_morph(self, anims, index):
+        """Remove timeseries animation."""
+
+        scn = bpy.context.scene
+
+        anim = anims[index]
+        nb_ob = scn.path_resolve(anim.nb_object_data_path)
+        ob = bpy.data.objects[nb_ob.name]
+
+        # get the fcurve
+        prop = 'eval_time'
+        prop_path = '{}'.format(prop)
+        ad_rna = ob.data.shape_keys
+        ad = ad_rna.animation_data
+        nb_an.get_animation_fcurve(
+            anim, ad,
+            data_path=prop_path,
+            remove=True)
+
+        # reset the property
+        nb_an.restore_state_morph(anim)
 
     def remove_carvers(self, context, data_path):
         """Remove a carver."""
@@ -848,7 +878,7 @@ class NB_MT_mass_select(Menu):
                             text=txt).action = act
 
 
-for ui in ['L1', 'L2', 'L3', 'CM', 'PL', 'TB', 'AN', 'CP', 'CO']:
+for ui in ['L1', 'L2', 'L3', 'CM', 'PL', 'TB', 'AN', 'CP', 'CO', 'TS']:
 
     idname = "NB_MT_mass_select_{}".format(ui)
 
