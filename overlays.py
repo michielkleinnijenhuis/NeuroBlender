@@ -160,6 +160,9 @@ class NB_OT_create_labelgroup(Operator):
 
         streamlines = self.splines_to_streamlines(ob)
         clusters = self.quickbundles(streamlines)
+        if not clusters:
+            return {"CANCELLED"}
+
         nb_ob = self.qb_labelgroup(ob, nb_ob, clusters)
 
         if self.qb_centroids:
