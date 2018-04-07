@@ -454,21 +454,13 @@ class NB_OT_vertexweight_to_vertexcolors(Operator):
     bl_description = "Bake vertex group weights to vertex colours"
     bl_options = {"REGISTER"}
 
-    itemname = StringProperty(
-        name="Name",
-        description="Specify the vertex group to bake",
-        default="")
     data_path = StringProperty(
         name="data path",
         description="Specify object data path",
         default="")
-    index = IntProperty(
-        name="index",
-        description="index",
-        default=-1)
     matname = StringProperty(
-        name="Name",
-        description="Specify the material to bake to",
+        name="Material name",
+        description="Specify material (for baking textures)",
         default="")
 
     def execute(self, context):
@@ -476,89 +468,89 @@ class NB_OT_vertexweight_to_vertexcolors(Operator):
         scn = context.scene
         nb = scn.nb
 
+        items = self.get_items(context)
+        if not items:
+            info = "Items not found"
+            self.report({'ERROR'}, info)
+            return {"CANCELLED"}
+
         nb_ob = eval('.'.join(self.data_path.split('.')[:2]))
         group = eval('.'.join(self.data_path.split('.')[:3]))
+
+        if not self.matname:
+            self.matname = group.name
+
         ob = bpy.data.objects[nb_ob.name]
-
         vcs = ob.data.vertex_colors
-        vc = vcs.new(name=self.itemname)
-        ob.data.vertex_colors.active = vc
-
-        if hasattr(group, 'scalars'):
-            scalar = eval(self.data_path)
-            vgs = [ob.vertex_groups[scalar.name]]
+        for item in items:
+            vc = vcs.new(name=item.name)
+            ob.data.vertex_colors.active = vc
+            vgs = [ob.vertex_groups[item.name]]
             ob = nb_ma.assign_vc(ob, vc, vgs)
-            mat = bpy.data.materials[self.matname]
-            nodes = mat.node_tree.nodes
-            nodes["Attribute"].attribute_name = self.itemname
-            for vc in ob.data.vertex_colors:
-                vc.active_render = vc.name == scalar.name
 
-        elif hasattr(group, 'labels'):
-            vgs = [ob.vertex_groups[label.name] for label in group.labels]
-            ob = nb_ma.assign_vc(ob, vc, vgs, group, colour=[0.5, 0.5, 0.5])
+        mat = bpy.data.materials[self.matname]
+        nodes = mat.node_tree.nodes
+        nodes["Attribute"].attribute_name = items[group.index_scalars].name
 
-#         bpy.ops.object.mode_set(mode="VERTEX_PAINT")
+        for vc in ob.data.vertex_colors:
+            vc.active_render = vc.name == items[group.index_scalars].name
+
+        bpy.ops.object.mode_set(mode="VERTEX_PAINT")
 
         return {"FINISHED"}
 
-    def invoke(self, context, event):
+    def get_items(self, context):
 
-        nb_ob = nb_ut.active_nb_object()[0]
-        nb_ov = nb_ut.active_nb_overlay()[0]
-        nb_item = nb_ut.active_nb_overlayitem()[0]
+        scn = context.scene
+        nb = scn.nb
 
-        if hasattr(nb_ov, 'scalars'):
-            self.index = nb_ov.index_scalars
-        elif hasattr(nb_ov, 'labels'):
-            self.index = nb_ov.index_labels
+        try:
+            pg_sc1 = bpy.types.ScalarGroupProperties
+            pg_sc2 = bpy.types.ScalarProperties
+        except AttributeError:
+            pg_sc1 = pg.bl_rna_get_subclass_py("ScalarGroupProperties")
+            pg_sc2 = pg.bl_rna_get_subclass_py("ScalarProperties")
 
-        self.data_path = nb_item.path_from_id()
+        split_path = self.data_path.split('.')
+        group = scn.path_resolve('.'.join(split_path[:3]))
+        item = scn.path_resolve(self.data_path)
+        if isinstance(item, pg_sc1):
+            items = group.scalars
+        elif isinstance(item, pg_sc2):
+            items = [item]
+        else:
+            items = []
 
-        self.itemname = nb_item.name
-        self.matname = nb_ov.name
-
-        return self.execute(context)
+        return items
 
 
-class NB_OT_vertexweight_to_uv(Operator, ExportHelper):
+class NB_OT_vertexweight_to_uv(Operator):
     bl_idname = "nb.vertexweight_to_uv"
     bl_label = "Bake vertex weights"
     bl_description = "Bake vertex weights to texture (via vcol)"
     bl_options = {"REGISTER", "UNDO", "PRESET"}
 
-    itemname = StringProperty(
-        name="Name",
-        description="Specify the vertex group to bake",
-        default="")
+    get_items = NB_OT_vertexweight_to_vertexcolors.get_items
+
     data_path = StringProperty(
         name="data path",
         description="Specify object data path",
         default="")
-    index = IntProperty(
-        name="index",
-        description="index",
-        default=-1)
-    matname = StringProperty(
-        name="Name",
-        description="Specify the material name for the group",
-        default="")
-    uv_bakeall = BoolProperty(
-        name="Bake all",
-        description="Bake single or all scalars in a group",
-        default=True)
 
     def execute(self, context):
 
         scn = context.scene
         nb = scn.nb
 
-        nb_ob_path = '.'.join(self.data_path.split('.')[:2])
-        nb_ob = scn.path_resolve(nb_ob_path)
-        group_path = '.'.join(self.data_path.split('.')[:3])
-        group = scn.path_resolve(group_path)
+        split_path = self.data_path.split('.')
+        nb_ob = scn.path_resolve('.'.join(split_path[:2]))
+        group = scn.path_resolve('.'.join(split_path[:3]))
 
-        # cancel if surface is not unwrapped
+        items = self.get_items(context)
+        if not items:
+            info = "Items not found"
+            self.report({'ERROR'}, info)
+            return {"CANCELLED"}
         if not nb_ob.is_unwrapped:  # surf.data.uv_layers
             info = "Surface has not been unwrapped"
             self.report({'ERROR'}, info)
@@ -588,8 +580,8 @@ class NB_OT_vertexweight_to_uv(Operator, ExportHelper):
         scn.render.engine = "CYCLES"
         samples = scn.cycles.samples
         preview_samples = scn.cycles.preview_samples
-        scn.cycles.samples = 5
-        scn.cycles.preview_samples = 5
+        scn.cycles.samples = 1
+        scn.cycles.preview_samples = 1
         scn.cycles.bake_type = 'EMIT'
 
         # save old and set new materials for baking
@@ -599,29 +591,39 @@ class NB_OT_vertexweight_to_uv(Operator, ExportHelper):
         uvres = nb.settingprops.uv_resolution
         img = self.create_baking_material(surf, uvres, "bake_vcol")
 
-        # select the item(s) to bake
-        dp_split = re.findall(r"[\w']+", self.data_path)
-        data_path = "{}.{}".format(group.path_from_id(), dp_split[-2])
-        items = scn.path_resolve(data_path)
-        if not self.uv_bakeall:
-            items = [items[self.index]]
-
         # bake
         vcs = surf.data.vertex_colors
-        for i, item in enumerate(items):
-            dp = item.path_from_id()
+        for item in items:
             bpy.ops.nb.vertexweight_to_vertexcolors(
-                itemname=item.name, data_path=dp,
-                index=i, matname="bake_vcol"
-                )
+                data_path=item.path_from_id(),
+                matname="bake_vcol")
+            for vc in ob.data.vertex_colors:
+                vc.active_render = vc.name == item.name
+            vc = vcs[vcs.active_index]
+
+            mat = bpy.data.materials["bake_vcol"]
+            nodes = mat.node_tree.nodes
+            itex = nodes['Image Texture']
+            attr = nodes['Attribute']
+            for node in nodes:
+                node.select = False
+            itex.select = True
+            nodes.active = itex
+            attr.attribute_name = item.name
+
+            filepath = os.path.join(group.texdir, item.name + ".png")
+            img.filepath_raw = filepath
             img.source = 'GENERATED'
-            bpy.ops.object.bake()
-            if len(items) > 1:
-                itemname = item.name[-5:]
-            else:
-                itemname = item.name
-            img.filepath_raw = os.path.join(group.texdir, itemname + ".png")
             img.save()
+#             bpy.ops.object.bake(type='EMIT',
+#                                 filepath=filepath,
+#                                 width=uvres, height=uvres,
+#                                 save_mode='EXTERNAL',
+#                                 use_clear=True)
+            bpy.ops.object.bake()
+            img.filepath_raw = filepath
+            img.save()
+
             vc = vcs[vcs.active_index]
             vcs.remove(vc)
 
@@ -652,26 +654,6 @@ class NB_OT_vertexweight_to_uv(Operator, ExportHelper):
 
         return {"FINISHED"}
 
-    def invoke(self, context, event):
-
-        scn = context.scene
-        nb = scn.nb
-
-        nb_ob = nb_ut.active_nb_object()[0]
-        nb_ov = nb_ut.active_nb_overlay()[0]
-        nb_item = nb_ut.active_nb_overlayitem()[0]
-
-        if hasattr(nb_ov, 'scalars'):
-            self.index = nb_ov.index_scalars
-        elif hasattr(nb_ov, 'labels'):
-            self.index = nb_ov.index_labels
-        self.data_path = nb_item.path_from_id()
-        self.itemname = nb_item.name
-        self.matname = nb_ov.name
-        self.uv_bakeall = nb.settingprops.uv_bakeall
-
-        return self.execute(context)
-
     @staticmethod
     def create_baking_material(surf, uvres, name):
         """Create a material to bake vertex colours to."""
@@ -688,12 +670,12 @@ class NB_OT_vertexweight_to_uv(Operator, ExportHelper):
         img.file_format = 'PNG'
         img.source = 'GENERATED'
         itex.image = img
-        attr.attribute_name = name
+#         attr.attribute_name = name
 
         for node in nodes:
             node.select = False
-        out.select = True
-        nodes.active = out
+        itex.select = True
+        nodes.active = itex
 
         return img
 
