@@ -943,7 +943,10 @@ def carvers_update(self, context):
 
 
 def name_update(self, context):  # FIXME! there's no name checks!
-    """Update the name of a NeuroBlender collection item."""
+    """Update the name of a NeuroBlender collection item.
+
+    TODO: fcurve data paths
+    """
 
     scn = context.scene
     nb = scn.nb
@@ -960,6 +963,7 @@ def name_update(self, context):  # FIXME! there's no name checks!
     def rename_group(coll, group):
         for item in group:
             if item.name.startswith(coll.name_mem):
+#                 newname = item.name.replace(coll.name_mem, coll.name)
                 item_split = item.name.split('.')
                 # FIXME: there can be multiple dots in name
                 if len(item_split) > 1:
@@ -972,6 +976,7 @@ def name_update(self, context):  # FIXME! there's no name checks!
     colltype = dp_split[-2]
 
     if colltype == "tracts":
+        # TODO: rename scalargroups, (node_groups, textures (images)), labelgroups (items)
         colls = [bpy.data.objects,
                  bpy.data.curves]
         rename_group(self, bpy.data.materials)
@@ -1005,7 +1010,9 @@ def name_update(self, context):  # FIXME! there's no name checks!
     elif colltype == "labelgroups":
         parent = '.'.join(self.path_from_id().split('.')[:-1])
         if parent.startswith("nb.tracts"):
-            colls = []  # N/A
+            colls = []
+#             rename_group(self, bpy.data.materials)
+#             rename_group(self, self.labels)  # FIXME: causes recursion
         elif parent.startswith("nb.surfaces"):
             colls = [bpy.data.materials]
         elif parent.startswith("nb.voxelvolumes"):
@@ -1452,6 +1459,12 @@ def active_overlay_update(self, context):
             render_surfaces_scalargroup(nb_ov, ob)
         elif isinstance(nb_ov, pg_sc5):
             render_surfaces_labelgroup(nb_ov, ob)
+
+        for carver in self.carvers:
+            carveob = bpy.data.objects[carver.name]
+            disable_tract_overlay(carveob)
+            for mat in ob.data.materials[1:]:
+                carveob.data.materials.append(mat)
 
 
 def overlays_enum_callback(self, context):
