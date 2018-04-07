@@ -761,54 +761,17 @@ class NB_PT_overlays(bpy.types.Panel):
 
     def draw_nb_overlayprops(self, layout, nb, nb_ob, nb_ov):
 
-        if nb.overlaytype == "scalargroups":
+        if nb.objecttype == "voxelvolumes":
+            self.drawunit_voxelvolumes(layout, nb, nb_ov)
 
-            # (time)series
-            if len(nb_ov.scalars) > 1:
-                row = layout.row()
-                row.template_list("NB_UL_collection_TS", "",
-                                  nb_ov, "scalars",
-                                  nb_ov, "index_scalars",
-                                  rows=2, type="COMPACT")
-
-            # texture baking
-            if nb.objecttype == 'surfaces':
-                self.drawunit_bake(layout, nb_ob)
-
-            self.drawunit_tri(layout, "overlay_material", nb, nb_ov)
-
-        else:
-
+        if nb.settingprops.advanced:
             self.drawunit_tri(layout, "items", nb, nb_ov)
+
+        if nb.overlaytype == "scalargroups":
+            self.drawunit_tri(layout, "overlay_material", nb, nb_ov)
 
         if nb.settingprops.advanced:
             self.drawunit_tri(layout, "overlay_info", nb, nb_ov)
-
-    def drawunit_bake(self, layout, nb_ob):
-
-        row = layout.row()
-        row.separator()
-
-        scn = bpy.context.scene
-        nb = scn.nb
-
-        row = layout.row()
-        col = row.column()
-        col.operator("nb.weightpaint", text="",
-                     icon="GROUP_VERTEX")
-        col = row.column()
-        col.operator("nb.vertexweight_to_vertexcolors", text="",
-                     icon="GROUP_VCOL")
-        col = row.column()
-        col.operator("nb.vertexweight_to_uv", text="",
-                     icon="GROUP_UVS")
-        col.enabled = nb_ob.is_unwrapped
-        col = row.column()
-        col.prop(nb.settingprops, "uv_bakeall", toggle=True)
-        col.enabled = nb_ob.is_unwrapped
-
-        row = layout.row()
-        row.separator()
 
     def drawunit_tri_overlay_material(self, layout, nb, nb_ov):
 
@@ -817,7 +780,9 @@ class NB_PT_overlays(bpy.types.Panel):
 
         if nb.objecttype == "tracts":
 
-            ng = bpy.data.node_groups.get("TractOvGroup.{}".format(nb_ov.name))
+            # FIXME: error on name truncation
+            ngname = "TractOvGroup.{}".format(nb_ov.name)
+            ng = bpy.data.node_groups.get(ngname)
             ramp = ng.nodes["ColorRamp"]
 
             self.drawunit_colourmap(layout, nb, ramp, nb_ov)
@@ -852,9 +817,9 @@ class NB_PT_overlays(bpy.types.Panel):
             mat = bpy.data.materials[nb_parent.name]
             ts = mat.texture_slots.get(nb_ov.name)
 
-            # TODO: texture mixing options and reorder textures from NB
-            row = layout.row()
-            row.prop(ts, "blend_type")
+#             # TODO: texture mixing options and reorder textures from NB
+#             row = layout.row()
+#             row.prop(ts, "blend_type")
 
             self.drawunit_texture(layout, ts.texture, nb_ov)
 
@@ -865,35 +830,20 @@ class NB_PT_overlays(bpy.types.Panel):
 
         itemtype = nb.overlaytype.replace("groups", "s")
 
-        if nb.objecttype == "voxelvolumes":
-
-            dpath = nb_ov.path_from_id()
-            parentpath = '.'.join(dpath.split('.')[:-1])
-            nb_parent = bpy.context.scene.path_resolve(parentpath)
-            mat = bpy.data.materials[nb_parent.name]
-            ts = mat.texture_slots.get(nb_ov.name)
-
-            # TODO: texture mixing options and reorder textures from NB
-            row = layout.row()
-            row.prop(ts, "blend_type")
-
-            if nb.settingprops.advanced:
-                ts = mat.texture_slots.get(nb_ov.name)
-                row = layout.row()
-                row.prop(ts, "emission_factor")
-                row.prop(ts, "emission_color_factor")
-
-        self.drawunit_UIList(layout, "L3", nb_ov, itemtype,
-                             addopt=False, delopt=False)
-
-        self.drawunit_tri(layout, "itemprops", nb, nb_ov)
-#         if itemtype == "labels":
-#             if len(nb_ov.labels) < 33:  # TODO: proper method
-#                 self.drawunit_tri(layout, "itemprops", nb, nb_ov)
-#             else:
-#                 self.drawunit_tri(layout, "overlay_material", nb, nb_ov)
-#         else:
-#             self.drawunit_tri(layout, "itemprops", nb, nb_ov)
+        if itemtype == 'scalars':
+            self.drawunit_UIList(layout, "TS", nb_ov, 'scalars',
+                                 addopt=False, delopt=False)
+        else:
+            self.drawunit_UIList(layout, "L3", nb_ov, itemtype,
+                                 addopt=False, delopt=False)
+            self.drawunit_tri(layout, "itemprops", nb, nb_ov)
+    #         if itemtype == "labels":
+    #             if len(nb_ov.labels) < 33:  # TODO: proper method
+    #                 self.drawunit_tri(layout, "itemprops", nb, nb_ov)
+    #             else:
+    #                 self.drawunit_tri(layout, "overlay_material", nb, nb_ov)
+    #         else:
+    #             self.drawunit_tri(layout, "itemprops", nb, nb_ov)
 
     def drawunit_tri_itemprops(self, layout, nb, nb_ov):
 
@@ -952,6 +902,24 @@ class NB_PT_overlays(bpy.types.Panel):
         row.label(text="Bevel:")
         row.prop(ob.data, "bevel_depth")
         row.prop(ob.data, "bevel_resolution")
+
+    def drawunit_voxelvolumes(self, layout, nb, nb_ov):
+
+        dpath = nb_ov.path_from_id()
+        parentpath = '.'.join(dpath.split('.')[:-1])
+        nb_parent = bpy.context.scene.path_resolve(parentpath)
+        mat = bpy.data.materials[nb_parent.name]
+        ts = mat.texture_slots.get(nb_ov.name)
+
+        # TODO: texture mixing options and reorder textures from NB
+        row = layout.row()
+        row.prop(ts, "blend_type")
+
+        if nb.settingprops.advanced:
+            ts = mat.texture_slots.get(nb_ov.name)
+            row = layout.row()
+            row.prop(ts, "emission_factor")
+            row.prop(ts, "emission_color_factor")
 
     def drawunit_tri_overlay_info(self, layout, nb, nb_ov):
 
