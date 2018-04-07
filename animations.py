@@ -41,6 +41,7 @@ from bpy.props import (StringProperty,
                        FloatProperty)
 
 from . import (materials as nb_ma,
+               properties as nb_pr,
                utils as nb_ut)
 
 
@@ -654,6 +655,173 @@ class NB_OT_animate_timeseries(Operator):
         scn.frame_set(frame_current)
 
 
+class NB_OT_animate_morph(Operator):
+    bl_idname = "nb.animate_morph"
+    bl_label = "Set morph animation"
+    bl_description = "Add a morph animation"""
+    bl_options = {"REGISTER", "UNDO", "PRESET"}
+
+    name = StringProperty(
+        name="Name",
+        description="Specify a name for the animation",
+        default="MorphAnimation")
+
+    animationtype = StringProperty(
+        name="Animation type",
+        description="dummy",
+        default="morph")
+    nb_object_data_path = EnumProperty(
+        name="Animation object",
+        description="Specify path to object to animate",
+        items=nb_pr.anim_nb_object_enum_callback)
+#     nb_object_data_path = StringProperty(
+#         name="Morphobject data path",
+#         description="Specify a the path to the morphobject")
+
+    nb_target_data_path = StringProperty(
+        name="Morphobject data path",
+        description="Specify a the path to the morphobject")
+
+    def draw(self, context):
+
+        row = self.layout.row()
+        row.prop(self, "nb_object_data_path")
+
+    def execute(self, context):
+
+        scn = context.scene
+        nb = scn.nb
+
+        ca = [nb.animations]
+        name = nb_ut.check_name(self.name, "", ca)
+
+        animprops = {"name": name,
+                     "animationtype": 'morph',
+                     "icon": "MOD_BOOLEAN",
+                     "nb_object_data_path": self.nb_object_data_path,
+                     "nb_target_data_path": self.nb_target_data_path}
+        anim = nb_ut.add_item(nb, "animations", animprops)
+        anim.animationtype = 'morph'
+
+        if anim.nb_object_data_path != 'no_objects':
+            self.animate(anim)
+            # TODO: carved objects?
+
+        return {"FINISHED"}
+
+    def invoke(self, context, event):
+
+        return context.window_manager.invoke_props_dialog(self)
+
+    @staticmethod
+    def animate(anim):
+        """Set up a carver animation."""
+
+        scn = bpy.context.scene
+        nb = scn.nb
+
+        amo = bpy.types.NB_OT_animate_morph
+        amo.animate_morph_surfaces(anim)
+
+        # update
+        scn.frame_current = scn.frame_current
+
+    @staticmethod
+    def animate_morph_surfaces(anim):
+        """Animate a surface morph."""
+
+        scn = bpy.context.scene
+
+        nb_ob = scn.path_resolve(anim.nb_object_data_path)
+        ob = bpy.data.objects[nb_ob.name]
+
+        amo = bpy.types.NB_OT_animate_morph
+        amo.add_shape_key(anim, ob)
+        amo.update_fcurve(anim)
+
+    @staticmethod
+    def update_fcurve(anim):
+
+        scn = bpy.context.scene
+
+        nb_ob = scn.path_resolve(anim.nb_object_data_path)
+        ob = bpy.data.objects[nb_ob.name]
+
+        nblocks = len(ob.data.shape_keys.key_blocks)
+        rangedict = {'eval_time': [10, nblocks * 10]}
+
+        ad_rna = ob.data.shape_keys
+        prop = 'eval_time'
+        prop_path = '{}'.format(prop)
+        idx = 0
+        actionname = '{}Action'.format(anim.name)
+
+        if anim.rna_data_path:
+            prev_rna = eval(anim.rna_data_path)
+            if anim.rna_data_path == 'bpy.context.scene':
+                ad = ad_rna.animation_data_create()
+                prev_rna.animation_data_clear()
+            elif prev_rna != ad_rna:
+                ad = copy_animation_data(prev_rna, ad_rna)
+                prev_rna.animation_data_clear()
+            else:
+                ad = ad_rna.animation_data_create()
+#             restore_state_morph(anim)
+        else:
+            ad = ad_rna.animation_data_create()
+
+        fcu = get_animation_fcurve(anim, ad, data_path=prop_path,
+                                   idx=idx, actionname=actionname)
+        fcu.data_path = anim.fcurve_data_path = prop_path
+        fcu.array_index = anim.fcurve_array_index = idx
+        anim.rna_data_path = 'bpy.data.shape_keys["{}"]'.format(ad_rna.name)
+        anim.default_value = eval('{}.{}'.format(anim.rna_data_path, prop_path))
+        build_fcurve(rangedict[prop], fcu, anim)
+
+    @staticmethod
+    def add_shape_key(anim, ob):
+
+        from_point = anim.nb_target_data_path == 'from_point'
+
+        # get target shape object
+        scn = bpy.context.scene
+        if from_point:
+            shape = None
+        else:
+            nb_tg = scn.path_resolve(anim.nb_target_data_path)
+            shape = bpy.data.objects[nb_tg.name]
+            # hide the target object
+            shape.hide = shape.hide_render = shape != ob
+
+        # add shape key
+        amo = bpy.types.NB_OT_animate_morph
+        key_block = amo.add_key_block(ob, shape, from_point=from_point)
+
+        # turn into absolute shape key
+        shape_keys = ob.data.shape_keys
+        shape_keys.use_relative = False
+        ob.active_shape_key_index = len(ob.data.shape_keys.key_blocks) - 1  # TODO: always add at end
+        override = bpy.context.copy()
+        override['object'] = ob
+        bpy.ops.object.shape_key_retime(override)
+
+        return shape_keys
+
+    @staticmethod
+    def add_key_block(ob, shape, from_point=False):
+
+        if from_point:
+            shape_key = ob.shape_key_add(name='from_point', from_mix=False)
+            for vert in ob.data.vertices:
+                shape_key.data[vert.index].co = [0, 0, 0]
+        else:
+            shape_key = ob.shape_key_add(name=shape.name, from_mix=False)
+            for vert in shape.data.vertices:
+                shape_key.data[vert.index].co = vert.co
+
+        return shape_key
+
+
 class NB_OT_import_animation(Operator):
     bl_idname = "nb.import_animations"
     bl_label = "New animation"
@@ -1179,6 +1347,26 @@ def restore_state_timeseries(anim):
     data_path = '.'.join(dp.split('.')[:-1])
     item = scn.path_resolve(data_path)
     exec('item.{} = {:d}'.format(prev_prop, int(pv)))
+
+
+def restore_state_morph(anim):
+    """Restore a previous state of a carver property."""
+
+    scn = bpy.context.scene
+
+    nb_ob = scn.path_resolve(anim.nb_object_data_path)
+    ob = bpy.data.objects[nb_ob.name]
+
+    override = bpy.context.copy()
+    override['object'] = ob
+    bpy.ops.object.shape_key_remove(override, all=True)
+
+    # update
+    for obj in bpy.context.scene.objects:
+        obj.select = ob == obj
+    bpy.context.scene.objects.active = ob
+    bpy.ops.object.mode_set(mode='EDIT')
+    bpy.ops.object.mode_set(mode='OBJECT')
 
 
 def calculate_coefficients(campath, anim):
