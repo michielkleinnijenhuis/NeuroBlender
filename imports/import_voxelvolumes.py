@@ -409,10 +409,16 @@ class NB_OT_import_voxelvolumes(Operator, ImportHelper):
             infostring += "dimensions: [{:4d}, {:4d}, {:4d}, {:4d}]\n"
             infostring += "datarange: [{:.6f}, {:.6f}]\n"
             infostring += "{}"
+#             info = infostring.format(info, name, fpath,
+#                                      Matrix(texdict["affine"]),
+#                                      *texdict['dims'],
+#                                      *texdict['datarange'],
+#                                      info_load)
+            # older python versions
             info = infostring.format(info, name, fpath,
                                      Matrix(texdict["affine"]),
-                                     *texdict['dims'],
-                                     *texdict['datarange'],
+                                     texdict['dims'][0], texdict['dims'][1], texdict['dims'][2], texdict['dims'][3],
+                                     texdict['datarange'][0], texdict['datarange'][1],
                                      info_load)
 
         return info
