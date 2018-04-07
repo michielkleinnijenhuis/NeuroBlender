@@ -276,7 +276,22 @@ class NB_UL_collection(UIList):
 
     def draw_advanced_TS(self, layout, data, item, index):
 
-        pass
+        scn = bpy.context.scene
+
+        row = layout.row(align=True)
+        row.prop(item, "name", text="", emboss=False,
+                 translate=False, icon=item.icon)
+
+        try:
+            pg_sc1 = bpy.types.SurfaceProperties
+        except AttributeError:
+            pg_sc1 = pg.bl_rna_get_subclass_py("SurfaceProperties")
+
+        split_path = item.path_from_id().split('.')
+        nb_ob = scn.path_resolve('.'.join(split_path[:2]))
+        if isinstance(nb_ob, pg_sc1):
+            self.draw_surfops(row, item, is_unwrapped=True)
+            #FIXME data.is_unwrapped
 
     def draw_advanced_PS(self, layout, data, item, index):
 
