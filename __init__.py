@@ -205,7 +205,11 @@ class NB_UL_collection(UIList):
 
         row = layout.row(align=True)
 
-        if bpy.context.scene.nb.overlaytype == 'labelgroups':
+        if ((bpy.context.scene.nb.objecttype == 'surfaces') and
+                (bpy.context.scene.nb.overlaytype == 'scalargroups')):
+            self.draw_surfops(row, item, is_unwrapped=data.is_unwrapped)
+
+        elif bpy.context.scene.nb.overlaytype == 'labelgroups':
             row.operator('nb.separate_labels',
                          icon='PARTICLE_PATH',
                          text="").data_path = item.path_from_id()
@@ -296,6 +300,21 @@ class NB_UL_collection(UIList):
         row = layout.row(align=True)
 
         row.prop(item, "nn_position", text="")
+
+    def draw_surfops(self, layout, item, is_unwrapped=False):
+
+        col = layout.column()
+        col.operator("nb.weightpaint", text="",
+                     icon="GROUP_VERTEX")
+
+        col = layout.column()
+        col.operator("nb.vertexweight_to_vertexcolors", text="",
+                     icon="GROUP_VCOL").data_path = item.path_from_id()
+
+        col = layout.column()
+        col.operator("nb.vertexweight_to_uv", text="",
+                     icon="GROUP_UVS").data_path = item.path_from_id()
+        col.enabled = is_unwrapped
 
 
 for ui in ['L1', 'L2', 'L3', 'PS', 'CM', 'PL', 'TB',
