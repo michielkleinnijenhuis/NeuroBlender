@@ -186,6 +186,8 @@ class NB_OT_import_voxelvolumes(Operator, ImportHelper):
         default=[0, -1, 1],
         size=3)
 
+    # TODO: reset the preset before loading
+
     def execute(self, context):
 
         if self.has_valid_texdir and (not self.overwrite):
@@ -441,6 +443,7 @@ class NB_OT_import_voxelvolumes(Operator, ImportHelper):
             texsource = "LOADED"
 
         except:
+            # TODO: check if file exists first
 
             texsource = "CREATED"
             texdict = self.create_texdir(texdict)
@@ -637,6 +640,7 @@ class NB_OT_import_voxelvolumes(Operator, ImportHelper):
         else:
             labels = None
 
+        # NOTE/FIXME: this converts to float64
         data, datarange = nb_ut.normalize_data(data)
 
         imdir = os.path.join(bpy.path.abspath(texdir), texformat)

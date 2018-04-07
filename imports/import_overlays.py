@@ -432,6 +432,7 @@ class NB_OT_import_overlays(Operator, ImportHelper):
                 return "failed"
 
         # normalize between 0  and 1
+        # NOTE/FIXME: this converts to float64
         timeseries, timeseriesrange = nb_ut.normalize_data(timeseries)
 
         # unique names for the group and items
