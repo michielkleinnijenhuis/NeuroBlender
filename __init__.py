@@ -181,6 +181,9 @@ class NB_UL_collection(UIList):
 
         if ((bpy.context.scene.nb.objecttype == 'tracts') or
                 (bpy.context.scene.nb.objecttype == 'surfaces')):
+            row.operator('nb.switch_direction',
+                         icon='PARTICLE_POINT',
+                         text="").data_path = item.path_from_id()
             row.operator('nb.create_labelgroup',
                          icon='PARTICLE_TIP',
                          text="").data_path = item.path_from_id()
