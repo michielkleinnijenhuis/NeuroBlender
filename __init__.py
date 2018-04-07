@@ -102,7 +102,9 @@ class NB_UL_collection(UIList):
 
         if self.layout_type in {'DEFAULT', 'COMPACT'}:
 
-            if self.ui == 'CP':
+            if self.ui == 'L2':
+                fun = self.draw_default_L2
+            elif self.ui == 'CP':
                 fun = self.draw_default_CP
             elif self.ui == 'TS':
                 fun = self.draw_default_TS
@@ -140,6 +142,20 @@ class NB_UL_collection(UIList):
         col.prop(item, "name", text="", emboss=False,
                  translate=False, icon=item_icon)
 
+    def draw_default_L2(self, layout, item, item_icon):
+
+        row = layout.row()
+        row.prop(item, "name", text="", emboss=False,
+                 translate=False, icon=item_icon)
+
+        if not bpy.context.scene.nb.settingprops.advanced:
+            if bpy.context.scene.nb.overlaytype == 'scalargroups':
+                if len(item.scalars) > 1:
+                    row.template_list("NB_UL_collection_TS", "",
+                                      item, "scalars",
+                                      item, "index_scalars",
+                                      rows=2, type="COMPACT")
+
     def draw_default_CP(self, layout, item, item_icon):
 
         row = layout.row()
@@ -147,7 +163,7 @@ class NB_UL_collection(UIList):
 
     def draw_default_TS(self, layout, item, item_icon):
 
-        layout.label(text="Time index:")
+        pass
 
     def draw_advanced(self, layout, data, item, index):
 
