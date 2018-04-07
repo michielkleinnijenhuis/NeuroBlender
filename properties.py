@@ -336,6 +336,44 @@ def anim_nb_object_enum_callback(self, context):
         if not items:
             items = [("no_timeseries", "No timeseries found", "")]
 
+#     if self.animationtype == 'grow':
+#         items = [(nb_ob.path_from_id(),
+#                   '{}'.format(nb_ob.name),
+#                   "List all objects")
+#                  for nb_coll in [nb.tracts, nb.surfaces, nb.voxelvolumes]
+#                  for nb_ob in nb_coll]
+#         if not items:
+#             items = [("no_objects", "No objects found", "")]
+
+    if self.animationtype == 'morph':
+        items = [(nb_ob.path_from_id(),
+                  '{}'.format(nb_ob.name),
+                  "List all objects")
+                 for nb_coll in [nb.surfaces]
+                 for nb_ob in nb_coll]
+        if not items:
+            items = [("no_objects", "No objects found", "")]
+
+    return items
+
+
+def anim_nb_target_enum_callback(self, context):
+    """Populate the enum based on available options."""
+
+    scn = context.scene
+    nb = scn.nb
+
+    if self.animationtype == 'morph':
+        items = [(nb_ob.path_from_id(),
+                  '{}'.format(nb_ob.name),
+                  "List all objects")
+                 for nb_coll in [nb.surfaces]
+                 for nb_ob in nb_coll]
+        items += [('from_point', "From point", "From point")]
+
+        if not items:
+            items = [("no_objects", "No objects found", "")]
+
     return items
 
 
@@ -374,6 +412,10 @@ def timings_enum_update(self, context):
         ats = bpy.types.NB_OT_animate_timeseries
         ats.animate(self)
 
+    elif self.animationtype == "morph":
+        amo = bpy.types.NB_OT_animate_morph
+        amo.update_fcurve(self)
+
 
 def direction_toggle_update(self, context):
     """Update the direction of animation on a curve."""
@@ -400,6 +442,10 @@ def direction_toggle_update(self, context):
     elif self.animationtype == "timeseries":
         ats = bpy.types.NB_OT_animate_timeseries
         ats.animate(self)
+
+    elif self.animationtype == "morph":
+        amo = bpy.types.NB_OT_animate_morph
+        amo.update_fcurve(self)
 
 
 def campaths_enum_update(self, context):
@@ -1829,7 +1875,10 @@ class AnimationProperties(pg):
                ("carver", "Carver",
                 "Animate a carver", 1),
                ("timeseries", "Time series",
-                "Play a time series", 2)])
+                "Play a time series", 2),
+               ("morph", "Morph",
+                "Morph an object over time", 3),
+               ])
 
     frame_start = IntProperty(
         name="startframe",
@@ -1954,6 +2003,12 @@ class AnimationProperties(pg):
         name="Animation object",
         description="Specify path to object to animate",
         items=anim_nb_object_enum_callback,
+        update=anim_update)
+
+    nb_target_data_path = EnumProperty(
+        name="Target object",
+        description="Specify path to object to animate",
+        items=anim_nb_target_enum_callback,
         update=anim_update)
 
     sliceproperty = EnumProperty(
@@ -3341,7 +3396,10 @@ class NeuroBlenderProperties(pg):
                ("carver", "Carver",
                 "Animate a carver", 1),
                ("timeseries", "Time series",
-                "Play a time series", 2)])
+                "Play a time series", 2),
+               ("morph", "Morph",
+                "Morph an object over time", 3),
+               ])
 
     # TODO: move elsewhere
     cr_keeprange = BoolProperty(
