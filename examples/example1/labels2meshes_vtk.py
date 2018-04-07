@@ -96,7 +96,7 @@ def labels2meshes_vtk(surfdir, compdict, labelimage, labels=[],
     vol.GetPointData().SetScalars(sc)
 
     dmc = vtk.vtkDiscreteMarchingCubes()
-    dmc.SetInput(vol)
+    dmc.SetInputData(vol)  # dmc.SetInput(vol)  # FIXME: dmc.SetInputData(vol) for newer vtk versions (>5.1?)
     dmc.ComputeNormalsOn()
 
     for label in labels:
