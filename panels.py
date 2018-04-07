@@ -1370,14 +1370,12 @@ class NB_PT_animation(bpy.types.Panel):
         row = layout.row()
         row.prop(anim, "nb_object_data_path", expand=False, text="")
 
-    def drawunit_animation_grow(self, layout, nb):
+    def drawunit_animation_morph(self, layout, nb):
 
         anim = nb.animations[nb.index_animations]
 
-#         row = layout.row()
-#         col = row.column()
-#         col.prop(anim, "reverse_action", toggle=True,
-#                  icon="ARROW_LEFTRIGHT")
+        row = layout.row()
+        row.prop(anim, "nb_target_data_path", expand=False, text="Target")
 
 
 class NB_PT_settings(bpy.types.Panel):
